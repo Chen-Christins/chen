@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v1.5.2 (2026-10-01)
 
 ### 许可证
 
