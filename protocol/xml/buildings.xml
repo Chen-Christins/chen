@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metalib version="1.0" desc="游戏资源库">
+  <header name="building_resources" desc="建筑资源定义">
+    <!-- 建筑类型枚举 -->
+    <macrogroup name="BuildingType" desc="建筑类型">
+      <macro name="altar_basic" value="0" desc="基础祭坛" />
+      <macro name="altar_advanced" value="1" desc="高级祭坛" />
+      <macro name="gold_mine" value="2" desc="金矿" />
+      <macro name="mana_fountain" value="3" desc="魔法喷泉" />
+      <macro name="crystal_mine" value="4" desc="水晶矿" />
+      <macro name="lumber_camp" value="5" desc="伐木场" />
+      <macro name="farm" value="6" desc="农场" />
+      <macro name="barracks" value="7" desc="兵营" />
+      <macro name="arrow_tower" value="8" desc="箭塔" />
+      <macro name="magic_tower" value="9" desc="魔法塔" />
+      <macro name="wall" value="10" desc="城墙" />
+      <macro name="cannon_tower" value="11" desc="火炮塔" />
+      <macro name="ice_tower" value="12" desc="冰霜塔" />
+      <macro name="lightning_tower" value="13" desc="闪电塔" />
+      <macro name="healing_tower" value="14" desc="治疗塔" />
+      <macro name="teleporter" value="15" desc="传送门" />
+    </macrogroup>
+
+    <!-- 建筑分类枚举 -->
+    <macrogroup name="BuildingCategory" desc="建筑分类">
+      <macro name="building_category_altar" value="0" desc="祭坛类" />
+      <macro name="building_category_resource" value="1" desc="资源生产类" />
+      <macro name="building_category_defense" value="2" desc="防御类" />
+      <macro name="building_category_special" value="3" desc="特殊类" />
+    </macrogroup>
+
+    <!-- 资源类型枚举（供 ProductionInfo / ResourceCost 等引用） -->
+    <macrogroup name="ResourceType" desc="资源类型">
+      <macro name="gold" value="0" desc="金币" />
+      <macro name="mana" value="1" desc="法力" />
+      <macro name="crystal" value="2" desc="水晶" />
+      <macro name="wood" value="3" desc="木材" />
+      <macro name="food" value="4" desc="粮食" />
+    </macrogroup>
+
+    <!-- 建筑常量定义 -->
+    <macro name="max_altar_level" value="5" type="number" desc="祭坛最大等级" />
+    <macro name="max_resource_building_level" value="3" type="number" desc="资源建筑最大等级" />
+    <macro name="max_defense_building_level" value="4" type="number" desc="防御建筑最大等级" />
+    <macro name="default_build_range" value="3" type="number" desc="默认建造范围" />
+
+    <!-- 建筑能力结构 -->
+    <struct name="BuildingAbility" desc="建筑能力">
+      <entry name="name" type="string" desc="能力名称" />
+      <entry name="value" type="float" desc="能力数值" />
+    </struct>
+
+    <!-- 升级成本结构 -->
+    <struct name="UpgradeCost" desc="升级成本">
+      <entry name="level" type="uint" desc="等级" />
+      <entry name="multiplier" type="float" desc="成本倍率" />
+    </struct>
+
+    <!-- 生产信息结构 -->
+    <struct name="ProductionInfo" desc="生产信息">
+      <entry name="resourceType" type="ResourceType" desc="资源类型" />
+      <entry name="amount" type="uint" desc="产出数量" />
+      <entry name="interval" type="uint" desc="产出间隔" />
+    </struct>
+
+    <!-- 资源消耗结构（被 BuildingTemplate.costs 使用） -->
+    <struct name="ResourceCost" desc="资源成本">
+      <entry name="resourceType" type="ResourceType" desc="资源类型" />
+      <entry name="amount" type="uint" desc="数量" />
+    </struct>
+
+    <!-- 召唤单位结构 -->
+    <struct name="SpawnUnit" desc="召唤单位">
+      <entry name="unitType" type="string" desc="单位类型" />
+      <entry name="count" type="uint" desc="数量" />
+      <entry name="respawnTime" type="uint" desc="重生时间" />
+      <entry name="health" type="uint" desc="生命值" />
+      <entry name="damage" type="uint" desc="攻击力" />
+    </struct>
+
+    <!-- 投射物结构 -->
+    <struct name="Projectile" desc="投射物">
+      <entry name="type" type="string" desc="投射物类型" />
+      <entry name="speed" type="float" desc="速度" />
+    </struct>
+
+    <!-- 溅射效果结构 -->
+    <struct name="SplashEffect" desc="溅射效果">
+      <entry name="radius" type="uint" desc="溅射半径" />
+    </struct>
+
+    <!-- 减速效果结构 -->
+    <struct name="SlowEffect" desc="减速效果">
+      <entry name="duration" type="uint" desc="持续时间" />
+      <entry name="effect" type="float" desc="减速效果" />
+    </struct>
+
+    <!-- 连锁效果结构 -->
+    <struct name="ChainEffect" desc="连锁效果">
+      <entry name="maxTargets" type="uint" desc="最大目标数" />
+      <entry name="damageDecay" type="float" desc="伤害衰减" />
+    </struct>
+
+    <!-- 治疗效果结构 -->
+    <struct name="HealEffect" desc="治疗效果">
+      <entry name="amount" type="uint" desc="治疗量" />
+      <entry name="range" type="uint" desc="治疗范围" />
+      <entry name="interval" type="uint" desc="治疗间隔" />
+    </struct>
+
+    <!-- 传送效果结构 -->
+    <struct name="TeleportEffect" desc="传送效果">
+      <entry name="range" type="uint" desc="传送范围" />
+      <entry name="cooldown" type="uint" desc="冷却时间" />
+      <entry name="maxUnits" type="uint" desc="最大单位数" />
+    </struct>
+
+    <!-- 升级效果结构 -->
+    <struct name="UpgradeEffect" desc="升级效果">
+      <entry name="level" type="uint" desc="等级" />
+      <entry name="damage" type="optional[uint]" desc="攻击力" />
+      <entry name="range" type="optional[uint]" desc="攻击范围" />
+      <entry name="health" type="optional[uint]" desc="生命值" />
+      <entry name="unitCount" type="optional[uint]" desc="单位数量" />
+      <entry name="production" type="optional[uint]" desc="产出量" />
+      <entry name="splash" type="optional[uint]" desc="溅射范围" />
+      <entry name="slowDuration" type="optional[uint]" desc="减速持续时间" />
+      <entry name="maxTargets" type="optional[uint]" desc="最大目标数" />
+      <entry name="healAmount" type="optional[uint]" desc="治疗量" />
+    </struct>
+
+    <!-- 建筑需求结构 -->
+    <struct name="BuildingRequirement" desc="建筑需求">
+      <entry name="buildingType" type="BuildingType" desc="建筑类型" />
+      <entry name="level" type="uint" desc="所需等级" />
+    </struct>
+
+    <!-- 地形加成结构（被 BuildingTemplate.terrainBonuses 使用） -->
+    <struct name="TerrainBonus" desc="地形加成">
+      <entry name="terrain" type="string" desc="地形名称" />
+      <entry name="multiplier" type="float" desc="加成倍率" />
+    </struct>
+
+    <!-- 建筑模板结构 -->
+    <struct name="BuildingTemplate" desc="建筑模板">
+      <entry name="buildingType" type="BuildingType" desc="建筑类型" />
+      <entry name="name" type="string" desc="建筑名称" />
+      <entry name="category" type="BuildingCategory" desc="建筑分类" />
+      <entry name="description" type="string" desc="建筑描述" />
+      <entry name="costs" type="list[ResourceCost]" desc="建造成本" />
+      <entry name="level" type="uint" desc="初始等级" />
+      <entry name="maxLevel" type="uint" desc="最大等级" />
+      <entry name="health" type="uint" desc="生命值" />
+      <entry name="buildRange" type="optional[uint]" desc="建造范围" />
+      <entry name="damage" type="optional[uint]" desc="攻击力" />
+      <entry name="attackRange" type="optional[float]" desc="攻击范围" />
+      <entry name="attackSpeed" type="optional[float]" desc="攻击速度" />
+      <entry name="abilities" type="list[BuildingAbility]" desc="建筑能力" />
+      <entry name="upgradeCosts" type="list[UpgradeCost]" desc="升级成本" />
+      <entry name="terrainBonuses" type="list[TerrainBonus]" desc="地形加成" />
+      <entry name="production" type="optional[ProductionInfo]" desc="生产信息" />
+      <entry name="spawn" type="optional[SpawnUnit]" desc="召唤信息" />
+      <entry name="projectile" type="optional[Projectile]" desc="投射物信息" />
+      <entry name="splash" type="optional[SplashEffect]" desc="溅射效果" />
+      <entry name="slow" type="optional[SlowEffect]" desc="减速效果" />
+      <entry name="chain" type="optional[ChainEffect]" desc="连锁效果" />
+      <entry name="heal" type="optional[HealEffect]" desc="治疗效果" />
+      <entry name="teleport" type="optional[TeleportEffect]" desc="传送效果" />
+      <entry name="upgradeEffects" type="list[UpgradeEffect]" desc="升级效果" />
+      <entry name="requirements" type="list[BuildingRequirement]" desc="建造需求" />
+      <entry name="block" type="bool" desc="是否阻挡" default="false" />
+    </struct>
+
+    <!-- 建筑组合需求结构 -->
+    <struct name="CombinationRequirement" desc="建筑组合需求">
+      <entry name="buildingType" type="BuildingType" desc="建筑类型" />
+      <entry name="min" type="uint" desc="最小数量" />
+    </struct>
+
+    <!-- 建筑组合效果结构 -->
+    <struct name="CombinationEffect" desc="建筑组合效果">
+      <entry name="type" type="string" desc="效果类型" />
+      <entry name="value" type="float" desc="效果数值" />
+      <entry name="targets" type="string" desc="目标类型" />
+    </struct>
+
+    <!-- 建筑组合结构 -->
+    <struct name="BuildingCombination" desc="建筑组合">
+      <entry name="name" type="string" desc="组合名称" />
+      <entry name="buildings" type="list[CombinationRequirement]" desc="建筑需求" />
+      <entry name="range" type="uint" desc="影响范围" />
+      <entry name="effect" type="CombinationEffect" desc="组合效果" />
+    </struct>
+
+    <!-- 建筑全局设置 -->
+    <struct name="BuildingGlobalSettings" desc="建筑全局设置">
+      <entry name="maxBuildingsPerPlayer" type="uint" desc="每玩家最大建筑数" />
+      <entry name="altarPowerBonusPerAltar" type="float" desc="每个祭坛的力量加成" />
+      <entry name="constructionTimeBase" type="float" desc="基础建造时间" />
+      <entry name="upgradeCostBase" type="float" desc="升级成本基数" />
+      <entry name="repairRate" type="float" desc="修复速率" />
+    </struct>
+
+    <!-- 建筑配置数据 -->
+    <struct name="BuildingConfig" desc="建筑配置数据">
+      <entry name="templates" type="map[BuildingType, BuildingTemplate]" desc="建筑模板映射" />
+      <entry name="combinations" type="list[BuildingCombination]" desc="建筑组合" />
+      <entry name="globalSettings" type="BuildingGlobalSettings" desc="全局设置" />
+    </struct>
+
+    <!-- 基础信息结构（供其他文件引用） -->
+    <struct name="BuildingInfo" desc="建筑基础信息">
+      <entry name="buildingType" type="BuildingType" desc="建筑类型" />
+      <entry name="name" type="string" desc="名称" />
+      <entry name="category" type="BuildingCategory" desc="分类" />
+      <entry name="level" type="uint" desc="等级" />
+      <entry name="health" type="uint" desc="生命值" />
+    </struct>
+  </header>
+</metalib>

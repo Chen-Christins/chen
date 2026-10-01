@@ -1,7 +1,7 @@
 /**
  * @file xml_converter.hpp
  * @brief Header file for XML to C++ header conversion utility.
- * @author Christins (chen.christins@icloud.com)
+ * @author Christins (chen.christins@qq.com)
  * @date 2026-08-09
  * @copyright GPL-3.0
  */

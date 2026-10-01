@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metalib version="1.0" desc="示例协议汇总">
+  <header name="example_protocol" desc="演示宏、枚举、结构、联合与外部引用">
+    <!-- 引入外部资源定义，便于演示跨文件类型（例如 ResourceType, BuildingInfo） -->
+    <include file="buildings.xml" />
+
+    <!-- 宏定义 -->
+    <macro name="max_cost_items" value="8" type="number" desc="单条目最大资源项数" />
+    <macro name="max_building_level" value="30" type="number" desc="建筑最大等级" />
+    <macro name="max_tags" value="12" type="number" desc="标签数组上限" />
+    <macro name="default_owner" value="newbie" type="string" desc="默认拥有者名称" />
+
+    <!-- 枚举定义 -->
+    <macrogroup name="ConstructionStatus" desc="建造状态">
+      <macro name="pending" value="0" desc="未开始" />
+      <macro name="building" value="1" desc="建造中" />
+      <macro name="finished" value="2" desc="完成" />
+      <macro name="cancelled" value="3" desc="取消" />
+    </macrogroup>
+
+    <!-- 结构体：引用外部 ResourceType 并展示数组使用宏控制长度 -->
+    <struct name="ResourceCost" desc="资源消耗条目">
+      <entry name="resourceType" type="ResourceType" desc="资源类型（来自外部定义）" />
+      <entry name="amount" type="uint" desc="数量" />
+    </struct>
+
+    <!-- 结构体：组合基础字段、数组、枚举、外部类型 -->
+    <struct name="BuildingUpgrade" desc="建筑升级信息">
+      <entry name="buildingId" type="uint" desc="建筑ID" />
+      <entry name="currentLevel" type="ushort" desc="当前等级" />
+      <entry name="targetLevel" type="ushort" desc="目标等级" />
+      <entry name="status" type="ConstructionStatus" desc="当前状态" />
+      <!-- 资源成本数组使用宏 size -->
+      <entry name="costs" type="ResourceCost" array="true" size="max_cost_items" desc="升级所需资源" />
+      <!-- 关联外部建筑基础数据 -->
+      <entry name="baseInfo" type="BuildingInfo" desc="外部定义的建筑基础信息" />
+      <entry name="finishTime" type="timestamp" desc="预计完成时间" />
+      <entry name="owner" type="string" desc="建筑拥有者，默认值见宏 default_owner" />
+      <entry name="tags" type="string" array="true" size="max_tags" desc="标签列表" />
+    </struct>
+
+    <!-- 联合体：演示消息载荷的多形态 -->
+    <union name="UpgradePayload" desc="升级载荷">
+      <entry name="upgrade" type="BuildingUpgrade" desc="升级数据" />
+      <entry name="progress" type="float" desc="进度(0~1)" />
+      <entry name="errorCode" type="int" desc="错误码" />
+    </union>
+
+    <!-- 封装消息：包含状态、载荷与时间戳 -->
+    <struct name="UpgradeNotice" desc="升级通知消息">
+      <entry name="status" type="ConstructionStatus" desc="状态" />
+      <entry name="payload" type="UpgradePayload" desc="载荷内容" />
+      <entry name="serverTime" type="timestamp" desc="服务器时间戳" />
+    </struct>
+  </header>
+</metalib>

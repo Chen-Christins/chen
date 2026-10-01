@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metalib version="1.0" desc="游戏服务器RPC用户信息相关协议">
+  <header name="protocol_user" desc="用户协议定义">
+    <struct name="TestRpcUserInfo" desc="用户信息" serialize="true">
+      <entry name="userId" type="biguint" desc="用户ID" />
+      <entry name="account" type="string" desc="账号" />
+      <entry name="username" type="string" desc="昵称" />
+      <entry name="password" type="string" desc="密码" />
+      <entry name="level" type="uint" desc="等级" />
+      <entry name="exp" type="biguint" desc="经验值" />
+      <entry name="gender" type="uint" desc="性别" />
+      <entry name="power" type="biguint" desc="战力值" />
+      <entry name="online" type="uint" desc="是否在线" />
+      <entry name="status" type="uint" desc="账户状态" />
+      <entry name="vipLevel" type="uint" desc="VIP等级" />
+      <entry name="deviceType" type="string" desc="设备类型" />
+      <entry name="deviceId" type="string" desc="设备ID" />
+      <entry name="clientVersion" type="string" desc="客户端版本" />
+      <entry name="loginTime" type="biguint" desc="上次登录时间戳" />
+    </struct>
+  </header>
+</metalib>
