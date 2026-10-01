@@ -1,0 +1,196 @@
+name: Package SDK (Ubuntu)
+
+on:
+  push:
+    branches:
+      - master
+      - feature/ci
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libtool \
+            gcc \
+            g++ \
+            autoconf \
+            automake \
+            cmake \
+            libboost-all-dev \
+            libsqlite3-dev \
+            libssl-dev \
+            libevent-dev \
+            libmysqlclient-dev \
+            redis \
+            libnghttp2-dev \
+            git \
+            wget \
+            unzip \
+            zip
+
+      - name: Download 3rdparty.zip from release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v1.0.0 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern "3rdparty.zip" \
+            --dir /tmp \
+            --clobber
+
+      - name: Extract and install 3rdparty dependencies
+        run: |
+          INSTALL_DIR="$(pwd)/3rdparty"
+          mkdir -p "$INSTALL_DIR"
+          unzip -d "$INSTALL_DIR" /tmp/3rdparty.zip
+
+          # zip 包内有一层 3rdparty/ 目录
+          SRC_DIR="${INSTALL_DIR}/3rdparty"
+          cd "$SRC_DIR"
+
+          # --- yaml-cpp ---
+          unzip yaml-cpp-0.9.0.zip
+          cd yaml-cpp-yaml-cpp-0.9.0
+          mkdir build && cd build
+          cmake -D BUILD_SHARED_LIBS=ON ..
+          make -j$(nproc)
+          sudo make install
+          cd "$SRC_DIR"
+
+          # --- ragel ---
+          tar -zxvf ragel-6.10.tar.gz
+          cd ragel-6.10
+          ./configure
+          make -j$(nproc)
+          sudo make install
+          cd "$SRC_DIR"
+
+          # --- tinyxml2 ---
+          cd tinyxml2
+          mkdir -p build && cd build
+          cmake -D BUILD_SHARED_LIBS=ON ..
+          make -j$(nproc)
+          sudo make install
+          cd "$SRC_DIR"
+
+          # --- hiredis-vip ---
+          cd hiredis-vip
+          make -j$(nproc)
+          sudo make install
+          cd "$SRC_DIR"
+
+          # --- jsoncpp ---
+          cd jsoncpp
+          mkdir -p build && cd build
+          cmake -D BUILD_SHARED_LIBS=ON ..
+          make -j$(nproc)
+          sudo make install
+          cd "$SRC_DIR"
+
+          # --- protobuf ---
+          tar -zxvf protobuf-all-3.12.4.tar.gz
+          cd protobuf-3.12.4
+          ./configure
+          make -j$(nproc)
+          sudo make install
+
+          sudo ldconfig
+          echo "All 3rdparty dependencies installed."
+
+      - name: Set version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VER="${GITHUB_REF_NAME#v}"
+          else
+            VER="latest"
+          fi
+          echo "version=${VER}" >> "${GITHUB_OUTPUT}"
+
+      - name: Detect architecture
+        id: arch
+        run: echo "arch=$(dpkg --print-architecture)" >> "${GITHUB_OUTPUT}"
+
+      - name: Build SDK
+        run: |
+          make sdk version="${{ steps.version.outputs.version }}"
+          mv "chen-sdk-${{ steps.version.outputs.version }}.zip" \
+             "chen-sdk-${{ steps.version.outputs.version }}-${{ steps.arch.outputs.arch }}.zip"
+
+      - name: Upload SDK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chen-sdk-${{ steps.version.outputs.version }}-${{ steps.arch.outputs.arch }}
+          path: chen-sdk-*.zip
+
+  release:
+    needs: package
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download SDK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+          merge-multiple: true
+
+      - name: Set version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "${GITHUB_OUTPUT}"
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VER="${{ steps.version.outputs.version }}"
+          awk -v ver="## v${VER}" '
+            $0 ~ ver { found=1; next }
+            found && /^## v/ { exit }
+            found
+          ' CHANGELOG.md > /tmp/release_body.md
+          if [ ! -s /tmp/release_body.md ]; then
+            echo "Release ${GITHUB_REF_NAME}" > /tmp/release_body.md
+          fi
+          # 用 cat 输出，避免 echo 把反引号解释为命令替换
+          {
+            echo "body<<EOF"
+            cat /tmp/release_body.md
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --draft \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file /tmp/release_body.md \
+            ./artifacts/chen-sdk-*.zip

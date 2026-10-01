@@ -1,0 +1,23 @@
+// chen/rpc/rpc.proto
+syntax = "proto3";
+
+package chen.rpc;
+
+// RPC 请求消息（序列号由传输层 Protocol.header.sequence 承载）
+message RpcRequest {
+    // 调用的方法名，例如 "add", "UserService.getUser"
+    string method = 2;
+    // 参数列表，这里简化为一个 bytes，具体参数由业务层再次序列化
+    // 或者使用 repeated bytes args = 3; 支持多个参数
+    bytes args = 3;
+}
+
+// RPC 响应消息（序列号由传输层 Protocol.header.sequence 承载）
+message RpcResponse {
+    // 错误码，0 表示成功
+    int32 code = 2;
+    // 错误信息
+    string message = 3;
+    // 返回结果
+    bytes result = 4;
+}
