@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.5.3 (2026-10-08)
+
+### 工具链
+
+- **新增** 可执行程序支持 `-v` / `--version` 打印版本号（输出如 `chen/1.5.2`）；版本号由 `CMakeLists.txt` 的 `project(chen VERSION ...)` 统一定义，`configure_file` 生成 `chen/version.h`；`Env` 参数解析兼容多短横线（`--version`）
+
 ## v1.5.2 (2026-10-01)
 
 ### 许可证

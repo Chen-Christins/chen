@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.18..3.22)
-project(chen)
+project(chen VERSION 1.5.3)
 
 set(ROOT_DIR ${PROJECT_SOURCE_DIR})
+
+configure_file(cmake/version.h.in ${PROJECT_SOURCE_DIR}/chen/version.h @ONLY)
 
 include(cmake/common.cmake)
 include(cmake/utils.cmake)
