@@ -30,11 +30,15 @@ bool Env::init(int argc, char** argv) {
     const char* now_key = nullptr;
     for (int i = 1; i < argc; ++i) {
         if (argv[i][0] == '-') {
-            if (strlen(argv[i]) > 1) {
+            const char* key = argv[i];
+            while (*key == '-') {
+                ++key;
+            }
+            if (*key != '\0') {
                 if (now_key) {
                     add(now_key, "");
                 }
-                now_key = argv[i] + 1;
+                now_key = key;
             } else {
                 ERROR(logger) << "invalid arg idx=" << i
                     << " val=" << argv[i];

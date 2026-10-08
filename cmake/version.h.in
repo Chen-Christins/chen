@@ -1,0 +1,13 @@
+/**
+ * @file version.h
+ * @brief 版本号（由 CMake 根据 CMakeLists.txt 的 project(VERSION) 自动生成，请勿手动修改）
+ * @author Christins
+ * @date 2025-03-12
+ * @copyright GPL-3.0
+ */
+#pragma once
+
+#define CHEN_VERSION       "@PROJECT_VERSION@"
+#define CHEN_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define CHEN_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define CHEN_VERSION_PATCH @PROJECT_VERSION_PATCH@

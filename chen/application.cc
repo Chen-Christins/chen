@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <mutex>
 #include <set>
 
@@ -14,6 +15,7 @@
 #include "iomanager/worker.h"
 #include "module/module.h"
 #include "util/env.h"
+#include "version.h"
 
 namespace chen {
 
@@ -95,11 +97,17 @@ bool Application::init(int argc, char** argv) {
     EnvMgr::GetInstance()->addHelp("s", "start in terminal, or -s reload|stop|quit to signal a running instance");
     EnvMgr::GetInstance()->addHelp("d", "run as daemon");
     EnvMgr::GetInstance()->addHelp("c", "conf path default: ./conf");
+    EnvMgr::GetInstance()->addHelp("v", "print version, e.g. -v or --version");
     EnvMgr::GetInstance()->addHelp("p", "print help");
 
     bool is_print_help = false;
     if (!EnvMgr::GetInstance()->init(argc, argv)) {
         is_print_help = true;
+    }
+
+    if (EnvMgr::GetInstance()->has("v") || EnvMgr::GetInstance()->has("version")) {
+        std::cout << "chen/" << CHEN_VERSION << std::endl;
+        return false;
     }
 
     if (EnvMgr::GetInstance()->has("p")) {
