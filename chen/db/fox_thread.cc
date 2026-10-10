@@ -374,42 +374,35 @@ void FoxThread::unsetThis() {
 }
 
 IFoxThread::ptr FoxThreadManager::get(const std::string& name) {
+    std::shared_lock lock(m_mutex);
     auto it = m_threads.find(name);
     return it == m_threads.end() ? nullptr : it->second;
 }
 
-void FoxThreadManager::add(const std::string& name, IFoxThread::ptr thr) { m_threads[name] = thr; }
-
-void FoxThreadManager::ensureStarted() {
-    std::call_once(m_once, [this]() {
-        init();
-        start();
-    });
+void FoxThreadManager::add(const std::string& name, IFoxThread::ptr thr) {
+    std::unique_lock lock(m_mutex);
+    m_threads[name] = thr;
 }
 
 void FoxThreadManager::dispatch(const std::string& name, callback cb) {
-    ensureStarted();
     IFoxThread::ptr ti = get(name);
     ASSERT(ti);
     ti->dispatch(cb);
 }
 
 void FoxThreadManager::dispatch(const std::string& name, uint32_t id, callback cb) {
-    ensureStarted();
     IFoxThread::ptr ti = get(name);
     ASSERT(ti);
     ti->dispatch(id, cb);
 }
 
 void FoxThreadManager::batchDispatch(const std::string& name, const std::vector<callback>& cbs) {
-    ensureStarted();
     IFoxThread::ptr ti = get(name);
     ASSERT(ti);
     ti->batchDispatch(cbs);
 }
 
 void FoxThreadManager::broadcast(const std::string& name, callback cb) {
-    ensureStarted();
     IFoxThread::ptr ti = get(name);
     ASSERT(ti);
     ti->broadcast(cb);
@@ -430,6 +423,12 @@ void FoxThreadManager::dumpFoxThreadStatus(std::ostream& os) {
 }
 
 void FoxThreadManager::init() {
+    std::unique_lock lock(m_mutex);
+    if (m_inited) {
+        INFO(logger) << "FoxThreadManager already initialized, skip";
+        return;
+    }
+
     auto m = g_thread_info_set->getValue();
     for (auto i : m) {
         auto num = GetParamValue(i.second, "num", 0);
@@ -447,9 +446,17 @@ void FoxThreadManager::init() {
             INFO(logger) << "init thread pool:" << name << " num:" << num << " advance:" << advance;
         }
     }
+    m_inited = true;
 }
 
 void FoxThreadManager::start() {
+    std::unique_lock lock(m_mutex);
+    if (m_started) {
+        INFO(logger) << "FoxThreadManager already started, skip";
+        return;
+    }
+    m_started = true;
+
     for (auto i : m_threads) {
         INFO(logger) << "thread: " << i.first << " start begin";
         i.second->start();
@@ -458,6 +465,7 @@ void FoxThreadManager::start() {
 }
 
 void FoxThreadManager::stop() {
+    std::unique_lock lock(m_mutex);
     for (auto i : m_threads) {
         INFO(logger) << "thread: " << i.first << " stop begin";
         i.second->stop();
@@ -470,6 +478,9 @@ void FoxThreadManager::stop() {
     }
     // 清空线程池，触发 ~FoxThread() 释放 pipe/event/event_base
     m_threads.clear();
+    // 重置状态，允许再次 init/start（如完整关闭后需要重建）
+    m_started = false;
+    m_inited = false;
 }
 
 } // namespace chen

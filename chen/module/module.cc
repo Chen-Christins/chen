@@ -1,5 +1,6 @@
 #include "module.h"
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <unistd.h>
@@ -162,6 +163,18 @@ void ModuleManager::delAll() {
     for (auto& i : tmp) {
         del(i.first);
     }
+
+    // 释放退休模块（此时进程即将退出，可安全 dlclose）
+    std::unique_lock rlock(m_mutex);
+    m_retired.clear();
+}
+
+void ModuleManager::retire(Module::ptr m) {
+    if (!m) {
+        return;
+    }
+    std::unique_lock lock(m_mutex);
+    m_retired.push_back(std::move(m));
 }
 
 void ModuleManager::init() {
@@ -169,6 +182,12 @@ void ModuleManager::init() {
 
     std::vector<std::string> files;
     FSUtil::ListAllFile(files, path, ".so");
+    // 跳过隐藏文件（如遗留的热重载临时 .so，避免被误当成模块加载）
+    files.erase(std::remove_if(files.begin(), files.end(),
+        [](const std::string& f) {
+            auto base = FSUtil::Basename(f);
+            return !base.empty() && base[0] == '.';
+        }), files.end());
 
     std::sort(files.begin(), files.end());
     for (auto& i : files) {
@@ -237,7 +256,8 @@ Module::ptr ModuleManager::reloadModule(const std::string& path, Module::ptr* ol
     {
         // 将 .so 复制到临时目录（与模块同目录，避免链接路径差异）
         std::string dir = FSUtil::Dirname(path);
-        tmp_path = dir + "/." + std::to_string(GetCurrentMs()) + "_" + std::to_string(getpid()) + ".so";
+        // 不以 .so 结尾，避免被 ListAllFile(..., ".so") 当成模块列出
+        tmp_path = dir + "/." + std::to_string(GetCurrentMs()) + "_" + std::to_string(getpid()) + ".rmod";
 
         std::ifstream src(path, std::ios::binary);
         if (!src) {

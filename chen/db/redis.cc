@@ -416,8 +416,8 @@ int RedisCluster::appendCmd(const std::vector<std::string>& argv) {
     return redisClusterAppendCommandArgv(m_context.get(), argv.size(), &v[0], &l[0]);
 }
 
-FoxRedis::FoxRedis(FoxThread* thr, const std::map<std::string, std::string>& conf)
-    : m_thread(thr), m_status(UNCONNECTED), m_event(nullptr) {
+FoxRedis::FoxRedis(IFoxThread::ptr owner, FoxThread* thr, const std::map<std::string, std::string>& conf)
+    : m_threadOwner(owner), m_thread(thr), m_status(UNCONNECTED), m_event(nullptr) {
     m_type = IRedis::FOX_REDIS;
     auto tmp = get_value(conf, "host");
     auto pos = tmp.find(":");
@@ -785,8 +785,8 @@ void FoxRedis::Ctx::EventCb(int fd, short event, void* d) {
     // ctx->ref = nullptr;
 }
 
-FoxRedisCluster::FoxRedisCluster(FoxThread* thr, const std::map<std::string, std::string>& conf)
-    : m_thread(thr), m_status(UNCONNECTED), m_event(nullptr) {
+FoxRedisCluster::FoxRedisCluster(IFoxThread::ptr owner, FoxThread* thr, const std::map<std::string, std::string>& conf)
+    : m_threadOwner(owner), m_thread(thr), m_status(UNCONNECTED), m_event(nullptr) {
     m_ctxCount = 0;
 
     m_type = IRedis::FOX_REDIS_CLUSTER;
@@ -1199,19 +1199,28 @@ void RedisManager::freeRedis(IRedis* r) {
 }
 
 void RedisManager::freeAll() {
-    std::unique_lock lock(m_mutex);
-    for (auto& [name, list] : m_datas) {
-        for (auto* r : list) {
-            delete r;
+    {
+        std::unique_lock lock(m_mutex);
+        for (auto& [name, list] : m_datas) {
+            for (auto* r : list) {
+                delete r;
+            }
+            list.clear();
         }
-        list.clear();
+        m_datas.clear();
     }
-    m_datas.clear();
+    // 释放后允许重新 init
+    std::unique_lock init_lock(m_initMutex);
+    m_inited = false;
 }
 
-RedisManager::RedisManager() { init(); }
-
 void RedisManager::init() {
+    std::unique_lock init_lock(m_initMutex);
+    if (m_inited) {
+        INFO(logger) << "RedisManager already initialized, skip";
+        return;
+    }
+
     m_config = g_redis->getValue();
     size_t done = 0;
     size_t total = 0;
@@ -1238,8 +1247,9 @@ void RedisManager::init() {
             } else if (type == "fox_redis") {
                 auto conf = i.second;
                 auto name = i.first;
-                FoxThreadMgr::GetInstance()->dispatch("redis", [this, conf, name, &done]() {
-                    FoxRedis* rds(new FoxRedis(FoxThread::GetThis(), conf));
+                auto owner = FoxThreadMgr::GetInstance()->get("redis");
+                FoxThreadMgr::GetInstance()->dispatch("redis", [this, conf, name, owner, &done]() {
+                    FoxRedis* rds(new FoxRedis(owner, FoxThread::GetThis(), conf));
                     rds->init();
                     rds->setName(name);
 
@@ -1250,8 +1260,9 @@ void RedisManager::init() {
             } else if (type == "fox_redis_cluster") {
                 auto conf = i.second;
                 auto name = i.first;
-                FoxThreadMgr::GetInstance()->dispatch("redis", [this, conf, name, &done]() {
-                    FoxRedisCluster* rds(new FoxRedisCluster(FoxThread::GetThis(), conf));
+                auto owner = FoxThreadMgr::GetInstance()->get("redis");
+                FoxThreadMgr::GetInstance()->dispatch("redis", [this, conf, name, owner, &done]() {
+                    FoxRedisCluster* rds(new FoxRedisCluster(owner, FoxThread::GetThis(), conf));
                     rds->init();
                     rds->setName(name);
 
@@ -1268,6 +1279,8 @@ void RedisManager::init() {
     while (done != total) {
         usleep(5000);
     }
+
+    m_inited = true;
 }
 
 std::ostream& RedisManager::dump(std::ostream& os) {

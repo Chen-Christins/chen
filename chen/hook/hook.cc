@@ -126,6 +126,10 @@ static ssize_t do_io(int fd, OriginFun fun, const char* hook_fun_name
     // 设置超时条件
     std::shared_ptr<timer_info> tinfo(new timer_info);
 retry:
+    if (ctx->isClose()) {
+        errno = EBADF;
+        return -1;
+    }
     // 这里如果有效，直接返回
     ssize_t n = fun(fd, std::forward<Args>(args)...);
     // 中断状态, 就继续重试
@@ -436,10 +440,10 @@ int close(int fd) {
             if (!iom) {
                 iom = chen::IOManager::GetThis();  // 回退到当前线程的
             }
+            chen::FdMgr::GetInstance()->del(fd);
             if (iom) {
                 iom->cancelAll(fd);
             }
-            chen::FdMgr::GetInstance()->del(fd);
         }
         return close_f(fd);
     }
@@ -450,10 +454,10 @@ int close(int fd) {
         if (!iom) {
             iom = chen::IOManager::GetThis();  // 回退到当前线程的
         }
+        chen::FdMgr::GetInstance()->del(fd);
         if (iom) {
             iom->cancelAll(fd);
         }
-        chen::FdMgr::GetInstance()->del(fd);
     }
     return close_f(fd);
 }

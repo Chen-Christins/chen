@@ -238,6 +238,17 @@ public:
     void delAll();
 
     /**
+     * @brief 退休（retire）一个模块：仅保留引用，不在此处 dlclose
+     * @param m 旧模块指针
+     * @details 热重载时旧模块可能仍被在途 fiber 的局部变量、
+     *          回调或全局单例引用。此处将旧模块挂入退休列表持有其
+     *          `Module::ptr`（进而持有 dlopen 句柄），避免在旧 .so
+     *          仍被引用时执行 dlclose 导致访问已卸载代码/已析构静态对象。
+     *          退休列表在进程退出或 delAll() 时统一释放。
+     */
+    void retire(Module::ptr m);
+
+    /**
      * @brief 初始化模块
      */
     void init();
@@ -303,6 +314,8 @@ private:
     std::map<std::string, Module::ptr> m_modules;
     /// 模块类型到模块集合的映射
     std::unordered_map<uint32_t, std::unordered_map<std::string, Module::ptr> > m_type2Modules;
+    /// 退休模块集合：热重载替换下来的旧模块，持有到进程退出再释放，避免 dlclose 时仍被引用
+    std::vector<Module::ptr> m_retired;
 };
 
 typedef Singleton<ModuleManager> ModuleMgr;
