@@ -5,6 +5,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <stdlib.h>
 #include <string>
 
@@ -152,7 +153,7 @@ public:
 		INIT_ERR = 6
 	};
 
-    FoxRedis(FoxThread *thr, const std::map<std::string, std::string> &conf);
+    FoxRedis(IFoxThread::ptr owner, FoxThread *thr, const std::map<std::string, std::string> &conf);
     ~FoxRedis();
 
     virtual ReplyPtr cmd(const char *fmt, ...);
@@ -208,6 +209,8 @@ private:
     static void TimeCb(int fd, short event, void *d);
 
 private:
+    /// 拥有 m_thread 的线程/线程池，保证其生命周期不早于本连接
+    IFoxThread::ptr m_threadOwner;
     FoxThread *m_thread;
     std::shared_ptr<redisAsyncContext> m_context;
     std::string m_host;
@@ -238,7 +241,7 @@ public:
 		INIT_ERR = 6
 	};
 
-    FoxRedisCluster(FoxThread *thr, const std::map<std::string, std::string> &conf);
+    FoxRedisCluster(IFoxThread::ptr owner, FoxThread *thr, const std::map<std::string, std::string> &conf);
     ~FoxRedisCluster();
 
     virtual ReplyPtr cmd(const char *fmt, ...);
@@ -294,33 +297,38 @@ private:
     static void TimeCb(int fd, short event, void *d);
 
 private:
+    /// 拥有 m_thread 的线程/线程池，保证其生命周期不早于本连接
+    IFoxThread::ptr m_threadOwner;
     FoxThread *m_thread;
     std::shared_ptr<redisClusterAsyncContext> m_context;
     std::string m_host;
     STATUS m_status;
     int m_ctxCount;
-
-    struct timeval m_cmdTimeout;
+    timeval m_cmdTimeout;
     std::string m_err;
-    struct event *m_event;
+    event *m_event;
 };
 
 class RedisManager {
 public:
-    RedisManager();
+    void init();
+
     IRedis::ptr get(const std::string &name);
 
     std::ostream &dump(std::ostream &os);
 
-    /// 释放所有 Redis 连接（优雅关闭时调用）
     void freeAll();
 
 private:
     void freeRedis(IRedis *r);
-    void init();
 
 private:
+    /// 保护 m_datas 的读写锁
     std::shared_mutex m_mutex;
+    /// 保护初始化状态的互斥锁
+    std::mutex m_initMutex;
+    /// 是否已初始化（进程内仅一次，避免热重载销毁在用连接）
+    bool m_inited = false;
     std::map<std::string, std::list<IRedis *>> m_datas;
     std::map<std::string, std::map<std::string, std::string>> m_config;
 };

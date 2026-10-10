@@ -1,5 +1,6 @@
 #include "application.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -355,6 +356,12 @@ void Application::doHotReload() {
 
     std::vector<std::string> files;
     FSUtil::ListAllFile(files, module_path, ".so");
+    // 跳过隐藏文件（如遗留的热重载临时 .so，避免被误当成模块加载）
+    files.erase(std::remove_if(files.begin(), files.end(),
+        [](const std::string& f) {
+            auto base = FSUtil::Basename(f);
+            return !base.empty() && base[0] == '.';
+        }), files.end());
 
     std::vector<Module::ptr> pending_drain;
     std::vector<Module::ptr> newly_loaded;
@@ -438,6 +445,11 @@ void Application::doHotReload() {
         }
     }
 
+    if (pending_drain.empty()) {
+        INFO(logger) << "hot reload complete";
+        return;
+    }
+
     for (auto& old_mod : pending_drain) {
         auto old_name = old_mod->getName();
         auto old_version = old_mod->getVersion();
@@ -445,9 +457,34 @@ void Application::doHotReload() {
             << " version=" << old_version;
         old_mod->onDeactivate();
     }
-    pending_drain.clear();
 
-    INFO(logger) << "hot reload complete";
+    // 关闭现存连接（WS/keep-alive 等），唤醒阻塞的 fiber，使其释放旧模块对象
+    for (auto& [type, servers] : m_servers) {
+        for (auto& server : servers) {
+            server->closeAllClients();
+        }
+    }
+
+    // 异步 drain：drain 期间持有旧模块，关闭旧连接让在途 fiber 尽快反解栈；
+    // drain 结束后旧模块转入退休列表（不再 dlclose），避免卸载后仍被引用。
+    uint64_t drain_ms = g_drain_timeout_ms->getValue();
+    INFO(logger) << "hot reload: waiting " << drain_ms << "ms for old connections to drain...";
+    auto self = std::weak_ptr<IOManager>(m_mainIOManager);
+    m_mainIOManager->addTimer(drain_ms,
+        [self, pending_drain = std::move(pending_drain)]() mutable {
+            if (self.expired()) {
+                return;
+            }
+            INFO(logger) << "hot reload: drain finished, retiring "
+                << pending_drain.size() << " old module(s)";
+            // 不再 dlclose：把旧模块挂入退休列表持有其 dlopen 句柄，
+            // 避免旧 .so 的代码/静态单例仍被引用时被卸载
+            for (auto& m : pending_drain) {
+                ModuleMgr::GetInstance()->retire(std::move(m));
+            }
+            pending_drain.clear();
+            INFO(logger) << "hot reload complete";
+        });
 }
 
 int Application::main(int argc, char** argv) {

@@ -103,6 +103,11 @@ void FdManager::del(int fd) {
     if ((int)m_datas.size() <= fd) {
         return ;
     }
+    // 标记旧 FdCtx 为已关闭：持有该 FdCtx 的 do_io 在唤醒后可据此感知
+    // fd 已被关闭/复用，避免在复用后的 fd 上再次 recv / addEvent。
+    if (m_datas[fd]) {
+        m_datas[fd]->setClose(true);
+    }
     m_datas[fd].reset();
 }
 

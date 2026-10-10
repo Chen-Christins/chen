@@ -163,11 +163,14 @@ public:
     IFoxThread::ptr get(const std::string& name);
     void add(const std::string& name, IFoxThread::ptr thr);
 private:
-    void ensureStarted();
-private:
+    /// 线程池集合
     std::map<std::string, IFoxThread::ptr> m_threads;
-    /// 懒启动一次性标志
-    std::once_flag m_once;
+    /// 保护 m_threads 与初始化状态的互斥锁
+    std::shared_mutex m_mutex;
+    /// 是否已完成 init（进程内仅一次，避免热重载销毁在用线程池）
+    bool m_inited = false;
+    /// 是否已完成 start
+    bool m_started = false;
 };
 
 typedef Singleton<FoxThreadManager> FoxThreadMgr;
