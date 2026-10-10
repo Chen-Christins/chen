@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18..3.22)
-project(chen VERSION 1.5.3)
+project(chen VERSION 1.5.4)
 
 set(ROOT_DIR ${PROJECT_SOURCE_DIR})
 
