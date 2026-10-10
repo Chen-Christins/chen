@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.5.4 (2026-10-10)
+
+### 模块热重载 — 稳定性修复
+
+- **修复** 热重载「use-after-unload」崩溃：原流程在 `onDeactivate()` 后立即 `dlclose` 旧 `.so`，而在途 fiber / 回调 / 全局单例仍持有旧模块对象（servlet、EventBus listener、manager 静态单例等），触发 `SIGSEGV`（servlet / EventBus / `LruCache` 析构、`Redis` 派发等）。现在**重载期间不再 `dlclose`**：旧模块转入退休列表（`ModuleManager::retire()`），持有其 `Module::ptr`（进而持有 `dlopen` 句柄），直到进程退出 / `delAll()` 才统一释放
+- **修复** WebSocket 等长连接跨重载持有旧 servlet 导致崩溃：`doHotReload()` 在退休旧模块前，先调用旧模块 `onDeactivate()`、对所有 server 执行 `closeAllClients()` 关闭存量连接，再用定时器异步 drain（`server.drain_timeout_ms`，默认 3000ms），让在途 fiber 在旧 `.so` 仍映射时反解栈、释放旧模块对象，之后才退休
+- **修复** 残留临时模块文件被误当模块加载：重载临时文件后缀由 `.so` 改为 `.rmod`，并在 `ModuleManager::init()` 与 `doHotReload()` 扫描模块目录时跳过隐藏文件（`.` 开头），避免同名模块互相覆盖、旧模块被提前 `dlclose`
+- **变更** 热重载会断开存量连接（HTTP 客户端重连 / WS 自动重连）；旧模块镜像及其静态资源保留到进程退出，频繁重载需注意内存 / 连接累积
+
+### 数据库 / Redis
+
+- **优化** `FoxThreadManager::init()` / `start()` 改为幂等：热重载不再重建 / 销毁在用线程池（此前覆盖旧线程池引用 → 旧 `FoxThread` 被析构 → 在途 Redis 请求 `send` 到已关闭 socketpair 触发 `SIGPIPE`/UAF）；`stop()` 复位状态，`m_threads` 增加 `shared_mutex` 保护
+- **优化** `RedisManager::init()` 改为幂等，热重载不再重建连接池；`freeAll()` 复位初始化标志以支持重新初始化
+- **修复** `FoxRedis` / `FoxRedisCluster` 改为持有 `IFoxThread::ptr` owner，保证所属线程 / 线程池生命周期不早于连接，避免裸指针悬挂
+
+### Hook / fd 管理
+
+- **修复** fd 复用导致的 `addEvent` 断言崩溃（`!(fd_ctx->events & event)`）：`FdManager::del()` 在删除前将旧 `FdCtx` 标记为已关闭（此前 `setClose()` 从未被调用，关闭检测形同虚设）；`hook::close()` 将 `FdMgr::del()` 提前到 `cancelAll()` 之前，消除「先唤醒 fiber 再标记关闭」的竞态；`do_io()` 在 `retry` 前检查 `isClose()`，fd 已关闭 / 复用时直接返回 `EBADF`，不再在复用后的 fd 上 `recv` / `addEvent`
+
 ## v1.5.3 (2026-10-08)
 
 ### 工具链
