@@ -1085,6 +1085,9 @@ static ConfigVar<std::set<LogDefine>>::ptr g_log_define =
 struct LogIniter {
     LogIniter() {
         g_log_define->addListener([](const std::set<LogDefine>& old_value, const std::set<LogDefine>& new_value) {
+            if (old_value == new_value) {
+                return;
+            }
             for (auto& i : new_value) {
                 auto it = old_value.find(i);
                 Logger::ptr logger;

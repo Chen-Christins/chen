@@ -178,17 +178,21 @@ std::pair<int32_t, uint64_t> FSUtil::DirSize(const std::string& path) {
 }
 
 bool FSUtil::Exists(const std::string& path) {
-    return std::filesystem::exists(path);
+    std::error_code ec;
+    return std::filesystem::exists(path, ec);
 }
 
 bool FSUtil::IsDirectory(const std::string& path) {
-    return std::filesystem::is_directory(path);
+    std::error_code ec;
+    return std::filesystem::is_directory(path, ec);
 }
 
 int64_t FSUtil::FileSize(const std::string& filename) {
     std::error_code ec;
     auto size = std::filesystem::file_size(filename, ec);
-    if (ec) { return -1; }
+    if (ec) {
+        return -1;
+    }
     return static_cast<int64_t>(size);
 }
 

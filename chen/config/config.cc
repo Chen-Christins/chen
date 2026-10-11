@@ -155,7 +155,7 @@ bool Config::LoadFromFile(const std::string& filepath, bool force) {
             YAML::Node root = YAML::LoadFile(filepath);
             LoadFromYaml(root);
         }
-        INFO(logger) << "LoadFromFile file=" << filepath << " ok";
+        DEBUG(logger) << "LoadFromFile file=" << filepath << " ok";
         return true;
     } catch (...) {
         ERROR(logger) << "LoadFromFile file=" << filepath << " failed";

@@ -121,8 +121,12 @@ bool Application::init(int argc, char** argv) {
     }
 
     std::string conf_path = EnvMgr::GetInstance()->getConfigPath();
+    if (!FSUtil::Exists(conf_path)) {
+        FATAL(logger) << "conf_path is invalid errno=" << errno << ", errstr=" << strerror(errno);
+        return false;
+    }
+
     Config::LoadFromConfDir(conf_path);
-    INFO(logger) << "load conf path:" << conf_path;
 
     // 信号命令: -s reload / -s stop / -s quit（类似 nginx -s）
     if (EnvMgr::GetInstance()->has("s")) {
