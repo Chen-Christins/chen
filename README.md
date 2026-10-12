@@ -205,7 +205,7 @@ bin/main -d -c /path/to/conf
 ### 版本号
 
 ```bash
-bin/main -v            # 输出 chen/1.5.2
+bin/main -v            # 输出 chen/1.5.5
 bin/main --version     # 同上
 ```
 

@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.5.5 (2026-10-12)
+
+### 依赖管理（新增）
+
+- **新增** `dependencies.json` + `deps.py`：集中声明并管理框架的三方依赖（yaml-cpp / tinyxml2 / jsoncpp / hiredis-vip / protobuf / ragel）。生产端（本地 Linux）`build` 从 release 的 `3rdparty.zip` 源码编译为静态库，`package`/`publish` 产出并上传 `deps-<arch>.zip` 到 release；消费端（CI / 其他机器）`sync` 只需下载解压，**不再重复编译三方库**，显著缩短流水线耗时
+- **新增** 三方依赖统一以 **PIC 静态库** 构建（cmake 加 `CMAKE_POSITION_INDEPENDENT_CODE=ON`，autotools/make 传 `-fPIC`、protobuf 加 `--with-pic`），可安全链接进共享库与 PIE 可执行文件（修复 aarch64 下 `R_AARCH64_ADR_PREL_PG_HI21 ... recompile with -fPIC`）
+
+### 构建 / 部署
+
+- **变更** 三方依赖（yaml-cpp / tinyxml2 / jsoncpp / hiredis-vip / protobuf）**静态链接**进 `bin/server`，部署机器无需再安装这些库，只需系统依赖（`libsqlite3` / `libevent` / `libmysqlclient` / `libnghttp2` / `libboost-context` / `openssl`）
+- **变更** `cmake/dependencies.cmake` 强制从仓库内 `deps/` 静态查找依赖（`jsoncpp` / `hiredis-vip` 指定 `NO_DEFAULT_PATH`），缺失时给出明确错误并提示先 `./deps.py sync`
+- **变更** 三方依赖不再随 SDK 分发；下游工程在各自 `dependencies.json` 中声明 `deps-<arch>.zip` 并下载到本地 `deps/`，用于编译（头文件），运行时符号由预编译 `bin/server` 提供
+
 ## v1.5.4 (2026-10-10)
 
 ### 模块热重载 — 稳定性修复
