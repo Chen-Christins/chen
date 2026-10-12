@@ -250,9 +250,12 @@ def ensure_download(repo, tag, asset, ui):
     return cache
 
 
-def run(cmd, cwd, ui):
+def run(cmd, cwd, ui, env=None):
     ui.info("$ " + " ".join(str(c) for c in cmd))
-    result = subprocess.run([str(c) for c in cmd], cwd=str(cwd))
+    full_env = dict(os.environ)
+    if env:
+        full_env.update({str(k): str(v) for k, v in env.items()})
+    result = subprocess.run([str(c) for c in cmd], cwd=str(cwd), env=full_env)
     if result.returncode != 0:
         raise DepsError(f"命令失败(exit {result.returncode}): {' '.join(str(c) for c in cmd)}")
 
@@ -293,6 +296,7 @@ def build_package(pkg, src_root, prefix, ui):
         raise DepsError(f"未找到源码目录: {pkg_dir}")
     kind = pkg.get("type", "cmake")
     args = pkg.get("args", [])
+    env = pkg.get("env", {})
     jobs = str(max(1, (os.cpu_count() or 2)))
     ui.step("🔨", f"编译 {name} ({kind}, 静态 → {ui.path('deps/')})")
     prefix.mkdir(parents=True, exist_ok=True)
@@ -302,17 +306,18 @@ def build_package(pkg, src_root, prefix, ui):
         if build_dir.exists():
             shutil.rmtree(build_dir)
         build_dir.mkdir(parents=True)
-        run(["cmake", f"-DCMAKE_INSTALL_PREFIX={prefix}", *args, ".."], build_dir, ui)
-        run(["cmake", "--build", ".", "-j", jobs], build_dir, ui)
-        run(["cmake", "--install", "."], build_dir, ui)
+        run(["cmake", f"-DCMAKE_INSTALL_PREFIX={prefix}",
+             "-DCMAKE_POSITION_INDEPENDENT_CODE=ON", *args, ".."], build_dir, ui, env)
+        run(["cmake", "--build", ".", "-j", jobs], build_dir, ui, env)
+        run(["cmake", "--install", "."], build_dir, ui, env)
     elif kind == "autotools":
-        run(["./configure", f"--prefix={prefix}", *args], pkg_dir, ui)
-        run(["make", "-j", jobs], pkg_dir, ui)
-        run(["make", "install"], pkg_dir, ui)
+        run(["./configure", f"--prefix={prefix}", *args], pkg_dir, ui, env)
+        run(["make", "-j", jobs], pkg_dir, ui, env)
+        run(["make", "install"], pkg_dir, ui, env)
     elif kind == "make":
         var = pkg.get("install_prefix_var", "PREFIX")
-        run(["make", "-j", jobs], pkg_dir, ui)
-        run(["make", "install", f"{var}={prefix}"], pkg_dir, ui)
+        run(["make", "-j", jobs], pkg_dir, ui, env)
+        run(["make", "install", f"{var}={prefix}"], pkg_dir, ui, env)
     else:
         raise DepsError(f"未知的编译类型: {kind}")
     ui.ok(f"{name} 完成")

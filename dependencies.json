@@ -36,7 +36,8 @@
       "name": "hiredis-vip",
       "dir": "hiredis-vip",
       "type": "make",
-      "install_prefix_var": "PREFIX"
+      "install_prefix_var": "PREFIX",
+      "env": { "CFLAGS": "-fPIC", "CXXFLAGS": "-fPIC" }
     },
     {
       "name": "jsoncpp",
@@ -49,7 +50,8 @@
       "from": "protobuf-all-3.12.4.tar.gz",
       "dir": "protobuf-3.12.4",
       "type": "autotools",
-      "args": ["--disable-shared"]
+      "args": ["--disable-shared", "--with-pic"],
+      "env": { "CFLAGS": "-fPIC", "CXXFLAGS": "-fPIC" }
     }
   ]
 }
