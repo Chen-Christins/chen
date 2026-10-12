@@ -328,16 +328,49 @@ def valid_deps(prefix):
 
 def package_deps(cfg, arch, ui):
     prefix = install_prefix(cfg)
+    bin_dir = prefix / "bin"
     out = ROOT / package_asset(cfg, arch)
     if out.exists():
         out.unlink()
     ui.step("📦", f"打包 {out.name}")
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
         for path in sorted(prefix.rglob("*")):
-            if path.is_file():
-                zf.write(path, path.relative_to(ROOT))
+            if not path.is_file():
+                continue
+            arcname = path.relative_to(ROOT)
+            mode = path.stat().st_mode & 0o777
+            if path.is_relative_to(bin_dir):
+                mode |= 0o755
+            if not (mode & 0o444):
+                mode |= 0o644
+            info = zipfile.ZipInfo.from_file(path, str(arcname))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = (mode & 0xFFFF) << 16
+            with path.open("rb") as src, zf.open(info, "w") as dst:
+                shutil.copyfileobj(src, dst)
     ui.ok(f"已生成 {ui.path(out.name)}")
     return out
+
+
+def extract_zip_restore(zf, dest):
+    for info in zf.infolist():
+        target = zf.extract(info, dest)
+        mode = (info.external_attr >> 16) & 0o777
+        if mode:
+            try:
+                os.chmod(target, mode)
+            except OSError:
+                pass
+
+
+def ensure_bin_executable(prefix):
+    bin_dir = Path(prefix) / "bin"
+    if not bin_dir.is_dir():
+        return
+    for path in bin_dir.rglob("*"):
+        if path.is_file():
+            mode = path.stat().st_mode & 0o777
+            path.chmod(mode | 0o755)
 
 
 def install_package(zip_path, ui):
@@ -345,7 +378,7 @@ def install_package(zip_path, ui):
     tmp = Path(tempfile.mkdtemp(prefix=".deps-tmp-", dir=ROOT))
     try:
         with zipfile.ZipFile(zip_path) as zf:
-            zf.extractall(tmp)
+            extract_zip_restore(zf, tmp)
         src = tmp / "deps"
         if not src.is_dir():
             raise DepsError(f"{Path(zip_path).name} 内未找到顶层 deps/ 目录")
@@ -356,6 +389,7 @@ def install_package(zip_path, ui):
         shutil.rmtree(tmp, ignore_errors=True)
     if not valid_deps(dest):
         raise DepsError("解压后校验失败：deps/ 缺少 include 或 lib")
+    ensure_bin_executable(dest)
 
 
 def gc(cfg, ui, arch=None, keep_old=False):
