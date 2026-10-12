@@ -3,7 +3,7 @@ name: Package SDK (Ubuntu)
 on:
   push:
     branches:
-      - feature/ci
+      - ci/*
     tags:
       - 'v*'
 
@@ -48,74 +48,12 @@ jobs:
             unzip \
             zip
 
-      - name: Download 3rdparty.zip from release
+      - name: Fetch prebuilt deps
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download v1.0.0 \
-            --repo "${GITHUB_REPOSITORY}" \
-            --pattern "3rdparty.zip" \
-            --dir /tmp \
-            --clobber
-
-      - name: Extract and install 3rdparty dependencies
-        run: |
-          INSTALL_DIR="$(pwd)/3rdparty"
-          mkdir -p "$INSTALL_DIR"
-          unzip -d "$INSTALL_DIR" /tmp/3rdparty.zip
-
-          # zip 包内有一层 3rdparty/ 目录
-          SRC_DIR="${INSTALL_DIR}/3rdparty"
-          cd "$SRC_DIR"
-
-          # --- yaml-cpp ---
-          unzip yaml-cpp-0.9.0.zip
-          cd yaml-cpp-yaml-cpp-0.9.0
-          mkdir build && cd build
-          cmake -D BUILD_SHARED_LIBS=ON ..
-          make -j$(nproc)
-          sudo make install
-          cd "$SRC_DIR"
-
-          # --- ragel ---
-          tar -zxvf ragel-6.10.tar.gz
-          cd ragel-6.10
-          ./configure
-          make -j$(nproc)
-          sudo make install
-          cd "$SRC_DIR"
-
-          # --- tinyxml2 ---
-          cd tinyxml2
-          mkdir -p build && cd build
-          cmake -D BUILD_SHARED_LIBS=ON ..
-          make -j$(nproc)
-          sudo make install
-          cd "$SRC_DIR"
-
-          # --- hiredis-vip ---
-          cd hiredis-vip
-          make -j$(nproc)
-          sudo make install
-          cd "$SRC_DIR"
-
-          # --- jsoncpp ---
-          cd jsoncpp
-          mkdir -p build && cd build
-          cmake -D BUILD_SHARED_LIBS=ON ..
-          make -j$(nproc)
-          sudo make install
-          cd "$SRC_DIR"
-
-          # --- protobuf ---
-          tar -zxvf protobuf-all-3.12.4.tar.gz
-          cd protobuf-3.12.4
-          ./configure
-          make -j$(nproc)
-          sudo make install
-
-          sudo ldconfig
-          echo "All 3rdparty dependencies installed."
+          python3 deps.py sync
+          echo "$PWD/deps/bin" >> "${GITHUB_PATH}"
 
       - name: Set version
         id: version

@@ -109,6 +109,44 @@ cmake -B build -DENABLE_ASAN=ON
 cmake --build build -j$(nproc)
 ```
 
+### 依赖管理
+
+第三方依赖通过 `dependencies.json` 声明、`deps.py` 管理。`cmake/dependencies.cmake` 从仓库内 `deps/`（`include` + `lib` 静态库）查找，因此只需一份**预编译 deps 包**即可构建，无需重复编译三方库。
+
+**生产（维护者，本地 Linux，只需在有更新时执行）**
+
+```bash
+./deps.py build      # 下载 3rdparty.zip 源码 → 编译静态库到 deps/ → 打包 deps-<arch>.zip
+./deps.py package    # 用现有 deps/ 重新打包 deps-<arch>.zip（不编译）
+./deps.py publish    # 上传 deps-<arch>.zip 到源码所在的 release（v1.0.0）
+./deps.py release    # build + publish
+```
+
+> 需分别产出 `deps-amd64.zip` 与 `deps-arm64.zip`（在对应架构机器上各跑一次）。上传需安装 GitHub CLI（`gh`）。
+
+**消费（CI / 其他机器）**
+
+```bash
+./deps.py sync       # 下载 deps-<arch>.zip → 解压到 deps/（不编译）
+make sdk
+```
+
+**其它**
+
+```bash
+./deps.py current            # 查看当前 deps/ 状态
+./deps.py list               # 列出远端 release 与资产
+./deps.py clean              # 清理 deps/、3rdparty/、缓存与产物
+```
+
+| 文件 | 说明 |
+|------|------|
+| `dependencies.json` | 依赖声明：源码包、预编译包、各库编译 recipe（入库） |
+| `dependencies.local.json` | 本地临时覆盖（不入库） |
+| `3rdparty/` | 源码解压目录（生产时用，不入库） |
+| `deps/` | 编译/解压产物，供 cmake 使用（不入库） |
+| `deps-<arch>.zip` | 预编译依赖包（生产产物） |
+
 ### 目录结构
 
 ```
