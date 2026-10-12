@@ -147,6 +147,12 @@ make sdk
 | `deps/` | 编译/解压产物，供 cmake 使用（不入库） |
 | `deps-<arch>.zip` | 预编译依赖包（生产产物） |
 
+**部署说明**
+
+`bin/server` 由 chen 构建时用 `deps/` 里的静态库（`yaml-cpp` / `tinyxml2` / `jsoncpp` / `hiredis-vip` / `protobuf`）静态链接，因此部署 `bin/server` 无需安装这几个库，只需系统依赖：`libsqlite3`、`libevent`、`libmysqlclient`、`libnghttp2`、`libboost-context`、`openssl`。可用 `objdump -p server | grep NEEDED` 核对。
+
+> 三方依赖**不随 SDK 分发**。下游工程在自己的 `dependencies.json` 中声明 `deps-<arch>.zip` 并下载到本地 `deps/`（用于编译其模块/程序）。
+
 ### 目录结构
 
 ```
