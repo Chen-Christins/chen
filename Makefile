@@ -49,3 +49,21 @@ protocol-%:
 .PHONY: sdk
 sdk:
 	@sh package_sdk.sh -v $(if $(version),$(version),1.0.0)
+
+.PHONY: deps deps-sync deps-build deps-package deps-release deps-clean
+deps: deps-sync
+
+deps-sync:
+	@python3 deps.py sync
+
+deps-build:
+	@python3 deps.py build
+
+deps-package:
+	@python3 deps.py package
+
+deps-release:
+	@python3 deps.py release
+
+deps-clean:
+	@python3 deps.py clean

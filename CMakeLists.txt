@@ -34,13 +34,13 @@ set(LIBS
     dl
     pthread
     crypt
-    jsoncpp
+    ${JSONCPP}
     tinyxml2
     sqlite3
     ${YAML_CPP_LIBRARIES}
     ${OPENSSL_LIBRARIES}
     event
-    hiredis_vip
+    ${HIREDIS_VIP}
     protobuf
     mysqlclient
     Boost::context

@@ -26,7 +26,11 @@ endif()
 
 # 导入库
 find_library(PTHREAD pthread PATHS ${DEPS_ROOT}/lib)
-find_library(JSONCPP jsoncpp PATHS ${DEPS_ROOT}/lib)
+find_library(JSONCPP jsoncpp PATHS ${DEPS_ROOT}/lib NO_DEFAULT_PATH)
+find_library(HIREDIS_VIP hiredis_vip PATHS ${DEPS_ROOT}/lib NO_DEFAULT_PATH)
+if(NOT HIREDIS_VIP)
+    message(FATAL_ERROR "libhiredis_vip.a not found under ${DEPS_ROOT}/lib (run ./deps.py sync)")
+endif()
 
 set(OPENSSL_USE_STATIC_LIBS TRUE)
 find_package(OpenSSL REQUIRED)

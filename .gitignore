@@ -1,6 +1,9 @@
 /.vscode
 /.cache
 /lib
+/deps
+/.deps-cache
+/dependencies.local.json
 http11_parser.cc
 httpclient_parser.cc
 uri.cc
