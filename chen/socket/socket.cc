@@ -255,22 +255,6 @@ bool Socket::listen(int backlog) {
     return true;
 }
 
-bool Socket::setNonblock(bool v) {
-    if (m_sock == -1) {
-        return false;
-    }
-    int flags = fcntl_f(m_sock, F_GETFL, 0);
-    if (flags < 0) {
-        return false;
-    }
-    if (v) {
-        flags |= O_NONBLOCK;
-    } else {
-        flags &= ~O_NONBLOCK;
-    }
-    return fcntl_f(m_sock, F_SETFL, flags) == 0;
-}
-
 bool Socket::close() {
     if (!m_isConnected && m_sock == -1) {
         return true;

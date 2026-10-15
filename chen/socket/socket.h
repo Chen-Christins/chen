@@ -178,14 +178,6 @@ public:
     virtual bool listen(int backlog = SOMAXCONN);
 
     /**
-     * @brief 设置/取消底层 fd 的非阻塞标志（O_NONBLOCK）
-     * @details 直接操作真实 fd，不经过 hook 的 user/sys 阻塞簿记。
-     * @param v true 设为非阻塞，false 取消
-     * @return bool 是否成功
-     */
-    bool setNonblock(bool v = true);
-
-    /**
      * @brief 关闭socket相关句柄
      */
     virtual bool close();
