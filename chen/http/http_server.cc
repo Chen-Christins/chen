@@ -37,18 +37,6 @@ static bool detectH2Preface(Socket::ptr client) {
     return memcmp(buf, H2_PREFACE, H2_PREFACE_LEN) == 0;
 }
 
-void HttpServer::prepareDispatch() {
-    m_pendingDispatch.reset(new ServletDispatch);
-    m_pendingDispatch->setDefault(std::make_shared<NotFoundServlet>(getName()));
-}
-
-void HttpServer::commitDispatch() {
-    if (m_pendingDispatch) {
-        m_dispatch = m_pendingDispatch;
-        m_pendingDispatch.reset();
-    }
-}
-
 void HttpServer::handleClient(Socket::ptr client) {
     DEBUG(logger) << "handleClient " << *client;
 

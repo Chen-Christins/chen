@@ -88,10 +88,6 @@ public:
      */
     void unregisterMethod(uint32_t cmd) { m_handlers.erase(HandlerKey{cmd}); }
 
-    void prepareDispatch() override;
-
-    void commitDispatch() override;
-
     /**
      * @brief 开启中心转发（relay）模式
      * @details 开启后 RpcServer 作为中心 hub：服务连接后先调用 @register 注册，
@@ -200,8 +196,6 @@ private:
 
     // k: 方法名或 CmdID（见 HandlerKey） -> v: 接收 (ByteArray, Protocol.sequence) 并返回响应协议帧
     std::unordered_map<HandlerKey, RpcHandler, HandlerKeyHash> m_handlers;
-    /// 热重载时的待提交 handler 表
-    std::unordered_map<HandlerKey, RpcHandler, HandlerKeyHash> m_pendingHandlers;
     /// 是否中心转发模式
     bool m_relay = false;
     /// 中继超时（毫秒）

@@ -144,6 +144,15 @@ void Logger::clearAppenders() {
     m_appenders.clear();
 }
 
+void Logger::flush() {
+    MutexType::Lock lock(m_mutex);
+    for (auto& i : m_appenders) {
+        if (i) {
+            i->flush();
+        }
+    }
+}
+
 
 std::string Logger::toYamlString() {
     MutexType::Lock lock(m_mutex);
@@ -586,6 +595,13 @@ void FileLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent::p
     }
 }
 
+void FileLogAppender::flush() {
+    MutexType::Lock lock(m_mutex);
+    if (m_filestream) {
+        m_filestream.flush();
+    }
+}
+
 bool FileLogAppender::reopen() {
     MutexType::Lock lock(m_mutex);
     if (m_filestream) {
@@ -895,6 +911,9 @@ std::stringstream& LogEventWrap::getSS() {
 
 LoggerManager::LoggerManager() {
     m_root.reset(new Logger);
+    // 配置加载前的默认级别：抑制 bootstrap/静态初始化日志；
+    // 加载 logs 配置后会被覆盖。子日志器默认 TRACE，仍通过 root 级别过滤。
+    m_root->setLevel(LogLevel::WARN);
     m_root->addAppender(LogAppender::ptr(new StdoutLogAppender));
 
     m_loggers[m_root->getName()] = m_root;
@@ -910,6 +929,19 @@ Logger::ptr LoggerManager::getLogger(const std::string& name) {
     logger->m_root = m_root;
     m_loggers[name] = logger;
     return logger;
+}
+
+void LoggerManager::flushAll() {
+    MutexType::Lock lock(m_mutex);
+    for (auto& [name, logger] : m_loggers) {
+        if (logger) {
+            logger->flush();
+        }
+    }
+    // 非 root 日志器可能无自带 appender，实际输出在 root 上
+    if (m_root) {
+        m_root->flush();
+    }
 }
 
 std::string LoggerManager::toYamlString() {
@@ -1137,7 +1169,7 @@ struct LogIniter {
                     logger->clearAppenders();
                 }
             }
-            INFO(LOG_ROOT()) << "on_logger_conf_changed";
+            DEBUG(LOG_ROOT()) << "on_logger_conf_changed";
         });
     }
 };

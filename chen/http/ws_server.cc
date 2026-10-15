@@ -12,17 +12,6 @@ WSServer::WSServer(IOManager* worker, IOManager* io_worker, IOManager* accept_wo
     m_type = "websocket_server";
 }
 
-void WSServer::prepareDispatch() {
-    m_pendingDispatch.reset(new WSServletDispatch);
-}
-
-void WSServer::commitDispatch() {
-    if (m_pendingDispatch) {
-        m_dispatch = m_pendingDispatch;
-        m_pendingDispatch.reset();
-    }
-}
-
 void WSServer::handleClient(Socket::ptr client) {
     DEBUG(logger) << "handleClient " << *client;
     WSSession::ptr session(std::make_shared<WSSession>(client));

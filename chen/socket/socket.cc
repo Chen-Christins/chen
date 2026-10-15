@@ -252,7 +252,26 @@ bool Socket::listen(int backlog) {
             << " strerr=" << strerror(errno);
         return false;
     }
+    // 监听 socket 必须非阻塞：master 主线程（hook 关闭）创建/绑定的 fd 默认阻塞，
+    // worker 继承后 hook 的 do_io 首次 accept 会阻塞在内核，且 close() 无法唤醒。
+    setNonblock(true);
     return true;
+}
+
+bool Socket::setNonblock(bool v) {
+    if (m_sock == -1) {
+        return false;
+    }
+    int flags = fcntl_f(m_sock, F_GETFL, 0);
+    if (flags < 0) {
+        return false;
+    }
+    if (v) {
+        flags |= O_NONBLOCK;
+    } else {
+        flags &= ~O_NONBLOCK;
+    }
+    return fcntl_f(m_sock, F_SETFL, flags) == 0;
 }
 
 bool Socket::close() {

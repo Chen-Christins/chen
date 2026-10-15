@@ -12,18 +12,6 @@ RpcServer::RpcServer(IOManager* worker, IOManager* io_worker, IOManager* accept_
     m_type = "rpc_server";
 }
 
-void RpcServer::prepareDispatch() {
-    // 保存旧 handler 到 pending，清空 active 供模块注册新 handler
-    m_pendingHandlers.swap(m_handlers);
-    // m_handlers 现在为空，模块通过 registerMethod 注册到这里
-}
-
-void RpcServer::commitDispatch() {
-    // 新 handler 已在 m_handlers 中
-    // 释放旧 handler（最后一个 in-flight fiber 完成后通过引用计数自然销毁）
-    m_pendingHandlers.clear();
-}
-
 void RpcServer::sendCode(RpcConnection::ptr conn, uint32_t sequence, int32_t code, const std::string& msg) {
     ByteArray::ptr ba(new ByteArray);
     ba->writeFint32(code);

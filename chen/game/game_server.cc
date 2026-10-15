@@ -176,18 +176,6 @@ GenericProtocolServer::GenericProtocolServer(IPackageParser::ptr parser, IOManag
 GenericProtocolServer::~GenericProtocolServer() {
 }
 
-void GenericProtocolServer::prepareDispatch() {
-    std::lock_guard<std::mutex> lock(handlersMutex_);
-    pendingHandlers_.swap(handlers_);
-    // handlers_ 现在为空，模块通过 registerHandler 注册到这里
-}
-
-void GenericProtocolServer::commitDispatch() {
-    std::lock_guard<std::mutex> lock(handlersMutex_);
-    // 新 handler 已在 handlers_ 中，释放旧 handler
-    pendingHandlers_.clear();
-}
-
 void GenericProtocolServer::setPackageParser(IPackageParser::ptr parser) {
     if (parser) {
         packageParser_ = parser;

@@ -112,6 +112,25 @@ void Config::LoadFromXml(const tinyxml2::XMLElement& root) {
     LoadFromYaml(XmlToYaml(&root));
 }
 
+/**
+ * @brief 将配置文件解析为 YAML 节点（yml/xml 统一）
+ * @param filepath 文件路径
+ * @param[out] root 解析结果
+ * @return bool 是否解析成功
+ */
+static bool ParseFileToYaml(const std::string& filepath, YAML::Node& root) {
+    if (filepath.size() >= 4 && filepath.compare(filepath.size() - 4, 4, ".xml") == 0) {
+        tinyxml2::XMLDocument doc;
+        if (doc.LoadFile(filepath.c_str()) != tinyxml2::XML_SUCCESS) {
+            return false;
+        }
+        root = XmlToYaml(doc.RootElement());
+    } else {
+        root = YAML::LoadFile(filepath);
+    }
+    return true;
+}
+
 static std::map<std::string, uint64_t> s_file2modifytime;
 static std::mutex mtx;
 
@@ -144,17 +163,12 @@ bool Config::LoadFromFile(const std::string& filepath, bool force) {
         s_file2modifytime[filepath] = mtime_ns;
     }
     try {
-        if (filepath.size() >= 4 && filepath.compare(filepath.size() - 4, 4, ".xml") == 0) {
-            tinyxml2::XMLDocument doc;
-            if (doc.LoadFile(filepath.c_str()) != tinyxml2::XML_SUCCESS) {
-                ERROR(logger) << "LoadFromFile file=" << filepath << " failed";
-                return false;
-            }
-            LoadFromXml(*doc.RootElement());
-        } else {
-            YAML::Node root = YAML::LoadFile(filepath);
-            LoadFromYaml(root);
+        YAML::Node root;
+        if (!ParseFileToYaml(filepath, root)) {
+            ERROR(logger) << "LoadFromFile file=" << filepath << " failed";
+            return false;
         }
+        LoadFromYaml(root);
         DEBUG(logger) << "LoadFromFile file=" << filepath << " ok";
         return true;
     } catch (...) {

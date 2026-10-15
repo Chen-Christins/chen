@@ -41,14 +41,14 @@
 
 ### 模块系统
 
-- **动态加载**：`.so` 共享库热插拔，`dlopen`/`dlclose` 生命周期管理
-- **热重载**：`kill -HUP` 或 `-s reload` 触发。先 `dlopen` 新模块，`prepareDispatch()` / `commitDispatch()` 原子切换流量（无 404 窗口），旧模块 `onDeactivate()` 后 `dlclose` 真正卸载
+- **动态加载**：`.so` 共享库 `dlopen` 加载，进程退出时由内核回收地址空间
+- **热重载（多进程）**：`kill -HUP` 或 `-s reload` 触发。master 持有监听端口，fork 新 worker 加载新模块并接管新连接，旧 worker 停止 accept、限时 drain 遗留连接后退出（无 404 窗口）
 - **配置热加载**：inotify 监听配置目录，`.yml` / `.xml` 变更后立即重载对应文件并触发变更回调（见 [`chen/watcher/README.md`](chen/watcher/README.md)）
 - **生命周期回调**：
   ```
   启动:    onLoad → onServerReady → onServerUp → [onTick 周期]
-  热重载:  新模块 onLoad → onServerReady → commitDispatch → onServerUp
-           旧模块 onDeactivate → dlclose
+  重载:    新 worker onLoad → onServerReady → onServerUp
+           旧 worker onDeactivate → onUnload → 进程退出
   关机:    onDeactivate → onUnload
   ```
 - **优雅关闭**：停止 accept → `closeAllClients()` 关闭存量连接 → drain 排空 → 停 tick → `onDeactivate` → `onUnload` → 停 Worker → 清 pid

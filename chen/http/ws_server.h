@@ -20,23 +20,14 @@ public:
             , IOManager* io_worker = IOManager::GetThis()
             , IOManager* accept_worker = IOManager::GetThis());
 
-    WSServletDispatch::ptr getWSServletDispatch() const { return m_pendingDispatch ? m_pendingDispatch : m_dispatch; }
+    WSServletDispatch::ptr getWSServletDispatch() const { return m_dispatch; }
     void setWSServletDispatch(WSServletDispatch::ptr v) { m_dispatch = v; }
-
-    /**
-     * @brief 设置待提交的 dispatch（热重载双缓冲）
-     */
-    void setPendingDispatch(WSServletDispatch::ptr v) { m_pendingDispatch = v; }
-
-    void prepareDispatch() override;
-    void commitDispatch() override;
 
 protected:
     virtual void handleClient(Socket::ptr client) override;
 
 protected:
     WSServletDispatch::ptr m_dispatch;
-    WSServletDispatch::ptr m_pendingDispatch;
 };
 
 } // namespace chen::http

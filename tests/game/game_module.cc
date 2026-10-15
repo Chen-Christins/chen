@@ -52,8 +52,7 @@ bool GameModule::onLoad() {
 
 bool GameModule::onUnload() {
     INFO(logger) << "Game module unloading...";
-    // 先注销 RPC 方法（销毁 m_handlers 中的旧 lambda），再 dlclose
-    // 否则 lambda 内部的 destroy 函数指针指向已卸载 .so 会 SEGV
+    // 注销 RPC 方法（释放 m_handlers 中 lambda 持有的资源）
     if (m_rpcServer) {
         m_rpcServer->unregisterMethod("getPlayerInfo");
         m_rpcServer->unregisterMethod("updatePlayerLevel");

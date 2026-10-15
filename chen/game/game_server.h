@@ -277,9 +277,6 @@ public:
      */
     bool registerHandler(uint32_t cmdId, IMessageHandler::ptr handler);
 
-    void prepareDispatch() override;
-    void commitDispatch() override;
-
     /**
      * @brief 注册消息处理器（模板方法）
      * @param cmdId 命令ID
@@ -361,8 +358,6 @@ private:
     IPackageParser::ptr packageParser_;
     ConnectionManager::ptr connectionManager_;
     std::map<uint32_t, IMessageHandler::ptr> handlers_;
-    /// 热重载时的待提交 handler 表
-    std::map<uint32_t, IMessageHandler::ptr> pendingHandlers_;
     mutable std::mutex handlersMutex_;
     EncodeHook encodeHook_;
     DecodeHook decodeHook_;

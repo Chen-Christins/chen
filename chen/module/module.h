@@ -71,14 +71,6 @@ public:
     virtual bool onUnload();
 
     /**
-     * @brief 模块激活：新模块接管流量时调用（热重载）
-     * @details 在所有 server 的 dispatch 切换后调用。模块应在此方法中
-     *          注册新的 servlet/handler。默认实现调用 onServerReady()。
-     * @return bool
-     */
-    virtual bool onActivate();
-
-    /**
      * @brief 模块停用：旧模块被替换时调用（热重载）
      * @details 新模块已接管，旧模块停止接收新请求。
      *          用于关闭 WebSocket 连接等长连接。默认实现返回 true。
@@ -238,17 +230,6 @@ public:
     void delAll();
 
     /**
-     * @brief 退休（retire）一个模块：仅保留引用，不在此处 dlclose
-     * @param m 旧模块指针
-     * @details 热重载时旧模块可能仍被在途 fiber 的局部变量、
-     *          回调或全局单例引用。此处将旧模块挂入退休列表持有其
-     *          `Module::ptr`（进而持有 dlopen 句柄），避免在旧 .so
-     *          仍被引用时执行 dlclose 导致访问已卸载代码/已析构静态对象。
-     *          退休列表在进程退出或 delAll() 时统一释放。
-     */
-    void retire(Module::ptr m);
-
-    /**
      * @brief 初始化模块
      */
     void init();
@@ -278,17 +259,6 @@ public:
      */
     void listAll(std::vector<Module::ptr>& ms);
     /**
-     * @brief 重新加载模块（从共享库路径加载）。仅加载新模块并插入 m_modules，
-     *        不销毁旧模块，不调用 onServerReady。
-     * @param path 模块共享库路径
-     * @param[out] old_out 接收被替换的旧模块（可为 nullptr 表示不需要）
-     * @return 成功返回新模块指针，失败返回 nullptr
-     * @details 旧模块由调用方负责排空连接后销毁：
-     *          old->onDeactivate() → 等待 fiber 完成 → old.reset() → dlclose
-     */
-    Module::ptr reloadModule(const std::string& path, Module::ptr* old_out = nullptr);
-
-    /**
      * @brief 列出指定类型的模块
      * @param type 模块类型
      * @param ms 模块指针的向量
@@ -314,11 +284,12 @@ private:
     std::map<std::string, Module::ptr> m_modules;
     /// 模块类型到模块集合的映射
     std::unordered_map<uint32_t, std::unordered_map<std::string, Module::ptr> > m_type2Modules;
-    /// 退休模块集合：热重载替换下来的旧模块，持有到进程退出再释放，避免 dlclose 时仍被引用
-    std::vector<Module::ptr> m_retired;
 };
 
-typedef Singleton<ModuleManager> ModuleMgr;
+// 泄漏单例：进程退出时不析构，避免 std::exit 期间 dlclose 模块 .so
+// （多进程模型下 worker 退出时由内核回收地址空间，同时保护指向 .so 的
+//  EventBus/Config listener 不因静态析构而悬空）
+typedef LeakySingleton<ModuleManager> ModuleMgr;
 
 /**
  * @brief 获取模块目录（module.path 配置值）

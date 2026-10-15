@@ -55,7 +55,7 @@ force_redefine_file_macro_for_sources(game_module)
 target_link_libraries(game_module ${LIBS})
 chen_set_target_output_dir(game_module ${ROOT_DIR}/bin/module)
 
-# 生命周期测试模块 — 验证 onActivate/onDeactivate/dlclose 流程
+# 生命周期测试模块 — 验证 onLoad/onServerReady/onServerUp/onDeactivate/onUnload 流程
 add_library(lifecycle_module SHARED
     module_test/lifecycle_module.cc
 )

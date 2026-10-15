@@ -113,14 +113,15 @@ int n = g_max_conn->getValue();   // 每次都拿到最新值
 ## 生命周期与安全（重点）
 
 `addListener` 注册的回调是 `std::function`，其**函数指针指向模块 `.so` 内的代码**。
-热重载会 `dlclose` 旧 `.so`，若回调未移除，下次配置变更时调用悬空指针 → **SIGSEGV**。
+多进程模型下每个 worker 拥有独立的 FileWatcher/配置单例，进程退出即回收，不存在跨版本
+悬空指针；但在 worker 内仍应保持「谁注册，谁移除」，避免回调持有已释放的资源。
 
-> 这与 EventBus listener 的规则完全相同：**谁注册，谁移除。**
+> 这与 EventBus listener 的规则相同：**谁注册，谁移除。**
 
 | 时机 | 操作 |
 |------|------|
 | `onServerReady()` | `addListener` 注册回调，保存返回的 id |
-| `onDeactivate()`（热重载） | `delListener(id)` 移除回调 |
+| `onDeactivate()`（旧 worker drain） | `delListener(id)` 移除回调 |
 | `onUnload()`（优雅关闭） | `delListener(id)` 移除回调 |
 
 ### 回调注意事项
