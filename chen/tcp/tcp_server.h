@@ -178,21 +178,6 @@ public:
     virtual void stop();
 
     /**
-     * @brief 准备新的 dispatch 表（热重载双缓冲）
-     * @details 创建空的 pending dispatch，供新模块注册 handler。
-     *          默认实现为空（不支持双缓冲的 server 类型无需覆盖）。
-     */
-    virtual void prepareDispatch() {}
-
-    /**
-     * @brief 提交新的 dispatch 表（热重载双缓冲，原子切换）
-     * @details 将 pending dispatch 切换为 active dispatch。
-     *          切换后新请求走新 dispatch，旧 dispatch 通过 shared_ptr 引用计数自然释放。
-     *          默认实现为空。
-     */
-    virtual void commitDispatch() {}
-
-    /**
      * @brief 获取接收的超时时间
      */
     uint64_t getRecvTimeout() const { return m_recvTimeout; }

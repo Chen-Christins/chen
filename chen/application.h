@@ -106,12 +106,6 @@ private:
     void doGracefulShutdown();
 
     /**
-     * @brief 执行热重载流程（仅模块重载，SIGHUP 触发）
-     * @details 扫描模块目录并重载变更的模块
-     */
-    void doHotReload();
-
-    /**
      * @brief 执行配置文件重载（inotify 触发，单文件）
      * @param file 变更的配置文件路径
      */
@@ -148,8 +142,6 @@ private:
     static Application* m_instance;
     /// 优雅关闭信号标志
     static std::atomic<bool> s_shutdownSignaled;
-    /// 热重载信号标志
-    static std::atomic<bool> s_reloadSignaled;
 };
 
 } // namespace chen

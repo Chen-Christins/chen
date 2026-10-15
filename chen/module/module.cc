@@ -1,9 +1,7 @@
 #include "module.h"
 
 #include <algorithm>
-#include <fstream>
 #include <sstream>
-#include <unistd.h>
 
 #include "../application.h"
 #include "../config/config.h"
@@ -42,10 +40,6 @@ bool Module::onLoad() {
 
 bool Module::onUnload() {
     return true;
-}
-
-bool Module::onActivate() {
-    return onServerReady();
 }
 
 bool Module::onDeactivate() {
@@ -163,18 +157,6 @@ void ModuleManager::delAll() {
     for (auto& i : tmp) {
         del(i.first);
     }
-
-    // 释放退休模块（此时进程即将退出，可安全 dlclose）
-    std::unique_lock rlock(m_mutex);
-    m_retired.clear();
-}
-
-void ModuleManager::retire(Module::ptr m) {
-    if (!m) {
-        return;
-    }
-    std::unique_lock lock(m_mutex);
-    m_retired.push_back(std::move(m));
 }
 
 void ModuleManager::init() {
@@ -231,104 +213,6 @@ void ModuleManager::initModule(const std::string& path) {
     if (m) {
         add(m);
     }
-}
-
-Module::ptr ModuleManager::reloadModule(const std::string& path, Module::ptr* old_out) {
-    // 1. 先找出并移除旧模块（不销毁，留给调用方排空后处理）
-    Module::ptr old_mod;
-    {
-        std::unique_lock lock(m_mutex);
-        for (auto& [id, mod] : m_modules) {
-            if (mod->getFilename() == path) {
-                old_mod = mod;
-                m_modules.erase(id);
-                break;
-            }
-        }
-    }
-
-    // 2. 加载新模块。
-    //    ASan 等工具会向 .so 注入 thread_local 变量，导致 glibc 自动标记 DF_1_NODELETE，
-    //    dlclose 虽返回 0 但实际不卸载。再次 dlopen 同一路径会返回缓存的旧 handle。
-    //    解决方案：先将 .so 复制到唯一临时路径再 dlopen，确保每次拿到最新内容。
-    std::string load_path = path;
-    std::string tmp_path;
-    {
-        // 将 .so 复制到临时目录（与模块同目录，避免链接路径差异）
-        std::string dir = FSUtil::Dirname(path);
-        // 不以 .so 结尾，避免被 ListAllFile(..., ".so") 当成模块列出
-        tmp_path = dir + "/." + std::to_string(GetCurrentMs()) + "_" + std::to_string(getpid()) + ".rmod";
-
-        std::ifstream src(path, std::ios::binary);
-        if (!src) {
-            ERROR(g_logger) << "reloadModule: cannot open source path=" << path;
-            // 恢复旧模块
-            if (old_mod) {
-                std::unique_lock lock(m_mutex);
-                m_modules[old_mod->getId()] = old_mod;
-            }
-            return nullptr;
-        }
-        std::ofstream dst(tmp_path, std::ios::binary | std::ios::trunc);
-        if (!dst) {
-            ERROR(g_logger) << "reloadModule: cannot create tmp path=" << tmp_path;
-            if (old_mod) {
-                std::unique_lock lock(m_mutex);
-                m_modules[old_mod->getId()] = old_mod;
-            }
-            return nullptr;
-        }
-        dst << src.rdbuf();
-        src.close();
-        dst.close();
-        load_path = tmp_path;
-    }
-
-    Module::ptr new_mod = Library::GetModule(load_path);
-    if (!new_mod) {
-        ERROR(g_logger) << "reloadModule: cannot load new module from path=" << load_path;
-        FSUtil::Unlink(tmp_path);
-        if (old_mod) {
-            std::unique_lock lock(m_mutex);
-            m_modules[old_mod->getId()] = old_mod;
-        }
-        return nullptr;
-    }
-    // 将模块的文件名保持为原始路径（对外不变）
-    new_mod->setFilename(path);
-
-    // 3. 调用新模块的 onLoad
-    if (!new_mod->onLoad()) {
-        ERROR(g_logger) << "reloadModule: new module onLoad failed name="
-            << new_mod->getName() << " version=" << new_mod->getVersion()
-            << " path=" << new_mod->getFilename();
-        FSUtil::Unlink(tmp_path);
-        if (old_mod) {
-            std::unique_lock lock(m_mutex);
-            m_modules[old_mod->getId()] = old_mod;
-        }
-        return nullptr;
-    }
-
-    // 4. 加入模块表
-    {
-        std::unique_lock lock(m_mutex);
-        m_modules[new_mod->getId()] = new_mod;
-    }
-
-    // 清理临时文件（dlopen 已 mmap，删除文件不影响已加载的代码）
-    if (!tmp_path.empty()) {
-        FSUtil::Unlink(tmp_path);
-    }
-
-    // 成功后才将旧模块交给调用方排空
-    if (old_out) {
-        *old_out = old_mod;
-    }
-
-    INFO(g_logger) << "reloadModule success name=" << new_mod->getName()
-        << " version=" << new_mod->getVersion() << " path=" << new_mod->getFilename();
-    return new_mod;
 }
 
 void ModuleManager::listByType(uint32_t type, std::vector<Module::ptr>& ms) {

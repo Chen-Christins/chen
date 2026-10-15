@@ -49,8 +49,7 @@ LifecycleModule::LifecycleModule()
 
 LifecycleModule::~LifecycleModule() {
     INFO(logger) << "~LifecycleModule() id=" << m_id
-                 << " this=" << (void*)this
-                 << " ← THIS MEANS DLCLOSE HAPPENED!";
+                 << " this=" << (void*)this;
 }
 
 bool LifecycleModule::onLoad() {
@@ -61,11 +60,6 @@ bool LifecycleModule::onLoad() {
 bool LifecycleModule::onUnload() {
     INFO(logger) << ">>> [id=" << m_id << "] onUnload";
     return true;
-}
-
-bool LifecycleModule::onActivate() {
-    INFO(logger) << ">>> [id=" << m_id << "] onActivate (calling onServerReady)";
-    return Module::onActivate();
 }
 
 bool LifecycleModule::onDeactivate() {

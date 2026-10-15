@@ -82,15 +82,20 @@ Servers are created by `TcpServerFactory` from YAML config. Each server gets thr
 
 `chen/module.h` — Modules are `.so` files loaded via `dlopen`. `ModuleManager` scans `bin/module/`, loads each, calls lifecycle methods.
 
-Hot reload flow: `SIGHUP` → `Application::doHotReload()` → `ModuleManager::reloadModule()`:
-1. Copies `.so` to tmp file (defeats glibc `DF_1_NODELETE` with ASan)
-2. `dlopen` new .so, `CreateModule()`, `onLoad()`
-3. Calls `old->onDrain()` — module stops accepting new work, closes connections
-4. Waits for connections to drain, then `old->onGracefulUnload()`
-5. Releases old shared_ptr → `DestroyModule()` → `dlclose`
+Hot reload uses a **master/worker multi-process model**: the master owns the listening
+sockets and pidfile, and forks a fresh worker to load the new modules. Old workers stop
+accepting, drain in-flight connections, then exit. No in-process `dlclose` — each process
+has exactly one module version.
+
+Hot reload flow: `SIGHUP` → master forks new worker:
+1. New worker `dlopen`s the new `.so`, `CreateModule()`, `onLoad()`
+2. New worker `onServerReady()` → `onServerUp()`, starts accepting
+3. Master signals old worker to stop accepting
+4. Old worker drains in-flight connections (bounded by `server.drain_timeout_ms`)
+5. Old worker `onDeactivate()` → `onUnload()` → process exits
 
 Module lifecycle methods (all optional, have defaults):
-`onLoad` → `onServerReady` → `onServerUp` → [`onTick` periodic] → `onDrain` → `onGracefulUnload` → `onUnload`
+`onLoad` → `onServerReady` → `onServerUp` → [`onTick` periodic] → `onDeactivate` → `onUnload`
 
 ### Config system
 

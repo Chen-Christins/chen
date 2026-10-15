@@ -3,15 +3,20 @@
 框架提供 nginx 级别的优雅关闭和零停机热重载。业务模块只需关心数据持久化和资源释放，
 连接管理、事件清理、定时器兜底由框架处理。
 
+热重载采用 **master/worker 多进程模型**：master 进程持有监听端口并监督 worker，
+每个 worker 进程只加载一个版本的模块 `.so`。重载时新 worker 加载新模块，旧 worker
+停止 accept、限时 drain 完遗留连接后退出。进程退出时由内核回收地址空间，**不做进程内
+`dlclose`**，因此不存在旧 `.so` 函数指针悬空的问题。
+
 ## 生命周期方法总览
 
 ```
-启动:          onLoad() → onServerReady() → onServerUp() → [onTick()...]
-                                                         ↓
-关机:          onDeactivate() → onUnload() → dlclose()
+启动: onLoad() → onServerReady() → onServerUp() → [onTick()...]
+                                                     ↓
+关机: onDeactivate() → onUnload()
 
-热重载(新模块): onLoad() → onServerReady() → onServerUp()
-热重载(旧模块):                  onDeactivate() → dlclose()
+重载(新 worker): onLoad() → onServerReady() → onServerUp()
+重载(旧 worker):                onDeactivate() → onUnload() → 进程退出
 ```
 
 ---
@@ -19,25 +24,22 @@
 ## 热重载时序
 
 ```
-1. dlopen 新 .so → CreateModule() → onLoad()
-2. onServerReady()     ← 新模块: clearAll() + 注册 servlet/handler/EventBus
-3. commitDispatch()    ← 框架: 切换流量到新 handler（原子操作，无 404 窗口）
-4. onServerUp()        ← 新模块: 感知 server 开始 accept
-5. onDeactivate()      ← 旧模块: stop 定时器, flush 脏数据（不要清 EventBus）
-6. DestroyModule()     ← dlclose 旧 .so
+1. master fork 新 worker
+2. 新 worker: CreateModule() → onLoad()
+3. 新 worker: onServerReady()   ← 注册 servlet/handler/EventBus
+4. 新 worker: onServerUp()      ← 开始 accept
+5. master 通知旧 worker 停止 accept
+6. 旧 worker: 限时 drain 遗留连接
+7. 旧 worker: onDeactivate() → onUnload() → 退出
 ```
 
-**关键**: 步骤 3 之后新请求即刻由新代码处理。旧模块的 in-flight 请求在步骤 5 之前自然完成。
-整个过程中**不存在 404 窗口**。
+**关键**: 步骤 4 之后新请求即由新进程处理；旧进程的 in-flight 请求在步骤 7 之前自然完成。
+整个过程中**不存在 404 窗口**，master 的监听 fd 在整个过程中保持打开。
 
-### 为什么 clearAll 在 onServerReady 开头而不是 onDeactivate？
+### 内存态说明
 
-EventBus 的 listener 是 `std::function`，内部通过 type-erasure 存储函数指针。
-这些函数指针指向模块 `.so` 中的代码。如果在旧模块 `onDeactivate()` 中调 `clearAll()`，
-新模块刚注册的 listener 也会被清掉（新 .so 中的函数指针没问题，但功能丢失了）。
-
-正确做法：新模块 `onServerReady()` 开头调 `clearAll()`——此时旧 `.so` 还未 dlclose，
-旧 listener 的函数指针仍然有效，销毁安全。之后注册新 listener，dlclose 后只有新 listener 存活。
+新 worker 是全新进程，堆内状态（内存缓存、内存 session 等）会重置。需要跨重载保留的
+数据应写入 Redis/MySQL，或在旧 worker 的 `onDeactivate()` 中 flush。
 
 ---
 
@@ -45,18 +47,17 @@ EventBus 的 listener 是 `std::function`，内部通过 type-erasure 存储函�
 
 ```
 1. server->stop()           ← 停止 accept, 不再接收新连接
-2. drain 3s                 ← 现存连接自然完成
+2. drain (server.drain_timeout_ms) ← 现存连接自然完成
 3. 取消 tick 定时器         ← 框架取消所有模块的 onTick
 4. 停止 tick IOManager
 5. onDeactivate()           ← flush 脏数据
-6. onUnload()               ← clearAll() EventBus + stop 定时器 + 释放 DB/Redis 资源
-7. 停止 WorkerMgr           ← cancelAllTimers() + 停止 io/accept 线程
-8. 清理 pid 文件 → 进程退出  ← FoxThreadMgr 由静态析构自动 stop/join
+6. onUnload()               ← clearAll EventBus + stop 定时器 + 释放 DB/Redis 资源
+7. 停止 WorkerMgr           ← 停止 io/accept 线程
+8. 进程退出                  ← 地址空间回收
 ```
 
-> 框架不再代为释放 Redis 或停止 FoxThreadMgr：使用 DB/Redis 的模块需在自己的
-> `onUnload()` 中释放连接（如 `RedisMgr::GetInstance()->freeAll()`）。详见
-> [`docs/db-configuration.md`](db-configuration.md)。
+> 框架不再代为释放 Redis：使用 DB/Redis 的模块需在自己的 `onUnload()` 中释放连接
+> （如 `RedisMgr::GetInstance()->freeAll()`）。详见 [`docs/db-configuration.md`](db-configuration.md)。
 
 ---
 
@@ -64,7 +65,7 @@ EventBus 的 listener 是 `std::function`，内部通过 type-erasure 存储函�
 
 ### `bool onLoad()`
 
-- 何时调用: 模块首次加载（启动 / dlopen）
+- 何时调用: 模块首次加载（worker 进程启动 / dlopen）
 - 职责: 初始化模块内部状态（配置检查等）
 - **不要**注册 servlet/handler（此时 server 未创建）
 - **不要**连接数据库（在 onServerReady 里做）
@@ -73,12 +74,11 @@ EventBus 的 listener 是 `std::function`，内部通过 type-erasure 存储函�
 
 - 何时调用: server 创建完毕、绑定端口后
 - 职责（按顺序）:
-  1. `clearAll()` — 清除旧模块遗留的 EventBus listener
+  1. `clearAll()` — 清除 EventBus listener（保持清理习惯）
   2. 连接数据库
   3. 注册 HTTP servlet / WS servlet / RPC handler
   4. 初始化 EventBus listener
-- 注意: 热重载时此方法会在 `commitDispatch()` 之前被调用，
-  注册的 handler/servlet 必须是**新 .so 中的代码**
+- 注意: 注册的 handler/servlet 必须是**本进程加载的 `.so` 中的代码**
 
 ### `bool onServerUp()`
 
@@ -90,61 +90,40 @@ EventBus 的 listener 是 `std::function`，内部通过 type-erasure 存储函�
 
 - 何时调用: 每 `getTickIntervalMs()` 毫秒一次
 - 职责: 定时发布任务、缓存刷新等周期性操作
-- 注意: 热重载后框架自动为新模块重建 tick 定时器
 
 ### `bool onDeactivate()`
 
 - 何时调用:
-  - 热重载: 旧模块被替换时
+  - 重载: 旧 worker 停止 accept、drain 完成后
   - 关机: 所有模块的 onUnload 之前
 - 职责:
   - 停止后台定时器
   - flush 脏数据到 DB/Redis
-  - **不要**清空 EventBus（由新模块 onServerReady 处理）
   - **不要**关闭 WebSocket 连接（框架的 drain 机制处理）
 
 ### `bool onUnload()`
 
-- 何时调用: 仅在优雅关闭时（热重载不调此方法）
+- 何时调用: worker 进程退出前（重载旧 worker / 关机均会调用）
 - 职责:
-  - `clearAll()` — 清除 EventBus listener（.so 尚未 dlclose，安全）
+  - `clearAll()` — 清除 EventBus listener
   - 保存脏数据
   - 停止定时器
   - 释放资源，包括 DB/Redis 连接（如 `RedisMgr::GetInstance()->freeAll()`）
 
 ---
 
-## EventBus 生命周期（⚠️ 重要）
+## EventBus 生命周期
 
-EventBus 是全局单例，listener 中的 `std::function` 通过 type-erasure 存储函数指针，
-这些指针指向模块 `.so` 中的代码。`dlclose()` 后指针悬空，销毁会 segfault。
+EventBus 是**进程内单例**，listener 中的 `std::function` 存储指向模块 `.so` 中代码的
+函数指针。多进程模型下，每个 worker 拥有独立的 EventBus 实例，随进程退出（地址空间
+回收）一并销毁，因此不存在跨版本的重载悬空指针问题。
 
-### 安全规则
+仍建议：
 
-| 时机 | 调用 `clearAll()` | 原因 |
+| 时机 | 调用 `clearAll()` | 说明 |
 |------|-------------------|------|
-| `onServerReady()` 开头 | ✅ 安全 | 旧 .so 还未 dlclose，旧 listener 的函数指针有效 |
-| `onDeactivate()` | ❌ 不要调 | 会清掉新模块刚注册的 listener |
-| `onUnload()` | ✅ 安全 | 仅关机时调用，.so 尚未 dlclose |
-| dlclose 之后 | ❌ 崩溃 | 函数指针悬空，销毁 std::function → SIGSEGV |
-
-### 热重载时 EventBus 变化
-
-```
-v1.0 运行中:    EventBus = [v1.0 listeners]
-
-热重载 v1.0 → v2.0:
-  1. v2.0 onServerReady: clearAll() → 注册 v2.0 listeners
-     EventBus = [v2.0 listeners]                     ← v1.0 已清除
-  2. v1.0 onDeactivate: stop() only
-  3. dlclose(v1.0)                                   ← 安全，v1.0 listener 已不存在
-
-热重载 v2.0 → v3.0:
-  1. v3.0 onServerReady: clearAll() → 注册 v3.0 listeners
-     EventBus = [v3.0 listeners]                     ← v2.0 已清除
-  2. v2.0 onDeactivate: stop() only
-  3. dlclose(v2.0)                                   ← 安全
-```
+| `onServerReady()` 开头 | 建议 | 保证本进程 EventBus 干净 |
+| `onUnload()` | 建议 | 进程退出前清理资源 |
 
 ---
 
@@ -169,7 +148,6 @@ closeAllConnections();  // 主动关闭所有 WS，客户端自动重连
 
 ```cpp
 // onServerReady 时重新 registerMethod 即可
-// 框架的 commitDispatch 会原子切换
 ```
 
 ---
@@ -198,24 +176,16 @@ void ArticleMgr::stop() {
 
 ## 常见问题
 
-### Q: 为什么 `onUnload` 不在热重载时调用？
-
-A: 热重载时旧模块通过 `onDeactivate()` 清理资源后直接 dlclose。
-`onUnload()` 仅在关机时调用，因为关机后不需要保留模块注册。
-
 ### Q: 热重载时会丢数据吗？
 
-A: 不会丢 DB/Redis 中的数据。但**进程堆内存中的数据**（如 `std::map` 缓存的浏览计数）
-在旧模块 dlclose 后会丢失。解决方式: 要么放到 Redis，要么在 `onDeactivate` 中 flush 到 DB。
+A: 不会丢 DB/Redis 中的数据。但**新 worker 是全新进程，堆内存状态会重置**。需要保留
+的数据要么放到 Redis，要么在旧 worker 的 `onDeactivate` 中 flush 到 DB。
 
-### Q: cancelAllTimers 会取消我的业务定时器吗？
+### Q: 热重载后旧连接会立即断开吗？
 
-A: `cancelAllTimers()` 只在 WorkerMgr::stop() 阶段调用（关机步骤 9），
-此时你的 `onDeactivate` 已经完成了所有清理。框架清的是 `do_io` 创建的内部
-条件超时器，不是你的业务 tick。
+A: 不会。master 让旧 worker 停止 accept 后，旧 worker 会限时（`server.drain_timeout_ms`）
+等待现存连接自然完成，超时后才强制关闭并退出。
 
 ### Q: 无限热重载安全吗？
 
-A: 安全。每次热重载时新模块 `onServerReady()` 开头调 `clearAll()` 清除所有旧 listener，
-然后注册新 listener。dlclose 时 EventBus 中只有新模块的 listener，不会累积悬空指针。
-已验证 3+ 次连续热重载 + 关机均无 segfault。
+A: 安全。每个新 worker 都是独立进程，模块 `.so` 不共享、不 `dlclose`，无悬空指针累积。

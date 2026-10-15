@@ -14,12 +14,10 @@
 ## 模块生命周期
 
 ```
-CreateModule() → onLoad() → onServerReady() → onServerUp()
+启动: CreateModule() → onLoad() → onServerReady() → onServerUp() → [onTick()...]
                                                     ↓
-                                              [onTick()]   ← 周期性
-                                                    ↓
-热重载: onDeactivate() → DestroyModule() → dlclose()
-关机:   onDeactivate() → onUnload() → DestroyModule() → dlclose()
+关机: onDeactivate() → onUnload() → DestroyModule()（进程退出时回收地址空间）
+重载: 新进程加载新模块；旧进程 onDeactivate() → onUnload() → 退出
 ```
 
 所有方法都有默认空实现，子类按需覆写。
@@ -72,19 +70,21 @@ bool MyModule::onServerReady() {
 }
 ```
 
-### 热重载
+### 热重载（多进程模型）
 
 ```SIGHUP
-kill -HUP <pid>
+kill -HUP <master_pid>
 ```
 
+采用 master/worker 多进程模型：master 持有监听端口，收到 SIGHUP 后 fork 出一个新
+worker 进程加载磁盘上的新模块；新 worker 就绪后，master 通知旧 worker 停止 accept，
+旧 worker 限时 drain 完遗留连接后退出。每个进程只加载一个版本的 `.so`，退出时由内核
+回收地址空间，**不做进程内 `dlclose`**。
+
 框架流程：
-1. `dlopen` 新 `.so` → `CreateModule()` → 新模块 `onLoad()`
-2. 新模块 `onServerReady()` — clearAll + 注册新的 servlet/handler/EventBus
-3. `commitDispatch()` — 框架原子切换流量到新 handler
-4. 新模块 `onServerUp()` — 感知 server 开始 accept
-5. 旧模块 `onDeactivate()` — stop 定时器, flush 数据
-6. `DestroyModule()` → `dlclose` 旧 .so
+1. master fork 新 worker，新 worker `CreateModule()` → `onLoad()` → `onServerReady()` → `onServerUp()`
+2. 新 worker 就绪后开始 accept
+3. 旧 worker 停止 accept → 限时 drain → `onDeactivate()` → `onUnload()` → 进程退出
 
 ### 优雅关闭
 
@@ -92,16 +92,12 @@ kill -HUP <pid>
 1. 停止 accept, drain 连接
 2. 取消 tick 定时器
 3. `onDeactivate()` — flush 数据
-4. `onUnload()` — clearAll EventBus, 释放资源
+4. `onUnload()` — 释放资源
 5. 停止 WorkerMgr → 进程退出
 
-## ⚠️ EventBus 安全
+## EventBus 安全
 
-EventBus listener 中的 `std::function` 通过 type-erasure 存储函数指针，指向模块 `.so` 中的代码。
-`dlclose()` 后指针悬空，销毁会 segfault。
-
-**规则：`clearAll()` 必须在 `.so` dlclose 之前调用。**
-
-- `onServerReady()` 开头调 `clearAll()` — 安全（旧 .so 还活着）
-- `onUnload()` 调 `clearAll()` — 安全（关机时 .so 还活着）
-- `onDeactivate()` **不要**调 `clearAll()` — 会清掉新模块的 listener
+EventBus 是进程内单例，listener 中的 `std::function` 存储模块 `.so` 中的函数指针。
+多进程模型下，每个 worker 拥有独立的 EventBus 实例，进程退出时随地址空间一并回收，
+不存在跨版本的悬空指针问题。各 worker 的 `onServerReady()` 无需为兼容旧版本而调用
+`clearAll()`（同进程内仍建议保持清理习惯）。

@@ -79,7 +79,7 @@ public:
     bool onLoad() override { return true; }
 
     bool onServerReady() override {
-        // 1. 清除旧 EventBus listener（旧 .so 还未 dlclose，安全）
+        // 1. 清除 EventBus listener（保证本进程干净）
         chen::EventBusMgr::GetInstance()->clearAll();
 
         // 2. 初始化数据库
@@ -105,16 +105,15 @@ public:
 
     uint64_t getTickIntervalMs() override { return 60000; }
 
-    // ======== 热重载 ========
+    // ======== 重载旧 worker / 关机 ========
     bool onDeactivate() override {
         ArticleMgr::stop();  // flush + 停定时器
-        // 不清 EventBus——由新模块 onServerReady 处理
         return true;
     }
 
     // ======== 优雅关闭 ========
     bool onUnload() override {
-        chen::EventBusMgr::GetInstance()->clearAll();  // .so 尚未 dlclose，安全
+        chen::EventBusMgr::GetInstance()->clearAll();
         ArticleMgr::stop();
         closeAllConnections();
         chen::RedisMgr::GetInstance()->freeAll();  // 释放 DB/Redis 连接
@@ -183,10 +182,10 @@ public:
                                 ↑
                            你在这里保存数据
 
-热重载流程:
-  框架取消旧 tick → 重建新 tick → onDeactivate() → flush 脏数据 → dlclose
-                                                ↑
-                                           你在这里保存数据
+热重载流程(旧 worker):
+  停止 accept → 限时 drain → 取消 tick → onDeactivate() → flush 脏数据 → 进程退出
+                                            ↑
+                                       你在这里保存数据
 ```
 
 **框架只负责定时器生命周期，不操作业务数据。**

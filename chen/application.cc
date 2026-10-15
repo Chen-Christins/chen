@@ -5,7 +5,6 @@
 #include <cstring>
 #include <iostream>
 #include <mutex>
-#include <set>
 
 #include "config/config.h"
 #include "daemon.h"
@@ -85,7 +84,6 @@ static void RegisterBuiltInServers() {
 
 Application* Application::m_instance = nullptr;
 std::atomic<bool> Application::s_shutdownSignaled{false};
-std::atomic<bool> Application::s_reloadSignaled{false};
 
 Application::Application() {
     m_instance = this;
@@ -190,8 +188,6 @@ bool Application::run() {
 void Application::signalHandler(int sig) {
     if (sig == SIGINT || sig == SIGTERM) {
         s_shutdownSignaled.store(true, std::memory_order_release);
-    } else if (sig == SIGHUP) {
-        s_reloadSignaled.store(true, std::memory_order_release);
     }
 }
 
@@ -257,13 +253,6 @@ void Application::onHousekeeping() {
             doGracefulShutdown();
         }
         return;
-    }
-
-    // 检查热重载信号
-    if (s_reloadSignaled.load(std::memory_order_acquire)) {
-        s_reloadSignaled.store(false, std::memory_order_release);
-        INFO(logger) << "received reload signal (SIGHUP), starting hot reload...";
-        doHotReload();
     }
 }
 
@@ -353,142 +342,6 @@ void Application::doGracefulShutdown() {
 
         std::exit(0);
     });
-}
-
-void Application::doHotReload() {
-    auto module_path = EnvMgr::GetInstance()->getAbsolutePath(GetModulePath());
-
-    std::vector<std::string> files;
-    FSUtil::ListAllFile(files, module_path, ".so");
-    // 跳过隐藏文件（如遗留的热重载临时 .so，避免被误当成模块加载）
-    files.erase(std::remove_if(files.begin(), files.end(),
-        [](const std::string& f) {
-            auto base = FSUtil::Basename(f);
-            return !base.empty() && base[0] == '.';
-        }), files.end());
-
-    std::vector<Module::ptr> pending_drain;
-    std::vector<Module::ptr> newly_loaded;
-    for (auto& file : files) {
-        INFO(logger) << "hot reload: attempting to reload module " << file;
-        Module::ptr old_mod;
-        Module::ptr new_mod = ModuleMgr::GetInstance()->reloadModule(file, &old_mod);
-        if (new_mod) {
-            INFO(logger) << "hot reload: module loaded successfully: " << file;
-            newly_loaded.push_back(std::move(new_mod));
-        } else {
-            ERROR(logger) << "hot reload: failed to reload module: " << file;
-        }
-        if (old_mod) {
-            pending_drain.push_back(std::move(old_mod));
-        }
-    }
-
-    // 仅当有模块被重载时，执行双缓冲切换
-    if (!newly_loaded.empty()) {
-        // 收集新加载模块的 filename，用于只对新模块调 onServerUp
-        std::set<std::string> new_filenames;
-        for (auto& m : newly_loaded) {
-            new_filenames.insert(m->getFilename());
-        }
-
-        INFO(logger) << "hot reload: preparing dispatch for " << newly_loaded.size() << " reloaded module(s)...";
-        for (auto& [type, servers] : m_servers) {
-            for (auto& server : servers) {
-                server->prepareDispatch();
-            }
-        }
-
-        {
-            std::vector<Module::ptr> modules;
-            ModuleMgr::GetInstance()->listAll(modules);
-            for (auto& m : modules) {
-                m->onServerReady();
-            }
-        }
-
-        INFO(logger) << "hot reload: committing dispatch...";
-        for (auto& [type, servers] : m_servers) {
-            for (auto& server : servers) {
-                server->commitDispatch();
-            }
-        }
-
-        // 只对新加载的模块调 onServerUp（不变模块不需要重复通知）
-        {
-            std::vector<Module::ptr> modules;
-            ModuleMgr::GetInstance()->listAll(modules);
-            for (auto& m : modules) {
-                if (new_filenames.count(m->getFilename())) {
-                    m->onServerUp();
-                }
-            }
-        }
-
-        for (auto& timer : m_tickTimers) {
-            if (timer) {
-                timer->cancel();
-            }
-        }
-        m_tickTimers.clear();
-
-        std::vector<Module::ptr> modules;
-        ModuleMgr::GetInstance()->listAll(modules);
-        for (auto& m : modules) {
-            uint64_t interval_ms = m->getTickIntervalMs();
-            if (interval_ms > 0) {
-                std::weak_ptr<Module> weak_m = m;
-                auto timer = m_tickIOManager->addTimer(interval_ms, [weak_m]() {
-                    auto mod = weak_m.lock();
-                    if (mod) {
-                        mod->onTick();
-                    }
-                }, true);
-                m_tickTimers.push_back(timer);
-            }
-        }
-    }
-
-    if (pending_drain.empty()) {
-        INFO(logger) << "hot reload complete";
-        return;
-    }
-
-    for (auto& old_mod : pending_drain) {
-        auto old_name = old_mod->getName();
-        auto old_version = old_mod->getVersion();
-        INFO(logger) << "hot reload: deactivating old module name=" << old_name
-            << " version=" << old_version;
-        old_mod->onDeactivate();
-    }
-
-    // 关闭现存连接（WS/keep-alive 等），唤醒阻塞的 fiber，使其释放旧模块对象
-    for (auto& [type, servers] : m_servers) {
-        for (auto& server : servers) {
-            server->closeAllClients();
-        }
-    }
-
-    // 异步 drain：drain 期间持有旧模块，关闭旧连接让在途 fiber 尽快反解栈；
-    // drain 结束后旧模块转入退休列表（不再 dlclose），避免卸载后仍被引用。
-    uint64_t drain_ms = g_drain_timeout_ms->getValue();
-    INFO(logger) << "hot reload: waiting " << drain_ms << "ms for old connections to drain...";
-    auto self = std::weak_ptr<IOManager>(m_mainIOManager);
-    m_mainIOManager->addTimer(drain_ms,
-        [self, pending_drain = std::move(pending_drain)]() mutable {
-            if (self.expired()) {
-                return;
-            }
-            INFO(logger) << "hot reload: drain finished, retiring "
-                << pending_drain.size() << " old module(s)";
-            // 不再 dlclose：把旧模块挂入退休列表持有其 dlopen 句柄，
-            // 避免旧 .so 的代码/静态单例仍被引用时被卸载
-            for (auto& m : pending_drain) {
-                ModuleMgr::GetInstance()->retire(std::move(m));
-            }
-            pending_drain.clear();
-            INFO(logger) << "hot reload complete";
-        });
 }
 
 int Application::main(int argc, char** argv) {
