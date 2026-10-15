@@ -252,9 +252,6 @@ bool Socket::listen(int backlog) {
             << " strerr=" << strerror(errno);
         return false;
     }
-    // 监听 socket 必须非阻塞：master 主线程（hook 关闭）创建/绑定的 fd 默认阻塞，
-    // worker 继承后 hook 的 do_io 首次 accept 会阻塞在内核，且 close() 无法唤醒。
-    setNonblock(true);
     return true;
 }
 
@@ -501,9 +498,9 @@ void Socket::initSock() {
 }
 
 void Socket::newSock() {
-    // 就是在这个地方调用了Hook里面的socket，将它添加到了 FdCtx 里面
     m_sock = socket(m_family, m_type, m_protocol);
     if (LIKELY(m_sock != -1)) {
+        FdMgr::GetInstance()->get(m_sock, true);
         initSock();
     } else {
         ERROR(logger) << "socket(" << m_family
