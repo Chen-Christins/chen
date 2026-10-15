@@ -286,7 +286,10 @@ private:
     std::unordered_map<uint32_t, std::unordered_map<std::string, Module::ptr> > m_type2Modules;
 };
 
-typedef Singleton<ModuleManager> ModuleMgr;
+// 泄漏单例：进程退出时不析构，避免 std::exit 期间 dlclose 模块 .so
+// （多进程模型下 worker 退出时由内核回收地址空间，同时保护指向 .so 的
+//  EventBus/Config listener 不因静态析构而悬空）
+typedef LeakySingleton<ModuleManager> ModuleMgr;
 
 /**
  * @brief 获取模块目录（module.path 配置值）

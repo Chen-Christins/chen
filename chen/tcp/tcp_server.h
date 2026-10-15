@@ -43,9 +43,7 @@ struct TcpServerConf {
     int negotiateH2 = 0;
     std::map<std::string, std::string> args;
 
-    bool isValid() const {
-        return !address.empty();
-    }
+    bool isValid() const { return !address.empty(); }
 
     bool operator==(const TcpServerConf& oth) const {
         return address == oth.address
@@ -140,9 +138,8 @@ public:
      * @param worker 主要的工作线程池
      * @param accept_worker 用于接收连接的线程池
      */
-    TcpServer(IOManager* worker = IOManager::GetThis()
-            ,IOManager* io_worker = IOManager::GetThis()
-            ,IOManager* accept_worker = IOManager::GetThis());
+    TcpServer(IOManager* worker = IOManager::GetThis(), IOManager* io_worker = IOManager::GetThis(),
+              IOManager* accept_worker = IOManager::GetThis());
 
     /**
      * @brief 析构函数
@@ -162,10 +159,8 @@ public:
      * @param[out] fails 存绑定失败了的地址信息
      * @return bool 成功与否
      */
-    virtual bool bind(const std::vector<Address::ptr>& addrs
-                    ,std::vector<Address::ptr>& fails
-                    ,bool ssl = false);
-    
+    virtual bool bind(const std::vector<Address::ptr>& addrs, std::vector<Address::ptr>& fails, bool ssl = false);
+
     /**
      * @brief 开启TCPServer
      * @return bool 成功与否
@@ -176,6 +171,16 @@ public:
      * @brief 停止TcpServer
      */
     virtual void stop();
+
+    /**
+     * @brief 设置 server 使用的三个 IOManager
+     * @details 供多进程模型使用：master 创建/绑定 server 时以空 worker 构造，
+     *          worker fork 后按配置解析出真实 worker 再注入，随后才能 start()。
+     * @param process_worker 业务处理线程池
+     * @param io_worker IO 事件线程池
+     * @param accept_worker 接收连接线程池
+     */
+    void setWorkers(IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker);
 
     /**
      * @brief 获取接收的超时时间
@@ -235,9 +240,9 @@ public:
 
     /**
      * @brief 加载https证书
-     * @param cert_file 
-     * @param key_file 
-     * @return bool 
+     * @param cert_file
+     * @param key_file
+     * @return bool
      */
     bool loadCertificates(const std::string& cert_file, const std::string& key_file);
 
@@ -260,6 +265,7 @@ protected:
      * @param sock 客户端socket信息
      */
     virtual void startAccept(Socket::ptr sock);
+
 protected:
     /// 工作线程池
     IOManager* m_worker;
@@ -290,9 +296,7 @@ protected:
 
 class TcpServerFactory {
 public:
-    using Creator = std::function<TcpServer::ptr(const TcpServerConf& conf,
-                                                 IOManager* process_worker,
-                                                 IOManager* io_worker,
+    using Creator = std::function<TcpServer::ptr(const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker,
                                                  IOManager* accept_worker)>;
 
     /**
@@ -311,10 +315,7 @@ public:
     /**
      * @brief 根据配置创建服务器
      */
-    static TcpServer::ptr Create(const TcpServerConf& conf,
-                                 IOManager* process_worker,
-                                 IOManager* io_worker,
-                                 IOManager* accept_worker);
+    static TcpServer::ptr Create(const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker);
 
     /**
      * @brief 列出已注册的类型
@@ -322,4 +323,4 @@ public:
     static std::vector<std::string> ListTypes();
 };
 
-}
+} // namespace chen

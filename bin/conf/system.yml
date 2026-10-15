@@ -39,6 +39,11 @@ servers:
 server:
   work_path: /home/chen/workspace/chen/
   pid_file: blog.pid
+  # 多进程热重载（master/worker）相关参数（均可选，以下为默认值）
+  # drain_timeout_ms: 3000            # 旧 worker 停止 accept 后等待遗留连接的毫秒数，超时强制关闭
+  # worker_ready_timeout_ms: 30000    # master 等待新 worker 就绪的超时毫秒数
+  # worker_restart_interval_ms: 2000  # worker 崩溃后 master 重启前的等待毫秒数
+  # housekeeping_interval_ms: 500     # worker 检查关闭信号的定时器间隔
 
 # 日志配置
 logs:

@@ -152,6 +152,11 @@ public:
     void clearAppenders();
 
     /**
+     * @brief 刷新本日志器所有输出地的缓冲
+     */
+    void flush();
+
+    /**
      * @brief 返会日志级别
      */
     LogLevel::Level getLevel() const { return m_level; }
@@ -453,6 +458,12 @@ public:
     virtual void log(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event) = 0;
 
     /**
+     * @brief 刷新输出缓冲（默认空实现，子类按需覆写）
+     * @details 多进程模型下 master 在 fork 前调用，避免子进程继承未刷新的缓冲
+     */
+    virtual void flush() {}
+
+    /**
      * @brief 获取日志格式器
      */
     LogFormatter::ptr getFormatter();
@@ -547,6 +558,11 @@ public:
      * @param event 日志事件器
      */
     void log(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event) override;
+
+    /**
+     * @brief 刷新文件输出缓冲
+     */
+    void flush() override;
 
     /**
      * @brief 重新打开文件
@@ -685,6 +701,12 @@ public:
      * @return Logger::ptr 
      */
     Logger::ptr getRoot() const { return m_root; }
+
+    /**
+     * @brief 刷新所有日志器的输出缓冲
+     * @details 供 fork 前调用，避免子进程继承未刷新的缓冲导致日志重复
+     */
+    void flushAll();
 
     /**
      * @brief 转换为YamlString

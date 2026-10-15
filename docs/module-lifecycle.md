@@ -8,6 +8,43 @@
 停止 accept、限时 drain 完遗留连接后退出。进程退出时由内核回收地址空间，**不做进程内
 `dlclose`**，因此不存在旧 `.so` 函数指针悬空的问题。
 
+## 进程模型
+
+```
+                 ┌──────────────────────────────┐
+                 │            master            │
+                 │  绑定监听 socket（持有 fd）     │
+                 │  写 pidfile / 处理信号         │
+                 └───────────────┬──────────────┘
+                                 │ fork() 继承监听 fd
+                 ┌───────────────┴───────────────┐
+                 │                               │
+          ┌──────▼───────┐               ┌───────▼──────┐
+          │  worker v1   │   SIGHUP →    │  worker v2   │
+          │  加载 v1 .so  │  旧 worker    │  加载 v2 .so  │
+          │  处理连接     │  drain 后退出  │  接管新连接    │
+          └──────────────┘               └──────────────┘
+```
+
+- **master**：单线程，不加载模块。`setupServers()` 绑定全部监听 socket 后 `fork()` 出 worker；
+  收到 `SIGHUP` 时 fork 新 worker，就绪后向旧 worker 发 `SIGQUIT`；收到 `SIGTERM/SIGINT` 时
+  停止全部 worker；worker 非预期崩溃时自动重启。
+- **worker**：`fork` 自 master，继承监听 fd；`dlopen` 磁盘上的模块，注入 worker 线程池后
+  `start()`。收到 `SIGQUIT/SIGTERM` 后停止 accept、限时 drain、`onDeactivate/onUnload`、退出。
+- 监听 socket 仅由 master 绑定一次，worker 通过继承获得；旧 worker 关闭自己的 fd 副本
+  不影响 master 与新 worker。
+
+### 相关配置（`server:` 段）
+
+| 配置项 | 默认 | 说明 |
+|--------|------|------|
+| `drain_timeout_ms` | 3000 | 旧 worker 停止 accept 后等待遗留连接的毫秒数，超时强制关闭 |
+| `worker_ready_timeout_ms` | 30000 | master 等待新 worker 就绪的超时毫秒数 |
+| `worker_restart_interval_ms` | 2000 | worker 崩溃后 master 重启前的等待毫秒数 |
+| `housekeeping_interval_ms` | 500 | worker 检查关闭信号的定时器间隔 |
+
+---
+
 ## 生命周期方法总览
 
 ```

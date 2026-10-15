@@ -31,7 +31,7 @@ static std::string WorkerName(const IOManager* iom) {
     return name.empty() ? "-" : name;
 }
 
-}
+} // namespace
 
 static ConfigVar<uint64_t>::ptr g_tcp_server_read_timeout =
     Config::Lookup("tcp_server.read_timeout", (uint64_t)(60 * 1000 * 2), "tcp server read timeout");
@@ -39,13 +39,11 @@ static ConfigVar<uint64_t>::ptr g_tcp_server_read_timeout =
 static Logger::ptr logger = LOG_NAME("system");
 
 TcpServer::TcpServer(IOManager* worker, IOManager* io_worker, IOManager* accept_worker)
-    :m_worker(worker)
-    ,m_ioWorker(io_worker)
-    ,m_acceptWorker(accept_worker)
-    ,m_recvTimeout(g_tcp_server_read_timeout->getValue())
-    ,m_name("chen/1.0.0")
-    ,m_isStop(true) {
-}
+    : m_worker(worker)
+    , m_ioWorker(io_worker)
+    , m_acceptWorker(accept_worker)
+    , m_recvTimeout(g_tcp_server_read_timeout->getValue())
+    , m_name("chen/1.0.0"), m_isStop(true) {}
 
 TcpServer::~TcpServer() {
     for (auto& i : m_socks) {
@@ -66,18 +64,14 @@ bool TcpServer::bind(const std::vector<Address::ptr>& addrs, std::vector<Address
     for (auto& addr : addrs) {
         Socket::ptr sock = ssl ? SSLSocket::CreateTCP(addr) : Socket::CreateTCP(addr);
         if (!sock->bind(addr)) {
-            ERROR(logger) << "bind fail errno="
-                << errno << " errstr=" << strerror(errno)
-                << " addr=[" << addr->toString() << "]";
+            ERROR(logger) << "bind fail errno=" << errno << " errstr=" << strerror(errno) << " addr=[" << addr->toString() << "]";
             fails.push_back(addr);
-            continue ;
+            continue;
         }
         if (!sock->listen()) {
-            ERROR(logger) << "listen fail errno="
-                << errno << " errstr=" << strerror(errno)
-                << " addr=[" << addr->toString() << "]";
+            ERROR(logger) << "listen fail errno=" << errno << " errstr=" << strerror(errno) << " addr=[" << addr->toString() << "]";
             fails.push_back(addr);
-            continue ;
+            continue;
         }
         m_socks.push_back(sock);
     }
@@ -88,8 +82,7 @@ bool TcpServer::bind(const std::vector<Address::ptr>& addrs, std::vector<Address
         return false;
     }
     for (auto& i : m_socks) {
-        INFO(logger) << "type=" << m_type << " name=" << m_name
-            << " ssl=" << m_ssl << " server bind success: " << *i;
+        INFO(logger) << "type=" << m_type << " name=" << m_name << " ssl=" << m_ssl << " server bind success: " << *i;
     }
     return true;
 }
@@ -123,9 +116,13 @@ void TcpServer::stop() {
     });
 }
 
-void TcpServer::handleClient(Socket::ptr client) {
-    INFO(logger) << "handleClient: " << *client;
+void TcpServer::setWorkers(IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
+    m_worker = process_worker;
+    m_ioWorker = io_worker;
+    m_acceptWorker = accept_worker;
 }
+
+void TcpServer::handleClient(Socket::ptr client) { INFO(logger) << "handleClient: " << *client; }
 
 void TcpServer::closeAllClients() {
     std::set<Socket::ptr> clients;
@@ -133,8 +130,7 @@ void TcpServer::closeAllClients() {
         std::lock_guard lock(m_clientsMutex);
         clients.swap(m_activeClients);
     }
-    INFO(logger) << "closeAllClients: closing " << clients.size()
-        << " active connections for server " << m_name << " type=" << m_type;
+    INFO(logger) << "closeAllClients: closing " << clients.size() << " active connections for server " << m_name << " type=" << m_type;
     for (auto& client : clients) {
         if (client) {
             client->close();
@@ -147,9 +143,8 @@ void TcpServer::startAccept(Socket::ptr sock) {
         Socket::ptr client = sock->accept();
         if (client) {
             if (m_connLimiter && !m_connLimiter->tryAcquire()) {
-                WARN(logger) << "rate limited, close client=" << *client
-                    << " current=" << m_connLimiter->current()
-                    << " rejected=" << m_connLimiter->getRejectedCount();
+                WARN(logger) << "rate limited, close client=" << *client << " current=" << m_connLimiter->current()
+                             << " rejected=" << m_connLimiter->getRejectedCount();
                 client->close();
                 continue;
             }
@@ -192,14 +187,14 @@ void TcpServer::setConf(const TcpServerConf& v) {
 }
 
 bool TcpServer::loadCertificates(const std::string& cert_file, const std::string& key_file) {
-	for (auto& i : m_socks) {
-		auto ssl_sock = std::dynamic_pointer_cast<SSLSocket>(i);
-		if (ssl_sock) {
-			if (!ssl_sock->loadCertificates(cert_file, key_file)) {
-				return false;
-			}
-		}
-	}
+    for (auto& i : m_socks) {
+        auto ssl_sock = std::dynamic_pointer_cast<SSLSocket>(i);
+        if (ssl_sock) {
+            if (!ssl_sock->loadCertificates(cert_file, key_file)) {
+                return false;
+            }
+        }
+    }
     return true;
 }
 
@@ -212,9 +207,9 @@ std::string TcpServer::toString(const std::string& prefix) {
        << " accept=" << WorkerName(m_acceptWorker)
        << " recv_timeout=" << m_recvTimeout
        << " ssl=" << (m_ssl ? 1 : 0);
+
     if (m_connLimiter && m_connLimiter->isLimited()) {
-        ss << " conn=" << m_connLimiter->current()
-           << "/" << (int64_t)m_connLimiter->getMaxConn()
+        ss << " conn=" << m_connLimiter->current() << "/" << (int64_t)m_connLimiter->getMaxConn()
            << " rejected=" << m_connLimiter->getRejectedCount();
     }
     if (!m_socks.empty()) {
@@ -247,8 +242,12 @@ bool TcpServerFactory::Unregister(const std::string& type) {
     return registry.creators.erase(type) > 0;
 }
 
-TcpServer::ptr TcpServerFactory::Create(const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker,
-                                        IOManager* accept_worker) {
+TcpServer::ptr TcpServerFactory::Create(
+    const TcpServerConf& conf,
+    IOManager* process_worker,
+    IOManager* io_worker,
+    IOManager* accept_worker)
+{
     auto& registry = GetServerFactoryRegistry();
     std::lock_guard lock(registry.mutex);
     auto it = registry.creators.find(conf.type);
@@ -269,4 +268,4 @@ std::vector<std::string> TcpServerFactory::ListTypes() {
     return types;
 }
 
-}
+} // namespace chen
