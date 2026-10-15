@@ -911,6 +911,9 @@ std::stringstream& LogEventWrap::getSS() {
 
 LoggerManager::LoggerManager() {
     m_root.reset(new Logger);
+    // 配置加载前的默认级别：抑制 bootstrap/静态初始化日志；
+    // 加载 logs 配置后会被覆盖。子日志器默认 TRACE，仍通过 root 级别过滤。
+    m_root->setLevel(LogLevel::WARN);
     m_root->addAppender(LogAppender::ptr(new StdoutLogAppender));
 
     m_loggers[m_root->getName()] = m_root;
@@ -1166,7 +1169,7 @@ struct LogIniter {
                     logger->clearAppenders();
                 }
             }
-            INFO(LOG_ROOT()) << "on_logger_conf_changed";
+            DEBUG(LOG_ROOT()) << "on_logger_conf_changed";
         });
     }
 };
