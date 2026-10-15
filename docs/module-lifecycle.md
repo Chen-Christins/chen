@@ -80,6 +80,43 @@
 
 ---
 
+## 模块 `.so` 替换部署
+
+「替换模块 `.so` 再 reload」在机制上是支持的，但**必须原子替换**。
+
+### 必须用 rename（原子替换）
+
+- ✅ 安全：`mv new.so libblog.so` / `install new.so libblog.so`（`rename` 换 inode）。
+  旧 worker 持有旧 inode 的映射，新 worker 打开新 inode，二者互不影响。
+- ❌ 不安全：`cp new.so libblog.so` 这类**原地覆盖**（truncate + 重写同一 inode）。
+  旧 worker 在 drain 窗口内仍然存活，而它的 `.so` 是 mmap 的可执行代码页；原地重写会让
+  这些页变成半截/不一致，可能导致旧 worker `SIGBUS`/`SIGSEGV` 崩溃。
+
+> 结论：用 `install`/`mv` 覆盖，**不要**用 `cp`；文件名不需要带版本号，同名替换即可。
+
+### 触发方式
+
+换 so 后需要发 `SIGHUP` 触发重载：
+
+```bash
+bin/server -s reload
+```
+
+`FileWatcher` 只监听配置目录的 `.yml`/`.xml`，**不监听模块目录**，换 so 不会自动 reload。
+
+### 临时文件命名
+
+`ModuleManager::init()` 会跳过点号开头的隐藏文件，但**不跳过** `.so` 结尾的文件。因此
+临时文件不要以 `.so` 结尾（如 `libblog.tmp.so` 会被当作模块加载），应放在模块目录之外，
+或使用点号前缀（如 `.libblog.so.tmp`）并确保最终以 rename 就位。
+
+### 与 libchen 的 ABI
+
+模块链接 `libchen.so`。**只替换模块、libchen 不变**时没有问题；若同时改动了 `libchen`
+的对外接口，需要连同 `libchen` 一起升级，因为各 worker 使用其加载时刻的库映射。
+
+---
+
 ## 优雅关闭时序
 
 ```
