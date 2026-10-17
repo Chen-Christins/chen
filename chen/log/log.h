@@ -21,11 +21,12 @@
 #include "../util/singleton.h"
 #include "../util/util.h" // IWYU pragma: keep
 
-#define LOG_LEVEL(logger, level)                                                                                                            \
-    if (logger->getLevel() <= level)                                                                                                        \
-    chen::LogEventWrap(                                                                                                                     \
-        chen::LogEvent::ptr(new chen::LogEvent(                                                                                             \
-            logger, level, __FILE__, __LINE__, 0, chen::GetThreadId(), chen::GetFiberId(), chen::TimeUtil::GetCurrentUs(), chen::Thread::GetName()))) \
+#define LOG_LEVEL(logger, level)                                                                                           \
+    if (logger->getLevel() <= level)                                                                                       \
+    chen::LogEventWrap(                                                                                                    \
+        chen::LogEvent::ptr(new chen::LogEvent(                                                                            \
+            logger, level, __FILE__, __LINE__, 0, chen::GetThreadId(), chen::GetFiberId(), chen::TimeUtil::GetCurrentUs(), \
+            chen::Thread::GetName())))                                                                                     \
         .getSS()
 
 #define TRACE(...)     chen::LogDispatch(chen::LogLevel::TRACE, __FILE__, __LINE__, __VA_ARGS__)
