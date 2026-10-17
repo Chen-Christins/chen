@@ -18,7 +18,8 @@ fiber->swapIn();                    // 切入协程 → 打印 "in fiber"
 fiber->swapIn();                    // 再次切入 → 打印 "back in fiber"
 ```
 
-框架内部由 Scheduler 自动管理协程切换，**应用层代码不要直接创建 Fiber 或调用 swapIn/swapOut**，应通过 `IOManager::schedule()` 提交任务。
+框架内部由 Scheduler 自动管理协程切换， **应用层代码不要直接创建 Fiber 或调用 swapIn/swapOut**，应通过
+`IOManager::schedule()` 提交任务。
 
 ## 核心类
 
@@ -29,14 +30,14 @@ fiber->swapIn();                    // 再次切入 → 打印 "back in fiber"
 
 ## 关键方法
 
-| 方法 | 说明 |
-|------|------|
-| `swapIn()` | 切入当前协程执行 |
-| `swapOut()` | 切回主协程 |
+| 方法             | 说明                                         |
+|------------------|----------------------------------------------|
+| `swapIn()`       | 切入当前协程执行                             |
+| `swapOut()`      | 切回主协程                                   |
 | `YieldToReady()` | 让出执行权，状态置为 READY，重新加入调度队列 |
-| `YieldToHold()` | 让出执行权，状态置为 HOLD，等待事件唤醒 |
-| `GetThis()` | 获取当前线程正在执行的协程 |
-| `GetFiberId()` | 获取当前协程 ID |
+| `YieldToHold()`  | 让出执行权，状态置为 HOLD，等待事件唤醒      |
+| `GetThis()`      | 获取当前线程正在执行的协程                   |
+| `GetFiberId()`   | 获取当前协程 ID                              |
 
 ## 生命周期
 

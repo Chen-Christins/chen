@@ -15,14 +15,16 @@ static Logger::ptr g_logger = LOG_NAME("system");
 HashShardStrategy::HashShardStrategy(const std::string& dbFormat, int shardCount, const std::string& tableFormat)
     : m_dbFormat(dbFormat)
     , m_tableFormat(tableFormat)
-    , m_shardCount(shardCount) {
+    , m_shardCount(shardCount)
+{
     if (m_shardCount <= 0) {
         ERROR(g_logger) << "HashShardStrategy: shardCount must be > 0, got " << m_shardCount;
         m_shardCount = 1;
     }
 }
 
-ShardTarget HashShardStrategy::route(const std::string& /*logicalTable*/, const ShardKey& key) {
+ShardTarget HashShardStrategy::route(const std::string& /*logicalTable*/, const ShardKey& key)
+{
     ShardTarget target;
 
     int64_t hashVal = 0;
@@ -68,10 +70,12 @@ ShardTarget HashShardStrategy::route(const std::string& /*logicalTable*/, const 
 // ============================================================================
 
 DateShardStrategy::DateShardStrategy(const std::string& format)
-    : m_format(format) {
+    : m_format(format)
+{
 }
 
-ShardTarget DateShardStrategy::route(const std::string& /*logicalTable*/, const ShardKey& key) {
+ShardTarget DateShardStrategy::route(const std::string& /*logicalTable*/, const ShardKey& key)
+{
     ShardTarget target;
 
     if (key.getType() != ShardKey::TIME) {
@@ -94,15 +98,18 @@ ShardTarget DateShardStrategy::route(const std::string& /*logicalTable*/, const 
 // ShardRouter
 // ============================================================================
 
-void ShardRouter::addRule(const std::string& logicalTable, IShardStrategy::ptr strategy) {
+void ShardRouter::addRule(const std::string& logicalTable, IShardStrategy::ptr strategy)
+{
     m_rules[logicalTable] = std::move(strategy);
 }
 
-void ShardRouter::addDB(const std::string& dbName, IDB::ptr conn) {
+void ShardRouter::addDB(const std::string& dbName, IDB::ptr conn)
+{
     m_dbs[dbName] = std::move(conn);
 }
 
-ShardTarget ShardRouter::route(const std::string& logicalTable, const ShardKey& key) {
+ShardTarget ShardRouter::route(const std::string& logicalTable, const ShardKey& key)
+{
     auto it = m_rules.find(logicalTable);
     if (it == m_rules.end()) {
         // No sharding rule — return unchanged (same DB, same table)
@@ -111,7 +118,8 @@ ShardTarget ShardRouter::route(const std::string& logicalTable, const ShardKey& 
     return it->second->route(logicalTable, key);
 }
 
-IDB::ptr ShardRouter::getDB(const ShardTarget& target) {
+IDB::ptr ShardRouter::getDB(const ShardTarget& target)
+{
     if (target.dbName.empty()) {
         return nullptr;
     }
@@ -123,7 +131,8 @@ IDB::ptr ShardRouter::getDB(const ShardTarget& target) {
     return it->second;
 }
 
-std::pair<IDB::ptr, std::string> ShardRouter::resolve(const std::string& logicalTable, const ShardKey& key) {
+std::pair<IDB::ptr, std::string> ShardRouter::resolve(const std::string& logicalTable, const ShardKey& key)
+{
     auto target = route(logicalTable, key);
     auto db = target.hasDB() ? getDB(target) : nullptr;
     return {db, target.tableName};

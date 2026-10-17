@@ -22,5 +22,5 @@ std::string XmlToString(const tinyxml2::XMLElement& node);
 std::string GetAsDefineMacro(const std::string& v);
 std::string GetAsVariable(const std::string& v);
 
-}
-}
+} // namespace orm
+} // namespace chen

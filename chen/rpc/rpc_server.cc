@@ -8,11 +8,13 @@ namespace chen::rpc {
 static Logger::ptr logger = LOG_NAME("system");
 
 RpcServer::RpcServer(IOManager* worker, IOManager* io_worker, IOManager* accept_worker)
-        : TcpServer(worker, io_worker, accept_worker) {
+    : TcpServer(worker, io_worker, accept_worker)
+{
     m_type = "rpc_server";
 }
 
-void RpcServer::sendCode(RpcConnection::ptr conn, uint32_t sequence, int32_t code, const std::string& msg) {
+void RpcServer::sendCode(RpcConnection::ptr conn, uint32_t sequence, int32_t code, const std::string& msg)
+{
     ByteArray::ptr ba(new ByteArray);
     ba->writeFint32(code);
     if (code != 0) {
@@ -27,7 +29,8 @@ void RpcServer::sendCode(RpcConnection::ptr conn, uint32_t sequence, int32_t cod
     relaySend(conn, out);
 }
 
-std::shared_ptr<RpcServer::ConnRelayState> RpcServer::getRelayState(RpcConnection::ptr conn) {
+std::shared_ptr<RpcServer::ConnRelayState> RpcServer::getRelayState(RpcConnection::ptr conn)
+{
     std::lock_guard lock(m_connRelayMutex);
     auto it = m_connRelay.find(conn);
     if (it != m_connRelay.end()) {
@@ -39,13 +42,15 @@ std::shared_ptr<RpcServer::ConnRelayState> RpcServer::getRelayState(RpcConnectio
     return state;
 }
 
-uint32_t RpcServer::nextOutSeq(RpcConnection::ptr conn) {
+uint32_t RpcServer::nextOutSeq(RpcConnection::ptr conn)
+{
     auto state = getRelayState(conn);
     std::lock_guard lock(state->mtx);
     return ++state->out_seq;
 }
 
-bool RpcServer::relaySend(RpcConnection::ptr conn, Protocol::ptr pkt) {
+bool RpcServer::relaySend(RpcConnection::ptr conn, Protocol::ptr pkt)
+{
     auto state = getRelayState(conn);
     state->write_sem->wait();
     bool ok = conn->sendProtocol(pkt) > 0;
@@ -53,7 +58,8 @@ bool RpcServer::relaySend(RpcConnection::ptr conn, Protocol::ptr pkt) {
     return ok;
 }
 
-void RpcServer::handleClient(Socket::ptr client) {
+void RpcServer::handleClient(Socket::ptr client)
+{
     if (m_relay) {
         handleRelayClient(client);
         return;
@@ -80,13 +86,10 @@ void RpcServer::handleClient(Socket::ptr client) {
             }
             if (err == EAGAIN || err == EWOULDBLOCK) {
                 DEBUG(logger) << "recvProtocol would block, close session to avoid stuck fiber"
-                    << ", errno=" << err
-                    << " errstr=" << strerror(err)
-                    << " client:" << *client;
+                              << ", errno=" << err << " errstr=" << strerror(err) << " client:" << *client;
                 break;
             }
-            TRACE(logger) << "recvProtocol error" << ", errno=" << err
-                << " errstr=" << strerror(err) << " client:" << *client;
+            TRACE(logger) << "recvProtocol error" << ", errno=" << err << " errstr=" << strerror(err) << " client:" << *client;
             break;
         }
 
@@ -99,9 +102,7 @@ void RpcServer::handleClient(Socket::ptr client) {
             hb->body = "";
             if (session->sendProtocol(hb) <= 0) {
                 WARN(logger) << "send heartbeat response failed"
-                    << ", errno=" << errno
-                    << " errstr=" << strerror(errno)
-                    << " client:" << *client;
+                             << ", errno=" << errno << " errstr=" << strerror(errno) << " client:" << *client;
                 break;
             }
             continue;
@@ -130,21 +131,20 @@ void RpcServer::handleClient(Socket::ptr client) {
             continue;
         }
         if (req->cmd == 0) {
-            body_ba->readStringVint();  // skip method name
+            body_ba->readStringVint(); // skip method name
         }
         Protocol::ptr rsp = it->second(body_ba, req->sequence);
         if (session->sendProtocol(rsp) <= 0) {
             WARN(logger) << "sendProtocol failed"
-                << ", errno=" << errno
-                << " errstr=" << strerror(errno)
-                << " client:" << *client;
+                         << ", errno=" << errno << " errstr=" << strerror(errno) << " client:" << *client;
             break;
         }
     } while (true);
     session->close();
 }
 
-void RpcServer::handleRelayClient(Socket::ptr client) {
+void RpcServer::handleRelayClient(Socket::ptr client)
+{
     DEBUG(logger) << "handleRelayClient " << *client;
     RpcConnection::ptr session(new RpcConnection(client));
 
@@ -162,13 +162,10 @@ void RpcServer::handleRelayClient(Socket::ptr client) {
             }
             if (err == EAGAIN || err == EWOULDBLOCK) {
                 DEBUG(logger) << "recvProtocol would block, close relay session"
-                    << ", errno=" << err
-                    << " errstr=" << strerror(err)
-                    << " client:" << *client;
+                              << ", errno=" << err << " errstr=" << strerror(err) << " client:" << *client;
                 break;
             }
-            TRACE(logger) << "recvProtocol error" << ", errno=" << err
-                << " errstr=" << strerror(err) << " client:" << *client;
+            TRACE(logger) << "recvProtocol error" << ", errno=" << err << " errstr=" << strerror(err) << " client:" << *client;
             break;
         }
 
@@ -221,7 +218,7 @@ void RpcServer::handleRelayClient(Socket::ptr client) {
                 continue;
             }
             if (frame->cmd == 0) {
-                body_ba->readStringVint();  // skip method name
+                body_ba->readStringVint(); // skip method name
             }
             Protocol::ptr rsp = it->second(body_ba, frame->sequence);
             if (!relaySend(session, rsp)) {
@@ -244,12 +241,13 @@ void RpcServer::handleRelayClient(Socket::ptr client) {
     session->close();
 }
 
-void RpcServer::handleRegister(Protocol::ptr frame, RpcConnection::ptr conn) {
+void RpcServer::handleRegister(Protocol::ptr frame, RpcConnection::ptr conn)
+{
     // body: [method_vint][peer_id][func_id][instance_id][bind_count][bind_ids...]
     ByteArray::ptr ba(new ByteArray);
     ba->writeStringWithoutLength(frame->body);
     ba->setPosition(0);
-    ba->readStringVint();  // skip method
+    ba->readStringVint(); // skip method
 
     uint32_t peer_id = ba->readFuint32();
     uint32_t func_id = ba->readFuint32();
@@ -268,7 +266,8 @@ void RpcServer::handleRegister(Protocol::ptr frame, RpcConnection::ptr conn) {
     sendCode(conn, frame->sequence, ok ? 0 : 500, ok ? "" : "register failed: peer_id duplicated");
 }
 
-RpcConnection::ptr RpcServer::resolveTarget(Protocol::ptr req, RoutingMethod rm) {
+RpcConnection::ptr RpcServer::resolveTarget(Protocol::ptr req, RoutingMethod rm)
+{
     switch (rm) {
     case RoutingMethod::DIRECT:
         return m_registry->getByPeerId(req->dst_peer_id);
@@ -283,7 +282,8 @@ RpcConnection::ptr RpcServer::resolveTarget(Protocol::ptr req, RoutingMethod rm)
     }
 }
 
-Protocol::ptr RpcServer::buildForwardFrame(Protocol::ptr req, RpcConnection::ptr caller) {
+Protocol::ptr RpcServer::buildForwardFrame(Protocol::ptr req, RpcConnection::ptr caller)
+{
     Protocol::ptr out(new Protocol(*req));
     out->routing = static_cast<uint8_t>(RoutingMethod::NONE);
     out->real_random = 0;
@@ -296,7 +296,8 @@ Protocol::ptr RpcServer::buildForwardFrame(Protocol::ptr req, RpcConnection::ptr
     return out;
 }
 
-void RpcServer::forward(Protocol::ptr req, RpcConnection::ptr caller) {
+void RpcServer::forward(Protocol::ptr req, RpcConnection::ptr caller)
+{
     if (!m_registry->isRegistered(caller)) {
         WARN(logger) << "forward from unregistered connection";
         sendCode(caller, req->sequence, 403, "unregistered caller");
@@ -361,23 +362,26 @@ void RpcServer::forward(Protocol::ptr req, RpcConnection::ptr caller) {
 
     if (m_relayTimeout > 0) {
         std::weak_ptr<RpcServer> weak_this = std::dynamic_pointer_cast<RpcServer>(shared_from_this());
-        ctx->timer = IOManager::GetThis()->addTimer(m_relayTimeout, [weak_this, state, out_seq]() {
-            auto self = weak_this.lock();
-            if (!self) {
-                return;
-            }
-            RelayCtx::ptr relay_ctx;
-            {
-                std::lock_guard lock(state->mtx);
-                auto it = state->ctxs.find(out_seq);
-                if (it == state->ctxs.end()) {
+        ctx->timer = IOManager::GetThis()->addTimer(
+            m_relayTimeout,
+            [weak_this, state, out_seq]() {
+                auto self = weak_this.lock();
+                if (!self) {
                     return;
                 }
-                relay_ctx = it->second;
-                state->ctxs.erase(it);
-            }
-            self->sendCode(relay_ctx->caller_conn, relay_ctx->caller_seq, 504, "relay timeout");
-        }, false);
+                RelayCtx::ptr relay_ctx;
+                {
+                    std::lock_guard lock(state->mtx);
+                    auto it = state->ctxs.find(out_seq);
+                    if (it == state->ctxs.end()) {
+                        return;
+                    }
+                    relay_ctx = it->second;
+                    state->ctxs.erase(it);
+                }
+                self->sendCode(relay_ctx->caller_conn, relay_ctx->caller_seq, 504, "relay timeout");
+            },
+            false);
     }
 
     Protocol::ptr out = buildForwardFrame(req, caller);
@@ -385,7 +389,8 @@ void RpcServer::forward(Protocol::ptr req, RpcConnection::ptr caller) {
     relaySend(target, out);
 }
 
-void RpcServer::handleRelayResponse(Protocol::ptr frame, RpcConnection::ptr conn) {
+void RpcServer::handleRelayResponse(Protocol::ptr frame, RpcConnection::ptr conn)
+{
     RelayCtx::ptr ctx;
     std::shared_ptr<ConnRelayState> state;
     {
@@ -415,7 +420,8 @@ void RpcServer::handleRelayResponse(Protocol::ptr frame, RpcConnection::ptr conn
     relaySend(ctx->caller_conn, frame);
 }
 
-void RpcServer::failPendingRelays(RpcConnection::ptr conn) {
+void RpcServer::failPendingRelays(RpcConnection::ptr conn)
+{
     std::vector<RelayCtx::ptr> to_fail;
     std::shared_ptr<ConnRelayState> state;
     {

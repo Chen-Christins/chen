@@ -82,7 +82,8 @@ public:
     HolderStats& get(const uint32_t& now = time(0));
 
     template <class T>
-    std::shared_ptr<T> getStreamAs() {
+    std::shared_ptr<T> getStreamAs()
+    {
         return std::dynamic_pointer_cast<T>(m_stream);
     }
 
@@ -126,8 +127,7 @@ public:
     void set(const std::vector<LoadBalanceItem::ptr>& vs);
 
     LoadBalanceItem::ptr getById(uint64_t id);
-    void update(const std::unordered_map<uint64_t, LoadBalanceItem::ptr>& adds,
-                std::unordered_map<uint64_t, LoadBalanceItem::ptr>& dels);
+    void update(const std::unordered_map<uint64_t, LoadBalanceItem::ptr>& adds, std::unordered_map<uint64_t, LoadBalanceItem::ptr>& dels);
     void init();
 
     std::string statusString(const std::string& prefix);
@@ -221,9 +221,11 @@ public:
     std::string statusString();
 
 private:
-    void onServiceChange(const std::string& domain, const std::string& service,
-                         const std::unordered_map<uint64_t, ServiceItemInfo::ptr>& old_value,
-                         const std::unordered_map<uint64_t, ServiceItemInfo::ptr>& new_value);
+    void onServiceChange(
+        const std::string& domain,
+        const std::string& service,
+        const std::unordered_map<uint64_t, ServiceItemInfo::ptr>& old_value,
+        const std::unordered_map<uint64_t, ServiceItemInfo::ptr>& new_value);
 
     ILoadBalance::Type getType(const std::string& domain, const std::string& service);
     LoadBalance::ptr createLoadBalance(ILoadBalance::Type type);

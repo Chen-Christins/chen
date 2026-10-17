@@ -16,7 +16,8 @@ namespace chen {
 namespace orm {
 
 class Column {
-friend class Table;
+    friend class Table;
+
 public:
     typedef std::shared_ptr<Column> ptr;
     enum Type {
@@ -66,6 +67,7 @@ public:
     std::string getBindString();
     std::string getGetString();
     const std::string& getUpdate() const { return m_update; }
+
 private:
     std::string m_name;
     std::string m_type;
@@ -79,5 +81,5 @@ private:
     int m_length;
 };
 
-}
-}
+} // namespace orm
+} // namespace chen

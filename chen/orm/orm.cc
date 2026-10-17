@@ -6,23 +6,24 @@
 
 static chen::Logger::ptr logger = LOG_NAME("orm");
 
-void gen_cmake(const std::string& path, const std::map<std::string, chen::orm::Table::ptr>& tbs) {
+void gen_cmake(const std::string& path, const std::map<std::string, chen::orm::Table::ptr>& tbs)
+{
     std::ofstream ofs(path + "/CMakeLists.txt");
     ofs << "cmake_minimum_required(VERSION 3.22)" << std::endl;
     ofs << "project(dbproxy_data)" << std::endl;
     ofs << std::endl;
     ofs << "set(LIB_SRC" << std::endl;
     for (auto& i : tbs) {
-        ofs << "    " << chen::StringUtil::Replace(i.second->getNamespace(), ".", "/")
-            << "/" << chen::StringUtil::ToLower(i.second->getFileName()) << ".cc" << std::endl;
+        ofs << "    " << chen::StringUtil::Replace(i.second->getNamespace(), ".", "/") << "/" << chen::StringUtil::ToLower(i.second->getFileName())
+            << ".cc" << std::endl;
     }
     ofs << ")" << std::endl;
     ofs << "add_library(dbproxy_data ${LIB_SRC})" << std::endl;
     ofs << "force_redefine_file_macro_for_sources(dbproxy_data)" << std::endl;
 }
 
-
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     if (argc < 2) {
         std::cout << "use as[" << argv[0] << " orm_config_path orm_output_path]" << std::endl;
     }

@@ -81,10 +81,10 @@ private:
 
     /// 当前解析状态
     enum State {
-        PREAMBLE,   ///< 第一个 boundary 之前
-        HEADERS,    ///< 正在解析 part 头部
-        BODY,       ///< 正在解析 part body
-        COMPLETE    ///< 已收到结束边界
+        PREAMBLE, ///< 第一个 boundary 之前
+        HEADERS,  ///< 正在解析 part 头部
+        BODY,     ///< 正在解析 part body
+        COMPLETE  ///< 已收到结束边界
     };
 
     std::string m_boundary;
@@ -93,13 +93,13 @@ private:
     bool m_complete = false;
 
     // 当前 part
-    bool     m_curIsFile = false;
+    bool m_curIsFile = false;
     std::string m_curFieldName;
     std::string m_curFileName;
     std::string m_curContentType;
     std::ofstream m_curFileStream;
     std::string m_curFieldValue;
-    int64_t  m_curFileSize = 0;
+    int64_t m_curFileSize = 0;
 
     // 结果
     std::vector<FormField> m_fields;

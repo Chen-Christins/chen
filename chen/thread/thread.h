@@ -64,13 +64,15 @@ public:
      * @param name 传入的新名称
      */
     static void SetName(const std::string& name);
+
 private:
     /**
      * @brief 线程执行的任务
      * @param arg void(void*) 类型的参数
      * @return void* 返回void类型的
      */
-    static void* run(void *arg);
+    static void* run(void* arg);
+
 private:
     /// 线程执行函数
     std::function<void()> m_task;
@@ -84,4 +86,4 @@ private:
     Semaphore m_semaphore;
 };
 
-}
+} // namespace chen

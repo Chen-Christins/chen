@@ -5,12 +5,13 @@
  * @date 2024-11-06
  */
 #include "../chen/data/data_reader.h"
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 
 using namespace chen::data;
 
-void printTableInfo(const DataReader& reader) {
+void printTableInfo(const DataReader& reader)
+{
     std::cout << "\n=== 数据加载信息 ===" << std::endl;
     std::cout << "表数量: " << reader.getTableCount() << std::endl;
 
@@ -22,7 +23,8 @@ void printTableInfo(const DataReader& reader) {
     std::cout << std::endl;
 }
 
-void printTableContent(const TableData::ptr& table) {
+void printTableContent(const TableData::ptr& table)
+{
     if (!table) {
         std::cout << "表不存在!" << std::endl;
         return;
@@ -50,16 +52,18 @@ void printTableContent(const TableData::ptr& table) {
         for (const auto& header : headers) {
             auto it = row.find(header);
             if (it != row.end()) {
-                std::visit([](auto&& arg) {
-                    using T = std::decay_t<decltype(arg)>;
-                    if constexpr (std::is_same_v<T, std::nullptr_t>) {
-                        std::cout << std::setw(12) << "NULL" << "\t";
-                    } else if constexpr (std::is_same_v<T, std::string>) {
-                        std::cout << std::setw(12) << arg << "\t";
-                    } else {
-                        std::cout << std::setw(12) << arg << "\t";
-                    }
-                }, it->second);
+                std::visit(
+                    [](auto&& arg) {
+                        using T = std::decay_t<decltype(arg)>;
+                        if constexpr (std::is_same_v<T, std::nullptr_t>) {
+                            std::cout << std::setw(12) << "NULL" << "\t";
+                        } else if constexpr (std::is_same_v<T, std::string>) {
+                            std::cout << std::setw(12) << arg << "\t";
+                        } else {
+                            std::cout << std::setw(12) << arg << "\t";
+                        }
+                    },
+                    it->second);
             } else {
                 std::cout << std::setw(12) << "" << "\t";
             }
@@ -68,7 +72,8 @@ void printTableContent(const TableData::ptr& table) {
     });
 }
 
-void testFieldAccessor(const DataReader& reader) {
+void testFieldAccessor(const DataReader& reader)
+{
     std::cout << "\n=== 测试字段访问器 ===" << std::endl;
 
     auto table = reader.getTable("example_config");
@@ -95,18 +100,20 @@ void testFieldAccessor(const DataReader& reader) {
         if (row.isValid()) {
             std::string type = static_cast<std::string>(row["type"]);
             if (type == "weapon") {
-                std::cout << "  - " << static_cast<std::string>(row["name"])
-                    << " (攻击力: " << static_cast<int32_t>(row["attack"]) << ")" << std::endl;
+                std::cout << "  - " << static_cast<std::string>(row["name"]) << " (攻击力: " << static_cast<int32_t>(row["attack"]) << ")"
+                          << std::endl;
             }
         }
     }
 }
 
-void testValueConversion(const DataReader& reader) {
+void testValueConversion(const DataReader& reader)
+{
     std::cout << "\n=== 测试值转换功能 ===" << std::endl;
 
     auto table = reader.getTable("example_config");
-    if (!table) return;
+    if (!table)
+        return;
 
     // 测试不同类型的值获取
     const RowData* row = table->getRow(0);
@@ -129,7 +136,8 @@ void testValueConversion(const DataReader& reader) {
     }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     std::string bin_file = "example_config.bin";
 
     // 如果指定了文件路径
@@ -141,7 +149,7 @@ int main(int argc, char* argv[]) {
     std::cout << "加载文件: " << bin_file << std::endl;
 
     // 创建数据读取器
-    DataReader reader("aes256_gcm", "chen_default_password" ); // 使用AES-256-GCM解密进行测试
+    DataReader reader("aes256_gcm", "chen_default_password"); // 使用AES-256-GCM解密进行测试
 
     // 加载数据
     if (!reader.loadFromFile(bin_file)) {

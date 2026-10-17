@@ -14,7 +14,8 @@
 #include <string>
 #include <thread>
 
-void test_rate_limiter_unlimited() {
+void test_rate_limiter_unlimited()
+{
     std::cout << "=== test_rate_limiter_unlimited ===" << std::endl;
 
     chen::RateLimiter limiter(0, 0);
@@ -26,7 +27,8 @@ void test_rate_limiter_unlimited() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_rate_limiter_burst() {
+void test_rate_limiter_burst()
+{
     std::cout << "=== test_rate_limiter_burst ===" << std::endl;
 
     // qps=1000, burst=5：瞬间放行 5 个，第 6 个拒绝
@@ -40,7 +42,8 @@ void test_rate_limiter_burst() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_rate_limiter_refill() {
+void test_rate_limiter_refill()
+{
     std::cout << "=== test_rate_limiter_refill ===" << std::endl;
 
     // qps=100, burst=2：耗尽后等待 50ms（约补充 5 个，封顶 2）即可再放行
@@ -55,7 +58,8 @@ void test_rate_limiter_refill() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_conn_limiter_max_conn() {
+void test_conn_limiter_max_conn()
+{
     std::cout << "=== test_conn_limiter_max_conn ===" << std::endl;
 
     // 仅限制并发数：max_conn=3，不限速
@@ -78,7 +82,8 @@ void test_conn_limiter_max_conn() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_conn_limiter_create_from_args() {
+void test_conn_limiter_create_from_args()
+{
     std::cout << "=== test_conn_limiter_create_from_args ===" << std::endl;
 
     // 无任何限流参数 -> nullptr
@@ -104,7 +109,8 @@ void test_conn_limiter_create_from_args() {
     std::cout << "PASS" << std::endl;
 }
 
-int main() {
+int main()
+{
     test_rate_limiter_unlimited();
     test_rate_limiter_burst();
     test_rate_limiter_refill();

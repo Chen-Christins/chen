@@ -7,7 +7,8 @@ namespace chen {
 // PlayerData的序列化特化实现
 template <>
 struct rpc::Serialization<chen::game::PlayerData> {
-    static void write(ByteArray::ptr ba, const chen::game::PlayerData& player) {
+    static void write(ByteArray::ptr ba, const chen::game::PlayerData& player)
+    {
         ba->writeFint32(player.playerId);
         ba->writeStringVint(player.name);
         ba->writeFint32(player.level);
@@ -15,7 +16,8 @@ struct rpc::Serialization<chen::game::PlayerData> {
         ba->writeFint32(player.hp);
     }
 
-    static void read(ByteArray::ptr ba, chen::game::PlayerData& player) {
+    static void read(ByteArray::ptr ba, chen::game::PlayerData& player)
+    {
         player.playerId = ba->readFint32();
         player.name = ba->readStringVint();
         player.level = ba->readFint32();
@@ -32,36 +34,44 @@ static Logger::ptr logger = LOG_NAME("game_rpc");
 GameRpcService::ptr g_game_service;
 
 // 全局RPC函数实现
-PlayerData getPlayerInfo(int32_t playerId) {
+PlayerData getPlayerInfo(int32_t playerId)
+{
     return g_game_service->getPlayerInfo(playerId);
 }
 
-bool updatePlayerLevel(int32_t playerId, int32_t newLevel) {
+bool updatePlayerLevel(int32_t playerId, int32_t newLevel)
+{
     return g_game_service->updatePlayerLevel(playerId, newLevel);
 }
 
-bool addPlayerExp(int32_t playerId, int32_t exp) {
+bool addPlayerExp(int32_t playerId, int32_t exp)
+{
     return g_game_service->addPlayerExp(playerId, exp);
 }
 
-std::vector<PlayerData> getAllPlayers() {
+std::vector<PlayerData> getAllPlayers()
+{
     return g_game_service->getAllPlayers();
 }
 
-bool syncPlayerData(const PlayerData& playerData) {
+bool syncPlayerData(const PlayerData& playerData)
+{
     return g_game_service->syncPlayerData(playerData);
 }
 
-bool broadcastMessage(const std::string& serverId, const std::string& message) {
+bool broadcastMessage(const std::string& serverId, const std::string& message)
+{
     return g_game_service->broadcastMessage(serverId, message);
 }
 
-GameRpcService::GameRpcService() {
+GameRpcService::GameRpcService()
+{
     // 初始化游戏服务数据
     initGameData();
 }
 
-void GameRpcService::initGameData() {
+void GameRpcService::initGameData()
+{
     // 初始化一些测试数据
     m_playerData[1001] = PlayerData{1001, "Alice", 1, 100, 50};
     m_playerData[1002] = PlayerData{1002, "Bob", 1, 80, 30};
@@ -70,7 +80,8 @@ void GameRpcService::initGameData() {
     INFO(logger) << "Game RPC Service initialized with " << m_playerData.size() << " players";
 }
 
-void GameRpcService::registerRpcMethods(rpc::RpcServer::ptr server) {
+void GameRpcService::registerRpcMethods(rpc::RpcServer::ptr server)
+{
     INFO(logger) << "Registering RPC methods for game service";
 
     // 注册玩家相关RPC方法
@@ -87,7 +98,8 @@ void GameRpcService::registerRpcMethods(rpc::RpcServer::ptr server) {
 }
 
 // RPC方法实现
-PlayerData GameRpcService::getPlayerInfo(int32_t playerId) {
+PlayerData GameRpcService::getPlayerInfo(int32_t playerId)
+{
     auto it = m_playerData.find(playerId);
     if (it != m_playerData.end()) {
         INFO(logger) << "Get player info: " << it->second.name << " (ID: " << playerId << ")";
@@ -99,14 +111,14 @@ PlayerData GameRpcService::getPlayerInfo(int32_t playerId) {
     return PlayerData{playerId, "", 0, 0, 0};
 }
 
-bool GameRpcService::updatePlayerLevel(int32_t playerId, int32_t newLevel) {
+bool GameRpcService::updatePlayerLevel(int32_t playerId, int32_t newLevel)
+{
     auto it = m_playerData.find(playerId);
     if (it != m_playerData.end()) {
         int32_t oldLevel = it->second.level;
         it->second.level = newLevel;
 
-        INFO(logger) << "Player " << it->second.name << " level updated: "
-                    << oldLevel << " -> " << newLevel;
+        INFO(logger) << "Player " << it->second.name << " level updated: " << oldLevel << " -> " << newLevel;
         return true;
     }
 
@@ -114,7 +126,8 @@ bool GameRpcService::updatePlayerLevel(int32_t playerId, int32_t newLevel) {
     return false;
 }
 
-bool GameRpcService::addPlayerExp(int32_t playerId, int32_t exp) {
+bool GameRpcService::addPlayerExp(int32_t playerId, int32_t exp)
+{
     auto it = m_playerData.find(playerId);
     if (it != m_playerData.end()) {
         it->second.exp += exp;
@@ -126,7 +139,8 @@ bool GameRpcService::addPlayerExp(int32_t playerId, int32_t exp) {
     return false;
 }
 
-std::vector<PlayerData> GameRpcService::getAllPlayers() {
+std::vector<PlayerData> GameRpcService::getAllPlayers()
+{
     std::vector<PlayerData> players;
     for (const auto& pair : m_playerData) {
         players.push_back(pair.second);
@@ -136,14 +150,15 @@ std::vector<PlayerData> GameRpcService::getAllPlayers() {
     return players;
 }
 
-bool GameRpcService::syncPlayerData(const PlayerData& playerData) {
+bool GameRpcService::syncPlayerData(const PlayerData& playerData)
+{
     m_playerData[playerData.playerId] = playerData;
-    INFO(logger) << "Synced player data: " << playerData.name
-                << " (Level: " << playerData.level << ", Exp: " << playerData.exp << ")";
+    INFO(logger) << "Synced player data: " << playerData.name << " (Level: " << playerData.level << ", Exp: " << playerData.exp << ")";
     return true;
 }
 
-bool GameRpcService::broadcastMessage(const std::string& serverId, const std::string& message) {
+bool GameRpcService::broadcastMessage(const std::string& serverId, const std::string& message)
+{
     INFO(logger) << "Broadcast message from " << serverId << ": " << message;
 
     // 这里可以实现向其他游戏服务器广播消息的逻辑
@@ -153,12 +168,14 @@ bool GameRpcService::broadcastMessage(const std::string& serverId, const std::st
 }
 
 // 获取服务实例
-GameRpcService::ptr GameRpcService::GetInstance() {
+GameRpcService::ptr GameRpcService::GetInstance()
+{
     return g_game_service;
 }
 
 // 设置服务实例
-void GameRpcService::SetInstance(GameRpcService::ptr instance) {
+void GameRpcService::SetInstance(GameRpcService::ptr instance)
+{
     g_game_service = instance;
 }
 

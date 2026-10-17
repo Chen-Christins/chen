@@ -22,38 +22,39 @@ client->setRecvTimeout(5000);  // 5s 接收超时
 
 ## 注意
 
-在 Scheduler/IOManager 的工作线程中，**Socket 的 I/O 操作会被 Hook 自动转为 fiber 异步**（非阻塞 + epoll + fiber 切换）。
+在 Scheduler/IOManager 的工作线程中， **Socket 的 I/O 操作会被 Hook 自动转为 fiber 异步**（非阻塞 + epoll + fiber 切换）。
 应用层代码正常调用 `send/recv/connect/accept` 即可，不需要自己处理 EAGAIN 或 select/poll/epoll。
 
 ## 核心类
 
-| 类 | 说明 |
-|----|------|
-| `Socket` | 基础 Socket，支持 TCP/UDP/Unix Domain |
-| `SSLSocket` | SSL/TLS Socket，基于 OpenSSL |
-| `Address` | 地址基类 |
-| `IPAddress` | IPv4/IPv6 地址 |
-| `UnixAddress` | Unix Domain Socket 地址 |
-| `SocketStream` | Socket 流式读写封装 |
+| 类             | 说明                                  |
+|----------------|---------------------------------------|
+| `Socket`       | 基础 Socket，支持 TCP/UDP/Unix Domain |
+| `SSLSocket`    | SSL/TLS Socket，基于 OpenSSL          |
+| `Address`      | 地址基类                              |
+| `IPAddress`    | IPv4/IPv6 地址                        |
+| `UnixAddress`  | Unix Domain Socket 地址               |
+| `SocketStream` | Socket 流式读写封装                   |
 
 ## 关键方法
 
-| 方法 | 说明 |
-|------|------|
-| `Socket::CreateTCP(addr)` | 创建 TCP Socket |
-| `Socket::CreateUDP(addr)` | 创建 UDP Socket |
-| `bind(addr)` | 绑定地址 |
-| `listen()` | 开始监听 |
-| `accept()` | 接受连接，返回新的 Socket |
-| `connect(addr)` | 连接远端 |
-| `send(data, len)` | 发送数据 |
-| `recv(buffer, len)` | 接收数据 |
-| `close()` | 关闭 Socket |
-| `cancelAll()` | 取消该 fd 在 IOManager 上注册的所有事件 |
+| 方法                      | 说明                                    |
+|---------------------------|-----------------------------------------|
+| `Socket::CreateTCP(addr)` | 创建 TCP Socket                         |
+| `Socket::CreateUDP(addr)` | 创建 UDP Socket                         |
+| `bind(addr)`              | 绑定地址                                |
+| `listen()`                | 开始监听                                |
+| `accept()`                | 接受连接，返回新的 Socket               |
+| `connect(addr)`           | 连接远端                                |
+| `send(data, len)`         | 发送数据                                |
+| `recv(buffer, len)`       | 接收数据                                |
+| `close()`                 | 关闭 Socket                             |
+| `cancelAll()`             | 取消该 fd 在 IOManager 上注册的所有事件 |
 
 ## SocketStream
 
 提供面向流的读写接口：
+
 - `readFixSize(size)` — 定长读取
 - `readLine()` — 行读取
 - `writeFixSize(data, size)` — 定长写入

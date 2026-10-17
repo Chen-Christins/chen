@@ -15,10 +15,10 @@
 namespace chen {
 namespace ds {
 
-#define BITMAP_TYPE_UINT8    1
-#define BITMAP_TYPE_UINT16   2 
-#define BITMAP_TYPE_UINT32   3
-#define BITMAP_TYPE_UINT64   4
+#define BITMAP_TYPE_UINT8  1
+#define BITMAP_TYPE_UINT16 2
+#define BITMAP_TYPE_UINT32 3
+#define BITMAP_TYPE_UINT64 4
 
 #ifndef BITMAP_TYPE
 #define BITMAP_TYPE BITMAP_TYPE_UINT16
@@ -53,27 +53,27 @@ public:
     Bitmap& operator&=(const Bitmap& b);
     Bitmap& operator|=(const Bitmap& b);
 
-    Bitmap operator& (const Bitmap& b);
-    Bitmap operator| (const Bitmap& b);
+    Bitmap operator&(const Bitmap& b);
+    Bitmap operator|(const Bitmap& b);
 
     Bitmap& operator~();
 
-    bool operator== (const Bitmap& b) const;
-    bool operator!= (const Bitmap& b) const;
+    bool operator==(const Bitmap& b) const;
+    bool operator!=(const Bitmap& b) const;
 
     Bitmap::ptr compress() const;
     Bitmap::ptr uncompress() const;
 
     bool any() const;
 
-    uint32_t getSize() const { return m_size;}
-    uint32_t getDataSize() const { return m_dataSize;}
-    bool isCompress() const { return m_compress;}
+    uint32_t getSize() const { return m_size; }
+    uint32_t getDataSize() const { return m_dataSize; }
+    bool isCompress() const { return m_compress; }
 
     void resize(uint32_t size, bool v = false);
 
     void listPosAsc(std::vector<uint32_t>& pos);
-    //void listPosDesc(std::vector<uint32_t>& pos);
+    // void listPosDesc(std::vector<uint32_t>& pos);
 
     void foreach(std::function<bool(uint32_t)> cb);
     void rforeach(std::function<bool(uint32_t)> cb);
@@ -81,13 +81,14 @@ public:
     void writeTo(ByteArray::ptr ba) const;
     bool readFrom(ByteArray::ptr ba);
 
-    //uncompress to compress
-    //uncompress to uncompress
+    // uncompress to compress
+    // uncompress to uncompress
     bool cross(const Bitmap& b) const;
 
     float getCompressRate() const;
 
     uint32_t getCount() const;
+
 public:
     class iterator_base {
     public:
@@ -99,6 +100,7 @@ public:
         bool operator!();
         int32_t operator*();
         virtual void next() = 0;
+
     protected:
         int32_t m_pos;
         int32_t m_size;
@@ -120,22 +122,26 @@ public:
         iterator_reverse(Bitmap* b);
         void next();
     };
+
 public:
-    iterator begin() { return iterator(this);}
-    iterator_reverse rbegin() { return iterator_reverse(this);}
+    iterator begin() { return iterator(this); }
+    iterator_reverse rbegin() { return iterator_reverse(this); }
 
     typename iterator_base::ptr begin_new();
     typename iterator_base::ptr rbegin_new();
+
 private:
     bool normalCross(const Bitmap& b) const;
-    //uncompress to compress
+    // uncompress to compress
     bool compressCross(const Bitmap& b) const;
     Bitmap();
+
 private:
     bool m_compress;
     uint32_t m_size;
     uint32_t m_dataSize;
     base_type* m_data;
+
 private:
     static const uint32_t VALUE_SIZE = sizeof(base_type) * 8 - 2;
     static const base_type COMPRESS_MASK = ((base_type)1 << (sizeof(base_type) * 8 - 1));
@@ -148,9 +154,10 @@ private:
     static base_type POS[sizeof(base_type) * 8];
     static base_type NPOS[sizeof(base_type) * 8];
     static base_type MASK[sizeof(base_type) * 8];
+
 public:
     static bool init();
 };
 
-}
-}
+} // namespace ds
+} // namespace chen

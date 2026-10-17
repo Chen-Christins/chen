@@ -1,15 +1,16 @@
 #include "xml_converter.hpp"
 
-#include <tinyxml2.h>
 #include <chen/log/log.h>
 #include <chen/util/fs_util.h>
 #include <chen/util/macro.h>
+#include <tinyxml2.h>
 
 namespace chen::converter {
 
 static Logger::ptr logger = LOG_NAME("converter");
 
-std::string XMLToHeaderConverter::convertType(const std::string& type) {
+std::string XMLToHeaderConverter::convertType(const std::string& type)
+{
     if (type.empty()) {
         if (m_reportedUnknownType.insert(type).second) {
             ERROR(logger) << COLOR_RED << locationStr() << " Empty type (missing 'type' attribute)" << COLOR_RESET;
@@ -58,17 +59,15 @@ std::string XMLToHeaderConverter::convertType(const std::string& type) {
         {"timestamp", "int64_t"},
         {"datetime", "int64_t"},
         {"bytes", "std::vector<uint8_t>"},
-        {"blob", "std::vector<uint8_t>"}
+        {"blob", "std::vector<uint8_t>"},
     };
 
     auto it = basicTypes.find(type);
     if (it != basicTypes.end()) {
-        static const std::set<std::string> cstdintBasedTypes = {
-            "int", "uint", "short", "ushort", "char", "byte",
-            "ubyte", "tinyint", "tinyuint", "bigint", "biguint",
-            "number", "varint", "timestamp", "datetime", "smallint",
-            "smalluint", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64"
-        };
+        static const std::set<std::string> cstdintBasedTypes = {"int",      "uint",     "short",     "ushort",  "char",   "byte",   "ubyte",
+                                                                "tinyint",  "tinyuint", "bigint",    "biguint", "number", "varint", "timestamp",
+                                                                "datetime", "smallint", "smalluint", "int8",    "uint8",  "int16",  "uint16",
+                                                                "int32",    "uint32",   "int64",     "uint64"};
 
         if (type == "string" || type == "stringvar") {
             requiredHeaders.insert("<string>");
@@ -148,12 +147,10 @@ std::string XMLToHeaderConverter::convertType(const std::string& type) {
     std::string trimmedType = trim(type);
     auto basicIt = basicTypes.find(trimmedType);
     if (basicIt != basicTypes.end()) {
-        static const std::set<std::string> cstdintBasedTypes = {
-            "int", "uint", "short", "ushort", "char", "byte", "ubyte",
-            "tinyint", "tinyuint", "smallint", "smalluint", "bigint",
-            "biguint", "number", "varint", "timestamp", "datetime",
-            "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64"
-        };
+        static const std::set<std::string> cstdintBasedTypes = {"int",     "uint",      "short",    "ushort",    "char",   "byte",    "ubyte",
+                                                                "tinyint", "tinyuint",  "smallint", "smalluint", "bigint", "biguint", "number",
+                                                                "varint",  "timestamp", "datetime", "int8",      "uint8",  "int16",   "uint16",
+                                                                "int32",   "uint32",    "int64",    "uint64"};
 
         if (trimmedType == "string" || trimmedType == "stringvar") {
             requiredHeaders.insert("<string>");
@@ -176,7 +173,8 @@ std::string XMLToHeaderConverter::convertType(const std::string& type) {
     return type;
 }
 
-std::string XMLToHeaderConverter::processTemplateType(const std::string& templateName, const std::string& type) {
+std::string XMLToHeaderConverter::processTemplateType(const std::string& templateName, const std::string& type)
+{
     std::string content = type.substr(type.find('<') + 1, type.rfind('>') - type.find('<') - 1);
     std::vector<std::string> params = splitTemplateParams(content);
 
@@ -202,7 +200,8 @@ std::string XMLToHeaderConverter::processTemplateType(const std::string& templat
     return result;
 }
 
-std::string XMLToHeaderConverter::processTupleType(const std::string& type) {
+std::string XMLToHeaderConverter::processTupleType(const std::string& type)
+{
     std::string content = type.substr(type.find('<') + 1, type.rfind('>') - type.find('<') - 1);
     std::vector<std::string> params = splitTemplateParams(content);
 
@@ -228,7 +227,8 @@ std::string XMLToHeaderConverter::processTupleType(const std::string& type) {
     return result;
 }
 
-std::string XMLToHeaderConverter::processVariantType(const std::string& type) {
+std::string XMLToHeaderConverter::processVariantType(const std::string& type)
+{
     std::string content = type.substr(type.find('<') + 1, type.rfind('>') - type.find('<') - 1);
     std::vector<std::string> params = splitTemplateParams(content);
 
@@ -253,7 +253,8 @@ std::string XMLToHeaderConverter::processVariantType(const std::string& type) {
     return result;
 }
 
-std::vector<std::string> XMLToHeaderConverter::splitTemplateParams(const std::string& content) const {
+std::vector<std::string> XMLToHeaderConverter::splitTemplateParams(const std::string& content) const
+{
     std::vector<std::string> params;
     std::string current;
     int bracketCount = 0;
@@ -281,11 +282,13 @@ std::vector<std::string> XMLToHeaderConverter::splitTemplateParams(const std::st
     return params;
 }
 
-std::string XMLToHeaderConverter::locationStr() const {
+std::string XMLToHeaderConverter::locationStr() const
+{
     return m_currentFile + ":" + std::to_string(m_currentLine);
 }
 
-std::string XMLToHeaderConverter::toCamelCase(const std::string& input) const {
+std::string XMLToHeaderConverter::toCamelCase(const std::string& input) const
+{
     std::string result;
     bool capitalizeNext = false;
 
@@ -305,7 +308,8 @@ std::string XMLToHeaderConverter::toCamelCase(const std::string& input) const {
     return result;
 }
 
-std::string XMLToHeaderConverter::trim(const std::string& str) const {
+std::string XMLToHeaderConverter::trim(const std::string& str) const
+{
     size_t start = str.find_first_not_of(" \t\n\r");
     size_t end = str.find_last_not_of(" \t\n\r");
 
@@ -316,7 +320,8 @@ std::string XMLToHeaderConverter::trim(const std::string& str) const {
     return str.substr(start, end - start + 1);
 }
 
-std::string XMLToHeaderConverter::replaceAll(const std::string& str, const std::string& from, const std::string& to) const {
+std::string XMLToHeaderConverter::replaceAll(const std::string& str, const std::string& from, const std::string& to) const
+{
     std::string result = str;
     size_t pos = 0;
 
@@ -328,7 +333,8 @@ std::string XMLToHeaderConverter::replaceAll(const std::string& str, const std::
     return result;
 }
 
-bool XMLToHeaderConverter::parseBoolAttr(const char* attrValue) const {
+bool XMLToHeaderConverter::parseBoolAttr(const char* attrValue) const
+{
     if (!attrValue) {
         return false;
     }
@@ -340,13 +346,10 @@ bool XMLToHeaderConverter::parseBoolAttr(const char* attrValue) const {
     return value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
-std::string XMLToHeaderConverter::getScalarWriteExpr(const std::string& cppType, const std::string& valueExpr) const {
-    if (cppType.rfind("std::vector<", 0) == 0
-        || cppType.rfind("std::list<", 0) == 0
-        || cppType.rfind("std::set<", 0) == 0
-        || cppType.rfind("std::unordered_set<", 0) == 0
-        || cppType.rfind("std::map<", 0) == 0
-        || cppType.rfind("std::unordered_map<", 0) == 0
+std::string XMLToHeaderConverter::getScalarWriteExpr(const std::string& cppType, const std::string& valueExpr) const
+{
+    if (cppType.rfind("std::vector<", 0) == 0 || cppType.rfind("std::list<", 0) == 0 || cppType.rfind("std::set<", 0) == 0
+        || cppType.rfind("std::unordered_set<", 0) == 0 || cppType.rfind("std::map<", 0) == 0 || cppType.rfind("std::unordered_map<", 0) == 0
         || cppType.rfind("std::array<", 0) == 0) {
         return "chen::rpc::Serializer::Write(ba, " + valueExpr + ");";
     }
@@ -389,13 +392,10 @@ std::string XMLToHeaderConverter::getScalarWriteExpr(const std::string& cppType,
     return "chen::rpc::Serialization<" + cppType + ">::write(ba, " + valueExpr + ");";
 }
 
-std::string XMLToHeaderConverter::getScalarReadExpr(const std::string& cppType, const std::string& valueExpr) const {
-    if (cppType.rfind("std::vector<", 0) == 0
-        || cppType.rfind("std::list<", 0) == 0
-        || cppType.rfind("std::set<", 0) == 0
-        || cppType.rfind("std::unordered_set<", 0) == 0
-        || cppType.rfind("std::map<", 0) == 0
-        || cppType.rfind("std::unordered_map<", 0) == 0
+std::string XMLToHeaderConverter::getScalarReadExpr(const std::string& cppType, const std::string& valueExpr) const
+{
+    if (cppType.rfind("std::vector<", 0) == 0 || cppType.rfind("std::list<", 0) == 0 || cppType.rfind("std::set<", 0) == 0
+        || cppType.rfind("std::unordered_set<", 0) == 0 || cppType.rfind("std::map<", 0) == 0 || cppType.rfind("std::unordered_map<", 0) == 0
         || cppType.rfind("std::array<", 0) == 0) {
         return "chen::rpc::Serializer::Read(ba, " + valueExpr + ");";
     }
@@ -438,7 +438,8 @@ std::string XMLToHeaderConverter::getScalarReadExpr(const std::string& cppType, 
     return "chen::rpc::Serialization<" + cppType + ">::read(ba, " + valueExpr + ");";
 }
 
-void XMLToHeaderConverter::generateStructSerialization(std::ofstream& out, const StructInfo& structInfo) {
+void XMLToHeaderConverter::generateStructSerialization(std::ofstream& out, const StructInfo& structInfo)
+{
     std::string structTag = "tag" + toCamelCase(structInfo.name);
 
     out << "/**" << std::endl;
@@ -512,7 +513,8 @@ void XMLToHeaderConverter::generateStructSerialization(std::ofstream& out, const
     out << std::endl;
 }
 
-bool XMLToHeaderConverter::parseXML(const std::string& filename) {
+bool XMLToHeaderConverter::parseXML(const std::string& filename)
+{
     // Store the current XML file directory for resolving relative includes
     size_t lastSlash = filename.find_last_of("/\\");
     currentXMLDir = (lastSlash != std::string::npos) ? filename.substr(0, lastSlash) : "";
@@ -603,11 +605,13 @@ bool XMLToHeaderConverter::parseXML(const std::string& filename) {
                 info.value = macro->Attribute("value") ? macro->Attribute("value") : "";
                 info.desc = macro->Attribute("desc") ? macro->Attribute("desc") : "";
                 if (info.name.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Macrogroup '" << groupInfo.name << "' contains a macro with missing 'name' attribute" << COLOR_RESET;
+                    ERROR(logger) << COLOR_RED << locationStr() << " Macrogroup '" << groupInfo.name
+                                  << "' contains a macro with missing 'name' attribute" << COLOR_RESET;
                     m_hasError = true;
                 }
                 if (info.value.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Macrogroup '" << groupInfo.name << "' macro '" << info.name << "' is missing required 'value' attribute" << COLOR_RESET;
+                    ERROR(logger) << COLOR_RED << locationStr() << " Macrogroup '" << groupInfo.name << "' macro '" << info.name
+                                  << "' is missing required 'value' attribute" << COLOR_RESET;
                     m_hasError = true;
                 }
                 groupInfo.macros.push_back(info);
@@ -622,8 +626,7 @@ bool XMLToHeaderConverter::parseXML(const std::string& filename) {
             StructInfo structInfo;
             structInfo.name = child->Attribute("name") ? child->Attribute("name") : "";
             structInfo.desc = child->Attribute("desc") ? child->Attribute("desc") : "";
-            structInfo.needSerialization = parseBoolAttr(child->Attribute("serialize"))
-                || parseBoolAttr(child->Attribute("serialization"))
+            structInfo.needSerialization = parseBoolAttr(child->Attribute("serialize")) || parseBoolAttr(child->Attribute("serialization"))
                 || parseBoolAttr(child->Attribute("rpc"));
             structInfo.pack = parseBoolAttr(child->Attribute("pack"));
             if (structInfo.name.empty()) {
@@ -640,11 +643,13 @@ bool XMLToHeaderConverter::parseXML(const std::string& filename) {
                 entryInfo.desc = entry->Attribute("desc") ? entry->Attribute("desc") : "";
 
                 if (entryInfo.name.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Struct '" << structInfo.name << "' contains an entry with missing 'name' attribute" << COLOR_RESET;
+                    ERROR(logger) << COLOR_RED << locationStr() << " Struct '" << structInfo.name
+                                  << "' contains an entry with missing 'name' attribute" << COLOR_RESET;
                     m_hasError = true;
                 }
                 if (entryInfo.type.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Struct '" << structInfo.name << "' entry '" << entryInfo.name << "' is missing required 'type' attribute" << COLOR_RESET;
+                    ERROR(logger) << COLOR_RED << locationStr() << " Struct '" << structInfo.name << "' entry '" << entryInfo.name
+                                  << "' is missing required 'type' attribute" << COLOR_RESET;
                     m_hasError = true;
                 }
 
@@ -690,11 +695,13 @@ bool XMLToHeaderConverter::parseXML(const std::string& filename) {
                 entryInfo.desc = entry->Attribute("desc") ? entry->Attribute("desc") : "";
 
                 if (entryInfo.name.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Union '" << unionInfo.name << "' contains an entry with missing 'name' attribute" << COLOR_RESET;
+                    ERROR(logger) << COLOR_RED << locationStr() << " Union '" << unionInfo.name << "' contains an entry with missing 'name' attribute"
+                                  << COLOR_RESET;
                     m_hasError = true;
                 }
                 if (entryInfo.type.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Union '" << unionInfo.name << "' entry '" << entryInfo.name << "' is missing required 'type' attribute" << COLOR_RESET;
+                    ERROR(logger) << COLOR_RED << locationStr() << " Union '" << unionInfo.name << "' entry '" << entryInfo.name
+                                  << "' is missing required 'type' attribute" << COLOR_RESET;
                     m_hasError = true;
                 }
 
@@ -725,11 +732,12 @@ bool XMLToHeaderConverter::parseXML(const std::string& filename) {
     return true;
 }
 
-void XMLToHeaderConverter::generateHeader(const std::string& outputFile) {
+void XMLToHeaderConverter::generateHeader(const std::string& outputFile)
+{
     std::ofstream out(outputFile);
     if (!out.is_open()) {
         ERROR(logger) << COLOR_RED << m_currentFile << ":0"
-                << " Error opening output file: " << outputFile << COLOR_RESET;
+                      << " Error opening output file: " << outputFile << COLOR_RESET;
         return;
     }
 
@@ -946,7 +954,7 @@ void XMLToHeaderConverter::generateHeader(const std::string& outputFile) {
     out << "#endif // " << guardName << std::endl;
 
     out.close();
-    
+
     if (!hasError()) {
         INFO(logger) << "Header file generated successfully: " << outputFile;
     } else {
@@ -954,13 +962,15 @@ void XMLToHeaderConverter::generateHeader(const std::string& outputFile) {
     }
 }
 
-std::string XMLToHeaderConverter::toUpper(const std::string& str) {
+std::string XMLToHeaderConverter::toUpper(const std::string& str)
+{
     std::string result = str;
     std::ranges::transform(result, result.begin(), ::toupper);
     return result;
 }
 
-void XMLToHeaderConverter::parseIncludeFile(const std::string& includeFile, const std::string& prefix) {
+void XMLToHeaderConverter::parseIncludeFile(const std::string& includeFile, const std::string& prefix)
+{
     tinyxml2::XMLDocument doc;
     std::string fullPath = includeFile;
 
@@ -1033,7 +1043,8 @@ void XMLToHeaderConverter::parseIncludeFile(const std::string& includeFile, cons
     }
 }
 
-std::string XMLToHeaderConverter::extractHeaderName(const std::string& xmlPath) {
+std::string XMLToHeaderConverter::extractHeaderName(const std::string& xmlPath)
+{
     // Convert XML file path to header file name
     // e.g., "resources.xml" -> "resources.h"
     size_t lastSlash = xmlPath.find_last_of("/\\");
@@ -1047,15 +1058,18 @@ std::string XMLToHeaderConverter::extractHeaderName(const std::string& xmlPath) 
     return filename + ".h";
 }
 
-bool XMLToHeaderConverter::isExternalType(const std::string& type) {
+bool XMLToHeaderConverter::isExternalType(const std::string& type)
+{
     return includedTypes.find(type) != includedTypes.end();
 }
 
-bool XMLToHeaderConverter::hasError() const {
+bool XMLToHeaderConverter::hasError() const
+{
     return m_hasError;
 }
 
-std::string XMLToHeaderConverter::decodeHTMLEntities(const std::string& str) const {
+std::string XMLToHeaderConverter::decodeHTMLEntities(const std::string& str) const
+{
     std::string result = str;
     size_t pos = 0;
 
@@ -1084,7 +1098,8 @@ std::string XMLToHeaderConverter::decodeHTMLEntities(const std::string& str) con
 
 } // namespace chen::converter
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     using namespace chen::converter;
 
     if (argc != 3) {
@@ -1125,8 +1140,7 @@ int main(int argc, char* argv[]) {
             }
             converter.generateHeader(outputFile);
             if (converter.hasError()) {
-                ERROR(logger) << COLOR_RED
-                      << "Failed to generate header due to type conversion errors in " << file << COLOR_RESET;
+                ERROR(logger) << COLOR_RED << "Failed to generate header due to type conversion errors in " << file << COLOR_RESET;
                 allSuccess = false;
                 return 1;
             }

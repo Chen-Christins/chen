@@ -7,16 +7,11 @@
  */
 #pragma once
 
-#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
-#include <openssl/rand.h>
 #include <openssl/sha.h>
 
 namespace chen::data {
@@ -40,7 +35,10 @@ struct DecryptionMetadata {
     EncryptionType type;
     std::map<std::string, std::string> data; // 存储字符串形式的元数据
 
-    DecryptionMetadata() : type(EncryptionType::NONE) {}
+    DecryptionMetadata()
+        : type(EncryptionType::NONE)
+    {
+    }
 };
 
 /**

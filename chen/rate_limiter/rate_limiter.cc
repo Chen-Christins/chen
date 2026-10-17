@@ -3,13 +3,15 @@
 namespace chen {
 
 RateLimiter::RateLimiter(double qps, uint64_t burst)
-    :m_qps(qps)
-    ,m_burst(burst > 0 ? static_cast<double>(burst) : qps)
-    ,m_tokens(m_burst > 0 ? m_burst : 0)
-    ,m_lastTime(std::chrono::steady_clock::now()) {
+    : m_qps(qps)
+    , m_burst(burst > 0 ? static_cast<double>(burst) : qps)
+    , m_tokens(m_burst > 0 ? m_burst : 0)
+    , m_lastTime(std::chrono::steady_clock::now())
+{
 }
 
-bool RateLimiter::tryAcquire() {
+bool RateLimiter::tryAcquire()
+{
     std::lock_guard lock(m_mutex);
     if (m_qps <= 0) {
         return true;
@@ -28,17 +30,20 @@ bool RateLimiter::tryAcquire() {
     return false;
 }
 
-bool RateLimiter::isLimited() const {
+bool RateLimiter::isLimited() const
+{
     std::lock_guard lock(m_mutex);
     return m_qps > 0;
 }
 
-void RateLimiter::setQps(double qps) {
+void RateLimiter::setQps(double qps)
+{
     std::lock_guard lock(m_mutex);
     m_qps = qps;
 }
 
-void RateLimiter::setBurst(uint64_t burst) {
+void RateLimiter::setBurst(uint64_t burst)
+{
     std::lock_guard lock(m_mutex);
     m_burst = static_cast<double>(burst);
     if (m_tokens > m_burst) {
@@ -46,4 +51,4 @@ void RateLimiter::setBurst(uint64_t burst) {
     }
 }
 
-}
+} // namespace chen

@@ -27,15 +27,15 @@ namespace chen::data {
  * @brief 字段值类型定义
  */
 using FieldValue = std::variant<
-    std::nullptr_t,      // NULL值
-    int8_t,              // 8位整数
-    int16_t,             // 16位整数
-    int32_t,             // 32位整数
-    int64_t,             // 64位整数
-    float,               // 单精度浮点
-    double,              // 双精度浮点
-    std::string          // 字符串
->;
+    std::nullptr_t, // NULL值
+    int8_t,         // 8位整数
+    int16_t,        // 16位整数
+    int32_t,        // 32位整数
+    int64_t,        // 64位整数
+    float,          // 单精度浮点
+    double,         // 双精度浮点
+    std::string     // 字符串
+    >;
 
 /**
  * @brief 行数据类型定义
@@ -69,7 +69,8 @@ public:
      * @param row_index 行索引（从0开始）
      * @return 行数据指针，如果索引无效返回nullptr
      */
-    const RowData* getRow(size_t row_index) const {
+    const RowData* getRow(size_t row_index) const
+    {
         if (row_index >= m_rows.size()) {
             return nullptr;
         }
@@ -85,7 +86,8 @@ public:
      * @return 字段值
      */
     template <typename T>
-    T getValue(size_t row_index, const std::string& column_name, const T& default_value = T{}) const {
+    T getValue(size_t row_index, const std::string& column_name, const T& default_value = T{}) const
+    {
         if (row_index >= m_rows.size()) {
             return default_value;
         }
@@ -99,8 +101,7 @@ public:
         try {
             return std::get<T>(it->second);
         } catch (const std::bad_variant_access&) {
-            WARN(LOG_NAME("data")) << "Type mismatch for field " << column_name
-                << " in table " << m_name << " row " << row_index;
+            WARN(LOG_NAME("data")) << "Type mismatch for field " << column_name << " in table " << m_name << " row " << row_index;
             return default_value;
         }
     }
@@ -108,15 +109,14 @@ public:
     /**
      * @brief 检查字段是否存在
      */
-    bool hasField(const std::string& field_name) const {
-        return std::find(m_headers.begin(), m_headers.end(), field_name) != m_headers.end();
-    }
+    bool hasField(const std::string& field_name) const { return std::find(m_headers.begin(), m_headers.end(), field_name) != m_headers.end(); }
 
     /**
      * @brief 遍历所有行
      * @param callback 回调函数，参数为行索引和行数据
      */
-    void forEachRow(std::function<void(size_t, const RowData&)> callback) const {
+    void forEachRow(std::function<void(size_t, const RowData&)> callback) const
+    {
         for (size_t i = 0; i < m_rows.size(); ++i) {
             callback(i, m_rows[i]);
         }
@@ -125,9 +125,9 @@ public:
 private:
     friend class DataReader;
 
-    std::string m_name;                           // 表名
-    std::vector<std::string> m_headers;           // 字段列表
-    std::vector<RowData> m_rows;                  // 行数据
+    std::string m_name;                 // 表名
+    std::vector<std::string> m_headers; // 字段列表
+    std::vector<RowData> m_rows;        // 行数据
 };
 
 /**
@@ -226,8 +226,8 @@ private:
     // 文件头标识
     static const char FILE_HEADER[4];
 
-    std::map<std::string, TableData::ptr> m_tables;  // 表数据映射
-    std::unique_ptr<DataDecryptor> m_decryptor;      // 解密器
+    std::map<std::string, TableData::ptr> m_tables; // 表数据映射
+    std::unique_ptr<DataDecryptor> m_decryptor;     // 解密器
 };
 
 /**
@@ -237,13 +237,17 @@ private:
 class FieldAccessor {
 public:
     FieldAccessor(const RowData* row, const std::string& field_name)
-        : m_row(row), m_field_name(field_name) {}
+        : m_row(row)
+        , m_field_name(field_name)
+    {
+    }
 
     /**
      * @brief 获取值，支持隐式转换
      */
     template <typename T>
-    operator T() const {
+    operator T() const
+    {
         if (!m_row) {
             return T{};
         }
@@ -264,18 +268,22 @@ public:
      * @brief 获取值，带默认值
      */
     template <typename T>
-    T get(const T& default_value = T{}) const {
+    T get(const T& default_value = T{}) const
+    {
         return static_cast<T>(*this);
     }
 
     /**
      * @brief 检查字段是否为空
      */
-    bool isNull() const {
-        if (!m_row) return true;
+    bool isNull() const
+    {
+        if (!m_row)
+            return true;
 
         auto it = m_row->find(m_field_name);
-        if (it == m_row->end()) return true;
+        if (it == m_row->end())
+            return true;
 
         return std::holds_alternative<std::nullptr_t>(it->second);
     }
@@ -292,12 +300,16 @@ private:
 class RowAccessor {
 public:
     RowAccessor(const TableData* table, size_t row_index)
-        : m_table(table), m_row_index(row_index) {}
+        : m_table(table)
+        , m_row_index(row_index)
+    {
+    }
 
     /**
      * @brief 获取字段访问器
      */
-    FieldAccessor operator[](const std::string& field_name) const {
+    FieldAccessor operator[](const std::string& field_name) const
+    {
         const RowData* row = m_table ? m_table->getRow(m_row_index) : nullptr;
         return FieldAccessor(row, field_name);
     }
@@ -305,16 +317,12 @@ public:
     /**
      * @brief 获取原始行数据
      */
-    const RowData* getRawRow() const {
-        return m_table ? m_table->getRow(m_row_index) : nullptr;
-    }
+    const RowData* getRawRow() const { return m_table ? m_table->getRow(m_row_index) : nullptr; }
 
     /**
      * @brief 检查行是否有效
      */
-    bool isValid() const {
-        return m_table && m_row_index < m_table->getRowCount();
-    }
+    bool isValid() const { return m_table && m_row_index < m_table->getRowCount(); }
 
 private:
     const TableData* m_table;

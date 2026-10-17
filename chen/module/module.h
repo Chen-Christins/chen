@@ -60,7 +60,7 @@ public:
 
     /**
      * @brief 模块加载时调用
-     * @return bool 
+     * @return bool
      */
     virtual bool onLoad();
 
@@ -81,26 +81,26 @@ public:
     /**
      * @brief 连接时调用
      * @param stream 连接流
-     * @return bool 
+     * @return bool
      */
     virtual bool onConnect(Stream::ptr stream);
 
     /**
      * @brief 断开连接时调用
      * @param stream 连接流
-     * @return bool 
+     * @return bool
      */
     virtual bool onDisconnect(Stream::ptr stream);
 
     /**
      * @brief 服务器准备就绪时调用
-     * @return bool 
+     * @return bool
      */
     virtual bool onServerReady();
 
     /**
      * @brief 服务器启动时调用
-     * @return bool 
+     * @return bool
      */
     virtual bool onServerUp();
 
@@ -118,7 +118,7 @@ public:
 
     /**
      * @brief 获取模块状态字符串
-     * @return std::string 
+     * @return std::string
      */
     virtual std::string statusString();
 
@@ -126,7 +126,7 @@ public:
      * @brief 获取模块信息
      */
     const std::string& getName() const { return m_name; }
-    
+
     /**
      * @brief 获取模块版本
      */
@@ -271,19 +271,21 @@ public:
      * @param cb 回调函数，参数为模块指针
      */
     void foreach(uint32_t type, std::function<void(Module::ptr)> cb);
+
 private:
     /**
      * @brief 初始化单个模块
      * @param path 模块路径
      */
     void initModule(const std::string& path);
+
 private:
     /// 读写锁
     std::shared_mutex m_mutex;
     /// 模块集合
     std::map<std::string, Module::ptr> m_modules;
     /// 模块类型到模块集合的映射
-    std::unordered_map<uint32_t, std::unordered_map<std::string, Module::ptr> > m_type2Modules;
+    std::unordered_map<uint32_t, std::unordered_map<std::string, Module::ptr>> m_type2Modules;
 };
 
 // 泄漏单例：进程退出时不析构，避免 std::exit 期间 dlclose 模块 .so
@@ -297,4 +299,4 @@ typedef LeakySingleton<ModuleManager> ModuleMgr;
  */
 std::string GetModulePath();
 
-}
+} // namespace chen

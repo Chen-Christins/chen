@@ -87,7 +87,8 @@ public:
      * @throw std::runtime_error 发送失败、超时、或服务端返回非 0 错误码
      */
     template <typename R, typename... Args>
-    R call(const std::string& method, Args... args) {
+    R call(const std::string& method, Args... args)
+    {
         return callWithTimeout<R>(3000, method, args...);
     }
 
@@ -102,7 +103,8 @@ public:
      * @throw std::runtime_error 发送失败、超时、或服务端返回非 0 错误码
      */
     template <typename R, typename... Args>
-    R call(uint32_t cmd, Args... args) {
+    R call(uint32_t cmd, Args... args)
+    {
         return callWithTimeout<R>(3000, cmd, args...);
     }
 
@@ -117,7 +119,8 @@ public:
      * @throw std::runtime_error 发送失败、超时、反序列化失败，或服务端返回非 0 错误码
      */
     template <typename R, typename... Args>
-    R callWithTimeout(uint64_t timeout_ms, const std::string& method, Args... args) {
+    R callWithTimeout(uint64_t timeout_ms, const std::string& method, Args... args)
+    {
         Protocol::ptr resp = callInternal(buildNameRequest(method, args...), timeout_ms);
         return ParseCallResult<R>(resp);
     }
@@ -134,7 +137,8 @@ public:
      * @throw std::runtime_error 发送失败、超时、反序列化失败，或服务端返回非 0 错误码
      */
     template <typename R, typename... Args>
-    R callWithTimeout(uint64_t timeout_ms, uint32_t cmd, Args... args) {
+    R callWithTimeout(uint64_t timeout_ms, uint32_t cmd, Args... args)
+    {
         Protocol::ptr resp = callInternal(buildCmdRequest(cmd, args...), timeout_ms);
         return ParseCallResult<R>(resp);
     }
@@ -174,7 +178,8 @@ public:
      * @throw std::runtime_error 发送失败、超时、或服务端返回非 0 错误码
      */
     template <typename R, typename... Args>
-    R callRouted(const RpcRouting& routing, const std::string& method, Args... args) {
+    R callRouted(const RpcRouting& routing, const std::string& method, Args... args)
+    {
         return callRoutedWithTimeout<R>(3000, routing, method, args...);
     }
 
@@ -190,7 +195,8 @@ public:
      * @throw std::runtime_error 发送失败、超时、或服务端返回非 0 错误码
      */
     template <typename R, typename... Args>
-    R callRouted(const RpcRouting& routing, uint32_t cmd, Args... args) {
+    R callRouted(const RpcRouting& routing, uint32_t cmd, Args... args)
+    {
         return callRoutedWithTimeout<R>(3000, routing, cmd, args...);
     }
 
@@ -206,7 +212,8 @@ public:
      * @throw std::runtime_error 发送失败、超时、或服务端返回非 0 错误码
      */
     template <typename R, typename... Args>
-    R callRoutedWithTimeout(uint64_t timeout_ms, const RpcRouting& routing, const std::string& method, Args... args) {
+    R callRoutedWithTimeout(uint64_t timeout_ms, const RpcRouting& routing, const std::string& method, Args... args)
+    {
         Protocol::ptr req = buildNameRequest(method, args...);
         applyRouting(req, routing);
 
@@ -227,7 +234,8 @@ public:
      * @throw std::runtime_error 发送失败、超时、或服务端返回非 0 错误码
      */
     template <typename R, typename... Args>
-    R callRoutedWithTimeout(uint64_t timeout_ms, const RpcRouting& routing, uint32_t cmd, Args... args) {
+    R callRoutedWithTimeout(uint64_t timeout_ms, const RpcRouting& routing, uint32_t cmd, Args... args)
+    {
         Protocol::ptr req = buildCmdRequest(cmd, args...);
         applyRouting(req, routing);
 
@@ -244,7 +252,8 @@ public:
      * @return bool 发送是否成功（只保证写入连接，不保证目标处理结果）
      */
     template <typename... Args>
-    bool notifyRouted(const RpcRouting& routing, const std::string& method, Args... args) {
+    bool notifyRouted(const RpcRouting& routing, const std::string& method, Args... args)
+    {
         Protocol::ptr req = buildNameRequest(method, args...);
         req->type = MessageType::NOTIFY;
         applyRouting(req, routing);
@@ -261,7 +270,8 @@ public:
      * @throw std::invalid_argument cmd 为 0
      */
     template <typename... Args>
-    bool notifyRouted(const RpcRouting& routing, uint32_t cmd, Args... args) {
+    bool notifyRouted(const RpcRouting& routing, uint32_t cmd, Args... args)
+    {
         Protocol::ptr req = buildCmdRequest(cmd, args...);
         req->type = MessageType::NOTIFY;
         applyRouting(req, routing);
@@ -280,7 +290,8 @@ public:
      * @throw std::invalid_argument 方法名为空（编程错误，与同步调用一致）
      */
     template <typename R, typename... Args>
-    void callAsync(const std::string& method, RpcCallback<R> cb, Args... args) {
+    void callAsync(const std::string& method, RpcCallback<R> cb, Args... args)
+    {
         callAsyncWithTimeout<R>(3000, method, std::move(cb), args...);
     }
 
@@ -294,7 +305,8 @@ public:
      * @throw std::invalid_argument cmd 为 0
      */
     template <typename R, typename... Args>
-    void callAsync(uint32_t cmd, RpcCallback<R> cb, Args... args) {
+    void callAsync(uint32_t cmd, RpcCallback<R> cb, Args... args)
+    {
         callAsyncWithTimeout<R>(3000, cmd, std::move(cb), args...);
     }
 
@@ -308,8 +320,8 @@ public:
      * @param args 传入的参数
      */
     template <typename R, typename... Args>
-    void callAsyncWithTimeout(uint64_t timeout_ms, const std::string& method
-            , RpcCallback<R> cb, Args... args) {
+    void callAsyncWithTimeout(uint64_t timeout_ms, const std::string& method, RpcCallback<R> cb, Args... args)
+    {
         dispatchAsync<R>(buildNameRequest(method, args...), timeout_ms, std::move(cb));
     }
 
@@ -324,8 +336,8 @@ public:
      * @throw std::invalid_argument cmd 为 0
      */
     template <typename R, typename... Args>
-    void callAsyncWithTimeout(uint64_t timeout_ms, uint32_t cmd
-            , RpcCallback<R> cb, Args... args) {
+    void callAsyncWithTimeout(uint64_t timeout_ms, uint32_t cmd, RpcCallback<R> cb, Args... args)
+    {
         dispatchAsync<R>(buildCmdRequest(cmd, args...), timeout_ms, std::move(cb));
     }
 
@@ -339,8 +351,8 @@ public:
      * @param args 传入的参数
      */
     template <typename R, typename... Args>
-    void callRoutedAsync(const RpcRouting& routing, const std::string& method
-            , RpcCallback<R> cb, Args... args) {
+    void callRoutedAsync(const RpcRouting& routing, const std::string& method, RpcCallback<R> cb, Args... args)
+    {
         callRoutedAsyncWithTimeout<R>(3000, routing, method, std::move(cb), args...);
     }
 
@@ -355,8 +367,8 @@ public:
      * @throw std::invalid_argument cmd 为 0
      */
     template <typename R, typename... Args>
-    void callRoutedAsync(const RpcRouting& routing, uint32_t cmd
-            , RpcCallback<R> cb, Args... args) {
+    void callRoutedAsync(const RpcRouting& routing, uint32_t cmd, RpcCallback<R> cb, Args... args)
+    {
         callRoutedAsyncWithTimeout<R>(3000, routing, cmd, std::move(cb), args...);
     }
 
@@ -371,8 +383,8 @@ public:
      * @param args 传入的参数
      */
     template <typename R, typename... Args>
-    void callRoutedAsyncWithTimeout(uint64_t timeout_ms, const RpcRouting& routing
-            , const std::string& method, RpcCallback<R> cb, Args... args) {
+    void callRoutedAsyncWithTimeout(uint64_t timeout_ms, const RpcRouting& routing, const std::string& method, RpcCallback<R> cb, Args... args)
+    {
         Protocol::ptr req = buildNameRequest(method, args...);
         applyRouting(req, routing);
 
@@ -391,8 +403,8 @@ public:
      * @throw std::invalid_argument cmd 为 0
      */
     template <typename R, typename... Args>
-    void callRoutedAsyncWithTimeout(uint64_t timeout_ms, const RpcRouting& routing
-            , uint32_t cmd, RpcCallback<R> cb, Args... args) {
+    void callRoutedAsyncWithTimeout(uint64_t timeout_ms, const RpcRouting& routing, uint32_t cmd, RpcCallback<R> cb, Args... args)
+    {
         Protocol::ptr req = buildCmdRequest(cmd, args...);
         applyRouting(req, routing);
 
@@ -411,7 +423,8 @@ public:
      * @throw std::invalid_argument 方法名为空
      */
     template <typename R, typename... Args>
-    RpcFuture<R> callFuture(const std::string& method, Args... args) {
+    RpcFuture<R> callFuture(const std::string& method, Args... args)
+    {
         return callFutureWithTimeout<R>(3000, method, args...);
     }
 
@@ -425,7 +438,8 @@ public:
      * @throw std::invalid_argument cmd 为 0
      */
     template <typename R, typename... Args>
-    RpcFuture<R> callFuture(uint32_t cmd, Args... args) {
+    RpcFuture<R> callFuture(uint32_t cmd, Args... args)
+    {
         return callFutureWithTimeout<R>(3000, cmd, args...);
     }
 
@@ -439,7 +453,8 @@ public:
      * @return RpcFuture<R> 句柄
      */
     template <typename R, typename... Args>
-    RpcFuture<R> callFutureWithTimeout(uint64_t timeout_ms, const std::string& method, Args... args) {
+    RpcFuture<R> callFutureWithTimeout(uint64_t timeout_ms, const std::string& method, Args... args)
+    {
         return dispatchFuture<R>(buildNameRequest(method, args...), timeout_ms);
     }
 
@@ -454,7 +469,8 @@ public:
      * @throw std::invalid_argument cmd 为 0
      */
     template <typename R, typename... Args>
-    RpcFuture<R> callFutureWithTimeout(uint64_t timeout_ms, uint32_t cmd, Args... args) {
+    RpcFuture<R> callFutureWithTimeout(uint64_t timeout_ms, uint32_t cmd, Args... args)
+    {
         return dispatchFuture<R>(buildCmdRequest(cmd, args...), timeout_ms);
     }
 
@@ -468,7 +484,8 @@ public:
      * @return RpcFuture<R> 句柄
      */
     template <typename R, typename... Args>
-    RpcFuture<R> callRoutedFuture(const RpcRouting& routing, const std::string& method, Args... args) {
+    RpcFuture<R> callRoutedFuture(const RpcRouting& routing, const std::string& method, Args... args)
+    {
         return callRoutedFutureWithTimeout<R>(3000, routing, method, args...);
     }
 
@@ -483,7 +500,8 @@ public:
      * @throw std::invalid_argument cmd 为 0
      */
     template <typename R, typename... Args>
-    RpcFuture<R> callRoutedFuture(const RpcRouting& routing, uint32_t cmd, Args... args) {
+    RpcFuture<R> callRoutedFuture(const RpcRouting& routing, uint32_t cmd, Args... args)
+    {
         return callRoutedFutureWithTimeout<R>(3000, routing, cmd, args...);
     }
 
@@ -498,8 +516,8 @@ public:
      * @return RpcFuture<R> 句柄
      */
     template <typename R, typename... Args>
-    RpcFuture<R> callRoutedFutureWithTimeout(uint64_t timeout_ms, const RpcRouting& routing
-            , const std::string& method, Args... args) {
+    RpcFuture<R> callRoutedFutureWithTimeout(uint64_t timeout_ms, const RpcRouting& routing, const std::string& method, Args... args)
+    {
         Protocol::ptr req = buildNameRequest(method, args...);
         applyRouting(req, routing);
 
@@ -518,8 +536,8 @@ public:
      * @throw std::invalid_argument cmd 为 0
      */
     template <typename R, typename... Args>
-    RpcFuture<R> callRoutedFutureWithTimeout(uint64_t timeout_ms, const RpcRouting& routing
-            , uint32_t cmd, Args... args) {
+    RpcFuture<R> callRoutedFutureWithTimeout(uint64_t timeout_ms, const RpcRouting& routing, uint32_t cmd, Args... args)
+    {
         Protocol::ptr req = buildCmdRequest(cmd, args...);
         applyRouting(req, routing);
 
@@ -535,7 +553,8 @@ public:
      *          请求通过本连接送达，recvLoop 收到 REQUEST 后按方法名分发。
      */
     template <typename Func>
-    void registerMethod(const std::string& name, Func func) {
+    void registerMethod(const std::string& name, Func func)
+    {
         std::lock_guard lock(m_mutex);
         m_requestHandlers[HandlerKey{name}] = MakeRpcHandler(func);
     }
@@ -548,7 +567,8 @@ public:
      * @details 与按方法名注册共用同一张分发表，variant key 保证互不冲突。
      */
     template <typename Func>
-    void registerMethod(uint32_t cmd, Func func) {
+    void registerMethod(uint32_t cmd, Func func)
+    {
         std::lock_guard lock(m_mutex);
         m_requestHandlers[HandlerKey{cmd}] = MakeRpcHandler(func);
     }
@@ -557,7 +577,8 @@ public:
      * @brief 注销本地方法处理器（热重载时避免旧 .so 的 lambda 残留）
      * @param name 方法名
      */
-    void unregisterMethod(const std::string& name) {
+    void unregisterMethod(const std::string& name)
+    {
         std::lock_guard lock(m_mutex);
         m_requestHandlers.erase(HandlerKey{name});
     }
@@ -566,7 +587,8 @@ public:
      * @brief 按 CmdID 注销本地方法处理器
      * @param cmd 命令 ID
      */
-    void unregisterMethod(uint32_t cmd) {
+    void unregisterMethod(uint32_t cmd)
+    {
         std::lock_guard lock(m_mutex);
         m_requestHandlers.erase(HandlerKey{cmd});
     }
@@ -599,7 +621,8 @@ private:
      * @return Protocol::ptr 请求帧（type=REQUEST，序列号已递增）
      */
     template <typename... Args>
-    Protocol::ptr buildNameRequest(const std::string& method, Args... args) {
+    Protocol::ptr buildNameRequest(const std::string& method, Args... args)
+    {
         if (method.empty()) {
             throw std::invalid_argument("RPC method name cannot be empty");
         }
@@ -619,7 +642,8 @@ private:
      * @return Protocol::ptr 请求帧（type=REQUEST，序列号已递增）
      */
     template <typename... Args>
-    Protocol::ptr buildCmdRequest(uint32_t cmd, Args... args) {
+    Protocol::ptr buildCmdRequest(uint32_t cmd, Args... args)
+    {
         if (cmd == 0) {
             throw std::invalid_argument("RPC cmd cannot be 0");
         }
@@ -635,7 +659,8 @@ private:
     /**
      * @brief 将路由描述应用到请求帧头
      */
-    static void applyRouting(Protocol::ptr req, const RpcRouting& routing) {
+    static void applyRouting(Protocol::ptr req, const RpcRouting& routing)
+    {
         req->routing = static_cast<uint8_t>(routing.method);
         req->dst_peer_id = routing.dst_peer_id;
         req->func_id = routing.func_id;
@@ -649,7 +674,8 @@ private:
      * @tparam R 返回值类型
      */
     template <typename R>
-    static R ParseCallResult(const Protocol::ptr& resp) {
+    static R ParseCallResult(const Protocol::ptr& resp)
+    {
         ByteArray::ptr rba(new ByteArray);
         rba->writeStringWithoutLength(resp->body);
         rba->setPosition(0);
@@ -674,7 +700,8 @@ private:
      * @return RpcResult<R> 调用结果
      */
     template <typename R>
-    static RpcResult<R> ParseAsyncResult(RpcStatus status, const Protocol::ptr& resp) {
+    static RpcResult<R> ParseAsyncResult(RpcStatus status, const Protocol::ptr& resp)
+    {
         RpcResult<R> result;
         result.status = status;
         if (status != RpcStatus::OK) {
@@ -710,11 +737,11 @@ private:
      * @param cb 完成回调（被调度为独立协程执行）
      */
     template <typename R>
-    void dispatchAsync(Protocol::ptr req, uint64_t timeout_ms, RpcCallback<R> cb) {
-        callInternalAsync(req, timeout_ms,
-            [cb = std::move(cb)](RpcStatus status, Protocol::ptr resp) mutable {
-                cb(ParseAsyncResult<R>(status, resp));
-            });
+    void dispatchAsync(Protocol::ptr req, uint64_t timeout_ms, RpcCallback<R> cb)
+    {
+        callInternalAsync(req, timeout_ms, [cb = std::move(cb)](RpcStatus status, Protocol::ptr resp) mutable {
+            cb(ParseAsyncResult<R>(status, resp));
+        });
     }
 
     /**
@@ -725,12 +752,12 @@ private:
      * @return RpcFuture<R> 可调用 get()/getValue()/ready()
      */
     template <typename R>
-    RpcFuture<R> dispatchFuture(Protocol::ptr req, uint64_t timeout_ms) {
+    RpcFuture<R> dispatchFuture(Protocol::ptr req, uint64_t timeout_ms)
+    {
         auto state = std::make_shared<RpcFutureState<R>>();
-        callInternalAsync(req, timeout_ms,
-            [state](RpcStatus status, Protocol::ptr resp) {
-                state->complete(ParseAsyncResult<R>(status, resp));
-            });
+        callInternalAsync(req, timeout_ms, [state](RpcStatus status, Protocol::ptr resp) {
+            state->complete(ParseAsyncResult<R>(status, resp));
+        });
         return RpcFuture<R>(state);
     }
 
@@ -749,8 +776,7 @@ private:
      * @param timeout_ms 超时（毫秒），<=0 表示不设置定时器
      * @param callback 完成回调：参数为传输层状态与响应帧（失败时响应帧为空）
      */
-    void callInternalAsync(Protocol::ptr req, uint64_t timeout_ms,
-                           std::function<void(RpcStatus, Protocol::ptr)> callback);
+    void callInternalAsync(Protocol::ptr req, uint64_t timeout_ms, std::function<void(RpcStatus, Protocol::ptr)> callback);
 
     /**
      * @brief 从待响应表中取出并移除指定序列号的上下文

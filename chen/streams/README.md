@@ -4,12 +4,12 @@
 
 ## 核心类
 
-| 类 | 说明 |
-|------|------|
-| `ZlibStream` | Zlib/Deflate/Gzip 压缩解压流，继承 `Stream`，包裹另一个 Stream 透明压缩 |
-| `HolderStats` | 连接宿主统计（耗时、成功/失败/超时计数） |
-| `HolderStatsSet` | 统计集合管理 |
-| `IServiceDiscovery` | 服务发现接口（注册/注销/查询服务实例） |
+| 类                  | 说明                                                                    |
+|---------------------|-------------------------------------------------------------------------|
+| `ZlibStream`        | Zlib/Deflate/Gzip 压缩解压流，继承 `Stream`，包裹另一个 Stream 透明压缩 |
+| `HolderStats`       | 连接宿主统计（耗时、成功/失败/超时计数）                                |
+| `HolderStatsSet`    | 统计集合管理                                                            |
+| `IServiceDiscovery` | 服务发现接口（注册/注销/查询服务实例）                                  |
 
 ## 使用
 

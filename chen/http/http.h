@@ -165,7 +165,8 @@ struct CaseInsensitiveLess {
 };
 
 template <class MapType, class T>
-bool checkGetAs(const MapType& m, const std::string& key, T& val, const T& def = T()) {
+bool checkGetAs(const MapType& m, const std::string& key, T& val, const T& def = T())
+{
     auto it = m.find(key);
     if (it == m.end()) {
         val = def;
@@ -181,7 +182,8 @@ bool checkGetAs(const MapType& m, const std::string& key, T& val, const T& def =
 }
 
 template <class MapType, class T>
-T getAs(const MapType& m, const std::string& key, const T& def = T()) {
+T getAs(const MapType& m, const std::string& key, const T& def = T())
+{
     auto it = m.find(key);
     if (it == m.end()) {
         return def;
@@ -258,32 +260,38 @@ public:
     bool hasCookie(const std::string& key, std::string* val = nullptr);
 
     template <class T>
-    bool checkGetHeaderAs(const std::string& key, T& val, const T& def = T()) {
+    bool checkGetHeaderAs(const std::string& key, T& val, const T& def = T())
+    {
         return checkGetAs(m_headers, key, val, def);
     }
     template <class T>
-    T getHeaderAs(const std::string& key, const T& def = T()) {
+    T getHeaderAs(const std::string& key, const T& def = T())
+    {
         return getAs(m_headers, key, def);
     }
     template <class T>
-    bool checkGetParamAs(const std::string& key, T& val, const T& def = T()) {
+    bool checkGetParamAs(const std::string& key, T& val, const T& def = T())
+    {
         initQueryParam();
         initBodyParam();
         return checkGetAs(m_params, key, val, def);
     }
     template <class T>
-    T getParamAs(const std::string& key, const T& def = T()) {
+    T getParamAs(const std::string& key, const T& def = T())
+    {
         initQueryParam();
         initBodyParam();
         return getAs(m_params, key, def);
     }
     template <class T>
-    bool checkGetCookieAs(const std::string& key, T& val, const T& def = T()) {
+    bool checkGetCookieAs(const std::string& key, T& val, const T& def = T())
+    {
         initCookies();
         return checkGetAs(m_cookies, key, val, def);
     }
     template <class T>
-    T getCookieAs(const std::string& key, const T& def = T()) {
+    T getCookieAs(const std::string& key, const T& def = T())
+    {
         initCookies();
         return getAs(m_cookies, key, def);
     }
@@ -365,12 +373,14 @@ public:
     void delHeader(const std::string& key);
 
     template <class T>
-    bool checkGetHeaderAs(const std::string& key, T& val, const T& def = T()) {
+    bool checkGetHeaderAs(const std::string& key, T& val, const T& def = T())
+    {
         return checkGetAs(m_headers, key, val, def);
     }
 
     template <class T>
-    T getHeaderAs(const std::string& key, const T& def = T()) {
+    T getHeaderAs(const std::string& key, const T& def = T())
+    {
         return getAs(m_headers, key, def);
     }
 
@@ -378,8 +388,13 @@ public:
     std::string toString() const;
 
     void setRedirect(const std::string& uri);
-    void setCookie(const std::string& key, const std::string& val, time_t expired = 0, const std::string& path = "",
-                   const std::string& domain = "", bool secure = false);
+    void setCookie(
+        const std::string& key,
+        const std::string& val,
+        time_t expired = 0,
+        const std::string& path = "",
+        const std::string& domain = "",
+        bool secure = false);
 
 private:
     /// 响应状态

@@ -95,27 +95,32 @@ public:
     bool hasError() const;
 
     std::string decodeHTMLEntities(const std::string& str) const;
+
 private:
     std::set<std::string> requiredHeaders;
     std::vector<MacroInfo> macroList;
     std::vector<MacroGroupInfo> macroGroupList;
     std::vector<StructInfo> structList;
     std::vector<UnionInfo> unionList;
-    enum class ElementKind { MacroGroup, Struct, Union };
+    enum class ElementKind {
+        MacroGroup,
+        Struct,
+        Union
+    };
     struct ElementOrder {
         ElementKind kind;
         size_t index;
     };
-    std::vector<ElementOrder> elementOrder;  // Preserve declaration order for non-macro elements
+    std::vector<ElementOrder> elementOrder; // Preserve declaration order for non-macro elements
     std::string metalibDesc;
     std::string headerName;
     std::string headerDesc;
-    std::set<std::string> includedTypes;  // 记录已包含的类型
-    std::map<std::string, std::string> externalTypeMapping;  // 外部类型映射
-    std::string currentXMLDir;  // 当前XML文件所在目录
-    bool m_headerPack = false;  // 文件级别 pack 属性
-    bool m_hasError = false;    // 转换是否出错
-    std::set<std::string> m_reportedUnknownType;  // 已报告过的未知类型，避免重复
+    std::set<std::string> includedTypes;                    // 记录已包含的类型
+    std::map<std::string, std::string> externalTypeMapping; // 外部类型映射
+    std::string currentXMLDir;                              // 当前XML文件所在目录
+    bool m_headerPack = false;                              // 文件级别 pack 属性
+    bool m_hasError = false;                                // 转换是否出错
+    std::set<std::string> m_reportedUnknownType;            // 已报告过的未知类型，避免重复
     std::string m_currentFile;
     int m_currentLine = 0;
 };

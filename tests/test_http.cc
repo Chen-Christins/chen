@@ -4,7 +4,8 @@
 
 chen::Logger::ptr logger = LOG_ROOT();
 
-void test_reqest() {
+void test_reqest()
+{
     chen::http::HttpRequest::ptr req(new chen::http::HttpRequest);
     req->setHeader("host", "www.baidu.com");
     req->setBody("hello baidu");
@@ -12,7 +13,8 @@ void test_reqest() {
     req->dump(std::cout) << std::endl;
 }
 
-void test_response() {
+void test_response()
+{
     chen::http::HttpResponse::ptr rsp(new chen::http::HttpResponse);
     rsp->setHeader("X-X", "chen");
     rsp->setBody("hello chen");
@@ -22,7 +24,8 @@ void test_response() {
     rsp->dump(std::cout) << std::endl;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     test_reqest();
     test_response();
     return 0;

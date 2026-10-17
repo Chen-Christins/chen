@@ -30,6 +30,7 @@ public:
     void gen(const std::string& path);
 
     std::string getFileName() const;
+
 private:
     enum DBType {
         DB_SQLITE3 = 1,
@@ -51,6 +52,7 @@ private:
     void gen_dao_inc(std::ofstream& ofs);
     void gen_dao_src(std::ofstream& ofs);
     void gen_dao_migrate_src(std::ofstream& ofs);
+
 private:
     std::string m_name;
     std::string m_namespace;
@@ -65,5 +67,5 @@ private:
     std::vector<Index::ptr> m_idxs;
 };
 
-}
-}
+} // namespace orm
+} // namespace chen

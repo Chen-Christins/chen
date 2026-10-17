@@ -14,7 +14,8 @@ namespace orm {
 
 static Logger::ptr logger = LOG_NAME("orm");
 
-bool Table::init(const tinyxml2::XMLElement& node) {
+bool Table::init(const tinyxml2::XMLElement& node)
+{
     if (!node.Attribute("name")) {
         ERROR(logger) << "table name is null";
         return false;
@@ -110,20 +111,23 @@ bool Table::init(const tinyxml2::XMLElement& node) {
     return true;
 }
 
-void Table::gen(const std::string& path) {
+void Table::gen(const std::string& path)
+{
     std::string p = path + "/" + StringUtil::Replace(m_namespace, ".", "/");
     FSUtil::Mkdir(p);
     gen_inc(p);
     gen_src(p);
 }
 
-std::string Table::getFileName() const {
+std::string Table::getFileName() const
+{
     std::string str = m_name + m_subfix;
     std::transform(str.begin(), str.end(), str.begin(), ::tolower);
     return str;
 }
 
-void Table::gen_inc(const std::string& path) {
+void Table::gen_inc(const std::string& path)
+{
     std::string filename = path + "/" + m_name + m_subfix + ".h";
     std::string class_name = m_name + m_subfix;
     std::string class_name_dao = m_name + m_subfix + "_dao";
@@ -219,7 +223,8 @@ void Table::gen_inc(const std::string& path) {
     }
 }
 
-void Table::gen_src(const std::string& path) {
+void Table::gen_src(const std::string& path)
+{
     std::string class_name = m_name + m_subfix;
     std::string filename = path + "/" + class_name + ".cc";
     std::ofstream ofs(filename);
@@ -282,13 +287,15 @@ void Table::gen_src(const std::string& path) {
     }
 }
 
-std::string Table::genToStringInc() {
+std::string Table::genToStringInc()
+{
     std::stringstream ss;
     ss << "std::string toJsonString() const;";
     return ss.str();
 }
 
-std::string Table::genToStringSrc(const std::string& class_name) {
+std::string Table::genToStringSrc(const std::string& class_name)
+{
     std::stringstream ss;
     ss << "std::string " << GetAsClassName(class_name) << "::toJsonString() const {" << std::endl;
     ss << "    Json::Value v;" << std::endl;
@@ -307,7 +314,8 @@ std::string Table::genToStringSrc(const std::string& class_name) {
     return ss.str();
 }
 
-std::string Table::getToInsertSQL(const std::string& class_name) {
+std::string Table::getToInsertSQL(const std::string& class_name)
+{
     std::stringstream ss;
     ss << "std::string " << GetAsClassName(class_name) << "::toInsertSQL() const {" << std::endl;
     ss << "    std::stringstream ss;" << std::endl;
@@ -333,8 +341,7 @@ std::string Table::getToInsertSQL(const std::string& class_name) {
             ss << "    ss << \",\";" << std::endl;
         }
         if (m_cols[i]->getDType() == Column::TYPE_STRING) {
-            ss << "    ss << \"'\" << chen::replace(" << GetAsMemberName(m_cols[i]->getName()) << ", \"'\", \"''\") << \"'\";"
-               << std::endl;
+            ss << "    ss << \"'\" << chen::replace(" << GetAsMemberName(m_cols[i]->getName()) << ", \"'\", \"''\") << \"'\";" << std::endl;
         } else {
             ss << "    ss << " << GetAsMemberName(m_cols[i]->getName()) << ";" << std::endl;
         }
@@ -346,7 +353,8 @@ std::string Table::getToInsertSQL(const std::string& class_name) {
     return ss.str();
 }
 
-std::string Table::getToUpdateSQL(const std::string& class_name) {
+std::string Table::getToUpdateSQL(const std::string& class_name)
+{
     std::stringstream ss;
     ss << "std::string " << GetAsClassName(class_name) << "::toUpdateSQL() const {" << std::endl;
     ss << "    std::stringstream ss;" << std::endl;
@@ -372,7 +380,8 @@ std::string Table::getToUpdateSQL(const std::string& class_name) {
     return ss.str();
 }
 
-std::string Table::getToDeleteSQL(const std::string& class_name) {
+std::string Table::getToDeleteSQL(const std::string& class_name)
+{
     std::stringstream ss;
     ss << "std::string " << GetAsClassName(class_name) << "::toDeleteSQL() const {" << std::endl;
     ss << "    std::stringstream ss;" << std::endl;
@@ -383,7 +392,8 @@ std::string Table::getToDeleteSQL(const std::string& class_name) {
     return ss.str();
 }
 
-std::vector<Column::ptr> Table::getPKs() const {
+std::vector<Column::ptr> Table::getPKs() const
+{
     std::vector<Column::ptr> cols;
     for (auto& i : m_idxs) {
         if (i->isPK()) {
@@ -395,7 +405,8 @@ std::vector<Column::ptr> Table::getPKs() const {
     return cols;
 }
 
-Column::ptr Table::getCol(const std::string& name) const {
+Column::ptr Table::getCol(const std::string& name) const
+{
     for (auto& i : m_cols) {
         if (i->getName() == name) {
             return i;
@@ -404,7 +415,8 @@ Column::ptr Table::getCol(const std::string& name) const {
     return nullptr;
 }
 
-std::string Table::genWhere() const {
+std::string Table::genWhere() const
+{
     std::stringstream ss;
     ss << "    ss << \" where ";
     auto pks = getPKs();
@@ -424,7 +436,8 @@ std::string Table::genWhere() const {
 }
 
 template <class V, class T>
-bool is_exists(const V& v, const T& t) {
+bool is_exists(const V& v, const T& t)
+{
     for (auto& i : v) {
         if (i == t) {
             return true;
@@ -433,7 +446,8 @@ bool is_exists(const V& v, const T& t) {
     return false;
 }
 
-void Table::gen_dao_inc(std::ofstream& ofs) {
+void Table::gen_dao_inc(std::ofstream& ofs)
+{
     std::string class_name = m_name + m_subfix;
     std::string class_name_dao = class_name + "_dao";
     ofs << "class " << GetAsClassName(class_name_dao) << " {" << std::endl;
@@ -441,14 +455,13 @@ void Table::gen_dao_inc(std::ofstream& ofs) {
     ofs << "    typedef std::shared_ptr<" << GetAsClassName(class_name_dao) << "> ptr;" << std::endl;
     ofs << "    static int Update(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass << "::ptr conn);" << std::endl;
     ofs << "    static int Insert(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass << "::ptr conn);" << std::endl;
-    ofs << "    static int InsertOrUpdate(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass << "::ptr conn);"
-        << std::endl;
+    ofs << "    static int InsertOrUpdate(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass << "::ptr conn);" << std::endl;
 
     // ---- 批量操作 ----
-    ofs << "    static int BatchInsert(const std::vector<" << GetAsClassName(class_name) << "::ptr>& infos, "
-        << m_updateclass << "::ptr conn);" << std::endl;
-    ofs << "    static int BatchUpdate(const std::vector<" << GetAsClassName(class_name) << "::ptr>& infos, "
-        << m_updateclass << "::ptr conn);" << std::endl;
+    ofs << "    static int BatchInsert(const std::vector<" << GetAsClassName(class_name) << "::ptr>& infos, " << m_updateclass << "::ptr conn);"
+        << std::endl;
+    ofs << "    static int BatchUpdate(const std::vector<" << GetAsClassName(class_name) << "::ptr>& infos, " << m_updateclass << "::ptr conn);"
+        << std::endl;
     ofs << "    static int BatchDelete(const std::vector<int64_t>& ids, " << m_updateclass << "::ptr conn);" << std::endl;
 
     ofs << "    static int Delete(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass << "::ptr conn);" << std::endl;
@@ -475,8 +488,7 @@ void Table::gen_dao_inc(std::ofstream& ofs) {
         }
     }
 
-    ofs << "    static int QueryAll(std::vector<" << GetAsClassName(class_name) << "::ptr>& results, " << m_queryclass
-        << "::ptr conn);" << std::endl;
+    ofs << "    static int QueryAll(std::vector<" << GetAsClassName(class_name) << "::ptr>& results, " << m_queryclass << "::ptr conn);" << std::endl;
     ofs << "    static " << GetAsClassName(class_name) << "::ptr Query(";
     for (auto& i : vs) {
         ofs << " const " << i->getDTypeString() << "& " << GetAsVariable(i->getName()) << ", ";
@@ -579,18 +591,18 @@ void Table::gen_dao_inc(std::ofstream& ofs) {
      * @return 0 成功，非 0 失败
      */
     ofs << "    static int QueryByBuilderPages(std::vector<" << GetAsClassName(class_name) << "::ptr>& results, "
-        << "int64_t& total, chen::QueryBuilder::ptr qb, int32_t offset, int32_t limit, "
-        << m_queryclass << "::ptr conn);" << std::endl;
+        << "int64_t& total, chen::QueryBuilder::ptr qb, int32_t offset, int32_t limit, " << m_queryclass << "::ptr conn);" << std::endl;
 
     ofs << "};" << std::endl;
 }
 
-void Table::gen_dao_src(std::ofstream& ofs) {
+void Table::gen_dao_src(std::ofstream& ofs)
+{
     std::string class_name = m_name + m_subfix;
     std::string class_name_dao = class_name + "_dao";
     int idx;
-    ofs << "int " << GetAsClassName(class_name_dao) << "::Update(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass
-        << "::ptr conn) {" << std::endl;
+    ofs << "int " << GetAsClassName(class_name_dao) << "::Update(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass << "::ptr conn) {"
+        << std::endl;
     ofs << "    if (!info->isDirty()) {" << std::endl;
     ofs << "        return 0;" << std::endl;
     ofs << "    }" << std::endl;
@@ -598,7 +610,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "    bool first = true;" << std::endl;
     auto pks = getPKs();
     for (size_t ci = 0; ci < m_cols.size(); ++ci) {
-        if (is_exists(pks, m_cols[ci])) continue;
+        if (is_exists(pks, m_cols[ci]))
+            continue;
         ofs << "    if (info->m_flags & (1ull << " << ci << ")) {" << std::endl;
         ofs << "        if (!first) sql += \", \";" << std::endl;
         ofs << "        sql += \"" << m_cols[ci]->getName() << " = ?\";" << std::endl;
@@ -608,7 +621,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "    sql += \" where";
     bool is_first = true;
     for (auto& i : pks) {
-        if (!is_first) ofs << " and";
+        if (!is_first)
+            ofs << " and";
         ofs << " " << i->getName() << " = ?";
         is_first = false;
     }
@@ -626,7 +640,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     CHECK_STMT("conn->getErrno()");
     ofs << "    int idx = 1;" << std::endl;
     for (size_t ci = 0; ci < m_cols.size(); ++ci) {
-        if (is_exists(pks, m_cols[ci])) continue;
+        if (is_exists(pks, m_cols[ci]))
+            continue;
         ofs << "    if (info->m_flags & (1ull << " << ci << ")) {" << std::endl;
         ofs << "        stmt->" << m_cols[ci]->getBindString() << "(idx++, ";
         ofs << "info->" << GetAsMemberName(m_cols[ci]->getName()) << ");" << std::endl;
@@ -643,8 +658,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "    return rt;" << std::endl;
 
     ofs << "}" << std::endl << std::endl;
-    ofs << "int " << GetAsClassName(class_name_dao) << "::Insert(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass
-        << "::ptr conn) {" << std::endl;
+    ofs << "int " << GetAsClassName(class_name_dao) << "::Insert(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass << "::ptr conn) {"
+        << std::endl;
     ofs << "    std::string sql = \"insert into " << m_name << " (";
     is_first = true;
     Column::ptr auto_inc;
@@ -690,8 +705,7 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "    int rt = stmt->execute();" << std::endl;
     if (auto_inc) {
         ofs << "    if(rt == 0) {" << std::endl;
-        ofs << "        info->" << GetAsMemberName(auto_inc->getName()) << " = conn->getLastInsertId();" << std::endl
-            << "    }" << std::endl;
+        ofs << "        info->" << GetAsMemberName(auto_inc->getName()) << " = conn->getLastInsertId();" << std::endl << "    }" << std::endl;
     }
     ofs << "    if (rt == 0) {" << std::endl;
     ofs << "        info->markClean();" << std::endl;
@@ -699,8 +713,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "    return rt;" << std::endl;
     ofs << "}" << std::endl << std::endl;
 
-    ofs << "int " << GetAsClassName(class_name_dao) << "::InsertOrUpdate(" << GetAsClassName(class_name) << "::ptr info, "
-        << m_updateclass << "::ptr conn) {" << std::endl;
+    ofs << "int " << GetAsClassName(class_name_dao) << "::InsertOrUpdate(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass
+        << "::ptr conn) {" << std::endl;
     for (auto& i : m_cols) {
         if (i->isAutoIncrement()) {
             auto_inc = i;
@@ -749,8 +763,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "}" << std::endl << std::endl;
 
     // ===== BatchInsert =====
-    ofs << "int " << GetAsClassName(class_name_dao) << "::BatchInsert(const std::vector<" << GetAsClassName(class_name)
-        << "::ptr>& infos, " << m_updateclass << "::ptr conn) {" << std::endl;
+    ofs << "int " << GetAsClassName(class_name_dao) << "::BatchInsert(const std::vector<" << GetAsClassName(class_name) << "::ptr>& infos, "
+        << m_updateclass << "::ptr conn) {" << std::endl;
     ofs << "    if (infos.empty()) {" << std::endl;
     ofs << "        return 0;" << std::endl;
     ofs << "    }" << std::endl;
@@ -763,8 +777,10 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "    std::string sql = \"insert into " << m_name << " (\";" << std::endl;
     is_first = true;
     for (auto& col : m_cols) {
-        if (col->isAutoIncrement()) continue;
-        if (!is_first) ofs << "    sql += \", \";" << std::endl;
+        if (col->isAutoIncrement())
+            continue;
+        if (!is_first)
+            ofs << "    sql += \", \";" << std::endl;
         ofs << "    sql += \"" << col->getName() << "\";" << std::endl;
         is_first = false;
     }
@@ -774,8 +790,10 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "        sql += \"(\";" << std::endl;
     is_first = true;
     for (size_t ci = 0; ci < m_cols.size(); ++ci) {
-        if (m_cols[ci]->isAutoIncrement()) continue;
-        if (!is_first) ofs << "        sql += \", \";" << std::endl;
+        if (m_cols[ci]->isAutoIncrement())
+            continue;
+        if (!is_first)
+            ofs << "        sql += \", \";" << std::endl;
         ofs << "        sql += \"?\";" << std::endl;
         is_first = false;
     }
@@ -788,7 +806,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "    int idx = 1;" << std::endl;
     ofs << "    for (auto& info : infos) {" << std::endl;
     for (auto& col : m_cols) {
-        if (col->isAutoIncrement()) continue;
+        if (col->isAutoIncrement())
+            continue;
         ofs << "        stmt->" << col->getBindString() << "(idx++, info->" << GetAsMemberName(col->getName()) << ");" << std::endl;
     }
     ofs << "    }" << std::endl;
@@ -796,8 +815,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "}" << std::endl << std::endl;
 
     // ===== BatchUpdate =====
-    ofs << "int " << GetAsClassName(class_name_dao) << "::BatchUpdate(const std::vector<" << GetAsClassName(class_name)
-        << "::ptr>& infos, " << m_updateclass << "::ptr conn) {" << std::endl;
+    ofs << "int " << GetAsClassName(class_name_dao) << "::BatchUpdate(const std::vector<" << GetAsClassName(class_name) << "::ptr>& infos, "
+        << m_updateclass << "::ptr conn) {" << std::endl;
     ofs << "    if (infos.empty()) {" << std::endl;
     ofs << "        return 0;" << std::endl;
     ofs << "    }" << std::endl;
@@ -822,8 +841,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "}" << std::endl << std::endl;
 
     // ===== BatchDelete =====
-    ofs << "int " << GetAsClassName(class_name_dao) << "::BatchDelete(const std::vector<int64_t>& ids, "
-        << m_updateclass << "::ptr conn) {" << std::endl;
+    ofs << "int " << GetAsClassName(class_name_dao) << "::BatchDelete(const std::vector<int64_t>& ids, " << m_updateclass << "::ptr conn) {"
+        << std::endl;
     ofs << "    if (ids.empty()) {" << std::endl;
     ofs << "        return 0;" << std::endl;
     ofs << "    }" << std::endl;
@@ -836,7 +855,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
         auto pks = getPKs();
         is_first = true;
         for (auto& pk : pks) {
-            if (!is_first) ofs << " and ";
+            if (!is_first)
+                ofs << " and ";
             ofs << pk->getName();
             is_first = false;
         }
@@ -855,8 +875,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     ofs << "    return stmt->execute();" << std::endl;
     ofs << "}" << std::endl << std::endl;
 
-    ofs << "int " << GetAsClassName(class_name_dao) << "::Delete(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass
-        << "::ptr conn) {" << std::endl;
+    ofs << "int " << GetAsClassName(class_name_dao) << "::Delete(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass << "::ptr conn) {"
+        << std::endl;
 
     ofs << "    std::string sql = \"delete from " << m_name << " where";
     is_first = true;
@@ -912,8 +932,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
         }
     }
 
-    ofs << "int " << GetAsClassName(class_name_dao) << "::QueryAll(std::vector<" << GetAsClassName(class_name) << "::ptr>& results, "
-        << m_queryclass << "::ptr conn) {" << std::endl;
+    ofs << "int " << GetAsClassName(class_name_dao) << "::QueryAll(std::vector<" << GetAsClassName(class_name) << "::ptr>& results, " << m_queryclass
+        << "::ptr conn) {" << std::endl;
     ofs << "    std::string sql = \"select ";
     is_first = true;
     for (auto& i : m_cols) {
@@ -1258,8 +1278,7 @@ void Table::gen_dao_src(std::ofstream& ofs) {
 
     // ===== QueryByBuilderPages (分页自定义查询) =====
     ofs << "int " << GetAsClassName(class_name_dao) << "::QueryByBuilderPages(std::vector<" << GetAsClassName(class_name) << "::ptr>& results, "
-        << "int64_t& total, chen::QueryBuilder::ptr qb, int32_t offset, int32_t limit, "
-        << m_queryclass << "::ptr conn) {" << std::endl;
+        << "int64_t& total, chen::QueryBuilder::ptr qb, int32_t offset, int32_t limit, " << m_queryclass << "::ptr conn) {" << std::endl;
     ofs << "    if (!qb || !conn) {" << std::endl;
     ofs << "        ERROR(logger) << \"QueryByBuilderPages qb or conn is null\";" << std::endl;
     ofs << "        return -1;" << std::endl;
@@ -1545,7 +1564,8 @@ void Table::gen_dao_src(std::ofstream& ofs) {
     gen_dao_migrate_src(ofs);
 }
 
-void Table::gen_dao_migrate_src(std::ofstream& ofs) {
+void Table::gen_dao_migrate_src(std::ofstream& ofs)
+{
     std::string class_name = m_name + m_subfix;
     std::string class_name_dao = class_name + "_dao";
 
@@ -1553,8 +1573,8 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs) {
     ofs << "int " << GetAsClassName(class_name_dao) << "::MigrateTableSQLite3(" << m_dbclass << "::ptr conn) {" << std::endl;
     ofs << "    auto data = conn->query(\"PRAGMA table_info(" << m_name << ")\");" << std::endl;
     ofs << "    if (!data) {" << std::endl;
-    ofs << "        ERROR(logger) << \"PRAGMA table_info(" << m_name
-        << ") errno=\" << conn->getErrno() << \" errstr=\" << conn->getErrStr();" << std::endl;
+    ofs << "        ERROR(logger) << \"PRAGMA table_info(" << m_name << ") errno=\" << conn->getErrno() << \" errstr=\" << conn->getErrStr();"
+        << std::endl;
     ofs << "        return conn->getErrno();" << std::endl;
     ofs << "    }" << std::endl;
     ofs << "    std::map<std::string, std::string> existing_cols;  // name -> type" << std::endl;
@@ -1569,8 +1589,8 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs) {
         ofs << "    {" << std::endl;
         ofs << "        auto it = existing_cols.find(\"" << col->getName() << "\");" << std::endl;
         ofs << "        if (it != existing_cols.end() && it->second != \"" << col->getSQLite3TypeString() << "\") {" << std::endl;
-        ofs << "            INFO(logger) << \"Column type changed: " << m_name << "." << col->getName()
-            << " \" << it->second << \" -> " << col->getSQLite3TypeString() << "\";" << std::endl;
+        ofs << "            INFO(logger) << \"Column type changed: " << m_name << "." << col->getName() << " \" << it->second << \" -> "
+            << col->getSQLite3TypeString() << "\";" << std::endl;
         ofs << "            need_recreate = true;" << std::endl;
         ofs << "        }" << std::endl;
         ofs << "    }" << std::endl;
@@ -1585,8 +1605,7 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs) {
     }
     ofs << "            if (!found) {" << std::endl;
     ofs << "                need_recreate = true;" << std::endl;
-    ofs << "                WARN(logger) << \"Column " << m_name << ".\" << name << \" removed, table recreate required\";"
-        << std::endl;
+    ofs << "                WARN(logger) << \"Column " << m_name << ".\" << name << \" removed, table recreate required\";" << std::endl;
     ofs << "                break;" << std::endl;
     ofs << "            }" << std::endl;
     ofs << "        }" << std::endl;
@@ -1621,11 +1640,10 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs) {
     ofs << "                if (i) cols += \",\";" << std::endl;
     ofs << "                cols += common_cols[i];" << std::endl;
     ofs << "            }" << std::endl;
-    ofs << "            std::string sql = \"INSERT INTO " << m_name << " (\" + cols + \") SELECT \" + cols + \" FROM " << m_name
-        << "_tmp\";" << std::endl;
-    ofs << "            if (int rt = conn->execute(sql)) {" << std::endl;
-    ofs << "                ERROR(logger) << \"copy data from " << m_name << "_tmp to " << m_name << " failed, errno=\" << rt;"
+    ofs << "            std::string sql = \"INSERT INTO " << m_name << " (\" + cols + \") SELECT \" + cols + \" FROM " << m_name << "_tmp\";"
         << std::endl;
+    ofs << "            if (int rt = conn->execute(sql)) {" << std::endl;
+    ofs << "                ERROR(logger) << \"copy data from " << m_name << "_tmp to " << m_name << " failed, errno=\" << rt;" << std::endl;
     ofs << "                // don't return; try to continue" << std::endl;
     ofs << "            }" << std::endl;
     ofs << "        }" << std::endl;
@@ -1642,8 +1660,8 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs) {
         }
         ofs << "    if (existing_cols.find(\"" << col->getName() << "\") == existing_cols.end()) {" << std::endl;
         ofs << "        INFO(logger) << \"Adding column " << m_name << "." << col->getName() << "\";" << std::endl;
-        ofs << "        int rt = conn->execute(\"ALTER TABLE " << m_name << " ADD COLUMN " << col->getName() << " "
-            << col->getSQLite3TypeString() << " NOT NULL DEFAULT " << col->getSQLite3Default() << "\");" << std::endl;
+        ofs << "        int rt = conn->execute(\"ALTER TABLE " << m_name << " ADD COLUMN " << col->getName() << " " << col->getSQLite3TypeString()
+            << " NOT NULL DEFAULT " << col->getSQLite3Default() << "\");" << std::endl;
         ofs << "        if (rt) {" << std::endl;
         ofs << "            ERROR(logger) << \"ALTER TABLE " << m_name << " ADD COLUMN " << col->getName()
             << " failed, errno=\" << conn->getErrno() << \" errstr=\" << conn->getErrStr();" << std::endl;
@@ -1659,8 +1677,8 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs) {
     ofs << "int " << GetAsClassName(class_name_dao) << "::MigrateTableMySQL(" << m_dbclass << "::ptr conn) {" << std::endl;
     ofs << "    auto data = conn->query(\"SHOW COLUMNS FROM " << m_name << "\");" << std::endl;
     ofs << "    if (!data) {" << std::endl;
-    ofs << "        ERROR(logger) << \"SHOW COLUMNS FROM " << m_name
-        << " errno=\" << conn->getErrno() << \" errstr=\" << conn->getErrStr();" << std::endl;
+    ofs << "        ERROR(logger) << \"SHOW COLUMNS FROM " << m_name << " errno=\" << conn->getErrno() << \" errstr=\" << conn->getErrStr();"
+        << std::endl;
     ofs << "        return conn->getErrno();" << std::endl;
     ofs << "    }" << std::endl;
     ofs << "    std::map<std::string, std::string> existing_cols;  // name -> type" << std::endl;
@@ -1702,8 +1720,7 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs) {
         ofs << "        if (name == \"" << col->getName() << "\") found = true;" << std::endl;
     }
     ofs << "        if (!found) {" << std::endl;
-    ofs << "            WARN(logger) << \"Dropping column " << m_name << ".\" << name << \" (not in schema, data will be lost)\";"
-        << std::endl;
+    ofs << "            WARN(logger) << \"Dropping column " << m_name << ".\" << name << \" (not in schema, data will be lost)\";" << std::endl;
     ofs << "            int rt = conn->execute(\"ALTER TABLE " << m_name << " DROP COLUMN `\" + name + \"`\");" << std::endl;
     ofs << "            if (rt) {" << std::endl;
     ofs << "                ERROR(logger) << \"DROP COLUMN " << m_name
@@ -1720,8 +1737,7 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs) {
         }
         ofs << "    if (existing_cols.find(\"" << col->getName() << "\") == existing_cols.end()) {" << std::endl;
         ofs << "        INFO(logger) << \"Adding column " << m_name << "." << col->getName() << "\";" << std::endl;
-        ofs << "        int rt = conn->execute(\"ALTER TABLE " << m_name << " ADD COLUMN `" << col->getName() << "` "
-            << col->getMySQLTypeString();
+        ofs << "        int rt = conn->execute(\"ALTER TABLE " << m_name << " ADD COLUMN `" << col->getName() << "` " << col->getMySQLTypeString();
         if (col->getDType() != Column::TYPE_TEXT && col->getDType() != Column::TYPE_BLOB) {
             ofs << " NOT NULL DEFAULT " << col->getSQLite3Default();
         }

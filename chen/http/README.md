@@ -29,12 +29,12 @@ auto msg = conn->recvMessage();
 
 ## 协议支持
 
-| 协议 | 核心类 | 说明 |
-|------|--------|------|
-| HTTP/1.1 | `HttpConnection`, `HttpServer` | Ragel 解析器，支持路由、中间件、静态文件 |
-| HTTP/2 | `H2Connection`, `H2Session`, `H2Stream` | 基于 nghttp2，多路复用 |
-| WebSocket | `WSConnection`, `WSServer` | 协议升级、帧编解码 |
-| SSE | `SSEConnection` | Server-Sent Events 流式推送 |
+| 协议      | 核心类                                  | 说明                                     |
+|-----------|-----------------------------------------|------------------------------------------|
+| HTTP/1.1  | `HttpConnection`, `HttpServer`          | Ragel 解析器，支持路由、中间件、静态文件 |
+| HTTP/2    | `H2Connection`, `H2Session`, `H2Stream` | 基于 nghttp2，多路复用                   |
+| WebSocket | `WSConnection`, `WSServer`              | 协议升级、帧编解码                       |
+| SSE       | `SSEConnection`                         | Server-Sent Events 流式推送              |
 
 ## HTTP/1.1
 

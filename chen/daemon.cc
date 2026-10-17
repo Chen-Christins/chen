@@ -7,21 +7,22 @@ namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
 
-std::string ProcessInfo::toString() const {
+std::string ProcessInfo::toString() const
+{
     std::stringstream ss;
-    ss << "[ProcessInfo parent_id=" << parent_id
-       << " main_id=" << main_id
-       << " parent_start_time=" << Time2Str(parent_start_time)
-       << " main_start_time=" << Time2Str(main_start_time)
-       << " restart_count=" << restart_count << "]";
+    ss << "[ProcessInfo parent_id=" << parent_id << " main_id=" << main_id << " parent_start_time=" << TimeUtil::Time2Str(parent_start_time)
+       << " main_start_time=" << TimeUtil::Time2Str(main_start_time) << " restart_count=" << restart_count << "]";
+
     return ss.str();
 }
 
-static int real_start(int argc, char** argv, std::function<int(int argc, char** argv)> main_cb) {
+static int real_start(int argc, char** argv, std::function<int(int argc, char** argv)> main_cb)
+{
     return main_cb(argc, argv);
 }
 
-static int real_daemon(int argc, char** argv, std::function<int(int argc, char** argv)> main_cb) {
+static int real_daemon(int argc, char** argv, std::function<int(int argc, char** argv)> main_cb)
+{
     int ret = daemon(1, 0);
     ASSERT(ret == 0);
 
@@ -35,11 +36,12 @@ static int real_daemon(int argc, char** argv, std::function<int(int argc, char**
     return real_start(argc, argv, main_cb);
 }
 
-int start_daemon(int argc, char** argv, std::function<int(int argc, char** argv)> main_cb, bool is_daemon) {
+int start_daemon(int argc, char** argv, std::function<int(int argc, char** argv)> main_cb, bool is_daemon)
+{
     if (!is_daemon) {
         return real_start(argc, argv, main_cb);
     }
     return real_daemon(argc, argv, main_cb);
 }
 
-}
+} // namespace chen

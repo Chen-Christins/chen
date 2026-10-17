@@ -22,35 +22,39 @@
 
 static chen::Logger::ptr logger = LOG_ROOT();
 
-static chen::ConfigVar<int>::ptr g_port =
-    chen::Config::Lookup("hotreload.test.port", 1000, "hot reload test port");
+static chen::ConfigVar<int>::ptr g_port = chen::Config::Lookup("hotreload.test.port", 1000, "hot reload test port");
 
 static std::atomic<int> g_count{0};
 static int g_failures = 0;
 
-#define CHECK(cond, msg)                                        \
-    do {                                                        \
-        if (cond) {                                             \
-            INFO(logger) << "[PASS] " << msg;                   \
-        } else {                                                \
-            ++g_failures;                                       \
-            ERROR(logger) << "[FAIL] " << msg;                  \
-        }                                                       \
+#define CHECK(cond, msg)                       \
+    do {                                       \
+        if (cond) {                            \
+            INFO(logger) << "[PASS] " << msg;  \
+        } else {                               \
+            ++g_failures;                      \
+            ERROR(logger) << "[FAIL] " << msg; \
+        }                                      \
     } while (0)
 
-static void WriteFile(const std::string& path, const std::string& content) {
+static void WriteFile(const std::string& path, const std::string& content)
+{
     std::ofstream ofs(path, std::ios::trunc);
     ofs << content;
     ofs.close();
 }
 
-static void WaitMs(chen::IOManager* iom, uint64_t ms) {
+static void WaitMs(chen::IOManager* iom, uint64_t ms)
+{
     auto fiber = chen::Fiber::GetThis();
-    iom->addTimer(ms, [iom, fiber]() { iom->schedule(fiber, -1); });
+    iom->addTimer(ms, [iom, fiber]() {
+        iom->schedule(fiber, -1);
+    });
     chen::Fiber::YieldToHold();
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     char tmpl[] = "/tmp/chen_watcher_test_XXXXXX";
     char* tmp = mkdtemp(tmpl);
     if (tmp == nullptr) {
@@ -89,7 +93,7 @@ int main(int argc, char** argv) {
 
             // 3. 子目录递归监听
             chen::FSUtil::Mkdir(subdir);
-            WaitMs(&iom, 1000);  // 等子目录 watch 建立
+            WaitMs(&iom, 1000); // 等子目录 watch 建立
             WriteFile(subconf, "hotreload.test.port: 4000\n");
             WaitMs(&iom, 1000);
             CHECK(g_port->getValue() == 4000, "recursive subdir triggers reload");
@@ -123,7 +127,8 @@ int main(int argc, char** argv) {
 #else
 
 #include <iostream>
-int main() {
+int main()
+{
     std::cout << "FileWatcher test skipped: not Linux" << std::endl;
     return 0;
 }

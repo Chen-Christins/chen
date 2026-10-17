@@ -3,11 +3,46 @@ BasedOnStyle: LLVM
 # 对齐连续的宏定义
 AlignConsecutiveMacros: AcrossEmptyLinesAndComments
 
-# 控制行宽，避免行太长
-ColumnLimit: 135
+AllowShortFunctionsOnASingleLine: InlineOnly
 
-# 控制语句的括号前有空格
-SpaceBeforeParens: ControlStatements
+BreakBinaryOperations: Never
+
+BreakBeforeBinaryOperators: NonAssignment
+
+AllowShortLambdasOnASingleLine: None
+
+AlignOperands: DontAlign
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterClass: false
+  AfterControlStatement: false
+  AfterEnum: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: false
+  BeforeElse: false
+
+SpaceBeforeParens: ControlStatementsExceptControlMacros
+
+AlignAfterOpenBracket: AlwaysBreak
+
+AllowAllParametersOfDeclarationOnNextLine: false
+
+# 控制行宽，避免行太长
+ColumnLimit: 150
+
+BreakConstructorInitializers: BeforeComma
+
+BinPackParameters: OnePerLine
+
+PenaltyReturnTypeOnItsOwnLine: 1000000
+
+ContinuationIndentWidth: 4
+
+PenaltyBreakBeforeFirstCallParameter: 1
 
 # 赋值操作符前插入空格
 SpaceBeforeAssignmentOperators: true
@@ -38,12 +73,6 @@ SpacesBeforeTrailingComments: 1
 
 # 对齐转义的换行符到左侧
 AlignEscapedNewlinesLeft: true
-
-# 允许将参数换行，但保持多个参数在同一行（打包参数）
-AllowAllParametersOfDeclarationOnNextLine: true
-
-# 启用参数打包，减少换行次数
-BinPackParameters: true
 
 # 枚举禁止单行
 AllowShortEnumsOnASingleLine: false

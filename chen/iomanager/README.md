@@ -47,14 +47,14 @@ epoll_wait (阻塞等待) → 事件就绪 → 触发对应 Fiber/Callback
 
 ## 关键方法
 
-| 方法 | 说明 |
-|------|------|
-| `addEvent(fd, event, cb)` | 为 fd 注册事件和回调 |
-| `delEvent(fd, event)` | 删除事件 |
-| `cancelEvent(fd, event)` | 取消事件并触发回调 |
-| `cancelAll(fd)` | 取消 fd 上所有事件 |
-| `tickle()` | 通过 pipe 唤醒 epoll_wait |
-| `idle()` | idle fiber 主循环：epoll_wait → 处理就绪事件 → 触发超时定时器 |
+| 方法                      | 说明                                                          |
+|---------------------------|---------------------------------------------------------------|
+| `addEvent(fd, event, cb)` | 为 fd 注册事件和回调                                          |
+| `delEvent(fd, event)`     | 删除事件                                                      |
+| `cancelEvent(fd, event)`  | 取消事件并触发回调                                            |
+| `cancelAll(fd)`           | 取消 fd 上所有事件                                            |
+| `tickle()`                | 通过 pipe 唤醒 epoll_wait                                     |
+| `idle()`                  | idle fiber 主循环：epoll_wait → 处理就绪事件 → 触发超时定时器 |
 
 ## WorkerGroup — 批量任务
 

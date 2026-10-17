@@ -12,14 +12,17 @@ static Logger::ptr logger = LOG_NAME("data");
 const char DataReader::FILE_HEADER[4] = {'C', 'H', 'G', 'D'};
 
 DataReader::DataReader(const std::string& encryption_type, const std::string& password)
-    : m_decryptor(createDecryptor(encryption_type, password)) {
+    : m_decryptor(createDecryptor(encryption_type, password))
+{
 }
 
-DataReader::~DataReader() {
+DataReader::~DataReader()
+{
     clear();
 }
 
-bool DataReader::loadFromFile(const std::string& file_path) {
+bool DataReader::loadFromFile(const std::string& file_path)
+{
     // 读取文件
     std::ifstream file(file_path, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
@@ -39,7 +42,8 @@ bool DataReader::loadFromFile(const std::string& file_path) {
     return loadFromMemory(buffer.data(), buffer.size());
 }
 
-bool DataReader::loadFromMemory(const uint8_t* data, size_t size) {
+bool DataReader::loadFromMemory(const uint8_t* data, size_t size)
+{
     if (!data || size == 0) {
         ERROR(logger) << "Invalid data or size";
         return false;
@@ -89,7 +93,8 @@ bool DataReader::loadFromMemory(const uint8_t* data, size_t size) {
     }
 }
 
-TableData::ptr DataReader::getTable(const std::string& table_name) const {
+TableData::ptr DataReader::getTable(const std::string& table_name) const
+{
     auto it = m_tables.find(table_name);
     if (it != m_tables.end()) {
         return it->second;
@@ -97,7 +102,8 @@ TableData::ptr DataReader::getTable(const std::string& table_name) const {
     return nullptr;
 }
 
-std::vector<std::string> DataReader::getAllTableNames() const {
+std::vector<std::string> DataReader::getAllTableNames() const
+{
     std::vector<std::string> names;
     names.reserve(m_tables.size());
 
@@ -108,15 +114,18 @@ std::vector<std::string> DataReader::getAllTableNames() const {
     return names;
 }
 
-bool DataReader::hasTable(const std::string& table_name) const {
+bool DataReader::hasTable(const std::string& table_name) const
+{
     return m_tables.find(table_name) != m_tables.end();
 }
 
-void DataReader::clear() {
+void DataReader::clear()
+{
     m_tables.clear();
 }
 
-std::vector<uint8_t> DataReader::_xorDecrypt(const uint8_t* data, size_t size) {
+std::vector<uint8_t> DataReader::_xorDecrypt(const uint8_t* data, size_t size)
+{
     std::vector<uint8_t> result(size);
     uint32_t key = ENCRYPT_KEY;
 
@@ -127,7 +136,8 @@ std::vector<uint8_t> DataReader::_xorDecrypt(const uint8_t* data, size_t size) {
     return result;
 }
 
-std::vector<uint8_t> DataReader::_decompressData(const uint8_t* data, size_t size) {
+std::vector<uint8_t> DataReader::_decompressData(const uint8_t* data, size_t size)
+{
     // 初始化zlib流
     z_stream stream;
     stream.zalloc = Z_NULL;
@@ -159,7 +169,8 @@ std::vector<uint8_t> DataReader::_decompressData(const uint8_t* data, size_t siz
     return result;
 }
 
-bool DataReader::_verifyChecksum(const uint8_t* data, size_t size, const uint8_t* expected_checksum) {
+bool DataReader::_verifyChecksum(const uint8_t* data, size_t size, const uint8_t* expected_checksum)
+{
     MD5_CTX ctx;
     if (!MD5_Init(&ctx)) {
         return false;
@@ -177,7 +188,8 @@ bool DataReader::_verifyChecksum(const uint8_t* data, size_t size, const uint8_t
     return memcmp(computed_checksum, expected_checksum, MD5_DIGEST_LENGTH) == 0;
 }
 
-bool DataReader::_parseTableData(const uint8_t* data, size_t size) {
+bool DataReader::_parseTableData(const uint8_t* data, size_t size)
+{
     const uint8_t* ptr = data;
     const uint8_t* end = data + size;
 
@@ -313,14 +325,14 @@ bool DataReader::_parseTableData(const uint8_t* data, size_t size) {
         // 移动到下一个表
         ptr = table_end;
 
-        INFO(logger) << "Loaded table '" << table_name
-            << "' with " << field_count << " fields and " << row_count << " rows";
+        INFO(logger) << "Loaded table '" << table_name << "' with " << field_count << " fields and " << row_count << " rows";
     }
 
     return true;
 }
 
-FieldValue DataReader::_readFieldValue(const uint8_t*& ptr, const uint8_t* end) {
+FieldValue DataReader::_readFieldValue(const uint8_t*& ptr, const uint8_t* end)
+{
     if (ptr >= end) {
         return nullptr;
     }

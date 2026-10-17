@@ -17,27 +17,28 @@ static ConfigVar<std::unordered_map<std::string, std::unordered_map<std::string,
 //     Config::Lookup("rock_services", std::unordered_map<std::string
 //     ,std::unordered_map<std::string, std::string> >(), "rock_services");
 
-std::string RockResult::toString() const {
+std::string RockResult::toString() const
+{
     std::stringstream ss;
-    ss << "[RockResult result=" << result 
-       << " used=" << used << " response=" 
-       << (response ? response->toString() : "null")
-       << " request=" << (request ? request->toString() : "null") 
-       << "]";
+    ss << "[RockResult result=" << result << " used=" << used << " response=" << (response ? response->toString() : "null")
+       << " request=" << (request ? request->toString() : "null") << "]";
     return ss.str();
 }
 
-RockStream::RockStream(Socket::ptr sock) 
+RockStream::RockStream(Socket::ptr sock)
     : AsyncSocketStream(sock, true)
-    , m_decoder(new RockMessageDecoder) {
+    , m_decoder(new RockMessageDecoder)
+{
     DEBUG(logger) << "RockStream::RockStream " << this << " " << (sock ? sock->toString() : "");
 }
 
-RockStream::~RockStream() {
+RockStream::~RockStream()
+{
     DEBUG(logger) << "RockStream::~RockStream " << this << " " << (m_socket ? m_socket->toString() : "");
 }
 
-int32_t RockStream::sendMessage(Message::ptr msg) {
+int32_t RockStream::sendMessage(Message::ptr msg)
+{
     if (isConnected()) {
         RockSendCtx::ptr ctx(new RockSendCtx);
         ctx->msg = msg;
@@ -48,7 +49,8 @@ int32_t RockStream::sendMessage(Message::ptr msg) {
     }
 }
 
-RockResult::ptr RockStream::request(RockRequest::ptr req, uint32_t timeout_ms) {
+RockResult::ptr RockStream::request(RockRequest::ptr req, uint32_t timeout_ms)
+{
     if (isConnected()) {
         RockCtx::ptr ctx(new RockCtx);
         ctx->request = req;
@@ -57,25 +59,28 @@ RockResult::ptr RockStream::request(RockRequest::ptr req, uint32_t timeout_ms) {
         ctx->scheduler = Scheduler::GetThis();
         ctx->fiber = Fiber::GetThis();
         addCtx(ctx);
-        uint64_t ts = GetCurrentMs();
+        uint64_t ts = TimeUtil::GetCurrentMs();
         ctx->timer = IOManager::GetThis()->addTimer(timeout_ms, std::bind(&RockStream::onTimeOut, shared_from_this(), ctx));
         enqueue(ctx);
         Fiber::YieldToHold();
-        return std::make_shared<RockResult>(ctx->result, GetCurrentMs() - ts, ctx->response, req);
+        return std::make_shared<RockResult>(ctx->result, TimeUtil::GetCurrentMs() - ts, ctx->response, req);
     } else {
         return std::make_shared<RockResult>(AsyncSocketStream::NOT_CONNECT, 0, nullptr, req);
     }
 }
 
-bool RockStream::RockSendCtx::doSend(AsyncSocketStream::ptr stream) {
+bool RockStream::RockSendCtx::doSend(AsyncSocketStream::ptr stream)
+{
     return std::dynamic_pointer_cast<RockStream>(stream)->m_decoder->serializeTo(stream, msg) > 0;
 }
 
-bool RockStream::RockCtx::doSend(AsyncSocketStream::ptr stream) {
+bool RockStream::RockCtx::doSend(AsyncSocketStream::ptr stream)
+{
     return std::dynamic_pointer_cast<RockStream>(stream)->m_decoder->serializeTo(stream, request) > 0;
 }
 
-AsyncSocketStream::Ctx::ptr RockStream::doRecv() {
+AsyncSocketStream::Ctx::ptr RockStream::doRecv()
+{
     // INFO(logger) << "doRecv " << this;
     auto msg = m_decoder->parseFrom(shared_from_this());
     if (!msg) {
@@ -127,7 +132,8 @@ AsyncSocketStream::Ctx::ptr RockStream::doRecv() {
     return nullptr;
 }
 
-void RockStream::handleRequest(RockRequest::ptr req) {
+void RockStream::handleRequest(RockRequest::ptr req)
+{
     RockResponse::ptr rsp = req->createResponse();
     if (!m_requestHandler(req, rsp, std::dynamic_pointer_cast<RockStream>(shared_from_this()))) {
         sendMessage(rsp);
@@ -138,31 +144,39 @@ void RockStream::handleRequest(RockRequest::ptr req) {
     }
 }
 
-void RockStream::handleNotify(RockNotify::ptr nty) {
+void RockStream::handleNotify(RockNotify::ptr nty)
+{
     if (!m_notifyHandler(nty, std::dynamic_pointer_cast<RockStream>(shared_from_this()))) {
         // innerClose();
         close();
     }
 }
 
-RockSession::RockSession(Socket::ptr sock) 
-    : RockStream(sock) {
-    m_autoConnect = false; 
+RockSession::RockSession(Socket::ptr sock)
+    : RockStream(sock)
+{
+    m_autoConnect = false;
 }
 
-RockConnection::RockConnection() 
-    : RockStream(nullptr) {
+RockConnection::RockConnection()
+    : RockStream(nullptr)
+{
     m_autoConnect = true;
 }
 
-bool RockConnection::connect(Address::ptr addr) {
+bool RockConnection::connect(Address::ptr addr)
+{
     m_socket = Socket::CreateTCP(addr);
     return m_socket->connect(addr);
 }
 
-RockSDLoadBalance::RockSDLoadBalance(IServiceDiscovery::ptr sd) : SDLoadBalance(sd) {}
+RockSDLoadBalance::RockSDLoadBalance(IServiceDiscovery::ptr sd)
+    : SDLoadBalance(sd)
+{
+}
 
-static SocketStream::ptr create_rock_stream(ServiceItemInfo::ptr info) {
+static SocketStream::ptr create_rock_stream(ServiceItemInfo::ptr info)
+{
     IPAddress::ptr addr = Address::LookupAnyIPAddress(info->getIp());
     if (!addr) {
         ERROR(logger) << "invalid service info: " << info->toString();
@@ -179,24 +193,32 @@ static SocketStream::ptr create_rock_stream(ServiceItemInfo::ptr info) {
     return conn;
 }
 
-void RockSDLoadBalance::start() {
+void RockSDLoadBalance::start()
+{
     m_cb = create_rock_stream;
     initConf(g_rock_services->getValue());
     SDLoadBalance::start();
 }
 
-void RockSDLoadBalance::start(const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& confs) {
+void RockSDLoadBalance::start(const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& confs)
+{
     m_cb = create_rock_stream;
     initConf(confs);
     SDLoadBalance::start();
 }
 
-void RockSDLoadBalance::stop() {
+void RockSDLoadBalance::stop()
+{
     SDLoadBalance::stop();
 }
 
-RockResult::ptr RockSDLoadBalance::request(const std::string& domain
-        , const std::string& service, RockRequest::ptr req, uint32_t timeout_ms, uint64_t idx) {
+RockResult::ptr RockSDLoadBalance::request(
+    const std::string& domain,
+    const std::string& service,
+    RockRequest::ptr req,
+    uint32_t timeout_ms,
+    uint64_t idx)
+{
     auto lb = get(domain, service);
     if (!lb) {
         return std::make_shared<RockResult>(ILoadBalance::NO_SERVICE, 0, nullptr, req);
@@ -205,12 +227,12 @@ RockResult::ptr RockSDLoadBalance::request(const std::string& domain
     if (!conn) {
         return std::make_shared<RockResult>(ILoadBalance::NO_CONNECTION, 0, nullptr, req);
     }
-    uint64_t ts = GetCurrentMs();
+    uint64_t ts = TimeUtil::GetCurrentMs();
     auto& stats = conn->get(ts / 1000);
     stats.incDoing(1);
     stats.incTotal(1);
     auto r = conn->getStreamAs<RockStream>()->request(req, timeout_ms);
-    uint64_t ts2 = GetCurrentMs();
+    uint64_t ts2 = TimeUtil::GetCurrentMs();
     if (r->result == 0) {
         stats.incOks(1);
         stats.incUsedTime(ts2 - ts);
