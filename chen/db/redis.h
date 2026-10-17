@@ -31,10 +31,7 @@ public:
         FOX_REDIS_CLUSTER = 4
     };
     typedef std::shared_ptr<IRedis> ptr;
-    IRedis()
-        : m_logEnable(true)
-    {
-    }
+    IRedis();
     virtual ~IRedis() {}
 
     virtual ReplyPtr cmd(const char* fmt, ...) = 0;
@@ -76,7 +73,7 @@ public:
     void setLastActiveTime(uint64_t v) { m_lastActiveTime = v; }
 
 protected:
-    uint64_t m_lastActiveTime;
+    uint64_t m_lastActiveTime = 0;
 };
 
 class Redis : public ISyncRedis {
@@ -184,13 +181,7 @@ private:
         FoxRedis* rds;
         std::string cmd;
         FCtx* fctx;
-        // std::vector<std::string> parts;
-        // Scheduler* scheduler;
-        // Fiber::ptr fiber;
-        // ReplyPtr rpy;
         FoxThread* thread;
-
-        // Ctx::ptr ref;
 
         Ctx(FoxRedis* rds);
         ~Ctx();
@@ -269,15 +260,7 @@ private:
         FoxRedisCluster* rds;
         FCtx* fctx;
         std::string cmd;
-        // std::vector<std::string> parts;
         FoxThread* thread;
-        // int cancel_count;
-        // int destroy;
-        // int callback_count;
-        // RWMutex mutex;
-
-        // Ctx::ptr ref;
-        // Ctx::ptr tref;
         void cancelEvent();
 
         Ctx(FoxRedisCluster* rds);

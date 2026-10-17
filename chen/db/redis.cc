@@ -54,12 +54,22 @@ redisReply* RedisReplyClone(redisReply* r)
     return c;
 }
 
+IRedis::IRedis()
+    : m_type()
+    , m_logEnable(true)
+{
+}
+
 Redis::Redis()
+    : m_port(0)
+    , m_connectMs(0)
+    , m_cmdTimeout()
 {
     m_type = IRedis::REDIS;
 }
 
 Redis::Redis(const std::map<std::string, std::string>& conf)
+    : m_connectMs(0)
 {
     m_type = IRedis::REDIS;
     auto tmp = get_value(conf, "host");
@@ -261,11 +271,16 @@ int Redis::appendCmd(const std::vector<std::string>& argv)
 }
 
 RedisCluster::RedisCluster()
+    : m_port(0)
+    , m_connectMs(0)
+    , m_cmdTimeout()
 {
     m_type = IRedis::REDIS_CLUSTER;
 }
 
 RedisCluster::RedisCluster(const std::map<std::string, std::string>& conf)
+    : m_port(0)
+    , m_connectMs(0)
 {
     m_type = IRedis::REDIS_CLUSTER;
     m_host = get_value(conf, "host");
@@ -587,20 +602,6 @@ void FoxRedis::TimeCb(int fd, short event, void* d)
     redisAsyncCommand(ar->m_context.get(), CmdCb, nullptr, "ping");
 }
 
-struct Res {
-    redisAsyncContext* ctx;
-    struct event* event;
-};
-
-// void DelayTimeCb(int fd, short event, void* d) {
-//     INFO(logger) << "DelayTimeCb";
-//     Res* res = static_cast<Res*>(d);
-//     redisAsyncFree(res->ctx);
-//     evtimer_del(res->event);
-//     event_free(res->event);
-//     delete res;
-// }
-
 bool FoxRedis::init()
 {
     if (m_thread == FoxThread::GetThis()) {
@@ -779,7 +780,7 @@ FoxRedis::Ctx::Ctx(FoxRedis* r)
     : ev(nullptr)
     , timeout(false)
     , rds(r)
-    //,scheduler(nullptr)
+    , fctx(nullptr)
     , thread(nullptr)
 {
     Atomic::addFetch(rds->m_ctxCount, 1);
@@ -1257,7 +1258,7 @@ IRedis::ptr RedisManager::get(const std::string& name)
     if ((time(0) - rr->getLastActiveTime()) > 30) {
         if (!rr->cmd("ping")) {
             if (!rr->reconnect()) {
-                std::unique_lock lock(m_mutex);
+                std::unique_lock lock1(m_mutex);
                 m_datas[name].push_back(r);
                 return nullptr;
             }
