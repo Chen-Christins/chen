@@ -22,6 +22,14 @@ void gen_cmake(const std::string& path, const std::map<std::string, chen::orm::T
     ofs << "force_redefine_file_macro_for_sources(dbproxy_data)" << std::endl;
 }
 
+void init_logger()
+{
+    logger->setLevel(chen::LogLevel::INFO);
+
+    logger->clearAppenders();
+    logger->addAppender(chen::LogAppender::ptr(new chen::StdoutLogAppender));
+}
+
 int main(int argc, char** argv)
 {
     if (argc < 2) {
@@ -36,6 +44,9 @@ int main(int argc, char** argv)
     if (argc > 2) {
         out_path = argv[2];
     }
+
+    init_logger();
+
     std::vector<std::string> files;
     chen::FSUtil::ListAllFile(files, input_path, ".xml");
     std::vector<chen::orm::Table::ptr> tbs;
