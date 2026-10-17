@@ -25,7 +25,7 @@
     if (logger->getLevel() <= level)                                                                                                        \
     chen::LogEventWrap(                                                                                                                     \
         chen::LogEvent::ptr(new chen::LogEvent(                                                                                             \
-            logger, level, __FILE__, __LINE__, 0, chen::GetThreadId(), chen::GetFiberId(), chen::GetCurrentUs(), chen::Thread::GetName()))) \
+            logger, level, __FILE__, __LINE__, 0, chen::GetThreadId(), chen::GetFiberId(), chen::TimeUtil::GetCurrentUs(), chen::Thread::GetName()))) \
         .getSS()
 
 #define TRACE(...)     chen::LogDispatch(chen::LogLevel::TRACE, __FILE__, __LINE__, __VA_ARGS__)
@@ -777,7 +777,7 @@ inline void LogByFormatWithLogger(
     }
 
     LogEvent::ptr event(
-        new LogEvent(logger, level, file, line, 0, chen::GetThreadId(), chen::GetFiberId(), chen::GetCurrentUs(), chen::Thread::GetName()));
+        new LogEvent(logger, level, file, line, 0, chen::GetThreadId(), chen::GetFiberId(), TimeUtil::GetCurrentUs(), chen::Thread::GetName()));
 
     try {
         auto formatArgs = std::make_tuple(NormalizeFormatArg(std::forward<Args>(args))...);
@@ -799,7 +799,7 @@ inline LogEventWrap LogDispatch(LogLevel::Level level, const char* file, int32_t
     }
 
     LogEvent::ptr event(
-        new LogEvent(logger, level, file, line, 0, chen::GetThreadId(), chen::GetFiberId(), chen::GetCurrentUs(), chen::Thread::GetName()));
+        new LogEvent(logger, level, file, line, 0, chen::GetThreadId(), chen::GetFiberId(), TimeUtil::GetCurrentUs(), chen::Thread::GetName()));
 
     return LogEventWrap(event);
 }

@@ -628,7 +628,7 @@ HttpConnectionPool::HttpConnectionPool(
 
 HttpConnection::ptr HttpConnectionPool::getConnection()
 {
-    uint64_t now_ms = GetCurrentMs();
+    uint64_t now_ms = TimeUtil::GetCurrentMs();
     std::vector<HttpConnection*> invalid_conns;
     HttpConnection* ptr = nullptr;
     std::unique_lock lock(m_mutex);
@@ -899,7 +899,7 @@ HttpResult::ptr HttpConnectionPool::doRequest(HttpRequest::ptr req, uint64_t tim
 void HttpConnectionPool::ReleasePtr(HttpConnection* ptr, HttpConnectionPool* pool)
 {
     ++ptr->m_request;
-    if (!ptr->isConnected() || ((ptr->m_createTime + pool->m_maxAliveTime) >= GetCurrentMs()) || (ptr->m_request >= pool->m_maxRequest)) {
+    if (!ptr->isConnected() || ((ptr->m_createTime + pool->m_maxAliveTime) >= TimeUtil::GetCurrentMs()) || (ptr->m_request >= pool->m_maxRequest)) {
         delete ptr;
         --pool->m_total;
         return;

@@ -399,7 +399,7 @@ void HttpResponse::setCookie(
     std::stringstream ss;
     ss << key << "=" << val;
     if (expired > 0) {
-        ss << ";expires=" << Time2Str(expired, "%a, %d %b %Y %H:%M:%S") << " GMT";
+        ss << ";expires=" << TimeUtil::Time2Str(expired, "%a, %d %b %Y %H:%M:%S") << " GMT";
     }
     if (!domain.empty()) {
         ss << ";domain=" << domain;

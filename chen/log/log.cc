@@ -903,7 +903,7 @@ void FileLogAppender::cleanOldFiles()
         }
 
         // 解析日期并检查是否过期
-        time_t fileTime = Str2Time(dateStr.c_str(), dateFormat);
+        time_t fileTime = TimeUtil::Str2Time(dateStr.c_str(), dateFormat);
         if (fileTime > 0 && fileTime < cutoffTime) {
             FSUtil::Unlink(fullPath);
         }

@@ -261,9 +261,9 @@ void run()
         }
     });
     FiberSleep(100); // 让慢请求先到达 hub 并在途
-    uint64_t t0 = chen::GetCurrentMs();
+    uint64_t t0 = chen::TimeUtil::GetCurrentMs();
     who = caller->callRouted<uint32_t>(RoutingDirect(2002), "whoami");
-    uint64_t fast_ms = chen::GetCurrentMs() - t0;
+    uint64_t fast_ms = chen::TimeUtil::GetCurrentMs() - t0;
     CHECK(who == 2002);
     CHECK(fast_ms < 500); // 慢请求 1000ms，快请求应远早于它返回
     INFO(logger) << "A1 fast call elapsed " << fast_ms << "ms (slow=1000ms)";

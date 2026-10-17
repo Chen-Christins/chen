@@ -59,11 +59,11 @@ RockResult::ptr RockStream::request(RockRequest::ptr req, uint32_t timeout_ms)
         ctx->scheduler = Scheduler::GetThis();
         ctx->fiber = Fiber::GetThis();
         addCtx(ctx);
-        uint64_t ts = GetCurrentMs();
+        uint64_t ts = TimeUtil::GetCurrentMs();
         ctx->timer = IOManager::GetThis()->addTimer(timeout_ms, std::bind(&RockStream::onTimeOut, shared_from_this(), ctx));
         enqueue(ctx);
         Fiber::YieldToHold();
-        return std::make_shared<RockResult>(ctx->result, GetCurrentMs() - ts, ctx->response, req);
+        return std::make_shared<RockResult>(ctx->result, TimeUtil::GetCurrentMs() - ts, ctx->response, req);
     } else {
         return std::make_shared<RockResult>(AsyncSocketStream::NOT_CONNECT, 0, nullptr, req);
     }
@@ -227,12 +227,12 @@ RockResult::ptr RockSDLoadBalance::request(
     if (!conn) {
         return std::make_shared<RockResult>(ILoadBalance::NO_CONNECTION, 0, nullptr, req);
     }
-    uint64_t ts = GetCurrentMs();
+    uint64_t ts = TimeUtil::GetCurrentMs();
     auto& stats = conn->get(ts / 1000);
     stats.incDoing(1);
     stats.incTotal(1);
     auto r = conn->getStreamAs<RockStream>()->request(req, timeout_ms);
-    uint64_t ts2 = GetCurrentMs();
+    uint64_t ts2 = TimeUtil::GetCurrentMs();
     if (r->result == 0) {
         stats.incOks(1);
         stats.incUsedTime(ts2 - ts);

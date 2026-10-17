@@ -26,7 +26,7 @@ void WriteLineAt(Logger::ptr logger, const std::string& msg, uint64_t time_us)
 /// 写一条日志，时间取当前时间
 void WriteLine(Logger::ptr logger, const std::string& msg)
 {
-    WriteLineAt(logger, msg, GetCurrentUs());
+    WriteLineAt(logger, msg, TimeUtil::GetCurrentUs());
 }
 
 /// 列出目录下指定扩展名的文件
