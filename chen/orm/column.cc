@@ -8,7 +8,8 @@ namespace orm {
 
 static Logger::ptr logger = LOG_NAME("orm");
 
-std::string Column::getDefaultValueString() {
+std::string Column::getDefaultValueString()
+{
     if (m_default.empty()) {
         return "";
     }
@@ -24,7 +25,8 @@ std::string Column::getDefaultValueString() {
     return "chen::Str2Time(\"" + m_default + "\")";
 }
 
-std::string Column::getSQLite3Default() {
+std::string Column::getSQLite3Default()
+{
     if (m_dtype <= TYPE_UINT64) {
         if (m_default.empty()) {
             return "0";
@@ -43,7 +45,8 @@ std::string Column::getSQLite3Default() {
     return m_default;
 }
 
-bool Column::init(const tinyxml2::XMLElement& node) {
+bool Column::init(const tinyxml2::XMLElement& node)
+{
     if (!node.Attribute("name")) {
         ERROR(logger) << "Column name not exists";
         return false;
@@ -84,25 +87,27 @@ bool Column::init(const tinyxml2::XMLElement& node) {
     return true;
 }
 
-std::string Column::getMemberDefine() const {
+std::string Column::getMemberDefine() const
+{
     std::stringstream ss;
     ss << TypeToString(m_dtype) << " " << GetAsMemberName(m_name) << ";" << std::endl;
     return ss.str();
 }
 
-std::string Column::getGetFunDefine() const {
+std::string Column::getGetFunDefine() const
+{
     std::stringstream ss;
     std::string desc = m_desc.empty() ? m_name : m_desc;
     ss << "/**" << std::endl;
     ss << "     * @brief 获取" << desc << std::endl;
     ss << "     * @return " << desc << std::endl;
     ss << "     */" << std::endl;
-    ss << "    const " << TypeToString(m_dtype) << "& " << GetAsGetFunName(m_name) << "() { return " << GetAsMemberName(m_name) << "; }"
-       << std::endl;
+    ss << "    const " << TypeToString(m_dtype) << "& " << GetAsGetFunName(m_name) << "() { return " << GetAsMemberName(m_name) << "; }" << std::endl;
     return ss.str();
 }
 
-std::string Column::getSetFunDefine() const {
+std::string Column::getSetFunDefine() const
+{
     std::stringstream ss;
     std::string desc = m_desc.empty() ? m_name : m_desc;
     ss << "/**" << std::endl;
@@ -113,17 +118,18 @@ std::string Column::getSetFunDefine() const {
     return ss.str();
 }
 
-std::string Column::getSetFunImpl(const std::string& class_name, int idx) const {
+std::string Column::getSetFunImpl(const std::string& class_name, int idx) const
+{
     std::stringstream ss;
-    ss << "void " << GetAsClassName(class_name) << "::" << GetAsSetFunName(m_name) << "(const " << TypeToString(m_dtype) << "& v) {"
-       << std::endl;
+    ss << "void " << GetAsClassName(class_name) << "::" << GetAsSetFunName(m_name) << "(const " << TypeToString(m_dtype) << "& v) {" << std::endl;
     ss << "    " << GetAsMemberName(m_name) << " = v;" << std::endl;
     ss << "    m_flags |= (1ull << " << idx << ");" << std::endl;
     ss << "}" << std::endl;
     return ss.str();
 }
 
-Column::Type Column::ParseType(const std::string& v) {
+Column::Type Column::ParseType(const std::string& v)
+{
 #define XX(a, b, c)       \
     if (#b == v) {        \
         return a;         \
@@ -148,7 +154,8 @@ Column::Type Column::ParseType(const std::string& v) {
     return TYPE_NULL;
 }
 
-std::string Column::TypeToString(Type type) {
+std::string Column::TypeToString(Type type)
+{
 #define XX(a, b)     \
     if (a == type) { \
         return #b;   \
@@ -171,7 +178,8 @@ std::string Column::TypeToString(Type type) {
     return "null";
 }
 
-std::string Column::getSQLite3TypeString() {
+std::string Column::getSQLite3TypeString()
+{
 #define XX(a, b)        \
     if (a == m_dtype) { \
         return #b;      \
@@ -194,7 +202,8 @@ std::string Column::getSQLite3TypeString() {
     return "";
 }
 
-std::string Column::getMySQLTypeString() {
+std::string Column::getMySQLTypeString()
+{
 #define XX(a, b)        \
     if (a == m_dtype) { \
         return #b;      \
@@ -219,7 +228,8 @@ std::string Column::getMySQLTypeString() {
     return "";
 }
 
-std::string Column::getBindString() {
+std::string Column::getBindString()
+{
 #define XX(a, b)          \
     if (a == m_dtype) {   \
         return "bind" #b; \
@@ -242,7 +252,8 @@ std::string Column::getBindString() {
     return "";
 }
 
-std::string Column::getGetString() {
+std::string Column::getGetString()
+{
 #define XX(a, b)         \
     if (a == m_dtype) {  \
         return "get" #b; \

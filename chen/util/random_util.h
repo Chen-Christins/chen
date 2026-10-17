@@ -99,7 +99,8 @@ public:
      * @return 指向随机元素的指针，容器为空时返回 nullptr
      */
     template <class Container>
-    static const typename Container::value_type* RandElement(const Container& c) {
+    static const typename Container::value_type* RandElement(const Container& c)
+    {
         if (c.empty()) {
             return nullptr;
         }
@@ -137,7 +138,8 @@ public:
      * @param last 结束迭代器
      */
     template <class RandomIt>
-    static void Shuffle(RandomIt first, RandomIt last) {
+    static void Shuffle(RandomIt first, RandomIt last)
+    {
         std::shuffle(first, last, Rng());
     }
 

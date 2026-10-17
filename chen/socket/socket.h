@@ -28,7 +28,7 @@ public:
     enum Type {
         /// tcp type
         TCP = SOCK_STREAM,
-        /// udp type 
+        /// udp type
         UDP = SOCK_DGRAM
     };
 
@@ -114,7 +114,7 @@ public:
      * @brief 设置接收的超时时间
      */
     void setRecvTimeout(int64_t v);
-    
+
     /**
      * @brief 获取socket句柄相关信息
      * @param level 选项协议所在的协议层
@@ -124,9 +124,10 @@ public:
      * @return bool 是否成功获取
      */
     bool getOption(int level, int option, void* result, socklen_t* len);
-    
+
     template <class T>
-    bool getOption(int level, int option, T& result) {
+    bool getOption(int level, int option, T& result)
+    {
         size_t length = sizeof(T);
         return getOption(level, option, &result, &length);
     }
@@ -142,7 +143,8 @@ public:
     bool setOption(int level, int option, const void* result, socklen_t len);
 
     template <class T>
-    bool setOption(int level, int option, const T& value) {
+    bool setOption(int level, int option, const T& value)
+    {
         return setOption(level, option, &value, sizeof(T));
     }
 
@@ -163,17 +165,17 @@ public:
      * @param timeout_ms 超时时间
      */
     virtual bool connect(const Address::ptr addr, uint64_t timeout_ms = -1);
-	
-	/**
-	 * @brief 重新连接
-	 * @param timeout_ms 
-	 * @return bool 
-	 */
-	virtual bool reconnect(uint64_t timeout_ms = -1);
+
+    /**
+     * @brief 重新连接
+     * @param timeout_ms
+     * @return bool
+     */
+    virtual bool reconnect(uint64_t timeout_ms = -1);
 
     /**
      * @brief 对socket句柄设置监听
-     * @param backlog 监听的最大数量，这里的 SOMAXCONN 是最大连接套接字数量 
+     * @param backlog 监听的最大数量，这里的 SOMAXCONN 是最大连接套接字数量
      */
     virtual bool listen(int backlog = SOMAXCONN);
 
@@ -197,7 +199,7 @@ public:
      * @param flags 操作类型 0是常规操作
      */
     virtual int send(const iovec* buffers, size_t length, int flags = 0);
-    
+
     /**
      * @brief 发送buffer里的数据给目标服务器
      * @param buffer 需要发送的内容
@@ -215,7 +217,7 @@ public:
      * @param flags 操作类型 0是常规操作
      */
     virtual int sendTo(const iovec* buffers, size_t length, const Address::ptr to, int flags = 0);
-    
+
     /**
      * @brief 接受来自发送端的请求信息
      * @param buffer 存接受信息的内存的起始地址
@@ -262,7 +264,7 @@ public:
 
     /**
      * @brief 获取socket的字符串表示
-     * @return std::string 
+     * @return std::string
      */
     std::string toString() const;
 
@@ -275,7 +277,7 @@ public:
      * @brief 获取协议类型
      */
     int getType() const { return m_type; }
-    
+
     /**
      * @brief 获取传输协议
      */
@@ -295,13 +297,13 @@ public:
      * @brief 获取错误信息
      */
     int getError();
-    
+
     /**
      * @brief 类似于一个打印socket的所有信息的流
      * @param os 输出流
      */
     virtual std::ostream& dump(std::ostream& os) const;
-    
+
     /**
      * @brief 返回socket句柄
      */
@@ -326,10 +328,11 @@ public:
      * @brief 取消所有事件
      */
     bool cancelAll();
+
 protected:
     /**
-    * @brief 初始化socket
-    */
+     * @brief 初始化socket
+     */
     void initSock();
 
     /**
@@ -342,6 +345,7 @@ protected:
      * @param sock 文件描述符
      */
     virtual bool init(int sock);
+
 protected:
     /// socket句柄
     int m_sock;
@@ -362,45 +366,45 @@ protected:
 
 class SSLSocket : public Socket {
 public:
-	typedef std::shared_ptr<SSLSocket> ptr;
+    typedef std::shared_ptr<SSLSocket> ptr;
 
     /**
      * @brief 创建一个SSL的TCP Socket
      * @param address 目标地址
-     * @return SSLSocket::ptr 
+     * @return SSLSocket::ptr
      */
-	static SSLSocket::ptr CreateTCP(Address::ptr address);
-    
+    static SSLSocket::ptr CreateTCP(Address::ptr address);
+
     /**
      * @brief 创建一个IPv4的SSL TCP Socket
-     * @return SSLSocket::ptr 
+     * @return SSLSocket::ptr
      */
-	static SSLSocket::ptr CreateTCPSocket();
+    static SSLSocket::ptr CreateTCPSocket();
 
     /**
      * @brief 创建一个IPv6的SSL TCP Socket
-     * @return SSLSocket::ptr 
+     * @return SSLSocket::ptr
      */
-	static SSLSocket::ptr CreateTCPSocket6();
+    static SSLSocket::ptr CreateTCPSocket6();
 
     /**
      * @brief 创建一个Unix的SSL TCP Socket
-     * @return SSLSocket::ptr 
+     * @return SSLSocket::ptr
      */
-	SSLSocket(int family, int type, int protocol = 0);
+    SSLSocket(int family, int type, int protocol = 0);
 
     /**
      * @brief 接受连接
-     * @return Socket::ptr 
+     * @return Socket::ptr
      */
-	virtual Socket::ptr accept() override;
+    virtual Socket::ptr accept() override;
 
     /**
      * @brief 绑定地址
      * @param addr 地址信息
      * @return bool 是否成功
      */
-	virtual bool bind(const Address::ptr addr) override;
+    virtual bool bind(const Address::ptr addr) override;
 
     /**
      * @brief 连接地址
@@ -408,21 +412,21 @@ public:
      * @param timeout_ms 超时时间
      * @return bool 是否成功
      */
-	virtual bool connect(const Address::ptr addr, uint64_t timeout_ms = -1) override;
-	
+    virtual bool connect(const Address::ptr addr, uint64_t timeout_ms = -1) override;
+
     /**
      * @brief 监听socket
      * @param backlog 最大监听数量
      * @return bool 是否成功
      */
     virtual bool listen(int backlog = SOMAXCONN) override;
-	
+
     /**
      * @brief 关闭socket
      * @return bool 是否成功
      */
     virtual bool close() override;
-	
+
     /**
      * @brief 发送数据
      * @param buffer 发送缓冲区
@@ -431,7 +435,7 @@ public:
      * @return int 发送的字节数
      */
     virtual int send(const void* buffer, size_t length, int flags = 0) override;
-	
+
     /**
      * @brief 发送多个数据块
      * @param buffers iovec内存块的信息
@@ -440,7 +444,7 @@ public:
      * @return int 发送的字节数
      */
     virtual int send(const iovec* buffers, size_t length, int flags = 0) override;
-	
+
     /**
      * @brief 发送数据到指定地址
      * @param buffer 发送缓冲区
@@ -450,7 +454,7 @@ public:
      * @return int 发送的字节数
      */
     virtual int sendTo(const void* buffer, size_t length, const Address::ptr to, int flags = 0) override;
-	
+
     /**
      * @brief 发送多个数据块到指定地址
      * @param buffers iovec内存块的信息
@@ -460,7 +464,7 @@ public:
      * @return int 发送的字节数
      */
     virtual int sendTo(const iovec* buffers, size_t length, const Address::ptr to, int flags = 0) override;
-	
+
     /**
      * @brief 接收数据
      * @param buffer 接收缓冲区
@@ -469,7 +473,7 @@ public:
      * @return int 接收的字节数
      */
     virtual int recv(void* buffer, size_t length, int flags = 0) override;
-	
+
     /**
      * @brief 接收多个数据块
      * @param buffers iovec内存块的信息
@@ -478,7 +482,7 @@ public:
      * @return int 接收的字节数
      */
     virtual int recv(iovec* buffers, size_t length, int flags = 0) override;
-	
+
     /**
      * @brief 接收数据并获取发送地址
      * @param buffer 接收缓冲区
@@ -488,7 +492,7 @@ public:
      * @return int 接收的字节数
      */
     virtual int recvFrom(void* buffer, size_t length, Address::ptr from, int flags = 0) override;
-	
+
     /**
      * @brief 接收多个数据块并获取发送地址
      * @param buffers iovec内存块的信息
@@ -505,26 +509,28 @@ public:
      * @param key_file 私钥文件
      * @return bool 是否成功
      */
-	bool loadCertificates(const std::string& cert_file, const std::string& key_file);
-	
+    bool loadCertificates(const std::string& cert_file, const std::string& key_file);
+
     /**
      * @brief 打印Socket信息
      * @param os 写入流
-     * @return std::ostream& 
+     * @return std::ostream&
      */
     virtual std::ostream& dump(std::ostream& os) const override;
+
 protected:
     /**
      * @brief 通过文件描述符初始化SSL Socket
      * @param sock 文件描述符
      * @return bool 是否成功
      */
-	virtual bool init(int sock) override;
+    virtual bool init(int sock) override;
+
 private:
     /// SSL上下文
-	std::shared_ptr<SSL_CTX> m_ctx;
+    std::shared_ptr<SSL_CTX> m_ctx;
     /// SSL实例
-	std::shared_ptr<SSL> m_ssl;
+    std::shared_ptr<SSL> m_ssl;
 };
 
 /**
@@ -534,4 +540,4 @@ private:
  */
 std::ostream& operator<<(std::ostream& os, const Socket& sock);
 
-}
+} // namespace chen

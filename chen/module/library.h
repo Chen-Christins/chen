@@ -21,4 +21,4 @@ public:
     static Module::ptr GetModule(const std::string& path);
 };
 
-}
+} // namespace chen

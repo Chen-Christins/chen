@@ -5,15 +5,15 @@
 ## 核心类
 
 - **RateLimiter** — 纯令牌桶算法（仅标准库依赖）。
-  - 以 `qps` 速率持续补充令牌，桶容量 `burst` 决定瞬时突发上限。
-  - `tryAcquire()` 有令牌则消费 1 放行；`qps <= 0` 恒放行（不限流）。
-  - 不感知业务语义，可复用于任意"速率"场景。
+    - 以 `qps` 速率持续补充令牌，桶容量 `burst` 决定瞬时突发上限。
+    - `tryAcquire()` 有令牌则消费 1 放行；`qps <= 0` 恒放行（不限流）。
+    - 不感知业务语义，可复用于任意"速率"场景。
 
 - **ConnLimiter** — 连接准入控制器，组合令牌桶 + 并发计数。
-  - `tryAcquire()`：过速率限制且并发数 < `max_conn` 才放行，放行则占用一个名额。
-  - `release()`：连接关闭时归还名额。
-  - 附带 `current()` / `getRejectedCount()` 统计。
-  - `CreateFromArgs(args)` 从 `TcpServerConf::args` 解析 `accept_qps` / `accept_burst` / `max_conn`。
+    - `tryAcquire()`：过速率限制且并发数 < `max_conn` 才放行，放行则占用一个名额。
+    - `release()`：连接关闭时归还名额。
+    - 附带 `current()` / `getRejectedCount()` 统计。
+    - `CreateFromArgs(args)` 从 `TcpServerConf::args` 解析 `accept_qps` / `accept_burst` / `max_conn`。
 
 ## 使用
 

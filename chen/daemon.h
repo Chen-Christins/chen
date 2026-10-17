@@ -40,4 +40,4 @@ typedef Singleton<ProcessInfo> ProcessInfoMgr;
  */
 int start_daemon(int argc, char** argv, std::function<int(int argc, char** argv)> main_cb, bool is_daemon);
 
-}
+} // namespace chen

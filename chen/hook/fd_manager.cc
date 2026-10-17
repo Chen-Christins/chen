@@ -2,8 +2,8 @@
 
 #include <mutex>
 
-#include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #include "hook.h"
 
@@ -15,16 +15,19 @@ FdCtx::FdCtx(int fd)
     , m_sysNonblock(false)
     , m_userNonblock(false)
     , m_isClosed(false)
-    , m_fd(fd)   
+    , m_fd(fd)
     , m_recvTimout(-1)
-    , m_sendTimeout(-1) {
+    , m_sendTimeout(-1)
+{
     init();
 }
 
-FdCtx::~FdCtx() {
+FdCtx::~FdCtx()
+{
 }
 
-bool FdCtx::init() {
+bool FdCtx::init()
+{
     if (m_isInit) {
         return true;
     }
@@ -54,7 +57,8 @@ bool FdCtx::init() {
     return m_isInit;
 }
 
-void FdCtx::setTimeout(int type, uint64_t v) {
+void FdCtx::setTimeout(int type, uint64_t v)
+{
     if (type == SO_RCVTIMEO) {
         m_recvTimout = v;
     } else {
@@ -62,7 +66,8 @@ void FdCtx::setTimeout(int type, uint64_t v) {
     }
 }
 
-uint64_t FdCtx::getTimeout(int type) {
+uint64_t FdCtx::getTimeout(int type)
+{
     if (type == SO_RCVTIMEO) {
         return m_recvTimout;
     } else {
@@ -70,11 +75,13 @@ uint64_t FdCtx::getTimeout(int type) {
     }
 }
 
-FdManager::FdManager() {
+FdManager::FdManager()
+{
     m_datas.resize(64);
 }
 
-FdCtx::ptr FdManager::get(int fd, bool auto_create) {
+FdCtx::ptr FdManager::get(int fd, bool auto_create)
+{
     if (fd == -1) {
         return nullptr;
     }
@@ -99,10 +106,11 @@ FdCtx::ptr FdManager::get(int fd, bool auto_create) {
     return ctx;
 }
 
-void FdManager::del(int fd) {
+void FdManager::del(int fd)
+{
     std::unique_lock lock(m_mutex);
     if ((int)m_datas.size() <= fd) {
-        return ;
+        return;
     }
     // 标记旧 FdCtx 为已关闭：持有该 FdCtx 的 do_io 在唤醒后可据此感知
     // fd 已被关闭/复用，避免在复用后的 fd 上再次 recv / addEvent。
@@ -112,4 +120,4 @@ void FdManager::del(int fd) {
     m_datas[fd].reset();
 }
 
-}
+} // namespace chen

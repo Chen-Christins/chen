@@ -29,15 +29,19 @@ namespace chen::rpc {
 template <typename T>
 struct Serialization {
     // 如果未特化就调用 write/read，编译时报错，避免静默损坏数据
-    static void write(ByteArray::ptr ba, const T& t) {
-        static_assert(sizeof(T) != sizeof(T)
-            , "Serialization not specialized for this type; "
-              "provide template <> struct Serialization<YourType> { ... };");
+    static void write(ByteArray::ptr ba, const T& t)
+    {
+        static_assert(
+            sizeof(T) != sizeof(T),
+            "Serialization not specialized for this type; "
+            "provide template <> struct Serialization<YourType> { ... };");
     }
-    static void read(ByteArray::ptr ba, T& t) {
-        static_assert(sizeof(T) != sizeof(T)
-            , "Serialization not specialized for this type; "
-              "provide template <> struct Serialization<YourType> { ... };");
+    static void read(ByteArray::ptr ba, T& t)
+    {
+        static_assert(
+            sizeof(T) != sizeof(T),
+            "Serialization not specialized for this type; "
+            "provide template <> struct Serialization<YourType> { ... };");
     }
 };
 
@@ -54,12 +58,14 @@ public:
     typedef std::shared_ptr<Serializer> ptr;
 
     template <typename T>
-    static void Write(ByteArray::ptr ba, const T& t) {
+    static void Write(ByteArray::ptr ba, const T& t)
+    {
         write(ba, t);
     }
 
     template <typename T>
-    static void Read(ByteArray::ptr ba, T& t) {
+    static void Read(ByteArray::ptr ba, T& t)
+    {
         read(ba, t);
     }
 
@@ -68,7 +74,8 @@ public:
      * @param msg protobuf消息对象
      * @param ba 字节数组对象
      */
-    static void SerializeToByteArray(const google::protobuf::Message& msg, ByteArray::ptr ba) {
+    static void SerializeToByteArray(const google::protobuf::Message& msg, ByteArray::ptr ba)
+    {
         std::string data;
         if (msg.SerializeToString(&data)) {
             ba->writeStringWithoutLength(data);
@@ -80,7 +87,8 @@ public:
      * @param msg protobuf消息对象
      * @return std::string
      */
-    static std::string SerializeToString(const google::protobuf::Message& msg) {
+    static std::string SerializeToString(const google::protobuf::Message& msg)
+    {
         std::string data;
         msg.SerializeToString(&data);
         return data;
@@ -93,7 +101,8 @@ public:
      * @param length 数据长度
      * @return bool
      */
-    static bool DeserializeFromByteArray(google::protobuf::Message& msg, ByteArray::ptr ba, size_t length) {
+    static bool DeserializeFromByteArray(google::protobuf::Message& msg, ByteArray::ptr ba, size_t length)
+    {
         std::string data;
         data.resize(length);
         ba->read(&data[0], length);
@@ -106,9 +115,7 @@ public:
      * @param data 字符串数据
      * @return bool
      */
-    static bool DeserializeFromString(google::protobuf::Message& msg, const std::string& data) {
-        return msg.ParseFromString(data);
-    }
+    static bool DeserializeFromString(google::protobuf::Message& msg, const std::string& data) { return msg.ParseFromString(data); }
 
     /**
      * @brief 序列化任意类型参数到 string（用于赋值给 RpcRequest.args）
@@ -117,7 +124,8 @@ public:
      * @return 编码后的二进制串
      */
     template <typename... Args>
-    static std::string SerializeArgs(Args... args) {
+    static std::string SerializeArgs(Args... args)
+    {
         ByteArray::ptr ba(new ByteArray);
         serializeArgsToByteArray(ba, args...);
         ba->setPosition(0);
@@ -131,7 +139,8 @@ public:
      * @param args 输出参数引用（依次被赋值）
      */
     template <typename... Args>
-    static void DeserializeArgs(const std::string& data, Args&... args) {
+    static void DeserializeArgs(const std::string& data, Args&... args)
+    {
         ByteArray::ptr ba(new ByteArray(data.size()));
         ba->writeStringWithoutLength(data);
         ba->setPosition(0);
@@ -145,14 +154,17 @@ public:
      * @param t 输出元组（各元素依序被赋值）
      */
     template <typename Tuple>
-    static void DeserializeArgsToTuple(const std::string& data, Tuple& t) {
+    static void DeserializeArgsToTuple(const std::string& data, Tuple& t)
+    {
         ByteArray::ptr ba(new ByteArray(data.size()));
         ba->writeStringWithoutLength(data);
         ba->setPosition(0);
 
-        std::apply([ba](auto&&... args) {
-            deserializeArgsFromByteArray(ba, args...);
-        }, t);
+        std::apply(
+            [ba](auto&&... args) {
+                deserializeArgsFromByteArray(ba, args...);
+            },
+            t);
     }
 
     // ─── 以下为新版直接 Body 编码接口，无需 protobuf ───
@@ -165,7 +177,8 @@ public:
      * @return body 二进制串（[method_vint][args...]）
      */
     template <typename... Args>
-    static std::string EncodeRequest(const std::string& method, const Args&... args) {
+    static std::string EncodeRequest(const std::string& method, const Args&... args)
+    {
         ByteArray::ptr ba(new ByteArray);
         ba->writeStringVint(method);
         serializeArgsToByteArray(ba, args...);
@@ -178,7 +191,8 @@ public:
      * @param body request body
      * @return std::string 方法名
      */
-    static std::string DecodeMethod(const std::string& body) {
+    static std::string DecodeMethod(const std::string& body)
+    {
         ByteArray::ptr ba(new ByteArray);
         ba->writeStringWithoutLength(body);
         ba->setPosition(0);
@@ -192,10 +206,13 @@ public:
      * @param t 输出元组
      */
     template <typename Tuple>
-    static void DeserializeArgsToTuple(ByteArray::ptr ba, Tuple& t) {
-        std::apply([ba](auto&&... args) {
-            deserializeArgsFromByteArray(ba, args...);
-        }, t);
+    static void DeserializeArgsToTuple(ByteArray::ptr ba, Tuple& t)
+    {
+        std::apply(
+            [ba](auto&&... args) {
+                deserializeArgsFromByteArray(ba, args...);
+            },
+            t);
     }
 
     /**
@@ -205,7 +222,8 @@ public:
      * @param args 参数值
      */
     template <typename... Args>
-    static void SerializeToByteArray(ByteArray::ptr ba, const Args&... args) {
+    static void SerializeToByteArray(ByteArray::ptr ba, const Args&... args)
+    {
         serializeArgsToByteArray(ba, args...);
     }
 
@@ -218,7 +236,8 @@ public:
      * @return body 二进制串（[code_int32][result_binary] 或 [code_int32][message_vint]）
      */
     template <typename T>
-    static std::string EncodeResponse(int32_t code, const std::string& msg, const T& result) {
+    static std::string EncodeResponse(int32_t code, const std::string& msg, const T& result)
+    {
         ByteArray::ptr ba(new ByteArray);
         ba->writeFint32(code);
         if (code != 0) {
@@ -231,7 +250,8 @@ public:
     }
 
     /// void 返回值专用（仅写入 code）
-    static std::string EncodeResponse(int32_t code = 0) {
+    static std::string EncodeResponse(int32_t code = 0)
+    {
         ByteArray::ptr ba(new ByteArray);
         ba->writeFint32(code);
         ba->setPosition(0);
@@ -245,7 +265,8 @@ public:
      * @param[out] msg 错误信息
      * @return true 解析成功
      */
-    static bool ParseResponse(const std::string& body, int32_t& code, std::string& msg) {
+    static bool ParseResponse(const std::string& body, int32_t& code, std::string& msg)
+    {
         ByteArray::ptr ba(new ByteArray);
         ba->writeStringWithoutLength(body);
         ba->setPosition(0);
@@ -263,11 +284,12 @@ public:
      * @param[out] result 返回值
      */
     template <typename T>
-    static void DeserializeResult(const std::string& body, T& result) {
+    static void DeserializeResult(const std::string& body, T& result)
+    {
         ByteArray::ptr ba(new ByteArray);
         ba->writeStringWithoutLength(body);
         ba->setPosition(0);
-        ba->readFint32();  // skip code
+        ba->readFint32(); // skip code
         deserializeArgsFromByteArray(ba, result);
     }
 
@@ -284,7 +306,8 @@ private:
      * @param args 剩余参数值
      */
     template <typename T, typename... Args>
-    static void serializeArgsToByteArray(ByteArray::ptr ba, const T& t, Args... args) {
+    static void serializeArgsToByteArray(ByteArray::ptr ba, const T& t, Args... args)
+    {
         write(ba, t);
         serializeArgsToByteArray(ba, args...);
     }
@@ -301,7 +324,8 @@ private:
      * @param args 剩余参数引用
      */
     template <typename T, typename... Args>
-    static void deserializeArgsFromByteArray(ByteArray::ptr ba, T& t, Args&... args) {
+    static void deserializeArgsFromByteArray(ByteArray::ptr ba, T& t, Args&... args)
+    {
         read(ba, t);
         deserializeArgsFromByteArray(ba, args...);
     }
@@ -323,7 +347,8 @@ private:
 
     // 针对 std::vector 的序列化
     template <typename T>
-    static void write(ByteArray::ptr ba, const std::vector<T>& v) {
+    static void write(ByteArray::ptr ba, const std::vector<T>& v)
+    {
         ba->writeUint32(v.size());
         for (const auto& item : v) {
             write(ba, item);
@@ -332,7 +357,8 @@ private:
 
     // 针对 std::list 的序列化
     template <typename T>
-    static void write(ByteArray::ptr ba, const std::list<T>& v) {
+    static void write(ByteArray::ptr ba, const std::list<T>& v)
+    {
         ba->writeUint32(v.size());
         for (const auto& item : v) {
             write(ba, item);
@@ -341,7 +367,8 @@ private:
 
     // 针对 std::set 的序列化
     template <typename T>
-    static void write(ByteArray::ptr ba, const std::set<T>& v) {
+    static void write(ByteArray::ptr ba, const std::set<T>& v)
+    {
         ba->writeUint32(v.size());
         for (const auto& item : v) {
             write(ba, item);
@@ -350,7 +377,8 @@ private:
 
     // 针对 std::unordered_set 的序列化
     template <typename T>
-    static void write(ByteArray::ptr ba, const std::unordered_set<T>& v) {
+    static void write(ByteArray::ptr ba, const std::unordered_set<T>& v)
+    {
         ba->writeUint32(v.size());
         for (const auto& item : v) {
             write(ba, item);
@@ -359,7 +387,8 @@ private:
 
     // 针对 std::map 的序列化
     template <typename K, typename V>
-    static void write(ByteArray::ptr ba, const std::map<K, V>& m) {
+    static void write(ByteArray::ptr ba, const std::map<K, V>& m)
+    {
         ba->writeUint32(m.size());
         for (const auto& [key, value] : m) {
             write(ba, key);
@@ -369,7 +398,8 @@ private:
 
     // 针对 std::unordered_map 的序列化
     template <typename K, typename V>
-    static void write(ByteArray::ptr ba, const std::unordered_map<K, V>& m) {
+    static void write(ByteArray::ptr ba, const std::unordered_map<K, V>& m)
+    {
         ba->writeUint32(m.size());
         for (const auto& [key, value] : m) {
             write(ba, key);
@@ -379,7 +409,8 @@ private:
 
     // 针对 std::array 的序列化
     template <typename T, size_t N>
-    static void write(ByteArray::ptr ba, const std::array<T, N>& v) {
+    static void write(ByteArray::ptr ba, const std::array<T, N>& v)
+    {
         ba->writeUint32(static_cast<uint32_t>(v.size()));
         for (const auto& item : v) {
             write(ba, item);
@@ -402,7 +433,8 @@ private:
 
     // 针对 std::vector 的反序列化
     template <typename T>
-    static void read(ByteArray::ptr ba, std::vector<T>& v) {
+    static void read(ByteArray::ptr ba, std::vector<T>& v)
+    {
         uint32_t size = ba->readUint32();
         v.clear();
         v.reserve(size);
@@ -415,7 +447,8 @@ private:
 
     // 针对 std::list 的反序列化
     template <typename T>
-    static void read(ByteArray::ptr ba, std::list<T>& v) {
+    static void read(ByteArray::ptr ba, std::list<T>& v)
+    {
         uint32_t size = ba->readUint32();
         v.clear();
         for (uint32_t i = 0; i < size; ++i) {
@@ -427,7 +460,8 @@ private:
 
     // 针对 std::set 的反序列化
     template <typename T>
-    static void read(ByteArray::ptr ba, std::set<T>& v) {
+    static void read(ByteArray::ptr ba, std::set<T>& v)
+    {
         uint32_t size = ba->readUint32();
         v.clear();
         for (uint32_t i = 0; i < size; ++i) {
@@ -439,7 +473,8 @@ private:
 
     // 针对 std::unordered_set 的反序列化
     template <typename T>
-    static void read(ByteArray::ptr ba, std::unordered_set<T>& v) {
+    static void read(ByteArray::ptr ba, std::unordered_set<T>& v)
+    {
         uint32_t size = ba->readUint32();
         v.clear();
         v.reserve(size);
@@ -452,7 +487,8 @@ private:
 
     // 针对 std::map 的反序列化
     template <typename K, typename V>
-    static void read(ByteArray::ptr ba, std::map<K, V>& m) {
+    static void read(ByteArray::ptr ba, std::map<K, V>& m)
+    {
         uint32_t size = ba->readUint32();
         m.clear();
         for (uint32_t i = 0; i < size; ++i) {
@@ -466,7 +502,8 @@ private:
 
     // 针对 std::unordered_map 的反序列化
     template <typename K, typename V>
-    static void read(ByteArray::ptr ba, std::unordered_map<K, V>& m) {
+    static void read(ByteArray::ptr ba, std::unordered_map<K, V>& m)
+    {
         uint32_t size = ba->readUint32();
         m.clear();
         m.reserve(size);
@@ -481,7 +518,8 @@ private:
 
     // 针对 std::array 的反序列化
     template <typename T, size_t N>
-    static void read(ByteArray::ptr ba, std::array<T, N>& v) {
+    static void read(ByteArray::ptr ba, std::array<T, N>& v)
+    {
         uint32_t count = ba->readUint32();
         uint32_t fill = count < static_cast<uint32_t>(N) ? count : static_cast<uint32_t>(N);
         for (uint32_t i = 0; i < fill; ++i) {
@@ -495,13 +533,15 @@ private:
 
     // 通用序列化接口，调用 Serialization<T>
     template <typename T>
-    static void write(ByteArray::ptr ba, const T& t) {
+    static void write(ByteArray::ptr ba, const T& t)
+    {
         Serialization<T>::write(ba, t);
     }
 
     // 通用反序列化接口，调用 Serialization<T>
     template <typename T>
-    static void read(ByteArray::ptr ba, T& t) {
+    static void read(ByteArray::ptr ba, T& t)
+    {
         Serialization<T>::read(ba, t);
     }
 };

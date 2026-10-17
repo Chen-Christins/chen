@@ -19,7 +19,8 @@ static std::map<uint64_t, std::string> s_thread_names;
 
 thread_local FoxThread* s_thread = nullptr;
 
-void FoxThread::read_cb(evutil_socket_t sock, short which, void* args) {
+void FoxThread::read_cb(evutil_socket_t sock, short which, void* args)
+{
     FoxThread* thread = static_cast<FoxThread*>(args);
     uint8_t cmd[4096];
     if (recv(sock, cmd, sizeof(cmd), 0) > 0) {
@@ -53,8 +54,16 @@ void FoxThread::read_cb(evutil_socket_t sock, short which, void* args) {
 }
 
 FoxThread::FoxThread(const std::string& name, struct event_base* base)
-    : m_read(0), m_write(0), m_base(NULL), m_event(NULL), m_thread(NULL), m_name(name), m_working(false),
-      m_start(false), m_total(0) {
+    : m_read(0)
+    , m_write(0)
+    , m_base(NULL)
+    , m_event(NULL)
+    , m_thread(NULL)
+    , m_name(name)
+    , m_working(false)
+    , m_start(false)
+    , m_total(0)
+{
     int fds[2];
     if (evutil_socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == -1) {
         // ERROR(logger) << "FoxThread init error";
@@ -77,31 +86,35 @@ FoxThread::FoxThread(const std::string& name, struct event_base* base)
     event_add(m_event, NULL);
 }
 
-void FoxThread::dump(std::ostream& os) {
+void FoxThread::dump(std::ostream& os)
+{
     std::shared_lock lock(m_mutex);
-    os << "[thread name=" << m_name << " working=" << m_working << " tasks=" << m_callbacks.size()
-       << " total=" << m_total << "]" << std::endl;
+    os << "[thread name=" << m_name << " working=" << m_working << " tasks=" << m_callbacks.size() << " total=" << m_total << "]" << std::endl;
 }
 
-std::thread::id FoxThread::getId() const {
+std::thread::id FoxThread::getId() const
+{
     if (m_thread) {
         return m_thread->get_id();
     }
     return std::thread::id();
 }
 
-void* FoxThread::getData(const std::string& name) {
+void* FoxThread::getData(const std::string& name)
+{
     // Mutex::ReadLock lock(m_mutex);
     auto it = m_datas.find(name);
     return it == m_datas.end() ? nullptr : it->second;
 }
 
-void FoxThread::setData(const std::string& name, void* v) {
+void FoxThread::setData(const std::string& name, void* v)
+{
     // Mutex::WriteLock lock(m_mutex);
     m_datas[name] = v;
 }
 
-FoxThread::~FoxThread() {
+FoxThread::~FoxThread()
+{
     if (m_read) {
         close(m_read);
     }
@@ -121,7 +134,8 @@ FoxThread::~FoxThread() {
     }
 }
 
-void FoxThread::start() {
+void FoxThread::start()
+{
     if (m_thread) {
         // ERROR(logger) << "FoxThread is running";
         throw std::logic_error("FoxThread is running");
@@ -131,7 +145,8 @@ void FoxThread::start() {
     m_start = true;
 }
 
-void FoxThread::thread_cb() {
+void FoxThread::thread_cb()
+{
     // std::cout << "FoxThread(" << m_name << "," << pthread_self() << ")" << std::endl;
     setThis();
     pthread_setname_np(pthread_self(), m_name.substr(0, 15).c_str());
@@ -142,7 +157,8 @@ void FoxThread::thread_cb() {
     event_base_loop(m_base, 0);
 }
 
-bool FoxThread::dispatch(callback cb) {
+bool FoxThread::dispatch(callback cb)
+{
     std::unique_lock lock(m_mutex);
     m_callbacks.push_back(cb);
     // if(m_callbacks.size() > 1) {
@@ -157,9 +173,13 @@ bool FoxThread::dispatch(callback cb) {
     return true;
 }
 
-bool FoxThread::dispatch(uint32_t id, callback cb) { return dispatch(cb); }
+bool FoxThread::dispatch(uint32_t id, callback cb)
+{
+    return dispatch(cb);
+}
 
-bool FoxThread::batchDispatch(const std::vector<callback>& cbs) {
+bool FoxThread::batchDispatch(const std::vector<callback>& cbs)
+{
     std::unique_lock lock(m_mutex);
     for (auto& i : cbs) {
         m_callbacks.push_back(i);
@@ -172,9 +192,13 @@ bool FoxThread::batchDispatch(const std::vector<callback>& cbs) {
     return true;
 }
 
-void FoxThread::broadcast(callback cb) { dispatch(cb); }
+void FoxThread::broadcast(callback cb)
+{
+    dispatch(cb);
+}
 
-void FoxThread::stop() {
+void FoxThread::stop()
+{
     std::unique_lock lock(m_mutex);
     m_callbacks.push_back(nullptr);
     if (m_thread) {
@@ -188,7 +212,8 @@ void FoxThread::stop() {
     // }
 }
 
-void FoxThread::join() {
+void FoxThread::join()
+{
     if (m_thread) {
         m_thread->join();
         delete m_thread;
@@ -197,7 +222,13 @@ void FoxThread::join() {
 }
 
 FoxThreadPool::FoxThreadPool(uint32_t size, const std::string& name, bool advance)
-    : m_size(size), m_cur(0), m_name(name), m_advance(advance), m_start(false), m_total(0) {
+    : m_size(size)
+    , m_cur(0)
+    , m_name(name)
+    , m_advance(advance)
+    , m_start(false)
+    , m_total(0)
+{
     m_threads.resize(m_size);
     for (size_t i = 0; i < size; ++i) {
         FoxThread* t(new FoxThread(name + "_" + std::to_string(i)));
@@ -205,13 +236,15 @@ FoxThreadPool::FoxThreadPool(uint32_t size, const std::string& name, bool advanc
     }
 }
 
-FoxThreadPool::~FoxThreadPool() {
+FoxThreadPool::~FoxThreadPool()
+{
     for (size_t i = 0; i < m_size; ++i) {
         delete m_threads[i];
     }
 }
 
-void FoxThreadPool::start() {
+void FoxThreadPool::start()
+{
     for (size_t i = 0; i < m_size; ++i) {
         m_threads[i]->setInitCb(m_initCb);
         m_threads[i]->start();
@@ -224,20 +257,23 @@ void FoxThreadPool::start() {
     check();
 }
 
-void FoxThreadPool::stop() {
+void FoxThreadPool::stop()
+{
     for (size_t i = 0; i < m_size; ++i) {
         m_threads[i]->stop();
     }
     m_start = false;
 }
 
-void FoxThreadPool::join() {
+void FoxThreadPool::join()
+{
     for (size_t i = 0; i < m_size; ++i) {
         m_threads[i]->join();
     }
 }
 
-void FoxThreadPool::releaseFoxThread(FoxThread* t) {
+void FoxThreadPool::releaseFoxThread(FoxThread* t)
+{
     do {
         std::unique_lock lock(m_mutex);
         m_freeFoxThreads.push_back(t);
@@ -245,7 +281,8 @@ void FoxThreadPool::releaseFoxThread(FoxThread* t) {
     check();
 }
 
-bool FoxThreadPool::dispatch(callback cb) {
+bool FoxThreadPool::dispatch(callback cb)
+{
     do {
         Atomic::addFetch(m_total, (uint64_t)1);
         std::unique_lock lock(m_mutex);
@@ -258,7 +295,8 @@ bool FoxThreadPool::dispatch(callback cb) {
     return true;
 }
 
-bool FoxThreadPool::batchDispatch(const std::vector<callback>& cbs) {
+bool FoxThreadPool::batchDispatch(const std::vector<callback>& cbs)
+{
     Atomic::addFetch(m_total, cbs.size());
     std::unique_lock lock(m_mutex);
     if (!m_advance) {
@@ -275,7 +313,8 @@ bool FoxThreadPool::batchDispatch(const std::vector<callback>& cbs) {
     return true;
 }
 
-void FoxThreadPool::check() {
+void FoxThreadPool::check()
+{
     do {
         if (!m_start) {
             break;
@@ -285,8 +324,7 @@ void FoxThreadPool::check() {
             break;
         }
 
-        std::shared_ptr<FoxThread> thr(m_freeFoxThreads.front(), 
-            std::bind(&FoxThreadPool::releaseFoxThread, this, std::placeholders::_1));
+        std::shared_ptr<FoxThread> thr(m_freeFoxThreads.front(), std::bind(&FoxThreadPool::releaseFoxThread, this, std::placeholders::_1));
 
         m_freeFoxThreads.pop_front();
 
@@ -303,34 +341,47 @@ void FoxThreadPool::check() {
     } while (true);
 }
 
-void FoxThreadPool::wrapcb(std::shared_ptr<FoxThread> thr, callback cb) { cb(); }
+void FoxThreadPool::wrapcb(std::shared_ptr<FoxThread> thr, callback cb)
+{
+    cb();
+}
 
-bool FoxThreadPool::dispatch(uint32_t id, callback cb) {
+bool FoxThreadPool::dispatch(uint32_t id, callback cb)
+{
     Atomic::addFetch(m_total, (uint64_t)1);
     return m_threads[id % m_size]->dispatch(cb);
 }
 
-FoxThread* FoxThreadPool::getRandFoxThread() { return m_threads[m_cur++ % m_size]; }
+FoxThread* FoxThreadPool::getRandFoxThread()
+{
+    return m_threads[m_cur++ % m_size];
+}
 
-void FoxThreadPool::broadcast(callback cb) {
+void FoxThreadPool::broadcast(callback cb)
+{
     for (size_t i = 0; i < m_threads.size(); ++i) {
         m_threads[i]->dispatch(cb);
     }
 }
 
-void FoxThreadPool::dump(std::ostream& os) {
+void FoxThreadPool::dump(std::ostream& os)
+{
     std::shared_lock lock(m_mutex);
-    os << "[FoxThreadPool name = " << m_name << " thread_count = " << m_threads.size()
-       << " tasks = " << m_callbacks.size() << " total = " << m_total << " advance = " << m_advance << "]" << std::endl;
+    os << "[FoxThreadPool name = " << m_name << " thread_count = " << m_threads.size() << " tasks = " << m_callbacks.size() << " total = " << m_total
+       << " advance = " << m_advance << "]" << std::endl;
     for (size_t i = 0; i < m_threads.size(); ++i) {
         os << "    ";
         m_threads[i]->dump(os);
     }
 }
 
-FoxThread* FoxThread::GetThis() { return s_thread; }
+FoxThread* FoxThread::GetThis()
+{
+    return s_thread;
+}
 
-const std::string& FoxThread::GetFoxThreadName() {
+const std::string& FoxThread::GetFoxThreadName()
+{
     FoxThread* t = GetThis();
     if (t) {
         return t->m_name;
@@ -352,14 +403,16 @@ const std::string& FoxThread::GetFoxThreadName() {
     } while (0);
 }
 
-void FoxThread::GetAllFoxThreadName(std::map<uint64_t, std::string>& names) {
+void FoxThread::GetAllFoxThreadName(std::map<uint64_t, std::string>& names)
+{
     std::shared_lock lock(s_thread_mutex);
     for (auto it = s_thread_names.begin(); it != s_thread_names.end(); ++it) {
         names.insert(*it);
     }
 }
 
-void FoxThread::setThis() {
+void FoxThread::setThis()
+{
     m_name = m_name + "_" + std::to_string(GetThreadId());
     s_thread = this;
 
@@ -367,48 +420,56 @@ void FoxThread::setThis() {
     s_thread_names[GetThreadId()] = m_name;
 }
 
-void FoxThread::unsetThis() {
+void FoxThread::unsetThis()
+{
     s_thread = nullptr;
     std::unique_lock lock(s_thread_mutex);
     s_thread_names.erase(GetThreadId());
 }
 
-IFoxThread::ptr FoxThreadManager::get(const std::string& name) {
+IFoxThread::ptr FoxThreadManager::get(const std::string& name)
+{
     std::shared_lock lock(m_mutex);
     auto it = m_threads.find(name);
     return it == m_threads.end() ? nullptr : it->second;
 }
 
-void FoxThreadManager::add(const std::string& name, IFoxThread::ptr thr) {
+void FoxThreadManager::add(const std::string& name, IFoxThread::ptr thr)
+{
     std::unique_lock lock(m_mutex);
     m_threads[name] = thr;
 }
 
-void FoxThreadManager::dispatch(const std::string& name, callback cb) {
+void FoxThreadManager::dispatch(const std::string& name, callback cb)
+{
     IFoxThread::ptr ti = get(name);
     ASSERT(ti);
     ti->dispatch(cb);
 }
 
-void FoxThreadManager::dispatch(const std::string& name, uint32_t id, callback cb) {
+void FoxThreadManager::dispatch(const std::string& name, uint32_t id, callback cb)
+{
     IFoxThread::ptr ti = get(name);
     ASSERT(ti);
     ti->dispatch(id, cb);
 }
 
-void FoxThreadManager::batchDispatch(const std::string& name, const std::vector<callback>& cbs) {
+void FoxThreadManager::batchDispatch(const std::string& name, const std::vector<callback>& cbs)
+{
     IFoxThread::ptr ti = get(name);
     ASSERT(ti);
     ti->batchDispatch(cbs);
 }
 
-void FoxThreadManager::broadcast(const std::string& name, callback cb) {
+void FoxThreadManager::broadcast(const std::string& name, callback cb)
+{
     IFoxThread::ptr ti = get(name);
     ASSERT(ti);
     ti->broadcast(cb);
 }
 
-void FoxThreadManager::dumpFoxThreadStatus(std::ostream& os) {
+void FoxThreadManager::dumpFoxThreadStatus(std::ostream& os)
+{
     os << "FoxThreadManager: " << std::endl;
     for (auto it = m_threads.begin(); it != m_threads.end(); ++it) {
         it->second->dump(os);
@@ -422,7 +483,8 @@ void FoxThreadManager::dumpFoxThreadStatus(std::ostream& os) {
     }
 }
 
-void FoxThreadManager::init() {
+void FoxThreadManager::init()
+{
     std::unique_lock lock(m_mutex);
     if (m_inited) {
         INFO(logger) << "FoxThreadManager already initialized, skip";
@@ -449,7 +511,8 @@ void FoxThreadManager::init() {
     m_inited = true;
 }
 
-void FoxThreadManager::start() {
+void FoxThreadManager::start()
+{
     std::unique_lock lock(m_mutex);
     if (m_started) {
         INFO(logger) << "FoxThreadManager already started, skip";
@@ -464,7 +527,8 @@ void FoxThreadManager::start() {
     }
 }
 
-void FoxThreadManager::stop() {
+void FoxThreadManager::stop()
+{
     std::unique_lock lock(m_mutex);
     for (auto i : m_threads) {
         INFO(logger) << "thread: " << i.first << " stop begin";

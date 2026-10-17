@@ -22,12 +22,12 @@
 </table>
 ```
 
-| 属性 | 说明 | 默认值 |
-|------|------|--------|
-| `name` | 数据库表名 | 必填 |
-| `namespace` | C++ 命名空间（`.` 分隔） | 必填 |
-| `version` | 数据库版本号，用于版本化迁移 | 1 |
-| `desc` | 表注释 | 空 |
+| 属性        | 说明                         | 默认值 |
+|-------------|------------------------------|--------|
+| `name`      | 数据库表名                   | 必填   |
+| `namespace` | C++ 命名空间（`.` 分隔）     | 必填   |
+| `version`   | 数据库版本号，用于版本化迁移 | 1      |
+| `desc`      | 表注释                       | 空     |
 
 ### 2. 运行代码生成器
 
@@ -37,6 +37,7 @@ bin/orm -i /path/to/xml -o /path/to/output # 指定输入输出目录
 ```
 
 生成文件：
+
 - `category_info.h` — 业务结构体 `CategoryInfo` 及 DAO 声明 `CategoryInfoDao`
 - `category_info.cc` — DAO 实现
 
@@ -73,27 +74,27 @@ CategoryInfoDao::QueryAll(list, conn);
 
 ### 写入
 
-| 方法 | 说明 |
-|------|------|
-| `Insert(info, conn)` | 插入新记录，自动回填自增主键，成功后 `markClean()` |
-| `InsertOrUpdate(info, conn)` | 插入或替换（MySQL: REPLACE INTO），成功后 `markClean()` |
-| `Update(info, conn)` | 只更新被修改过的字段（脏字段追踪），成功后 `markClean()` |
-| `Delete(info, conn)` | 按主键删除 |
-| `Delete(id, conn)` | 按主键值删除 |
-| `DeleteBy<Col>(val, conn)` | 按索引列删除 |
-| `BatchInsert(infos, conn)` | 单条 SQL 批量插入多行 |
-| `BatchUpdate(infos, conn)` | 事务内逐条更新，一条失败全部回滚 |
-| `BatchDelete(ids, conn)` | DELETE WHERE id IN (...) |
+| 方法                         | 说明                                                     |
+|------------------------------|----------------------------------------------------------|
+| `Insert(info, conn)`         | 插入新记录，自动回填自增主键，成功后 `markClean()`       |
+| `InsertOrUpdate(info, conn)` | 插入或替换（MySQL: REPLACE INTO），成功后 `markClean()`  |
+| `Update(info, conn)`         | 只更新被修改过的字段（脏字段追踪），成功后 `markClean()` |
+| `Delete(info, conn)`         | 按主键删除                                               |
+| `Delete(id, conn)`           | 按主键值删除                                             |
+| `DeleteBy<Col>(val, conn)`   | 按索引列删除                                             |
+| `BatchInsert(infos, conn)`   | 单条 SQL 批量插入多行                                    |
+| `BatchUpdate(infos, conn)`   | 事务内逐条更新，一条失败全部回滚                         |
+| `BatchDelete(ids, conn)`     | DELETE WHERE id IN (...)                                 |
 
 ### 查询
 
-| 方法 | 说明 |
-|------|------|
-| `QueryAll(results, conn)` | 查询全表 |
-| `Query(id, conn)` | 按主键查单条，返回 `ptr`（未找到返回 nullptr） |
-| `QueryBy<Col>(val, conn)` | 按唯一索引查单条，返回 `ptr` |
-| `QueryBy<Col>(results, val, conn)` | 按普通索引查多条 |
-| `QueryBy<Col>Pages(results, total, val, offset, limit, conn)` | 按索引分页查询，含 COUNT |
+| 方法                                                          | 说明                                           |
+|---------------------------------------------------------------|------------------------------------------------|
+| `QueryAll(results, conn)`                                     | 查询全表                                       |
+| `Query(id, conn)`                                             | 按主键查单条，返回 `ptr`（未找到返回 nullptr） |
+| `QueryBy<Col>(val, conn)`                                     | 按唯一索引查单条，返回 `ptr`                   |
+| `QueryBy<Col>(results, val, conn)`                            | 按普通索引查多条                               |
+| `QueryBy<Col>Pages(results, total, val, offset, limit, conn)` | 按索引分页查询，含 COUNT                       |
 
 ### 自定义查询（QueryBuilder）
 
@@ -141,7 +142,8 @@ if (data) {
 }
 ```
 
-> **注意**：`QueryByBuilder` 和 `QueryByBuilderPages` 会自动覆盖 QueryBuilder 的 SELECT 列为表全部列（保证结果能正确映射到 Info 结构体），其他子句（WHERE、JOIN、ORDER BY、GROUP BY、HAVING）正常生效。
+> **注意**：`QueryByBuilder` 和 `QueryByBuilderPages` 会自动覆盖 QueryBuilder 的 SELECT 列为表全部列（保证结果能正确映射到
+> Info 结构体），其他子句（WHERE、JOIN、ORDER BY、GROUP BY、HAVING）正常生效。
 
 ### 数据库迁移
 
@@ -238,19 +240,19 @@ qb->insert("name", "hello")               // INSERT
 
 ## XML 列类型参考
 
-| XML type | C++ 类型 | SQLite | MySQL |
-|----------|---------|--------|-------|
-| `int8` | `int8_t` | INTEGER | tinyint |
-| `int16` | `int16_t` | INTEGER | smallint |
-| `int32` | `int32_t` | INTEGER | int |
-| `int64` | `int64_t` | INTEGER | bigint |
-| `uint8` | `uint8_t` | INTEGER | tinyint unsigned |
-| `float` | `float` | REAL | float |
-| `double` | `double` | REAL | double |
-| `string` | `std::string` | TEXT | varchar(N) |
-| `text` | `std::string` | TEXT | text |
-| `blob` | `std::string` | BLOB | blob |
-| `timestamp` | `int64_t` | TIMESTAMP | timestamp |
+| XML type    | C++ 类型      | SQLite    | MySQL            |
+|-------------|---------------|-----------|------------------|
+| `int8`      | `int8_t`      | INTEGER   | tinyint          |
+| `int16`     | `int16_t`     | INTEGER   | smallint         |
+| `int32`     | `int32_t`     | INTEGER   | int              |
+| `int64`     | `int64_t`     | INTEGER   | bigint           |
+| `uint8`     | `uint8_t`     | INTEGER   | tinyint unsigned |
+| `float`     | `float`       | REAL      | float            |
+| `double`    | `double`      | REAL      | double           |
+| `string`    | `std::string` | TEXT      | varchar(N)       |
+| `text`      | `std::string` | TEXT      | text             |
+| `blob`      | `std::string` | BLOB      | blob             |
+| `timestamp` | `int64_t`     | TIMESTAMP | timestamp        |
 
 ## DDL 迁移
 
@@ -275,14 +277,14 @@ CategoryInfoDao::MigrateTableMySQL(conn);
 
 ### 核心概念
 
-| 类 | 说明 |
-|----|------|
-| `ShardKey` | 分片键，支持 `Int64`（hash 取模）、`String`（租户）、`Time`（日期） |
-| `ShardTarget` | 路由结果：逻辑库名 + 物理表名 |
-| `IShardStrategy` | 可插拔策略接口，实现 `route(logicalTable, key)` 即可自定义 |
-| `HashShardStrategy` | Hash/取模 分库，可选分表 |
-| `DateShardStrategy` | 按时间分表（strftime 格式化表名） |
-| `ShardRouter` | Singleton 路由入口，管理规则和连接池 |
+| 类                  | 说明                                                                |
+|---------------------|---------------------------------------------------------------------|
+| `ShardKey`          | 分片键，支持 `Int64`（hash 取模）、`String`（租户）、`Time`（日期） |
+| `ShardTarget`       | 路由结果：逻辑库名 + 物理表名                                       |
+| `IShardStrategy`    | 可插拔策略接口，实现 `route(logicalTable, key)` 即可自定义          |
+| `HashShardStrategy` | Hash/取模 分库，可选分表                                            |
+| `DateShardStrategy` | 按时间分表（strftime 格式化表名）                                   |
+| `ShardRouter`       | Singleton 路由入口，管理规则和连接池                                |
 
 ### 初始化
 

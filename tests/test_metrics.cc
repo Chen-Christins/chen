@@ -17,31 +17,27 @@ using namespace chen::metrics;
 
 namespace {
 
-bool Contains(const std::string& text, const std::string& needle) {
+bool Contains(const std::string& text, const std::string& needle)
+{
     return text.find(needle) != std::string::npos;
 }
 
-void TestCounter() {
+void TestCounter()
+{
     std::cout << "=== TestCounter ===" << std::endl;
     auto* registry = RegistryMgr::GetInstance();
-    auto* counter = registry->getCounter(
-        "test_metrics_counter_total", "test counter",
-        {{"server", "test"}, {"method", "GET"}});
+    auto* counter = registry->getCounter("test_metrics_counter_total", "test counter", {{"server", "test"}, {"method", "GET"}});
     assert(counter != nullptr);
     counter->inc();
     counter->inc(4);
     assert(counter->value() == 5);
 
     // 相同 name + labels 返回同一对象
-    auto* same = registry->getCounter(
-        "test_metrics_counter_total", "test counter",
-        {{"method", "GET"}, {"server", "test"}});
+    auto* same = registry->getCounter("test_metrics_counter_total", "test counter", {{"method", "GET"}, {"server", "test"}});
     assert(same == counter);
 
     // label 不同则为新对象
-    auto* other = registry->getCounter(
-        "test_metrics_counter_total", "test counter",
-        {{"server", "test"}, {"method", "POST"}});
+    auto* other = registry->getCounter("test_metrics_counter_total", "test counter", {{"server", "test"}, {"method", "POST"}});
     assert(other != nullptr);
     assert(other != counter);
     other->inc();
@@ -55,7 +51,8 @@ void TestCounter() {
     std::cout << "PASS" << std::endl;
 }
 
-void TestGauge() {
+void TestGauge()
+{
     std::cout << "=== TestGauge ===" << std::endl;
     auto* registry = RegistryMgr::GetInstance();
     auto* gauge = registry->getGauge("test_metrics_gauge", "test gauge");
@@ -73,12 +70,13 @@ void TestGauge() {
     std::cout << "PASS" << std::endl;
 }
 
-void TestGaugeFunc() {
+void TestGaugeFunc()
+{
     std::cout << "=== TestGaugeFunc ===" << std::endl;
     auto* registry = RegistryMgr::GetInstance();
-    auto* gauge = registry->getGaugeFunc(
-        "test_metrics_gauge_func", "test gauge func",
-        {{"kind", "runtime"}}, []() { return (int64_t)42; });
+    auto* gauge = registry->getGaugeFunc("test_metrics_gauge_func", "test gauge func", {{"kind", "runtime"}}, []() {
+        return (int64_t)42;
+    });
     assert(gauge != nullptr);
 
     std::string text = registry->RenderPrometheus();
@@ -87,12 +85,11 @@ void TestGaugeFunc() {
     std::cout << "PASS" << std::endl;
 }
 
-void TestHistogram() {
+void TestHistogram()
+{
     std::cout << "=== TestHistogram ===" << std::endl;
     auto* registry = RegistryMgr::GetInstance();
-    auto* histogram = registry->getHistogram(
-        "test_metrics_latency_seconds", "test latency",
-        {{"route", "/a"}}, {0.001, 0.01, 0.1});
+    auto* histogram = registry->getHistogram("test_metrics_latency_seconds", "test latency", {{"route", "/a"}}, {0.001, 0.01, 0.1});
     assert(histogram != nullptr);
 
     histogram->observe(0.0005);
@@ -112,12 +109,11 @@ void TestHistogram() {
     std::cout << "PASS" << std::endl;
 }
 
-void TestLabelsEscape() {
+void TestLabelsEscape()
+{
     std::cout << "=== TestLabelsEscape ===" << std::endl;
     auto* registry = RegistryMgr::GetInstance();
-    auto* counter = registry->getCounter(
-        "test.metrics-bad-name", "help with \\ and \n newline",
-        {{"path", "/a\"b\\c\nd"}});
+    auto* counter = registry->getCounter("test.metrics-bad-name", "help with \\ and \n newline", {{"path", "/a\"b\\c\nd"}});
     assert(counter != nullptr);
     counter->inc();
 
@@ -129,10 +125,10 @@ void TestLabelsEscape() {
     std::cout << "PASS" << std::endl;
 }
 
-void TestConcurrentCounter() {
+void TestConcurrentCounter()
+{
     std::cout << "=== TestConcurrentCounter ===" << std::endl;
-    auto* counter = RegistryMgr::GetInstance()->getCounter(
-        "test_metrics_concurrent_total", "concurrent counter");
+    auto* counter = RegistryMgr::GetInstance()->getCounter("test_metrics_concurrent_total", "concurrent counter");
     assert(counter != nullptr);
 
     constexpr int kThreads = 4;
@@ -153,11 +149,11 @@ void TestConcurrentCounter() {
     std::cout << "PASS" << std::endl;
 }
 
-void TestConcurrentHistogram() {
+void TestConcurrentHistogram()
+{
     std::cout << "=== TestConcurrentHistogram ===" << std::endl;
     auto* histogram = RegistryMgr::GetInstance()->getHistogram(
-        "test_metrics_concurrent_latency_seconds", "concurrent histogram",
-        {{"route", "/concurrent"}}, {0.001, 0.01, 0.1});
+        "test_metrics_concurrent_latency_seconds", "concurrent histogram", {{"route", "/concurrent"}}, {0.001, 0.01, 0.1});
     assert(histogram != nullptr);
 
     constexpr int kThreads = 4;
@@ -182,7 +178,8 @@ void TestConcurrentHistogram() {
     std::cout << "PASS" << std::endl;
 }
 
-void TestTypeMismatch() {
+void TestTypeMismatch()
+{
     std::cout << "=== TestTypeMismatch ===" << std::endl;
     auto* registry = RegistryMgr::GetInstance();
     auto* counter = registry->getCounter("test_metrics_type_mismatch_total", "counter");
@@ -195,7 +192,8 @@ void TestTypeMismatch() {
 
 } // namespace
 
-int main() {
+int main()
+{
     TestCounter();
     TestGauge();
     TestGaugeFunc();

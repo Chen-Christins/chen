@@ -57,21 +57,21 @@ logs:
 
 ### 输出器类型
 
-| type | 说明 |
-|------|------|
-| `FileLogAppender` | 输出到文件，支持按时间切分、按大小分片、过期清理 |
-| `StdoutLogAppender` | 输出到标准输出，按日志级别着色 |
+| type                | 说明                                             |
+|---------------------|--------------------------------------------------|
+| `FileLogAppender`   | 输出到文件，支持按时间切分、按大小分片、过期清理 |
+| `StdoutLogAppender` | 输出到标准输出，按日志级别着色                   |
 
 ### FileLogAppender 配置项
 
-| 键 | 类型 | 默认 | 说明 |
-|----|------|------|------|
-| `file` | string | 必填 | 日志文件路径 |
-| `level` | string | 继承 logger | 输出级别过滤 |
-| `formatter` | string | 内置 | 自定义输出格式 |
-| `time_rotate` | string | `none` | 时间切分：`none`/`30min`/`hour`/`12hour`/`day`/`week`/`month` |
-| `max_size` | int(字节) | `0` | 单文件最大字节数，超过即分片；`0` 不限制 |
-| `retention_days` | int | `0` | 保留天数，`0` 不限制；仅在 `time_rotate` 非 `none` 时生效 |
+| 键               | 类型      | 默认        | 说明                                                          |
+|------------------|-----------|-------------|---------------------------------------------------------------|
+| `file`           | string    | 必填        | 日志文件路径                                                  |
+| `level`          | string    | 继承 logger | 输出级别过滤                                                  |
+| `formatter`      | string    | 内置        | 自定义输出格式                                                |
+| `time_rotate`    | string    | `none`      | 时间切分：`none`/`30min`/`hour`/`12hour`/`day`/`week`/`month` |
+| `max_size`       | int(字节) | `0`         | 单文件最大字节数，超过即分片；`0` 不限制                      |
+| `retention_days` | int       | `0`         | 保留天数，`0` 不限制；仅在 `time_rotate` 非 `none` 时生效     |
 
 ### 按大小分片（`max_size`）
 
@@ -81,10 +81,10 @@ logs:
 
 分片文件命名（序号插入扩展名前）：
 
-| 场景 | 文件命名 |
-|------|---------|
-| `time_rotate: day` + `max_size` | `app_2024-11-02.log` → `app_2024-11-02_1.log` |
-| `time_rotate: none` + `max_size` | `app.log` → `app_1.log` |
+| 场景                             | 文件命名                                      |
+|----------------------------------|-----------------------------------------------|
+| `time_rotate: day` + `max_size`  | `app_2024-11-02.log` → `app_2024-11-02_1.log` |
+| `time_rotate: none` + `max_size` | `app.log` → `app_1.log`                       |
 
 > `max_size` 分片文件不按 `retention_days` 清理（清理依赖文件名中的日期）；如需自动清理建议配合 `time_rotate` 使用。
 

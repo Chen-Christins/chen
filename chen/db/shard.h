@@ -8,8 +8,6 @@
  */
 #pragma once
 
-#include <cstdint>
-#include <ctime>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -25,21 +23,29 @@ namespace chen {
 
 class ShardKey {
 public:
-    enum Type { NONE, INT64, STRING, TIME };
+    enum Type {
+        NONE,
+        INT64,
+        STRING,
+        TIME
+    };
 
-    static ShardKey Int64(int64_t v) {
+    static ShardKey Int64(int64_t v)
+    {
         ShardKey k;
         k.m_type = INT64;
         k.m_intVal = v;
         return k;
     }
-    static ShardKey String(const std::string& v) {
+    static ShardKey String(const std::string& v)
+    {
         ShardKey k;
         k.m_type = STRING;
         k.m_strVal = v;
         return k;
     }
-    static ShardKey Time(time_t v) {
+    static ShardKey Time(time_t v)
+    {
         ShardKey k;
         k.m_type = TIME;
         k.m_timeVal = v;
@@ -64,8 +70,8 @@ private:
 // ============================================================================
 
 struct ShardTarget {
-    std::string dbName;     /**< 逻辑库名，用于从 ShardRouter 获取对应连接 */
-    std::string tableName;  /**< 物理表名，空字符串表示不改变表名 */
+    std::string dbName;    /**< 逻辑库名，用于从 ShardRouter 获取对应连接 */
+    std::string tableName; /**< 物理表名，空字符串表示不改变表名 */
 
     bool hasDB() const { return !dbName.empty(); }
     bool hasTable() const { return !tableName.empty(); }
@@ -114,8 +120,7 @@ public:
      * @param shardCount 分片总数
      * @param tableFormat 表名模板（可选），为空则只分库不分表
      */
-    HashShardStrategy(const std::string& dbFormat, int shardCount,
-                      const std::string& tableFormat = "");
+    HashShardStrategy(const std::string& dbFormat, int shardCount, const std::string& tableFormat = "");
 
     ShardTarget route(const std::string& logicalTable, const ShardKey& key) override;
 

@@ -12,9 +12,9 @@
 #include "game/game_server.h"
 #include "http/http_server.h"
 #include "http/ws_server.h"
-#include "rpc/rpc_server.h"
 #include "iomanager/worker.h"
 #include "module/module.h"
+#include "rpc/rpc_server.h"
 #include "util/env.h"
 #include "version.h"
 
@@ -22,14 +22,10 @@ namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
 
-static ConfigVar<std::string>::ptr g_server_work_path =
-    Config::Lookup("server.work_path", std::string(), "server work path");
-static ConfigVar<std::string>::ptr g_server_pid_file =
-    Config::Lookup("server.pid_file", std::string("chen.pid"), "server pid file");
-static ConfigVar<std::vector<TcpServerConf>>::ptr g_servers_conf =
-    Config::Lookup("servers", std::vector<TcpServerConf>(), "server conf");
-static ConfigVar<uint64_t>::ptr g_drain_timeout_ms =
-    Config::Lookup("server.drain_timeout_ms", (uint64_t)3000, "graceful shutdown drain timeout ms");
+static ConfigVar<std::string>::ptr g_server_work_path = Config::Lookup("server.work_path", std::string(), "server work path");
+static ConfigVar<std::string>::ptr g_server_pid_file = Config::Lookup("server.pid_file", std::string("chen.pid"), "server pid file");
+static ConfigVar<std::vector<TcpServerConf>>::ptr g_servers_conf = Config::Lookup("servers", std::vector<TcpServerConf>(), "server conf");
+static ConfigVar<uint64_t>::ptr g_drain_timeout_ms = Config::Lookup("server.drain_timeout_ms", (uint64_t)3000, "graceful shutdown drain timeout ms");
 static ConfigVar<uint64_t>::ptr g_housekeeping_interval_ms =
     Config::Lookup("server.housekeeping_interval_ms", (uint64_t)500, "housekeeping timer interval ms");
 static ConfigVar<uint64_t>::ptr g_worker_ready_timeout_ms =
@@ -37,64 +33,60 @@ static ConfigVar<uint64_t>::ptr g_worker_ready_timeout_ms =
 static ConfigVar<uint32_t>::ptr g_worker_restart_interval_ms =
     Config::Lookup("server.worker_restart_interval_ms", (uint32_t)2000, "master restarts crashed worker interval ms");
 
-static void RegisterBuiltInServers() {
+static void RegisterBuiltInServers()
+{
     static std::once_flag flag;
     std::call_once(flag, []() {
-        TcpServerFactory::Register(
-            "http", [](const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
-                auto server = std::make_shared<http::HttpServer>(conf.keepalive != 0,
-                                                                  process_worker, io_worker, accept_worker);
-                if (conf.negotiateH2) {
-                    server->setNegotiateH2(true);
-                }
-                return TcpServer::ptr(server);
-            });
-        TcpServerFactory::Register(
-            "http2", [](const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
-                auto server = std::make_shared<http::HttpServer>(conf.keepalive != 0,
-                                                                  process_worker, io_worker, accept_worker);
-                server->setType("http2");
-                return TcpServer::ptr(server);
-            });
-        TcpServerFactory::Register(
-            "ws", [](const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
-                return TcpServer::ptr(new http::WSServer(process_worker, io_worker, accept_worker));
-            });
-        TcpServerFactory::Register(
-            "rpc", [](const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
-                auto server = std::make_shared<rpc::RpcServer>(process_worker, io_worker, accept_worker);
-                if (auto it = conf.args.find("relay"); it != conf.args.end() && it->second == "1") {
-                    server->setRelay(true);
-                }
-                if (auto it = conf.args.find("relay_timeout"); it != conf.args.end()) {
-                    server->setRelayTimeout(strtoul(it->second.c_str(), nullptr, 0));
-                }
-                return TcpServer::ptr(server);
-            });
-        TcpServerFactory::Register(
-            "game", [](const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
-                uint32_t magic = 0xC0DECAFE;
-                size_t header_size = 16;
-                if (auto it = conf.args.find("magic"); it != conf.args.end()) {
-                    magic = static_cast<uint32_t>(strtoul(it->second.c_str(), nullptr, 0));
-                }
-                if (auto it = conf.args.find("header_size"); it != conf.args.end()) {
-                    header_size = static_cast<size_t>(strtoul(it->second.c_str(), nullptr, 0));
-                }
-                auto parser = game::CreateLengthFieldParser(header_size, magic);
-                return TcpServer::ptr(new game::GenericProtocolServer(parser, process_worker, io_worker, accept_worker));
-            });
+        TcpServerFactory::Register("http", [](const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
+            auto server = std::make_shared<http::HttpServer>(conf.keepalive != 0, process_worker, io_worker, accept_worker);
+            if (conf.negotiateH2) {
+                server->setNegotiateH2(true);
+            }
+            return TcpServer::ptr(server);
+        });
+        TcpServerFactory::Register("http2", [](const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
+            auto server = std::make_shared<http::HttpServer>(conf.keepalive != 0, process_worker, io_worker, accept_worker);
+            server->setType("http2");
+            return TcpServer::ptr(server);
+        });
+        TcpServerFactory::Register("ws", [](const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
+            return TcpServer::ptr(new http::WSServer(process_worker, io_worker, accept_worker));
+        });
+        TcpServerFactory::Register("rpc", [](const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
+            auto server = std::make_shared<rpc::RpcServer>(process_worker, io_worker, accept_worker);
+            if (auto it = conf.args.find("relay"); it != conf.args.end() && it->second == "1") {
+                server->setRelay(true);
+            }
+            if (auto it = conf.args.find("relay_timeout"); it != conf.args.end()) {
+                server->setRelayTimeout(strtoul(it->second.c_str(), nullptr, 0));
+            }
+            return TcpServer::ptr(server);
+        });
+        TcpServerFactory::Register("game", [](const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
+            uint32_t magic = 0xC0DECAFE;
+            size_t header_size = 16;
+            if (auto it = conf.args.find("magic"); it != conf.args.end()) {
+                magic = static_cast<uint32_t>(strtoul(it->second.c_str(), nullptr, 0));
+            }
+            if (auto it = conf.args.find("header_size"); it != conf.args.end()) {
+                header_size = static_cast<size_t>(strtoul(it->second.c_str(), nullptr, 0));
+            }
+            auto parser = game::CreateLengthFieldParser(header_size, magic);
+            return TcpServer::ptr(new game::GenericProtocolServer(parser, process_worker, io_worker, accept_worker));
+        });
     });
 }
 
 Application* Application::m_instance = nullptr;
 std::atomic<bool> Application::s_shutdownSignaled{false};
 
-Application::Application() {
+Application::Application()
+{
     m_instance = this;
 }
 
-bool Application::init(int argc, char** argv) {
+bool Application::init(int argc, char** argv)
+{
     m_argc = argc;
     m_argv = argv;
 
@@ -164,26 +156,33 @@ bool Application::init(int argc, char** argv) {
         return false;
     }
     if (!FSUtil::Mkdir(g_server_work_path->getValue())) {
-        FATAL(logger) << "create work path [" << g_server_work_path->getValue() << " errno=" << errno
-            << " errstr=" << std::strerror(errno);
+        FATAL(logger) << "create work path [" << g_server_work_path->getValue() << " errno=" << errno << " errstr=" << std::strerror(errno);
         return false;
     }
     return true;
 }
 
-bool Application::run() {
+bool Application::run()
+{
     bool is_daemon = EnvMgr::GetInstance()->has("d");
-    return start_daemon(m_argc, m_argv,
-        [this](int, char**) { return masterMain(); }, is_daemon) == 0;
+    return start_daemon(
+               m_argc, m_argv,
+               [this](int, char**) {
+                   return masterMain();
+               },
+               is_daemon)
+        == 0;
 }
 
-void Application::signalHandler(int sig) {
+void Application::signalHandler(int sig)
+{
     if (sig == SIGINT || sig == SIGTERM || sig == SIGQUIT) {
         s_shutdownSignaled.store(true, std::memory_order_release);
     }
 }
 
-int Application::sendSignal(const std::string& sig_name) {
+int Application::sendSignal(const std::string& sig_name)
+{
     std::string pidfile = g_server_work_path->getValue() + "/" + g_server_pid_file->getValue();
 
     std::string content = FSUtil::ReadFileToString(pidfile);
@@ -214,8 +213,7 @@ int Application::sendSignal(const std::string& sig_name) {
     }
 
     if (kill(pid, sig) != 0) {
-        ERROR(logger) << "failed to send signal to pid " << pid
-            << ": " << strerror(errno);
+        ERROR(logger) << "failed to send signal to pid " << pid << ": " << strerror(errno);
         return -1;
     }
 
@@ -223,7 +221,8 @@ int Application::sendSignal(const std::string& sig_name) {
     return 0;
 }
 
-void Application::registerSignals() {
+void Application::registerSignals()
+{
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = &Application::signalHandler;
@@ -240,7 +239,8 @@ void Application::registerSignals() {
     INFO(logger) << "registered signal handlers (SIGINT/SIGTERM/SIGQUIT: shutdown)";
 }
 
-void Application::onHousekeeping() {
+void Application::onHousekeeping()
+{
     // 检查优雅关闭信号
     if (s_shutdownSignaled.load(std::memory_order_acquire)) {
         if (!m_isShuttingDown) {
@@ -251,28 +251,29 @@ void Application::onHousekeeping() {
     }
 }
 
-void Application::startConfigWatcher() {
+void Application::startConfigWatcher()
+{
     m_configWatcher.reset(new FileWatcher());
     std::string conf_path = EnvMgr::GetInstance()->getAbsolutePath(EnvMgr::GetInstance()->getConfigPath());
 
     m_configWatcher->watchDir(conf_path, [this](const std::string& file, uint32_t events) {
-        INFO(logger) << "inotify: config file event file=" << file
-            << " mask=0x" << std::hex << events;
+        INFO(logger) << "inotify: config file event file=" << file << " mask=0x" << std::hex << events;
         doConfigReload(file);
     });
 }
 
-void Application::doConfigReload(const std::string& file) {
+void Application::doConfigReload(const std::string& file)
+{
     INFO(logger) << "config reload: reloading file=" << file;
     Config::LoadFromFile(file);
 }
 
-void Application::doGracefulShutdown() {
+void Application::doGracefulShutdown()
+{
     INFO(logger) << "graceful shutdown: stopping all servers...";
     for (auto& [type, servers] : m_servers) {
         for (auto& server : servers) {
-            INFO(logger) << "graceful shutdown: stopping server type=" << type
-                << " name=" << server->getName();
+            INFO(logger) << "graceful shutdown: stopping server type=" << type << " name=" << server->getName();
             server->stop();
         }
     }
@@ -340,7 +341,8 @@ void Application::doGracefulShutdown() {
     });
 }
 
-bool Application::setupServers() {
+bool Application::setupServers()
+{
     RegisterBuiltInServers();
 
     auto conf = g_servers_conf->getValue();
@@ -408,7 +410,8 @@ bool Application::setupServers() {
     return true;
 }
 
-int Application::spawnWorker() {
+int Application::spawnWorker()
+{
     int pipefd[2];
     if (pipe(pipefd) != 0) {
         ERROR(logger) << "master: pipe failed errno=" << errno << " errstr=" << strerror(errno);
@@ -448,7 +451,8 @@ int Application::spawnWorker() {
     return idx;
 }
 
-bool Application::waitWorkerReady(WorkerProc& w, uint64_t timeout_ms) {
+bool Application::waitWorkerReady(WorkerProc& w, uint64_t timeout_ms)
+{
     if (w.ready_fd < 0) {
         return false;
     }
@@ -477,7 +481,8 @@ bool Application::waitWorkerReady(WorkerProc& w, uint64_t timeout_ms) {
     return n == 1 && c == '1';
 }
 
-void Application::sleepInterruptible(uint32_t ms) {
+void Application::sleepInterruptible(uint32_t ms)
+{
     uint64_t remain_ns = static_cast<uint64_t>(ms) * 1000000ULL;
     while (remain_ns > 0 && !m_isMasterStopping) {
         struct timespec ts;
@@ -487,7 +492,7 @@ void Application::sleepInterruptible(uint32_t ms) {
         int sig = sigtimedwait(&m_masterSigset, nullptr, &ts);
         if (sig < 0) {
             if (errno == EAGAIN) {
-                break;      // 超时
+                break; // 超时
             }
             if (errno == EINTR) {
                 continue;
@@ -507,7 +512,8 @@ void Application::sleepInterruptible(uint32_t ms) {
     }
 }
 
-void Application::reapWorkers() {
+void Application::reapWorkers()
+{
     int status = 0;
     pid_t pid = 0;
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
@@ -524,11 +530,9 @@ void Application::reapWorkers() {
         }
 
         if (WIFEXITED(status)) {
-            INFO(logger) << "master: worker pid=" << pid
-                << " exited code=" << WEXITSTATUS(status);
+            INFO(logger) << "master: worker pid=" << pid << " exited code=" << WEXITSTATUS(status);
         } else if (WIFSIGNALED(status)) {
-            WARN(logger) << "master: worker pid=" << pid
-                << " killed signal=" << WTERMSIG(status);
+            WARN(logger) << "master: worker pid=" << pid << " killed signal=" << WTERMSIG(status);
         }
 
         if (m_isMasterStopping || draining) {
@@ -556,7 +560,8 @@ void Application::reapWorkers() {
     }
 }
 
-void Application::handleReload() {
+void Application::handleReload()
+{
     INFO(logger) << "master: received SIGHUP, reloading modules...";
 
     int idx = spawnWorker();
@@ -567,8 +572,7 @@ void Application::handleReload() {
 
     WorkerProc& new_worker = m_workers[idx];
     if (!waitWorkerReady(new_worker, g_worker_ready_timeout_ms->getValue())) {
-        ERROR(logger) << "master: new worker pid=" << new_worker.pid
-            << " failed to become ready, killing it and keeping old workers";
+        ERROR(logger) << "master: new worker pid=" << new_worker.pid << " failed to become ready, killing it and keeping old workers";
         kill(new_worker.pid, SIGKILL);
         // 标记 draining，避免 reapWorkers 把它当崩溃重启
         new_worker.draining = true;
@@ -579,22 +583,21 @@ void Application::handleReload() {
         return;
     }
 
-    INFO(logger) << "master: new worker pid=" << new_worker.pid
-        << " ready, draining old workers";
+    INFO(logger) << "master: new worker pid=" << new_worker.pid << " ready, draining old workers";
     for (auto& w : m_workers) {
         if (w.pid == new_worker.pid || w.draining) {
             continue;
         }
         INFO(logger) << "master: sending SIGQUIT to old worker pid=" << w.pid;
         if (kill(w.pid, SIGQUIT) != 0) {
-            ERROR(logger) << "master: kill SIGQUIT pid=" << w.pid
-                << " failed errno=" << errno << " errstr=" << strerror(errno);
+            ERROR(logger) << "master: kill SIGQUIT pid=" << w.pid << " failed errno=" << errno << " errstr=" << strerror(errno);
         }
         w.draining = true;
     }
 }
 
-void Application::shutdownWorkers() {
+void Application::shutdownWorkers()
+{
     m_isMasterStopping = true;
     for (auto& w : m_workers) {
         if (w.pid > 0) {
@@ -627,7 +630,8 @@ void Application::shutdownWorkers() {
     }
 }
 
-int Application::masterMain() {
+int Application::masterMain()
+{
     if (!setupServers()) {
         ERROR(logger) << "master: setup servers failed";
         return 1;
@@ -710,7 +714,8 @@ int Application::masterMain() {
     return 0;
 }
 
-void Application::workerMain(int ready_fd) {
+void Application::workerMain(int ready_fd)
+{
     // 先安装处理器，再解除 master 继承的信号屏蔽
     registerSignals();
     sigset_t set;
@@ -726,9 +731,12 @@ void Application::workerMain(int ready_fd) {
 
     // housekeeping 定时器：仅处理信号检测
     uint64_t housekeeping_ms = g_housekeeping_interval_ms->getValue();
-    m_housekeepingTimer = m_mainIOManager->addTimer(housekeeping_ms, [this]() {
-        onHousekeeping();
-    }, true);
+    m_housekeepingTimer = m_mainIOManager->addTimer(
+        housekeeping_ms,
+        [this]() {
+            onHousekeeping();
+        },
+        true);
 
     // inotify 监听配置文件变更
     startConfigWatcher();
@@ -742,7 +750,8 @@ void Application::workerMain(int ready_fd) {
     _exit(0);
 }
 
-void Application::reportWorkerReady() {
+void Application::reportWorkerReady()
+{
     if (m_readyFd < 0) {
         return;
     }
@@ -757,7 +766,8 @@ void Application::reportWorkerReady() {
     m_readyFd = -1;
 }
 
-void Application::reportWorkerFailed() {
+void Application::reportWorkerFailed()
+{
     if (m_readyFd < 0) {
         return;
     }
@@ -772,7 +782,8 @@ void Application::reportWorkerFailed() {
     m_readyFd = -1;
 }
 
-int Application::run_fiber() {
+int Application::run_fiber()
+{
     // worker 从磁盘加载模块（含最新版本）
     ModuleMgr::GetInstance()->init();
 
@@ -789,8 +800,7 @@ int Application::run_fiber() {
     bool has_error = false;
     for (auto& i : modules) {
         if (!i->onLoad()) {
-            ERROR(logger) << "module name=" << i->getName() << " version=" << i->getVersion()
-                << " filename=" << i->getFilename();
+            ERROR(logger) << "module name=" << i->getName() << " version=" << i->getVersion() << " filename=" << i->getFilename();
             has_error = true;
         }
     }
@@ -865,12 +875,15 @@ int Application::run_fiber() {
         if (interval_ms > 0) {
             // 使用 weak_ptr，避免定时器阻止模块释放
             std::weak_ptr<Module> weak_i = i;
-            auto timer = m_tickIOManager->addTimer(interval_ms, [weak_i]() {
-                auto mod = weak_i.lock();
-                if (mod) {
-                    mod->onTick();
-                }
-            }, true);
+            auto timer = m_tickIOManager->addTimer(
+                interval_ms,
+                [weak_i]() {
+                    auto mod = weak_i.lock();
+                    if (mod) {
+                        mod->onTick();
+                    }
+                },
+                true);
             m_tickTimers.push_back(timer);
         }
     }
@@ -882,7 +895,8 @@ int Application::run_fiber() {
     return 0;
 }
 
-bool Application::getServer(const std::string& name, std::vector<TcpServer::ptr>& svrs) {
+bool Application::getServer(const std::string& name, std::vector<TcpServer::ptr>& svrs)
+{
     auto it = m_servers.find(name);
     if (it == m_servers.end()) {
         return false;
@@ -891,7 +905,8 @@ bool Application::getServer(const std::string& name, std::vector<TcpServer::ptr>
     return true;
 }
 
-void Application::getAllServers(std::vector<TcpServer::ptr>& svrs) {
+void Application::getAllServers(std::vector<TcpServer::ptr>& svrs)
+{
     for (auto& [type, servers] : m_servers) {
         svrs.insert(svrs.end(), servers.begin(), servers.end());
     }

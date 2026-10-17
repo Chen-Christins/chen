@@ -1,10 +1,11 @@
 #include "timer.h"
 
-#include "../util/util.h" // IWYU pragma: keep
+#include "../util/util.h"
 
 namespace chen {
 
-bool Timer::Comparator::operator()(const Timer::ptr& lhs, const Timer::ptr& rhs) const {
+bool Timer::Comparator::operator()(const Timer::ptr& lhs, const Timer::ptr& rhs) const
+{
     if (!lhs && !rhs) {
         return false;
     }
@@ -24,18 +25,21 @@ bool Timer::Comparator::operator()(const Timer::ptr& lhs, const Timer::ptr& rhs)
 }
 
 Timer::Timer(uint64_t next)
-    :m_next(next) {
+    : m_next(next)
+{
 }
 
 Timer::Timer(uint64_t ms, std::function<void()> cb, bool recurring, TimerManager* manager)
-    :m_recurring(recurring)
-    ,m_ms(ms)
-    ,m_cb(cb)
-    ,m_manager(manager) {
-    m_next = ms + GetCurrentMs();
+    : m_recurring(recurring)
+    , m_ms(ms)
+    , m_cb(cb)
+    , m_manager(manager)
+{
+    m_next = ms + TimeUtil::GetCurrentMs();
 }
 
-bool Timer::cancel() {
+bool Timer::cancel()
+{
     std::unique_lock lock(m_manager->m_mutex);
 
     // 在定时器集合中查找自己（即使 m_cb 已被 listExpiredCb 消费，
@@ -52,7 +56,8 @@ bool Timer::cancel() {
     return found;
 }
 
-bool Timer::refresh() {
+bool Timer::refresh()
+{
     std::unique_lock lock(m_manager->m_mutex);
     if (!m_cb) {
         return false;
@@ -65,13 +70,14 @@ bool Timer::refresh() {
     // 然后删除
     m_manager->m_timers.erase(it);
     // 更新执行时间
-    m_next = GetCurrentMs() + m_ms;
+    m_next = TimeUtil::GetCurrentMs() + m_ms;
     // 重新插入定时器
     m_manager->m_timers.insert(shared_from_this());
     return true;
 }
 
-bool Timer::reset(uint64_t ms, bool from_now) {
+bool Timer::reset(uint64_t ms, bool from_now)
+{
     // 如果周期相同，并且不从当前时间开始
     if (ms == m_ms && !from_now) {
         return true;
@@ -89,7 +95,7 @@ bool Timer::reset(uint64_t ms, bool from_now) {
     m_manager->m_timers.erase(it);
     uint64_t start = 0;
     if (from_now) {
-        start = GetCurrentMs();
+        start = TimeUtil::GetCurrentMs();
     } else {
         /* 这里的m_next和m_ms都是在本次重置之前的数值，如果不是from_now，
             那么就按照上一次创建的时间节点和间隔时间设定 */
@@ -103,12 +109,13 @@ bool Timer::reset(uint64_t ms, bool from_now) {
     return true;
 }
 
-TimerManager::TimerManager() {
-    m_previouseTime = GetCurrentMs();
+TimerManager::TimerManager()
+{
+    m_previouseTime = TimeUtil::GetCurrentMs();
 }
 
-Timer::ptr TimerManager::addTimer(uint64_t ms, std::function<void()> cb
-                    ,bool recurring) {
+Timer::ptr TimerManager::addTimer(uint64_t ms, std::function<void()> cb, bool recurring)
+{
     Timer::ptr timer(new Timer(ms, cb, recurring, this));
     std::unique_lock lock(m_mutex);
 
@@ -116,7 +123,8 @@ Timer::ptr TimerManager::addTimer(uint64_t ms, std::function<void()> cb
     return timer;
 }
 
-static void OnTimer(std::weak_ptr<void> weak_cond, std::function<void()> cb) {
+static void OnTimer(std::weak_ptr<void> weak_cond, std::function<void()> cb)
+{
     // weak_ptr的lock会返回一个shared_ptr，如果weak_ptr失效了，就会返回一个空的指针
     std::shared_ptr<void> tmp = weak_cond.lock();
     // 只要不空，就执行回调
@@ -125,13 +133,14 @@ static void OnTimer(std::weak_ptr<void> weak_cond, std::function<void()> cb) {
     }
 }
 
-Timer::ptr TimerManager::addConditionTimer(uint64_t ms, std::function<void()> cb
-        , std::weak_ptr<void> weak_cond, bool recurring) {
+Timer::ptr TimerManager::addConditionTimer(uint64_t ms, std::function<void()> cb, std::weak_ptr<void> weak_cond, bool recurring)
+{
     // 在定时器触发时会调用 OnTimer 函数，并在OnTimer函数中判断条件对象是否存在，如果存在则调用回调函数cb。
     return addTimer(ms, std::bind(&OnTimer, weak_cond, cb), recurring);
 }
-                    
-uint64_t TimerManager::getNextTimer() {
+
+uint64_t TimerManager::getNextTimer()
+{
     std::shared_lock lock(m_mutex);
     // 不触发 onTimerInsertedAtFront
     m_tickled = false;
@@ -142,7 +151,7 @@ uint64_t TimerManager::getNextTimer() {
     // 获取当前最接近的一个timer
     const Timer::ptr& next = *m_timers.begin();
     // 现在的时间
-    uint64_t now_ms = GetCurrentMs();
+    uint64_t now_ms = TimeUtil::GetCurrentMs();
     // 如果执行时间已经结束了，就返回0
     if (now_ms >= next->m_next) {
         return 0;
@@ -152,25 +161,26 @@ uint64_t TimerManager::getNextTimer() {
     }
 }
 
-void TimerManager::listExpiredCb(std::vector<std::function<void()>>& cbs) {
+void TimerManager::listExpiredCb(std::vector<std::function<void()>>& cbs)
+{
     // 获取当前的时间
-    uint64_t now_ms = GetCurrentMs();
+    uint64_t now_ms = TimeUtil::GetCurrentMs();
     std::vector<Timer::ptr> expired;
     {
         std::shared_lock lock(m_mutex);
         if (m_timers.empty()) {
-            return ;
+            return;
         }
     }
     std::unique_lock lock(m_mutex);
     if (m_timers.empty()) {
-        return ;
+        return;
     }
     // 是否服务器的时间被调后了
     bool rollover = detectClockRollover(now_ms);
     // 如果服务器时间没问题，并且第一个定时器都没有到执行时间，就说明没有任务需要执行
     if (!rollover && ((*m_timers.begin())->m_next > now_ms)) {
-        return ;
+        return;
     }
 
     // 定义一个当前时间的定时器
@@ -199,22 +209,26 @@ void TimerManager::listExpiredCb(std::vector<std::function<void()>>& cbs) {
     }
 }
 
-bool TimerManager::hasTimer() {
+bool TimerManager::hasTimer()
+{
     std::shared_lock lock(m_mutex);
     return m_timers.empty();
 }
 
-size_t TimerManager::getTimerCount() {
+size_t TimerManager::getTimerCount()
+{
     std::shared_lock lock(m_mutex);
     return m_timers.size();
 }
 
-void TimerManager::cancelAllTimers() {
+void TimerManager::cancelAllTimers()
+{
     std::unique_lock lock(m_mutex);
     m_timers.clear();
 }
 
-void TimerManager::addTimer(Timer::ptr val, std::unique_lock<std::shared_mutex>& lock) {
+void TimerManager::addTimer(Timer::ptr val, std::unique_lock<std::shared_mutex>& lock)
+{
     // 添加到set中，同时拿到添加的位置
     auto it = m_timers.insert(val).first;
     // 如果该定时器是超时时间最短，并且没有设置触发onTimerInsertedAtFront
@@ -226,21 +240,21 @@ void TimerManager::addTimer(Timer::ptr val, std::unique_lock<std::shared_mutex>&
     lock.unlock();
 
     /* 触发onTimerInsertedAtFront()
-	 * onTimerInsertedAtFront()在IOManager中就是做了一次tickle()的操作 */
+     * onTimerInsertedAtFront()在IOManager中就是做了一次tickle()的操作 */
     if (at_front) {
         onTimerInsertedAtFront();
     }
 }
 
-bool TimerManager::detectClockRollover(uint64_t now_ms) {
+bool TimerManager::detectClockRollover(uint64_t now_ms)
+{
     bool rollover = false;
     // 如果相差1个小时，说明时间被调后了
-    if (now_ms < m_previouseTime
-            && now_ms < (m_previouseTime - 60 * 60 * 1000)) {
+    if (now_ms < m_previouseTime && now_ms < (m_previouseTime - 60 * 60 * 1000)) {
         rollover = true;
     }
     m_previouseTime = now_ms;
     return rollover;
 }
 
-}
+} // namespace chen

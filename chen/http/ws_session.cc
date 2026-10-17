@@ -15,29 +15,27 @@ static Logger::ptr logger = LOG_NAME("system");
 ConfigVar<uint32_t>::ptr websocket_message_max_size =
     Config::Lookup("websocket.message.max_size", (uint32_t)1024 * 1024 * 32, "websocket message max size");
 
-std::string WSFrameHead::toString() const {
+std::string WSFrameHead::toString() const
+{
     std::stringstream ss;
-    ss << "[WSFrameHead fin=" << fin
-       << " rsv1=" << rsv1
-       << " rsv2=" << rsv2
-       << " rsv3=" << rsv3
-       << " opcode=" << opcode
-       << " payload=" << payload
-       << " mask=" << mask
-       << "]";
+    ss << "[WSFrameHead fin=" << fin << " rsv1=" << rsv1 << " rsv2=" << rsv2 << " rsv3=" << rsv3 << " opcode=" << opcode << " payload=" << payload
+       << " mask=" << mask << "]";
     return ss.str();
 }
 
 WSFrameMessage::WSFrameMessage(int opcode, const std::string& data)
     : m_opcode(opcode)
-    , m_data(data) {
+    , m_data(data)
+{
 }
 
 WSSession::WSSession(Socket::ptr sock, bool owner)
-    :HttpSession(sock, owner) {
+    : HttpSession(sock, owner)
+{
 }
 
-HttpRequest::ptr WSSession::handleShake() {
+HttpRequest::ptr WSSession::handleShake()
+{
     HttpRequest::ptr req;
     do {
         req = recvRequest();
@@ -89,27 +87,33 @@ HttpRequest::ptr WSSession::handleShake() {
     return nullptr;
 }
 
-WSFrameMessage::ptr WSSession::recvMessage() {
+WSFrameMessage::ptr WSSession::recvMessage()
+{
     return WSRecvMessage(this, false);
 }
 
-int32_t WSSession::sendMessage(WSFrameMessage::ptr msg, bool fin) {
+int32_t WSSession::sendMessage(WSFrameMessage::ptr msg, bool fin)
+{
     return WSSendMessage(this, msg, false, fin);
 }
 
-int32_t WSSession::sendMessage(const std::string& msg, int32_t opcode, bool fin) {
+int32_t WSSession::sendMessage(const std::string& msg, int32_t opcode, bool fin)
+{
     return WSSendMessage(this, std::make_shared<WSFrameMessage>(opcode, msg), false, fin);
 }
 
-int32_t WSSession::ping() {
+int32_t WSSession::ping()
+{
     return WSPing(this);
 }
 
-int32_t WSSession::pong() {
+int32_t WSSession::pong()
+{
     return WSPong(this);
 }
 
-WSFrameMessage::ptr WSRecvMessage(Stream* stream, bool client) {
+WSFrameMessage::ptr WSRecvMessage(Stream* stream, bool client)
+{
     int opcode = 0;
     std::string data;
     int cur_len = 0;
@@ -135,12 +139,15 @@ WSFrameMessage::ptr WSRecvMessage(Stream* stream, bool client) {
             if (body_len > 0) {
                 char cmask[4] = {0};
                 if (ws_head.mask) {
-                    if (stream->readFixSize(cmask, sizeof(cmask)) <= 0) break;
+                    if (stream->readFixSize(cmask, sizeof(cmask)) <= 0)
+                        break;
                 }
                 close_body.resize(body_len);
-                if (stream->readFixSize(&close_body[0], body_len) <= 0) break;
+                if (stream->readFixSize(&close_body[0], body_len) <= 0)
+                    break;
                 if (ws_head.mask) {
-                    for (uint64_t i = 0; i < body_len; ++i) close_body[i] ^= cmask[i % 4];
+                    for (uint64_t i = 0; i < body_len; ++i)
+                        close_body[i] ^= cmask[i % 4];
                 }
             }
             // 回 CLOSE 帧作为确认，然后关闭连接
@@ -151,8 +158,7 @@ WSFrameMessage::ptr WSRecvMessage(Stream* stream, bool client) {
             stream->writeFixSize(&close_head, sizeof(close_head));
             stream->close();
             return nullptr;
-        } else if (ws_head.opcode == WSFrameHead::CONTINUE || ws_head.opcode == WSFrameHead::TEXT_FRAME ||
-                   ws_head.opcode == WSFrameHead::BIN_FRAME) {
+        } else if (ws_head.opcode == WSFrameHead::CONTINUE || ws_head.opcode == WSFrameHead::TEXT_FRAME || ws_head.opcode == WSFrameHead::BIN_FRAME) {
             if (!client && !ws_head.mask) {
                 INFO(logger) << "WSFrameHead Mask != 1";
                 break;
@@ -175,8 +181,7 @@ WSFrameMessage::ptr WSRecvMessage(Stream* stream, bool client) {
             }
 
             if ((cur_len + length) >= websocket_message_max_size->getValue()) {
-                WARN(logger) << "WSFrameMessage length > " << websocket_message_max_size->getValue() << " ("
-                             << (cur_len + length) << ")";
+                WARN(logger) << "WSFrameMessage length > " << websocket_message_max_size->getValue() << " (" << (cur_len + length) << ")";
                 break;
             }
 
@@ -214,7 +219,8 @@ WSFrameMessage::ptr WSRecvMessage(Stream* stream, bool client) {
     return nullptr;
 }
 
-int32_t WSSendMessage(Stream* stream, WSFrameMessage::ptr msg, bool client, bool fin) {
+int32_t WSSendMessage(Stream* stream, WSFrameMessage::ptr msg, bool client, bool fin)
+{
     do {
         WSFrameHead ws_head;
         memset(&ws_head, 0, sizeof(ws_head));
@@ -284,7 +290,8 @@ int32_t WSSendMessage(Stream* stream, WSFrameMessage::ptr msg, bool client, bool
     return -1;
 }
 
-int32_t WSPing(Stream* stream) {
+int32_t WSPing(Stream* stream)
+{
     WSFrameHead ws_head;
     memset(&ws_head, 0, sizeof(ws_head));
     ws_head.fin = 1;
@@ -296,7 +303,8 @@ int32_t WSPing(Stream* stream) {
     return v;
 }
 
-int32_t WSPong(Stream* stream) {
+int32_t WSPong(Stream* stream)
+{
     WSFrameHead ws_head;
     memset(&ws_head, 0, sizeof(ws_head));
     ws_head.fin = 1;

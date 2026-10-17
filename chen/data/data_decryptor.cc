@@ -5,31 +5,38 @@
 #include <map>
 #include <stdexcept>
 
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
+
 #include "../util/encryptor_util.h"
 
 namespace chen::data {
 
 DataDecryptor::DataDecryptor(EncryptionType type, const std::string& password)
-        : m_type(type)
-        , m_password(password) {
+    : m_type(type)
+    , m_password(password)
+{
     // 初始化OpenSSL
     OpenSSL_add_all_algorithms();
     ERR_load_crypto_strings();
 }
 
-DataDecryptor::~DataDecryptor() {
+DataDecryptor::~DataDecryptor()
+{
     // 清理OpenSSL
     EVP_cleanup();
     ERR_free_strings();
 }
 
-std::vector<uint8_t> DataDecryptor::deriveKey(const std::string& password
-        , const std::vector<uint8_t>& salt, size_t key_length, int iterations) {
+std::vector<uint8_t> DataDecryptor::deriveKey(const std::string& password, const std::vector<uint8_t>& salt, size_t key_length, int iterations)
+{
     std::vector<uint8_t> key(key_length);
 
     // 使用PKCS5_PBKDF2_HMAC进行密钥派生
-    if (!PKCS5_PBKDF2_HMAC(password.c_str(), password.length(), salt.data(), salt.size(), iterations, EVP_sha256(),
-                           key_length, key.data())) {
+    int ret = PKCS5_PBKDF2_HMAC(password.c_str(), password.length(), salt.data(), salt.size(), iterations, EVP_sha256(), key_length, key.data());
+
+    if (!ret) {
         handleOpenSSLError("PBKDF2 key derivation failed");
         throw std::runtime_error("Failed to derive key");
     }
@@ -37,8 +44,8 @@ std::vector<uint8_t> DataDecryptor::deriveKey(const std::string& password
     return key;
 }
 
-std::vector<uint8_t> DataDecryptor::decryptAES128GCM(const std::vector<uint8_t>& ciphertext
-        , const std::vector<uint8_t>& key) {
+std::vector<uint8_t> DataDecryptor::decryptAES128GCM(const std::vector<uint8_t>& ciphertext, const std::vector<uint8_t>& key)
+{
     if (key.size() != 16) {
         throw std::invalid_argument("AES-128-GCM requires 16-byte key");
     }
@@ -54,7 +61,7 @@ std::vector<uint8_t> DataDecryptor::decryptAES128GCM(const std::vector<uint8_t>&
     std::string key_str(key.begin(), key.end());
 
     // 使用新的EncryptorUtil进行解密
-    GCMResult result = chen::EncryptorUtil::DecryptAES128GCM(ct, tag, key_str, nonce);
+    GCMResult result = EncryptorUtil::DecryptAES128GCM(ct, tag, key_str, nonce);
 
     if (!result.success) {
         throw std::runtime_error("AES-128-GCM decryption failed: " + result.error);
@@ -63,8 +70,8 @@ std::vector<uint8_t> DataDecryptor::decryptAES128GCM(const std::vector<uint8_t>&
     return std::vector<uint8_t>(result.data.begin(), result.data.end());
 }
 
-std::vector<uint8_t> DataDecryptor::decryptAES256GCM(const std::vector<uint8_t>& ciphertext
-        , const std::vector<uint8_t>& key) {
+std::vector<uint8_t> DataDecryptor::decryptAES256GCM(const std::vector<uint8_t>& ciphertext, const std::vector<uint8_t>& key)
+{
     if (key.size() != 32) {
         throw std::invalid_argument("AES-256-GCM requires 32-byte key");
     }
@@ -89,8 +96,8 @@ std::vector<uint8_t> DataDecryptor::decryptAES256GCM(const std::vector<uint8_t>&
     return std::vector<uint8_t>(result.data.begin(), result.data.end());
 }
 
-std::vector<uint8_t> DataDecryptor::decryptChaCha20Poly1305(const std::vector<uint8_t>& ciphertext
-        , const std::vector<uint8_t>& key) {
+std::vector<uint8_t> DataDecryptor::decryptChaCha20Poly1305(const std::vector<uint8_t>& ciphertext, const std::vector<uint8_t>& key)
+{
     if (key.size() != 32) {
         throw std::invalid_argument("ChaCha20-Poly1305 requires 32-byte key");
     }
@@ -116,8 +123,7 @@ std::vector<uint8_t> DataDecryptor::decryptChaCha20Poly1305(const std::vector<ui
     }
 
     // 解密ChaCha20
-    std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)>
-        ctx(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free);
+    std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)> ctx(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free);
 
     if (!ctx) {
         throw std::runtime_error("Failed to create cipher context");
@@ -158,8 +164,8 @@ std::vector<uint8_t> DataDecryptor::decryptChaCha20Poly1305(const std::vector<ui
     return plaintext;
 }
 
-std::vector<uint8_t> DataDecryptor::decryptCustom(const std::vector<uint8_t>& ciphertext
-        , const std::vector<uint8_t>& key) {
+std::vector<uint8_t> DataDecryptor::decryptCustom(const std::vector<uint8_t>& ciphertext, const std::vector<uint8_t>& key)
+{
     if (key.size() < 16) {
         throw std::invalid_argument("Custom decryption requires at least 16-byte key");
     }
@@ -207,7 +213,8 @@ std::vector<uint8_t> DataDecryptor::decryptCustom(const std::vector<uint8_t>& ci
     return data;
 }
 
-std::vector<uint8_t> DataDecryptor::decryptXOR(const std::vector<uint8_t>& data, uint32_t key) {
+std::vector<uint8_t> DataDecryptor::decryptXOR(const std::vector<uint8_t>& data, uint32_t key)
+{
     std::vector<uint8_t> result(data.size());
 
     for (size_t i = 0; i < data.size(); ++i) {
@@ -217,7 +224,8 @@ std::vector<uint8_t> DataDecryptor::decryptXOR(const std::vector<uint8_t>& data,
     return result;
 }
 
-std::vector<uint8_t> DataDecryptor::parseAndDecrypt(const uint8_t* data, size_t size) {
+std::vector<uint8_t> DataDecryptor::parseAndDecrypt(const uint8_t* data, size_t size)
+{
     if (!data || size == 0) {
         throw std::invalid_argument("Invalid data or size");
     }
@@ -366,22 +374,20 @@ std::vector<uint8_t> DataDecryptor::parseAndDecrypt(const uint8_t* data, size_t 
     }
 }
 
-std::vector<uint8_t> DataDecryptor::computeHMACSHA256(const std::vector<uint8_t>& key
-        , const std::vector<uint8_t>& data) {
+std::vector<uint8_t> DataDecryptor::computeHMACSHA256(const std::vector<uint8_t>& key, const std::vector<uint8_t>& data)
+{
     std::vector<uint8_t> hmac(SHA256_DIGEST_LENGTH);
     unsigned int hmac_len;
 
-    if (!HMAC(EVP_sha256(), key.data(), key.size(),
-              data.data(), data.size(),
-              hmac.data(), &hmac_len)) {
+    if (!HMAC(EVP_sha256(), key.data(), key.size(), data.data(), data.size(), hmac.data(), &hmac_len)) {
         throw std::runtime_error("Failed to compute HMAC");
     }
 
     return hmac;
 }
 
-bool DataDecryptor::verifyHMACSHA256(const std::vector<uint8_t>& key
-        , const std::vector<uint8_t>& data, const std::vector<uint8_t>& hmac) {
+bool DataDecryptor::verifyHMACSHA256(const std::vector<uint8_t>& key, const std::vector<uint8_t>& data, const std::vector<uint8_t>& hmac)
+{
     try {
         std::vector<uint8_t> computed_hmac = computeHMACSHA256(key, data);
         return CRYPTO_memcmp(computed_hmac.data(), hmac.data(), std::min(computed_hmac.size(), hmac.size())) == 0;
@@ -390,7 +396,8 @@ bool DataDecryptor::verifyHMACSHA256(const std::vector<uint8_t>& key
     }
 }
 
-std::vector<uint8_t> DataDecryptor::hexStringToBytes(const std::string& hex) {
+std::vector<uint8_t> DataDecryptor::hexStringToBytes(const std::string& hex)
+{
     std::vector<uint8_t> bytes;
 
     for (size_t i = 0; i < hex.length(); i += 2) {
@@ -402,7 +409,8 @@ std::vector<uint8_t> DataDecryptor::hexStringToBytes(const std::string& hex) {
     return bytes;
 }
 
-void DataDecryptor::handleOpenSSLError(const std::string& msg) {
+void DataDecryptor::handleOpenSSLError(const std::string& msg)
+{
     unsigned long err_code;
     std::string error_str;
 
@@ -420,14 +428,15 @@ void DataDecryptor::handleOpenSSLError(const std::string& msg) {
     }
 }
 
-std::unique_ptr<DataDecryptor> createDecryptor(const std::string& type_name, const std::string& password) {
+std::unique_ptr<DataDecryptor> createDecryptor(const std::string& type_name, const std::string& password)
+{
     std::map<std::string, EncryptionType> type_map = {
         {"none", EncryptionType::NONE},
         {"xor", EncryptionType::XOR},
         {"aes128_gcm", EncryptionType::AES128_GCM},
         {"aes256_gcm", EncryptionType::AES256_GCM},
         {"chacha20_poly1305", EncryptionType::CHACHA20_POLY1305},
-        {"custom", EncryptionType::CUSTOM}
+        {"custom", EncryptionType::CUSTOM},
     };
 
     auto it = type_map.find(type_name);

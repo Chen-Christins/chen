@@ -12,7 +12,8 @@ constexpr size_t kMaxBodySize = 64 * 1024 * 1024; // 64MB upper bound to avoid O
 
 static Logger::ptr logger = LOG_NAME("system");
 
-int readExact(Socket::ptr sock, void* buffer, size_t length) {
+int readExact(Socket::ptr sock, void* buffer, size_t length)
+{
     size_t offset = 0;
     while (offset < length) {
         int n = sock->recv(static_cast<char*>(buffer) + offset, length - offset);
@@ -23,12 +24,13 @@ int readExact(Socket::ptr sock, void* buffer, size_t length) {
     }
     return static_cast<int>(offset);
 }
-}
+} // namespace
 
 class LengthFieldPackageParser : public CustomPackageParser {
 public:
     LengthFieldPackageParser(size_t headerSize, uint32_t magic)
-        : CustomPackageParser(headerSize, magic) {
+        : CustomPackageParser(headerSize, magic)
+    {
         if (headerSize_ < 16) {
             headerSize_ = 16; // ensure we have space for magic/cmd/seq/len
         }
@@ -36,7 +38,8 @@ public:
 
     size_t getHeaderSize() const override { return headerSize_; }
 
-    bool parseHeader(const std::vector<uint8_t>& header, uint32_t& cmdId, uint32_t& seq, size_t& bodyLen) override {
+    bool parseHeader(const std::vector<uint8_t>& header, uint32_t& cmdId, uint32_t& seq, size_t& bodyLen) override
+    {
         if (header.size() < headerSize_) {
             return false;
         }
@@ -50,7 +53,8 @@ public:
         return true;
     }
 
-    bool validatePackage(const std::vector<uint8_t>& header) override {
+    bool validatePackage(const std::vector<uint8_t>& header) override
+    {
         if (header.size() < headerSize_) {
             return false;
         }
@@ -61,7 +65,8 @@ public:
         return magic == magic_;
     }
 
-    bool buildPacket(uint32_t cmdId, uint32_t seq, const std::vector<uint8_t>& body, std::vector<uint8_t>& output) override {
+    bool buildPacket(uint32_t cmdId, uint32_t seq, const std::vector<uint8_t>& body, std::vector<uint8_t>& output) override
+    {
         output.resize(headerSize_ + body.size());
         uint8_t* p = output.data();
         uint32_t magic = htonl(magic_);
@@ -84,15 +89,18 @@ public:
     }
 };
 
-IPackageParser::ptr CreateLengthFieldParser(size_t headerSize, uint32_t magic) {
+IPackageParser::ptr CreateLengthFieldParser(size_t headerSize, uint32_t magic)
+{
     return IPackageParser::ptr(new LengthFieldPackageParser(headerSize, magic));
 }
 
 ConnectionManager::ConnectionManager()
-    : nextConnId_(1) {
+    : nextConnId_(1)
+{
 }
 
-uint32_t ConnectionManager::registerConnection(Socket::ptr socket) {
+uint32_t ConnectionManager::registerConnection(Socket::ptr socket)
+{
     if (!socket) {
         return 0;
     }
@@ -103,7 +111,8 @@ uint32_t ConnectionManager::registerConnection(Socket::ptr socket) {
     return id;
 }
 
-void ConnectionManager::unregisterConnection(uint32_t connId) {
+void ConnectionManager::unregisterConnection(uint32_t connId)
+{
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = connections_.find(connId);
     if (it != connections_.end()) {
@@ -112,24 +121,28 @@ void ConnectionManager::unregisterConnection(uint32_t connId) {
     }
 }
 
-Socket::ptr ConnectionManager::getSocket(uint32_t connId) {
+Socket::ptr ConnectionManager::getSocket(uint32_t connId)
+{
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = connections_.find(connId);
     return it == connections_.end() ? nullptr : it->second.socket;
 }
 
-uint32_t ConnectionManager::getConnectionId(Socket::ptr socket) {
+uint32_t ConnectionManager::getConnectionId(Socket::ptr socket)
+{
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = socketToConnId_.find(socket);
     return it == socketToConnId_.end() ? 0 : it->second;
 }
 
-size_t ConnectionManager::getConnectionCount() const {
+size_t ConnectionManager::getConnectionCount() const
+{
     std::lock_guard<std::mutex> lock(mutex_);
     return connections_.size();
 }
 
-bool ConnectionManager::sendMessage(uint32_t connId, const std::vector<uint8_t>& data) {
+bool ConnectionManager::sendMessage(uint32_t connId, const std::vector<uint8_t>& data)
+{
     Socket::ptr sock;
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -145,7 +158,8 @@ bool ConnectionManager::sendMessage(uint32_t connId, const std::vector<uint8_t>&
     return sock->send(data.data(), data.size()) == static_cast<int>(data.size());
 }
 
-size_t ConnectionManager::broadcastMessage(const std::vector<uint32_t>& connIds, const std::vector<uint8_t>& data) {
+size_t ConnectionManager::broadcastMessage(const std::vector<uint32_t>& connIds, const std::vector<uint8_t>& data)
+{
     size_t ok = 0;
     for (auto id : connIds) {
         if (sendMessage(id, data)) {
@@ -155,12 +169,14 @@ size_t ConnectionManager::broadcastMessage(const std::vector<uint32_t>& connIds,
     return ok;
 }
 
-void ConnectionManager::setConnectionContext(uint32_t connId, std::shared_ptr<void> context) {
+void ConnectionManager::setConnectionContext(uint32_t connId, std::shared_ptr<void> context)
+{
     std::lock_guard<std::mutex> lock(mutex_);
     connections_[connId].context = std::move(context);
 }
 
-std::shared_ptr<void> ConnectionManager::getConnectionContext(uint32_t connId) {
+std::shared_ptr<void> ConnectionManager::getConnectionContext(uint32_t connId)
+{
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = connections_.find(connId);
     return it == connections_.end() ? nullptr : it->second.context;
@@ -169,20 +185,24 @@ std::shared_ptr<void> ConnectionManager::getConnectionContext(uint32_t connId) {
 GenericProtocolServer::GenericProtocolServer(IPackageParser::ptr parser, IOManager* worker, IOManager* io_worker, IOManager* accept_worker)
     : TcpServer(worker, io_worker, accept_worker)
     , packageParser_(parser ? parser : CreateLengthFieldParser())
-    , connectionManager_(std::make_shared<ConnectionManager>()) {
+    , connectionManager_(std::make_shared<ConnectionManager>())
+{
     m_type = "game";
 }
 
-GenericProtocolServer::~GenericProtocolServer() {
+GenericProtocolServer::~GenericProtocolServer()
+{
 }
 
-void GenericProtocolServer::setPackageParser(IPackageParser::ptr parser) {
+void GenericProtocolServer::setPackageParser(IPackageParser::ptr parser)
+{
     if (parser) {
         packageParser_ = parser;
     }
 }
 
-bool GenericProtocolServer::registerHandler(uint32_t cmdId, IMessageHandler::ptr handler) {
+bool GenericProtocolServer::registerHandler(uint32_t cmdId, IMessageHandler::ptr handler)
+{
     if (!handler) {
         return false;
     }
@@ -190,7 +210,8 @@ bool GenericProtocolServer::registerHandler(uint32_t cmdId, IMessageHandler::ptr
     return handlers_.emplace(cmdId, handler).second;
 }
 
-bool GenericProtocolServer::sendMessage(uint32_t connId, uint32_t cmdId, uint32_t seq, const std::vector<uint8_t>& body) {
+bool GenericProtocolServer::sendMessage(uint32_t connId, uint32_t cmdId, uint32_t seq, const std::vector<uint8_t>& body)
+{
     if (!packageParser_) {
         return false;
     }
@@ -209,16 +230,19 @@ bool GenericProtocolServer::sendMessage(uint32_t connId, uint32_t cmdId, uint32_
     return connectionManager_->sendMessage(connId, packet);
 }
 
-size_t GenericProtocolServer::getConnectionCount() const {
+size_t GenericProtocolServer::getConnectionCount() const
+{
     return connectionManager_->getConnectionCount();
 }
 
-size_t GenericProtocolServer::getHandlerCount() const {
+size_t GenericProtocolServer::getHandlerCount() const
+{
     std::lock_guard<std::mutex> lock(handlersMutex_);
     return handlers_.size();
 }
 
-void GenericProtocolServer::handleClient(Socket::ptr client) {
+void GenericProtocolServer::handleClient(Socket::ptr client)
+{
     uint32_t connId = connectionManager_->registerConnection(client);
 
     if (connectCallback_) {
@@ -288,8 +312,13 @@ void GenericProtocolServer::handleClient(Socket::ptr client) {
     client->close();
 }
 
-void GenericProtocolServer::handlePackage(uint32_t connId, uint32_t cmdId, uint32_t seq
-        , const std::vector<uint8_t>& header, const std::vector<uint8_t>& body) {
+void GenericProtocolServer::handlePackage(
+    uint32_t connId,
+    uint32_t cmdId,
+    uint32_t seq,
+    const std::vector<uint8_t>& header,
+    const std::vector<uint8_t>& body)
+{
     IMessageHandler::ptr handler;
     {
         std::lock_guard<std::mutex> lock(handlersMutex_);

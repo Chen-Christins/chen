@@ -14,13 +14,14 @@ static thread_local Scheduler* t_scheduler = nullptr;
 static thread_local Fiber* t_schedule_fiber = nullptr;
 
 Scheduler::Scheduler(size_t threadCount, bool use_caller, const std::string& name)
-    :m_name(name) {
+    : m_name(name)
+{
     ASSERT(threadCount > 0);
 
-	// 如果执行调度器的线程也算进来
+    // 如果执行调度器的线程也算进来
     if (use_caller) {
         Fiber::GetThis();
-        --threadCount;  // 没必要多创建一个线程，因为会将当前的执行调度器的线程也算进来
+        --threadCount; // 没必要多创建一个线程，因为会将当前的执行调度器的线程也算进来
         // 在创建协程调度器的时候这个线程里面应该是没有协程调度器的，再创建一个当然有问题
         ASSERT(GetThis() == nullptr);
         // 设置当前协程调度器
@@ -43,7 +44,8 @@ Scheduler::Scheduler(size_t threadCount, bool use_caller, const std::string& nam
     m_threadCount = threadCount;
 }
 
-Scheduler::~Scheduler() {
+Scheduler::~Scheduler()
+{
     ASSERT(m_stopping);
     if (GetThis() == this) {
         t_scheduler = nullptr;
@@ -51,50 +53,52 @@ Scheduler::~Scheduler() {
 }
 
 // 获取当前的调度器
-Scheduler* Scheduler::GetThis() {
+Scheduler* Scheduler::GetThis()
+{
     return t_scheduler;
 }
 
 // 获取当前的主协程
-Fiber* Scheduler::GetMainFiber() {
+Fiber* Scheduler::GetMainFiber()
+{
     return t_schedule_fiber;
 }
 
-void Scheduler::start() {
+void Scheduler::start()
+{
     // DEBUG(logger) << "start()";
     // 多线程操作同一块变量加锁
     std::lock_guard lock(m_mutex);
-	// 已经启动了
+    // 已经启动了
     if (!m_stopping) {
-        return ;
+        return;
     }
     // 没有停止，已经开启了
     m_stopping = false;
     // 第一次启动，线程池为空
     ASSERT(m_threads.empty());
-	// 开始构建线程池
+    // 开始构建线程池
     m_threads.resize(m_threadCount);
     for (size_t i = 0; i < m_threadCount; ++i) {
-        m_threads[i].reset(new Thread(std::bind(&Scheduler::run, this)
-            ,m_name + "_" + std::to_string(i)));
+        m_threads[i].reset(new Thread(std::bind(&Scheduler::run, this), m_name + "_" + std::to_string(i)));
         m_threadIds.push_back(m_threads[i]->getId());
     }
 }
 
 // 并不是立马退出，而是需要等待这个调度器里的所有函数的执行完成后再退出
-void Scheduler::stop() {
+void Scheduler::stop()
+{
     DEBUG(logger) << "stop()";
     // 进入stop将自动停止设为true
     m_autoStop = true;
     // 使用use_caller，并且只有一个线程，而且主协程的状态为结束或者初始化
-    if (m_rootFiber && m_threadCount == 0 && (m_rootFiber->getState() == Fiber::TERM
-            || m_rootFiber->getState() == Fiber::INIT)) {
+    if (m_rootFiber && m_threadCount == 0 && (m_rootFiber->getState() == Fiber::TERM || m_rootFiber->getState() == Fiber::INIT)) {
         INFO(logger) << this << " scheduler stopped";
         m_stopping = true;
 
         // 如果达到停止条件直接停止
         if (stopping()) {
-            return ;
+            return;
         }
     }
     // 说明这是use_caller的线程，那么这个stop一定是在创建的线程中执行的
@@ -131,19 +135,21 @@ void Scheduler::stop() {
     }
 }
 
-void Scheduler::setThis() {
+void Scheduler::setThis()
+{
     t_scheduler = this;
 }
 
-bool Scheduler::stopping() {
+bool Scheduler::stopping()
+{
     std::lock_guard lock(m_mutex);
     // 当自动停止 && 正在停止 && 任务队列为空 && 活跃线程数为0时
-    return m_autoStop && m_stopping
-        && m_fibers.empty() && m_activeThreadCount == 0;
+    return m_autoStop && m_stopping && m_fibers.empty() && m_activeThreadCount == 0;
 }
 
 // 新创建的线程直接在run上面启动
-void Scheduler::run() {
+void Scheduler::run()
+{
     DEBUG(logger) << m_name << " run";
     set_hook_enable(true);
     // 设置当前线程调度器
@@ -170,14 +176,14 @@ void Scheduler::run() {
                 if (it->threadId != -1 && it->threadId != GetThreadId()) {
                     ++it;
                     tickle_me = true;
-                    continue ;
+                    continue;
                 }
                 // 确保任务的fiber或者cb存在
                 ASSERT(it->fiber || it->cb);
                 // 如果fiber正在执行，就跳过
                 if (it->fiber && it->fiber->getState() == Fiber::EXEC) {
                     ++it;
-                    continue ;
+                    continue;
                 }
                 // 否则就取出任务
                 ft = *it;
@@ -208,20 +214,20 @@ void Scheduler::run() {
                 ft.fiber->setState(Fiber::HOLD);
             }
             ft.reset();
-        // 如果任务是cb
+            // 如果任务是cb
         } else if (ft.cb) {
             // 如果这个fiber存在, 将其放入回调任务函数
             if (cb_fiber) {
                 cb_fiber->reset(ft.cb);
-            // 不存在就创建一个新的fiber
+                // 不存在就创建一个新的fiber
             } else {
                 cb_fiber.reset(new Fiber(ft.cb));
             }
             // 重置数据ft
             ft.reset();
-			// 执行回调函数
+            // 执行回调函数
             cb_fiber->swapIn();
-			// 任务执行完成，活跃线程就-1
+            // 任务执行完成，活跃线程就-1
             --m_activeThreadCount;
             if (cb_fiber->getState() == Fiber::READY) {
                 // 重新放入任务队列
@@ -240,7 +246,7 @@ void Scheduler::run() {
             // 如果没有任务且任务任务正在执行
             if (is_active) {
                 --m_activeThreadCount;
-                continue ;
+                continue;
             }
             // 结束了，真正的结束
             if (idle_fiber->getState() == Fiber::TERM) {
@@ -269,40 +275,42 @@ void Scheduler::run() {
     }
 }
 
-void Scheduler::tickle() {
+void Scheduler::tickle()
+{
     INFO(logger) << "tickle";
 }
 
-void Scheduler::idle() {
+void Scheduler::idle()
+{
     INFO(logger) << "idle";
     while (!stopping()) {
         Fiber::YieldToHold();
     }
 }
 
-void Scheduler::switchTo(int thread) {
-	ASSERT(Scheduler::GetThis());
-	if (Scheduler::GetThis() == this) {
-		if (thread == -1 || thread == GetThreadId()) {
-			return;
-		}
-	}
-	schedule(Fiber::GetThis(), thread);
-	Fiber::YieldToHold();
+void Scheduler::switchTo(int thread)
+{
+    ASSERT(Scheduler::GetThis());
+    if (Scheduler::GetThis() == this) {
+        if (thread == -1 || thread == GetThreadId()) {
+            return;
+        }
+    }
+    schedule(Fiber::GetThis(), thread);
+    Fiber::YieldToHold();
 }
 
-size_t Scheduler::getTaskCount() {
+size_t Scheduler::getTaskCount()
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_fibers.size();
 }
 
-std::ostream& Scheduler::dump(std::ostream& os) {
-    os << "[Scheduler name=" << m_name
-       << " size=" << m_threadCount
-       << " active_count=" << m_activeThreadCount
-       << " idle_count=" << m_idleThreadCount
-       << " stopping=" << m_stopping
-       << " ]" << std::endl << "    ";
+std::ostream& Scheduler::dump(std::ostream& os)
+{
+    os << "[Scheduler name=" << m_name << " size=" << m_threadCount << " active_count=" << m_activeThreadCount << " idle_count=" << m_idleThreadCount
+       << " stopping=" << m_stopping << " ]" << std::endl
+       << "    ";
     for (size_t i = 0; i < m_threadIds.size(); ++i) {
         if (i) {
             os << ", ";
@@ -312,17 +320,19 @@ std::ostream& Scheduler::dump(std::ostream& os) {
     return os;
 }
 
-SchedulerSwitcher::SchedulerSwitcher(Scheduler* target) {
-	m_caller = Scheduler::GetThis();
-	if (target) {
-		target->switchTo();
-	}
+SchedulerSwitcher::SchedulerSwitcher(Scheduler* target)
+{
+    m_caller = Scheduler::GetThis();
+    if (target) {
+        target->switchTo();
+    }
 }
 
-SchedulerSwitcher::~SchedulerSwitcher() {
-	if (m_caller) {
-		m_caller->switchTo();
-	}
+SchedulerSwitcher::~SchedulerSwitcher()
+{
+    if (m_caller) {
+        m_caller->switchTo();
+    }
 }
 
-}
+} // namespace chen

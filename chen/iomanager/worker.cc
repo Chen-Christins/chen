@@ -6,26 +6,30 @@ namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
 
-static ConfigVar<std::map<std::string, std::map<std::string, std::string>>>::ptr g_worker_config
-    = Config::Lookup("workers", std::map<std::string, std::map<std::string, std::string>>(), "woker config");
+static ConfigVar<std::map<std::string, std::map<std::string, std::string>>>::ptr g_worker_config =
+    Config::Lookup("workers", std::map<std::string, std::map<std::string, std::string>>(), "woker config");
 
-WorkerGroup::WorkerGroup(uint32_t batch_size, Scheduler* s) 
-    :m_batchSize(batch_size)
-    ,m_finish(false)
-    ,m_scheduler(s)
-    ,m_sem(batch_size) {
+WorkerGroup::WorkerGroup(uint32_t batch_size, Scheduler* s)
+    : m_batchSize(batch_size)
+    , m_finish(false)
+    , m_scheduler(s)
+    , m_sem(batch_size)
+{
 }
 
-WorkerGroup::~WorkerGroup() {
+WorkerGroup::~WorkerGroup()
+{
     waitAll();
 }
 
-void WorkerGroup::schedule(std::function<void()> cb, int thread) {
+void WorkerGroup::schedule(std::function<void()> cb, int thread)
+{
     m_sem.wait();
     m_scheduler->schedule(std::bind(&WorkerGroup::doWork, shared_from_this(), cb), thread);
 }
 
-void WorkerGroup::waitAll() {
+void WorkerGroup::waitAll()
+{
     if (!m_finish) {
         m_finish = true;
         for (uint32_t i = 0; i < m_batchSize; ++i) {
@@ -34,20 +38,24 @@ void WorkerGroup::waitAll() {
     }
 }
 
-void WorkerGroup::doWork(std::function<void()> cb) {
+void WorkerGroup::doWork(std::function<void()> cb)
+{
     cb();
     m_sem.notify();
 }
 
 WorkerManager::WorkerManager()
-    :m_stop(false) {
+    : m_stop(false)
+{
 }
 
-void WorkerManager::add(Scheduler::ptr s) {
+void WorkerManager::add(Scheduler::ptr s)
+{
     m_datas[s->getName()].push_back(s);
 }
 
-Scheduler::ptr WorkerManager::get(const std::string& name) {
+Scheduler::ptr WorkerManager::get(const std::string& name)
+{
     auto it = m_datas.find(name);
     if (it == m_datas.end()) {
         return nullptr;
@@ -58,11 +66,13 @@ Scheduler::ptr WorkerManager::get(const std::string& name) {
     return it->second[rand() % it->second.size()];
 }
 
-IOManager::ptr WorkerManager::getAsIOManager(const std::string& name) {
+IOManager::ptr WorkerManager::getAsIOManager(const std::string& name)
+{
     return std::dynamic_pointer_cast<IOManager>(get(name));
 }
 
-bool WorkerManager::init(const std::map<std::string, std::map<std::string, std::string>>& v) {
+bool WorkerManager::init(const std::map<std::string, std::map<std::string, std::string>>& v)
+{
     for (auto& [name, p] : v) {
         int32_t thread_num = GetParamValue(p, "thread_num", 1);
         int32_t worker_num = GetParamValue(p, "worker_num", 1);
@@ -81,14 +91,16 @@ bool WorkerManager::init(const std::map<std::string, std::map<std::string, std::
     return true;
 }
 
-bool WorkerManager::init() {
+bool WorkerManager::init()
+{
     auto workers = g_worker_config->getValue();
     return init(workers);
 }
 
-void WorkerManager::stop() {
+void WorkerManager::stop()
+{
     if (m_stop) {
-        return ;
+        return;
     }
     for (auto& i : m_datas) {
         for (auto& x : i.second) {
@@ -98,7 +110,8 @@ void WorkerManager::stop() {
             if (iom) {
                 iom->cancelAllTimers();
             }
-            x->schedule([]() {});
+            x->schedule([]() {
+            });
             x->stop();
         }
     }
@@ -106,7 +119,8 @@ void WorkerManager::stop() {
     m_stop = true;
 }
 
-std::ostream& WorkerManager::dump(std::ostream& os) {
+std::ostream& WorkerManager::dump(std::ostream& os)
+{
     for (auto& i : m_datas) {
         for (auto& x : i.second) {
             x->dump(os) << std::endl;
@@ -115,8 +129,9 @@ std::ostream& WorkerManager::dump(std::ostream& os) {
     return os;
 }
 
-uint32_t WorkerManager::getCount() {
+uint32_t WorkerManager::getCount()
+{
     return m_datas.size();
 }
 
-}
+} // namespace chen

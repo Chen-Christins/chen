@@ -29,22 +29,22 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
-void PrintResult(const std::string& name, uint64_t ops, Clock::duration elapsed) {
+void PrintResult(const std::string& name, uint64_t ops, Clock::duration elapsed)
+{
     double ns = std::chrono::duration<double, std::nano>(elapsed).count();
     double ms = ns / 1e6;
     double seconds = ns / 1e9;
     double mops = seconds > 0 ? (static_cast<double>(ops) / seconds / 1e6) : 0;
 
     std::cout << "[" << name << "]"
-              << " ops=" << ops
-              << " elapsed_ms=" << std::fixed << std::setprecision(2) << ms
-              << " throughput=" << std::setprecision(2) << mops << " Mops/s"
-              << " ns/op=" << std::setprecision(2) << (ops > 0 ? ns / ops : 0)
-              << std::endl;
+              << " ops=" << ops << " elapsed_ms=" << std::fixed << std::setprecision(2) << ms << " throughput=" << std::setprecision(2) << mops
+              << " Mops/s"
+              << " ns/op=" << std::setprecision(2) << (ops > 0 ? ns / ops : 0) << std::endl;
 }
 
 template <class Fn>
-Clock::duration RunThreads(int threads, uint64_t ops_per_thread, Fn&& fn) {
+Clock::duration RunThreads(int threads, uint64_t ops_per_thread, Fn&& fn)
+{
     std::atomic<int> ready{0};
     std::atomic<bool> start{false};
     std::vector<std::thread> workers;
@@ -73,10 +73,10 @@ Clock::duration RunThreads(int threads, uint64_t ops_per_thread, Fn&& fn) {
     return Clock::now() - begin;
 }
 
-void RunCounterBench(int threads, uint64_t ops_per_thread) {
-    auto* counter = RegistryMgr::GetInstance()->getCounter(
-        "test_metrics_bench_counter_total", "bench counter",
-        {{"case", threads > 1 ? "multi" : "single"}});
+void RunCounterBench(int threads, uint64_t ops_per_thread)
+{
+    auto* counter =
+        RegistryMgr::GetInstance()->getCounter("test_metrics_bench_counter_total", "bench counter", {{"case", threads > 1 ? "multi" : "single"}});
 
     auto elapsed = RunThreads(threads, ops_per_thread, [counter](uint64_t ops) {
         for (uint64_t i = 0; i < ops; ++i) {
@@ -92,11 +92,10 @@ void RunCounterBench(int threads, uint64_t ops_per_thread) {
     PrintResult(name, static_cast<uint64_t>(threads) * ops_per_thread, elapsed);
 }
 
-void RunHistogramBench(int threads, uint64_t ops_per_thread) {
+void RunHistogramBench(int threads, uint64_t ops_per_thread)
+{
     auto* histogram = RegistryMgr::GetInstance()->getHistogram(
-        "test_metrics_bench_histogram_seconds", "bench histogram",
-        {{"case", threads > 1 ? "multi" : "single"}},
-        {0.001, 0.01, 0.1});
+        "test_metrics_bench_histogram_seconds", "bench histogram", {{"case", threads > 1 ? "multi" : "single"}}, {0.001, 0.01, 0.1});
 
     // 固定命中第一个桶，模拟同一指标的热点争用
     auto elapsed = RunThreads(threads, ops_per_thread, [histogram](uint64_t ops) {
@@ -113,15 +112,15 @@ void RunHistogramBench(int threads, uint64_t ops_per_thread) {
     PrintResult(name, static_cast<uint64_t>(threads) * ops_per_thread, elapsed);
 }
 
-void RunRegistryLookupBench(uint64_t iterations) {
+void RunRegistryLookupBench(uint64_t iterations)
+{
     const Labels labels = {{"server", "bench"}, {"method", "GET"}};
     auto* registry = RegistryMgr::GetInstance();
     uintptr_t sink = 0;
 
     auto begin = Clock::now();
     for (uint64_t i = 0; i < iterations; ++i) {
-        auto* counter = registry->getCounter(
-            "test_metrics_bench_lookup_total", "bench lookup", labels);
+        auto* counter = registry->getCounter("test_metrics_bench_lookup_total", "bench lookup", labels);
         sink += reinterpret_cast<uintptr_t>(counter);
     }
     auto elapsed = Clock::now() - begin;
@@ -132,7 +131,8 @@ void RunRegistryLookupBench(uint64_t iterations) {
 
 } // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     uint64_t ops_per_thread = 2000000;
     int threads = static_cast<int>(chen::GetCPUCount());
     if (threads <= 0) {
@@ -155,10 +155,7 @@ int main(int argc, char** argv) {
               << std::endl;
 #endif
 
-    std::cout << "metrics bench: cpu=" << chen::GetCPUCount()
-              << " threads=" << threads
-              << " ops_per_thread=" << ops_per_thread
-              << std::endl;
+    std::cout << "metrics bench: cpu=" << chen::GetCPUCount() << " threads=" << threads << " ops_per_thread=" << ops_per_thread << std::endl;
 
     RunCounterBench(1, ops_per_thread);
     RunCounterBench(threads, ops_per_thread);

@@ -169,8 +169,7 @@ public:
 
     GaugeFunc* getGaugeFunc(const std::string& name, const std::string& help, const Labels& labels, GaugeFunc::Callback cb);
 
-    Histogram* getHistogram(const std::string& name, const std::string& help, const Labels& labels = {},
-                            const std::vector<double>& buckets = {});
+    Histogram* getHistogram(const std::string& name, const std::string& help, const Labels& labels = {}, const std::vector<double>& buckets = {});
 
     std::string RenderPrometheus();
 

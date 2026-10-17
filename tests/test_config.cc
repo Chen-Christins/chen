@@ -10,50 +10,46 @@
 
 static chen::Logger::ptr logger = LOG_ROOT();
 
-chen::ConfigVar<int>::ptr int_value_config = 
-    chen::Config::Lookup("system.port", (int)8080, "system port");
+chen::ConfigVar<int>::ptr int_value_config = chen::Config::Lookup("system.port", (int)8080, "system port");
 
-chen::ConfigVar<float>::ptr float_value_config = 
-    chen::Config::Lookup("system.value", (float)10.2f, "system float");
+chen::ConfigVar<float>::ptr float_value_config = chen::Config::Lookup("system.value", (float)10.2f, "system float");
 
-chen::ConfigVar<std::vector<int>>::ptr vec_value_config = 
-    chen::Config::Lookup("system.vec", std::vector<int> {1, 2, 3}, "system int vec");
+chen::ConfigVar<std::vector<int>>::ptr vec_value_config = chen::Config::Lookup("system.vec", std::vector<int>{1, 2, 3}, "system int vec");
 
-chen::ConfigVar<std::list<int>>::ptr list_value_config = 
-    chen::Config::Lookup("system.list", std::list<int> {4, 5, 6}, "system int list");
+chen::ConfigVar<std::list<int>>::ptr list_value_config = chen::Config::Lookup("system.list", std::list<int>{4, 5, 6}, "system int list");
 
-chen::ConfigVar<std::set<int>>::ptr set_value_config = 
-    chen::Config::Lookup("system.set", std::set<int> {91, 51, 61}, "system int set");
+chen::ConfigVar<std::set<int>>::ptr set_value_config = chen::Config::Lookup("system.set", std::set<int>{91, 51, 61}, "system int set");
 
-chen::ConfigVar<std::unordered_set<int>>::ptr uset_value_config = 
-    chen::Config::Lookup("system.uset", std::unordered_set<int> {91, 101, 61}, "system int uset");
+chen::ConfigVar<std::unordered_set<int>>::ptr uset_value_config =
+    chen::Config::Lookup("system.uset", std::unordered_set<int>{91, 101, 61}, "system int uset");
 
-chen::ConfigVar<std::map<std::string, int>>::ptr map_value_config = 
-    chen::Config::Lookup("system.map", std::map<std::string, int> {{"5", 9}, {"1", 3}, {"4", 5}}, "system map");
+chen::ConfigVar<std::map<std::string, int>>::ptr map_value_config =
+    chen::Config::Lookup("system.map", std::map<std::string, int>{{"5", 9}, {"1", 3}, {"4", 5}}, "system map");
 
 chen::ConfigVar<std::unordered_map<std::string, int>>::ptr umap_value_config =
-    chen::Config::Lookup("system.umap", std::unordered_map<std::string, int> {{"4", 3}, {"1", 5}, {"5", 2}}, "system umap");
+    chen::Config::Lookup("system.umap", std::unordered_map<std::string, int>{{"4", 3}, {"1", 5}, {"5", 2}}, "system umap");
 
-void test_config() {
+void test_config()
+{
     INFO(logger) << "before: " << int_value_config->getValue();
     INFO(logger) << "before: " << float_value_config->toString();
 
-#define XX(var, name, prefix) \
-    { \
-        auto& v = var->getValue(); \
-        for (auto& i : v) { \
-            INFO(logger) << #prefix " " #name ": " << i; \
-        } \
+#define XX(var, name, prefix)                                           \
+    {                                                                   \
+        auto& v = var->getValue();                                      \
+        for (auto& i : v) {                                             \
+            INFO(logger) << #prefix " " #name ": " << i;                \
+        }                                                               \
         INFO(logger) << #prefix " " #name " yaml: " << var->toString(); \
     }
 
-#define XX_M(var, name, prefix) \
-    { \
-        auto& v = var->getValue(); \
-        for (auto& [x, y] : v) { \
+#define XX_M(var, name, prefix)                                                \
+    {                                                                          \
+        auto& v = var->getValue();                                             \
+        for (auto& [x, y] : v) {                                               \
             INFO(logger) << #prefix " " #name ": {" << x << " - " << y << "}"; \
-        } \
-        INFO(logger) << #prefix " " #name " yaml: " << var->toString(); \
+        }                                                                      \
+        INFO(logger) << #prefix " " #name " yaml: " << var->toString();        \
     }
 
     XX(vec_value_config, int_vec, before);
@@ -79,29 +75,27 @@ void test_config() {
 
 #endif
 
-void print_yaml(const YAML::Node& node, int level) {
+void print_yaml(const YAML::Node& node, int level)
+{
     if (node.IsScalar()) {
-        INFO(logger) << std::string(level * 4, ' ')
-            << node.Scalar() << " - " << node.Type() << " - " << level;
+        INFO(logger) << std::string(level * 4, ' ') << node.Scalar() << " - " << node.Type() << " - " << level;
     } else if (node.IsNull()) {
-        INFO(logger) << std::string(level * 4, ' ')
-            << "NULL - " << node.Type() << " - " << level;
+        INFO(logger) << std::string(level * 4, ' ') << "NULL - " << node.Type() << " - " << level;
     } else if (node.IsMap()) {
         for (auto it = node.begin(); it != node.end(); ++it) {
-            INFO(logger) << std::string(level * 4, ' ')
-                << it->first << " - " << it->second.Type() << " - " << level;
+            INFO(logger) << std::string(level * 4, ' ') << it->first << " - " << it->second.Type() << " - " << level;
             print_yaml(it->second, level + 1);
         }
     } else if (node.IsSequence()) {
         for (size_t i = 0; i < node.size(); ++i) {
-            INFO(logger) << std::string(level * 4, ' ')
-                << i << " - " << node[i].Type() << " - " << level;
+            INFO(logger) << std::string(level * 4, ' ') << i << " - " << node[i].Type() << " - " << level;
             print_yaml(node[i], level);
         }
     }
 }
 
-void test_yaml() {
+void test_yaml()
+{
     YAML::Node root = YAML::LoadFile("/home/chen/workspace/chen/bin/conf/log.yml");
     print_yaml(root, 0);
 }
@@ -113,20 +107,14 @@ public:
     int m_age = 0;
     bool m_sex = 0;
 
-    std::string toString() const {
+    std::string toString() const
+    {
         std::stringstream ss;
-        ss << "[Person name=" << m_name
-           << " age=" << m_age
-           << " sex=" << m_sex
-           << "]";
+        ss << "[Person name=" << m_name << " age=" << m_age << " sex=" << m_sex << "]";
         return ss.str();
     }
 
-    bool operator==(const Person& oth) const {
-        return m_name == oth.m_name
-            && m_age == oth.m_age
-            && m_sex == oth.m_sex;
-    }
+    bool operator==(const Person& oth) const { return m_name == oth.m_name && m_age == oth.m_age && m_sex == oth.m_sex; }
 };
 
 namespace chen {
@@ -134,7 +122,8 @@ namespace chen {
 template <>
 class LexicalCast<std::string, Person> {
 public:
-    Person operator()(const std::string& v) {
+    Person operator()(const std::string& v)
+    {
         YAML::Node node = YAML::Load(v);
         Person p;
         p.m_name = node["name"].as<std::string>();
@@ -147,7 +136,8 @@ public:
 template <>
 class LexicalCast<Person, std::string> {
 public:
-    std::string operator()(const Person& v) {
+    std::string operator()(const Person& v)
+    {
         YAML::Node node;
         node["name"] = v.m_name;
         node["age"] = v.m_age;
@@ -158,26 +148,25 @@ public:
     }
 };
 
-}
+} // namespace chen
 
-chen::ConfigVar<Person>::ptr person = 
-    chen::Config::Lookup("class.person", Person(), "system person");
+chen::ConfigVar<Person>::ptr person = chen::Config::Lookup("class.person", Person(), "system person");
 
-chen::ConfigVar<std::map<std::string, Person>>::ptr map_person = 
-    chen::Config::Lookup("class.map", std::map<std::string, Person>(), "system person");
+chen::ConfigVar<std::map<std::string, Person>>::ptr map_person = chen::Config::Lookup("class.map", std::map<std::string, Person>(), "system person");
 
 chen::ConfigVar<std::map<std::string, std::vector<Person>>>::ptr map_vec_person =
     chen::Config::Lookup("class.vec_map", std::map<std::string, std::vector<Person>>(), "system person");
 
-void test_class() {
+void test_class()
+{
     INFO(logger) << "before: " << person->getValue().toString() << " - " << person->toString();
-#define XX_PM(var, prefix) \
-    { \
-        auto m = var->getValue(); \
-        for (auto& [x, y] : m) { \
+#define XX_PM(var, prefix)                                                \
+    {                                                                     \
+        auto m = var->getValue();                                         \
+        for (auto& [x, y] : m) {                                          \
             INFO(logger) << prefix << ": " << x << " - " << y.toString(); \
-        } \
-        INFO(logger) << prefix << ": size=" << m.size(); \
+        }                                                                 \
+        INFO(logger) << prefix << ": size=" << m.size();                  \
     }
     XX_PM(map_person, "class.map before");
     INFO(logger) << "before: " << map_vec_person->toString();
@@ -191,7 +180,8 @@ void test_class() {
     INFO(logger) << "after: " << map_vec_person->toString();
 }
 
-void test_log() {
+void test_log()
+{
     static chen::Logger::ptr system_log = LOG_NAME("system");
     INFO(system_log) << "hello system" << std::endl;
     std::cout << chen::LoggerMgr::GetInstance()->toYamlString() << std::endl;
@@ -207,11 +197,13 @@ void test_log() {
     INFO(system_log) << "hello system" << std::endl;
 }
 
-void test_loadconf() {
+void test_loadconf()
+{
     chen::Config::LoadFromConfDir("conf");
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     // test_config();
     // test_yaml();
     // test_class();
@@ -222,7 +214,8 @@ int main(int argc, char** argv) {
     // INFO(logger) << "before load - http gateway config: " << g_gateway_config->toString();
     // YAML::Node root = YAML::LoadFile("/home/chen/workspace/chen/bin/conf/gateway.yml");
     // chen::Config::LoadFromYaml(root);
-    // INFO(logger) << "after load - http gateway config:\n" << chen::LexicalCast<chen::httpGateway::HttpGatewayConfig, std::string>()(g_gateway_config->getValue());
+    // INFO(logger) << "after load - http gateway config:\n" << chen::LexicalCast<chen::httpGateway::HttpGatewayConfig,
+    // std::string>()(g_gateway_config->getValue());
 
     return 0;
 }

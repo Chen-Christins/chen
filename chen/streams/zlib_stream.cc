@@ -2,20 +2,23 @@
 
 namespace chen {
 
-ZlibStream::ptr ZlibStream::CreateGzip(bool encode, uint32_t buff_size) {
+ZlibStream::ptr ZlibStream::CreateGzip(bool encode, uint32_t buff_size)
+{
     return Create(encode, buff_size, GZIP);
 }
 
-ZlibStream::ptr ZlibStream::CreateZlib(bool encode, uint32_t buff_size) {
+ZlibStream::ptr ZlibStream::CreateZlib(bool encode, uint32_t buff_size)
+{
     return Create(encode, buff_size, ZLIB);
 }
 
-ZlibStream::ptr ZlibStream::CreateDeflate(bool encode, uint32_t buff_size) {
+ZlibStream::ptr ZlibStream::CreateDeflate(bool encode, uint32_t buff_size)
+{
     return Create(encode, buff_size, DEFLATE);
 }
 
-ZlibStream::ptr ZlibStream::Create(bool encode, uint32_t buff_size, Type type
-        , int level, int window_bits, int memlevel, Strategy strategy) {
+ZlibStream::ptr ZlibStream::Create(bool encode, uint32_t buff_size, Type type, int level, int window_bits, int memlevel, Strategy strategy)
+{
     ZlibStream::ptr rt(new ZlibStream(encode, buff_size));
     if (rt->init(type, level, window_bits, memlevel, strategy) == Z_OK) {
         return rt;
@@ -23,13 +26,15 @@ ZlibStream::ptr ZlibStream::Create(bool encode, uint32_t buff_size, Type type
     return nullptr;
 }
 
-ZlibStream::ZlibStream(bool encode, uint32_t buff_size) 
+ZlibStream::ZlibStream(bool encode, uint32_t buff_size)
     : m_buffSize(buff_size)
     , m_encode(encode)
-    , m_free(true) {
+    , m_free(true)
+{
 }
 
-ZlibStream::~ZlibStream() {
+ZlibStream::~ZlibStream()
+{
     if (m_free) {
         for (auto& i : m_buffs) {
             free(i.iov_base);
@@ -43,15 +48,18 @@ ZlibStream::~ZlibStream() {
     }
 }
 
-int ZlibStream::read(void* buffer, size_t length) {
+int ZlibStream::read(void* buffer, size_t length)
+{
     throw std::logic_error("ZlibStream::read is invalid");
 }
 
-int ZlibStream::read(ByteArray::ptr ba, size_t length) {
+int ZlibStream::read(ByteArray::ptr ba, size_t length)
+{
     throw std::logic_error("ZlibStream::read is invalid");
 }
 
-int ZlibStream::write(const void* buffer, size_t length) {
+int ZlibStream::write(const void* buffer, size_t length)
+{
     iovec ivc;
     ivc.iov_base = (void*)buffer;
     ivc.iov_len = length;
@@ -62,7 +70,8 @@ int ZlibStream::write(const void* buffer, size_t length) {
     }
 }
 
-int ZlibStream::write(ByteArray::ptr ba, size_t length) {
+int ZlibStream::write(ByteArray::ptr ba, size_t length)
+{
     std::vector<iovec> buffers;
     ba->getReadBuffers(buffers, length);
     if (m_encode) {
@@ -72,9 +81,13 @@ int ZlibStream::write(ByteArray::ptr ba, size_t length) {
     }
 }
 
-void ZlibStream::close() { flush(); }
+void ZlibStream::close()
+{
+    flush();
+}
 
-int ZlibStream::init(Type type, int level, int window_bits, int memlevel, Strategy strategy) {
+int ZlibStream::init(Type type, int level, int window_bits, int memlevel, Strategy strategy)
+{
     ASSERT((level >= 0 && level <= 9) || level == DEFAULT_COMPRESSION);
     ASSERT((window_bits >= 8 && window_bits <= 15));
     ASSERT((memlevel >= 1 && memlevel <= 9));
@@ -104,7 +117,8 @@ int ZlibStream::init(Type type, int level, int window_bits, int memlevel, Strate
     }
 }
 
-int ZlibStream::encode(const iovec* v, const uint64_t& size, bool finish) {
+int ZlibStream::encode(const iovec* v, const uint64_t& size, bool finish)
+{
     int ret = 0;
     int flush = 0;
     for (uint64_t i = 0; i < size; ++i) {
@@ -141,7 +155,8 @@ int ZlibStream::encode(const iovec* v, const uint64_t& size, bool finish) {
     return Z_OK;
 }
 
-int ZlibStream::decode(const iovec* v, const uint64_t& size, bool finish) {
+int ZlibStream::decode(const iovec* v, const uint64_t& size, bool finish)
+{
     int ret = 0;
     int flush = 0;
     for (uint64_t i = 0; i < size; ++i) {
@@ -179,7 +194,8 @@ int ZlibStream::decode(const iovec* v, const uint64_t& size, bool finish) {
     return Z_OK;
 }
 
-int ZlibStream::flush() {
+int ZlibStream::flush()
+{
     iovec ivc;
     ivc.iov_base = nullptr;
     ivc.iov_len = 0;
@@ -191,7 +207,8 @@ int ZlibStream::flush() {
     }
 }
 
-std::string ZlibStream::getResult() const {
+std::string ZlibStream::getResult() const
+{
     std::string rt;
     for (auto& i : m_buffs) {
         rt.append((const char*)i.iov_base, i.iov_len);
@@ -199,7 +216,8 @@ std::string ZlibStream::getResult() const {
     return rt;
 }
 
-ByteArray::ptr ZlibStream::getByteArray() {
+ByteArray::ptr ZlibStream::getByteArray()
+{
     ByteArray::ptr ba(new ByteArray);
     for (auto& i : m_buffs) {
         ba->write(i.iov_base, i.iov_len);

@@ -14,7 +14,8 @@ struct UserInfo {
 
 template <>
 struct chen::rpc::Serialization<UserInfo> {
-    static void write(ByteArray::ptr ba, const UserInfo& u) {
+    static void write(ByteArray::ptr ba, const UserInfo& u)
+    {
         ba->writeFint32(u.id);
         ba->writeStringVint(u.name);
         ba->writeFint32(u.age);
@@ -23,7 +24,8 @@ struct chen::rpc::Serialization<UserInfo> {
             ba->writeStringVint(t);
         }
     }
-    static void read(ByteArray::ptr ba, UserInfo& u) {
+    static void read(ByteArray::ptr ba, UserInfo& u)
+    {
         u.id = ba->readFint32();
         u.name = ba->readStringVint();
         u.age = ba->readFint32();
@@ -35,7 +37,8 @@ struct chen::rpc::Serialization<UserInfo> {
     }
 };
 
-void run() {
+void run()
+{
     chen::Address::ptr addr = chen::Address::LookupAny("127.0.0.1:8080");
     if (!addr) {
         ERROR(logger) << "get address error";
@@ -66,7 +69,7 @@ void run() {
 
         UserInfo u = client->call<UserInfo>("getUserInfo", 100);
         INFO(logger) << "getUserInfo(100) id=" << u.id << " name=" << u.name << " age=" << u.age;
-        for(auto& t : u.tags) {
+        for (auto& t : u.tags) {
             INFO(logger) << "  tag: " << t;
         }
 
@@ -90,29 +93,32 @@ void run() {
         chen::FiberSemaphore done{0};
         std::atomic<int> ok_count{0};
 
-        client->callAsync<int>("add", [&](chen::rpc::RpcResult<int> r) {
-            if (r.ok() && r.value == 60) {
-                ++ok_count;
-                INFO(logger) << "[async] add(40, 20) = " << r.value;
-            } else {
-                ERROR(logger) << "[async] add failed: status="
-                    << static_cast<int>(r.status) << " code=" << r.code
-                    << " err=" << r.error;
-            }
-            done.notify();
-        }, 40, 20);
+        client->callAsync<int>(
+            "add",
+            [&](chen::rpc::RpcResult<int> r) {
+                if (r.ok() && r.value == 60) {
+                    ++ok_count;
+                    INFO(logger) << "[async] add(40, 20) = " << r.value;
+                } else {
+                    ERROR(logger) << "[async] add failed: status=" << static_cast<int>(r.status) << " code=" << r.code << " err=" << r.error;
+                }
+                done.notify();
+            },
+            40, 20);
 
-        client->callAsync<std::string>("echo", [&](chen::rpc::RpcResult<std::string> r) {
-            if (r.ok() && r.value == "echo: hello async") {
-                ++ok_count;
-                INFO(logger) << "[async] echo = " << r.value;
-            } else {
-                ERROR(logger) << "[async] echo failed: status="
-                    << static_cast<int>(r.status) << " code=" << r.code
-                    << " err=" << r.error << " value=" << r.value;
-            }
-            done.notify();
-        }, "hello async");
+        client->callAsync<std::string>(
+            "echo",
+            [&](chen::rpc::RpcResult<std::string> r) {
+                if (r.ok() && r.value == "echo: hello async") {
+                    ++ok_count;
+                    INFO(logger) << "[async] echo = " << r.value;
+                } else {
+                    ERROR(logger) << "[async] echo failed: status=" << static_cast<int>(r.status) << " code=" << r.code << " err=" << r.error
+                                  << " value=" << r.value;
+                }
+                done.notify();
+            },
+            "hello async");
 
         client->callAsync<void>("echoTest", [&](chen::rpc::RpcResult<void> r) {
             if (r.ok()) {
@@ -125,17 +131,18 @@ void run() {
         });
 
         // 服务端不存在的错误路径：回调应收到业务错误码而非抛异常
-        client->callAsyncWithTimeout<std::string>(2000, "no_such_method"
-                , [&](chen::rpc::RpcResult<std::string> r) {
-            if (!r.ok() && r.code != 0) {
-                ++ok_count;
-                INFO(logger) << "[async] no_such_method error propagated, code="
-                    << r.code << " err=" << r.error;
-            } else {
-                ERROR(logger) << "[async] no_such_method unexpected ok=" << r.ok();
-            }
-            done.notify();
-        }, "payload");
+        client->callAsyncWithTimeout<std::string>(
+            2000, "no_such_method",
+            [&](chen::rpc::RpcResult<std::string> r) {
+                if (!r.ok() && r.code != 0) {
+                    ++ok_count;
+                    INFO(logger) << "[async] no_such_method error propagated, code=" << r.code << " err=" << r.error;
+                } else {
+                    ERROR(logger) << "[async] no_such_method unexpected ok=" << r.ok();
+                }
+                done.notify();
+            },
+            "payload");
 
         for (int i = 0; i < 4; ++i) {
             done.wait();
@@ -184,8 +191,7 @@ void run() {
         if (!r_err.ok() && r_err.code == 404) {
             ++ok_count;
         }
-        INFO(logger) << "[future] no_such_method code=" << r_err.code
-            << " err=" << r_err.error;
+        INFO(logger) << "[future] no_such_method code=" << r_err.code << " err=" << r_err.error;
 
         // getValue 失败应抛异常
         bool threw = false;
@@ -227,8 +233,7 @@ void run() {
             INFO(logger) << "[pool] echoVec(...) returned vector of size " << echoed_vec.size();
 
             UserInfo u = pool_client->call<UserInfo>("getUserInfo", 100);
-            INFO(logger) << "[pool] getUserInfo(100) id=" << u.id
-                << " name=" << u.name << " age=" << u.age;
+            INFO(logger) << "[pool] getUserInfo(100) id=" << u.id << " name=" << u.name << " age=" << u.age;
 
             pool_client->call<void>("echoTest");
             INFO(logger) << "[pool] echoTest() called successfully";
@@ -240,14 +245,18 @@ void run() {
         }
     }
 
-    chen::IOManager::GetThis()->addTimer(10 * 1000, [client, pool](){
-        INFO(logger) << "Closing clients...";
-        client->close();
-        pool->closeAll();
-    }, false);
+    chen::IOManager::GetThis()->addTimer(
+        10 * 1000,
+        [client, pool]() {
+            INFO(logger) << "Closing clients...";
+            client->close();
+            pool->closeAll();
+        },
+        false);
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     chen::IOManager iom(1);
     iom.schedule(run);
     return 0;

@@ -6,14 +6,17 @@
 namespace chen {
 
 FiberSemaphore::FiberSemaphore(size_t initail_concurrency)
-    :m_concurrency(initail_concurrency) {
+    : m_concurrency(initail_concurrency)
+{
 }
 
-FiberSemaphore::~FiberSemaphore() {
+FiberSemaphore::~FiberSemaphore()
+{
     ASSERT(m_waiters.empty());
 }
 
-bool FiberSemaphore::tryWait() {
+bool FiberSemaphore::tryWait()
+{
     ASSERT(Scheduler::GetThis());
     {
         MutexType::Lock lock(m_mutex);
@@ -25,20 +28,22 @@ bool FiberSemaphore::tryWait() {
     }
 }
 
-void FiberSemaphore::wait() {
+void FiberSemaphore::wait()
+{
     ASSERT(Scheduler::GetThis());
     {
         MutexType::Lock lock(m_mutex);
         if (m_concurrency > 0u) {
             --m_concurrency;
-            return ;
+            return;
         }
         m_waiters.push_back(std::pair(Scheduler::GetThis(), Fiber::GetThis()));
     }
     Fiber::YieldToHold();
 }
 
-void FiberSemaphore::notify() {
+void FiberSemaphore::notify()
+{
     MutexType::Lock lock(m_mutex);
     if (!m_waiters.empty()) {
         auto next = m_waiters.front();
@@ -49,4 +54,4 @@ void FiberSemaphore::notify() {
     }
 }
 
-}
+} // namespace chen

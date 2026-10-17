@@ -6,7 +6,10 @@
 
 namespace chen::rpc {
 
-RpcConnection::RpcConnection(Socket::ptr sock, bool owner) : SocketStream(sock, owner) {}
+RpcConnection::RpcConnection(Socket::ptr sock, bool owner)
+    : SocketStream(sock, owner)
+{
+}
 
 namespace {
 
@@ -16,7 +19,8 @@ namespace {
  * @param[out] hdr 解析成功时填充头部字段
  * @return true 校验通过（magic/version/长度上界），false 非法头部
  */
-bool ParseHeader(const char* buf, ProtocolHeader& hdr) {
+bool ParseHeader(const char* buf, ProtocolHeader& hdr)
+{
     size_t pos = 0;
     hdr.magic = ReadBigEndianUint8(buf, pos);
     hdr.version = ReadBigEndianUint8(buf, pos);
@@ -43,7 +47,8 @@ bool ParseHeader(const char* buf, ProtocolHeader& hdr) {
 /**
  * @brief 将协议头编码为字节流（固定大端序）
  */
-void EncodeHeader(const ProtocolHeader& hdr, char* buf) {
+void EncodeHeader(const ProtocolHeader& hdr, char* buf)
+{
     size_t pos = 0;
     WriteBigEndianUint8(buf, pos, hdr.magic);
     WriteBigEndianUint8(buf, pos, hdr.version);
@@ -63,7 +68,8 @@ void EncodeHeader(const ProtocolHeader& hdr, char* buf) {
 
 } // anonymous namespace
 
-Protocol::ptr RpcConnection::recvProtocol() {
+Protocol::ptr RpcConnection::recvProtocol()
+{
     // 1) 读取定长头部到栈 buffer（避免每次分配 ByteArray）
     char hdr_buf[Protocol::BASE_LENGTH];
     if (readFixSize(hdr_buf, sizeof(hdr_buf)) <= 0) {
@@ -91,7 +97,8 @@ Protocol::ptr RpcConnection::recvProtocol() {
     return proto;
 }
 
-int RpcConnection::sendProtocol(Protocol::ptr resp) {
+int RpcConnection::sendProtocol(Protocol::ptr resp)
+{
     resp->length = resp->body.size();
 
     // 头部拼到栈 buffer（避免 ByteArray 分配）

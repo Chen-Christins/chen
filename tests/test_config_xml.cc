@@ -26,14 +26,10 @@ namespace {
 chen::ConfigVar<int>::ptr g_port = chen::Config::Lookup("xml_test.port", 0, "xml test port");
 chen::ConfigVar<std::string>::ptr g_name = chen::Config::Lookup("xml_test.name", std::string(), "xml test name");
 chen::ConfigVar<bool>::ptr g_enable = chen::Config::Lookup("xml_test.enable", false, "xml test enable");
-chen::ConfigVar<std::vector<int>>::ptr g_vec =
-    chen::Config::Lookup("xml_test.vec", std::vector<int>(), "xml test vec");
-chen::ConfigVar<std::list<int>>::ptr g_list =
-    chen::Config::Lookup("xml_test.list", std::list<int>(), "xml test list");
-chen::ConfigVar<std::set<int>>::ptr g_set =
-    chen::Config::Lookup("xml_test.set", std::set<int>(), "xml test set");
-chen::ConfigVar<std::map<std::string, int>>::ptr g_map =
-    chen::Config::Lookup("xml_test.map", std::map<std::string, int>(), "xml test map");
+chen::ConfigVar<std::vector<int>>::ptr g_vec = chen::Config::Lookup("xml_test.vec", std::vector<int>(), "xml test vec");
+chen::ConfigVar<std::list<int>>::ptr g_list = chen::Config::Lookup("xml_test.list", std::list<int>(), "xml test list");
+chen::ConfigVar<std::set<int>>::ptr g_set = chen::Config::Lookup("xml_test.set", std::set<int>(), "xml test set");
+chen::ConfigVar<std::map<std::string, int>>::ptr g_map = chen::Config::Lookup("xml_test.map", std::map<std::string, int>(), "xml test map");
 chen::ConfigVar<std::map<std::string, std::map<std::string, std::string>>>::ptr g_nested_map =
     chen::Config::Lookup("xml_test.nested", std::map<std::string, std::map<std::string, std::string>>(), "xml test nested map");
 chen::ConfigVar<std::vector<std::map<std::string, std::string>>>::ptr g_servers =
@@ -44,7 +40,8 @@ chen::ConfigVar<std::vector<std::string>>::ptr g_tokens =
 chen::ConfigVar<int>::ptr g_dir_port = chen::Config::Lookup("dir_test.port", 0, "dir test port");
 chen::ConfigVar<std::string>::ptr g_dir_host = chen::Config::Lookup("dir_test.host", std::string(), "dir test host");
 
-void test_load_from_xml() {
+void test_load_from_xml()
+{
     std::cout << "=== test_load_from_xml ===" << std::endl;
 
     const char* xml = R"(<config>
@@ -137,7 +134,8 @@ void test_load_from_xml() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_load_from_conf_dir() {
+void test_load_from_conf_dir()
+{
     std::cout << "=== test_load_from_conf_dir ===" << std::endl;
 
     namespace fs = std::filesystem;
@@ -166,7 +164,8 @@ void test_load_from_conf_dir() {
 
 } // namespace
 
-int main() {
+int main()
+{
     test_load_from_xml();
     test_load_from_conf_dir();
 

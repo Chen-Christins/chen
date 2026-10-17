@@ -4,7 +4,8 @@
 
 static chen::Logger::ptr logger = LOG_ROOT();
 
-void test_sleep() {
+void test_sleep()
+{
     chen::IOManager iom(1);
     iom.schedule([]() {
         sleep(2);
@@ -18,7 +19,8 @@ void test_sleep() {
     INFO(logger) << "test_sleep";
 }
 
-void test_sock() {
+void test_sock()
+{
     // YAML::Node root = YAML::LoadFile("/home/chen/workspace/chen/bin/conf/hook.yml");
     // chen::Config::LoadFromYaml(root);
 
@@ -35,7 +37,7 @@ void test_sock() {
     INFO(logger) << "connect rt=" << rt << " errno=" << errno;
 
     if (rt) {
-        return ;
+        return;
     }
 
     const char data[] = "GET / HTTP/1.0\r\n\r\n";
@@ -43,7 +45,7 @@ void test_sock() {
     INFO(logger) << "send rt=" << rt << " errno=" << errno;
 
     if (rt <= 0) {
-        return ;
+        return;
     }
 
     std::string buff;
@@ -53,14 +55,15 @@ void test_sock() {
     INFO(logger) << "recv rt=" << rt << " errno=" << errno;
 
     if (rt <= 0) {
-        return ;
+        return;
     }
 
     buff.resize(rt);
     INFO(logger) << buff;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     // test_sleep();
     chen::IOManager iom;
     iom.schedule(test_sock);

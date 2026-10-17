@@ -22,7 +22,10 @@ namespace chen::http {
 class Servlet {
 public:
     typedef std::shared_ptr<Servlet> ptr;
-    Servlet(const std::string& name) : m_name(name) {}
+    Servlet(const std::string& name)
+        : m_name(name)
+    {
+    }
     virtual ~Servlet() {}
     virtual int32_t handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session) = 0;
 
@@ -42,8 +45,7 @@ protected:
 class FunctionServlet : public Servlet {
 public:
     typedef std::shared_ptr<FunctionServlet> ptr;
-    typedef std::function<int32_t(HttpRequest::ptr request, HttpResponse::ptr response
-                        ,HttpSession::ptr session)> callback;
+    typedef std::function<int32_t(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)> callback;
 
     FunctionServlet(callback cb, bool streamingBody = false);
     virtual int32_t handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session) override;
@@ -128,12 +130,11 @@ public:
     Servlet::ptr matchForRequest(HttpRequest::ptr request);
 
     struct RestfulRoute {
-        std::vector<std::string> segments;  // e.g. ["api", "user", ":id"]
+        std::vector<std::string> segments; // e.g. ["api", "user", ":id"]
         Servlet::ptr servlet;
     };
 
 private:
-
     // uri(/chen/xxx) -> servlet
     std::unordered_map<std::string, Servlet::ptr> m_datas;
     // RESTful routes: /api/user/:id

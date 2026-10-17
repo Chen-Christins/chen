@@ -45,21 +45,11 @@ struct TcpServerConf {
 
     bool isValid() const { return !address.empty(); }
 
-    bool operator==(const TcpServerConf& oth) const {
-        return address == oth.address
-            && keepalive == oth.keepalive
-            && timeout == oth.timeout
-            && ssl == oth.ssl
-            && id == oth.id
-            && type == oth.type
-            && name == oth.name
-            && cert_file == oth.cert_file
-            && key_file == oth.key_file
-            && accept_worker == oth.accept_worker
-            && io_worker == oth.io_worker
-            && process_worker == oth.process_worker
-            && negotiateH2 == oth.negotiateH2
-            && args == oth.args;
+    bool operator==(const TcpServerConf& oth) const
+    {
+        return address == oth.address && keepalive == oth.keepalive && timeout == oth.timeout && ssl == oth.ssl && id == oth.id && type == oth.type
+            && name == oth.name && cert_file == oth.cert_file && key_file == oth.key_file && accept_worker == oth.accept_worker
+            && io_worker == oth.io_worker && process_worker == oth.process_worker && negotiateH2 == oth.negotiateH2 && args == oth.args;
     }
 };
 
@@ -70,7 +60,8 @@ struct TcpServerConf {
 template <>
 class LexicalCast<std::string, TcpServerConf> {
 public:
-    TcpServerConf operator()(const std::string& v) {
+    TcpServerConf operator()(const std::string& v)
+    {
         YAML::Node node = YAML::Load(v);
         TcpServerConf conf;
         conf.id = node["id"].as<std::string>(conf.id);
@@ -106,7 +97,8 @@ public:
 template <>
 class LexicalCast<TcpServerConf, std::string> {
 public:
-    std::string operator()(const TcpServerConf& conf) {
+    std::string operator()(const TcpServerConf& conf)
+    {
         YAML::Node node;
         node["id"] = conf.id;
         node["type"] = conf.type;
@@ -138,8 +130,7 @@ public:
      * @param worker 主要的工作线程池
      * @param accept_worker 用于接收连接的线程池
      */
-    TcpServer(IOManager* worker = IOManager::GetThis(), IOManager* io_worker = IOManager::GetThis(),
-              IOManager* accept_worker = IOManager::GetThis());
+    TcpServer(IOManager* worker = IOManager::GetThis(), IOManager* io_worker = IOManager::GetThis(), IOManager* accept_worker = IOManager::GetThis());
 
     /**
      * @brief 析构函数
@@ -302,8 +293,8 @@ protected:
 
 class TcpServerFactory {
 public:
-    using Creator = std::function<TcpServer::ptr(const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker,
-                                                 IOManager* accept_worker)>;
+    using Creator =
+        std::function<TcpServer::ptr(const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker)>;
 
     /**
      * @brief 注册服务器创建器

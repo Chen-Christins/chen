@@ -13,63 +13,76 @@ namespace chen {
 
 static Logger::ptr g_logger = LOG_NAME("system");
 
-static ConfigVar<std::string>::ptr g_module_path = 
-    Config::Lookup("module.path", std::string("module"), "module path");
+static ConfigVar<std::string>::ptr g_module_path = Config::Lookup("module.path", std::string("module"), "module path");
 
-std::string GetModulePath() {
+std::string GetModulePath()
+{
     return g_module_path->getValue();
 }
 
 Module::Module(const std::string& name, const std::string& version, const std::string& filename, uint32_t type)
-    :m_name(name)
-    ,m_version(version)
-    ,m_filename(filename)
-    ,m_id(name + "/" + version)
-    ,m_type(type) {
+    : m_name(name)
+    , m_version(version)
+    , m_filename(filename)
+    , m_id(name + "/" + version)
+    , m_type(type)
+{
 }
 
-void Module::onBeforeArgsParse(int argc, char** argv) {
+void Module::onBeforeArgsParse(int argc, char** argv)
+{
 }
 
-void Module::onAfterArgsParse(int argc, char** argv) {
+void Module::onAfterArgsParse(int argc, char** argv)
+{
 }
 
-bool Module::onLoad() {
+bool Module::onLoad()
+{
     return true;
 }
 
-bool Module::onUnload() {
+bool Module::onUnload()
+{
     return true;
 }
 
-bool Module::onDeactivate() {
+bool Module::onDeactivate()
+{
     return true;
 }
 
-bool Module::onConnect(Stream::ptr stream) {
+bool Module::onConnect(Stream::ptr stream)
+{
     return true;
 }
 
-bool Module::onDisconnect(Stream::ptr stream) {
+bool Module::onDisconnect(Stream::ptr stream)
+{
     return true;
 }
 
-bool Module::onServerReady() {
+bool Module::onServerReady()
+{
     return true;
 }
 
-bool Module::onServerUp() {
+bool Module::onServerUp()
+{
     return true;
 }
 
-void Module::onTick() {
+void Module::onTick()
+{
 }
 
-uint64_t Module::getTickIntervalMs() {
+uint64_t Module::getTickIntervalMs()
+{
     return 0;
 }
 
-std::string Module::statusString() {
+std::string Module::statusString()
+{
     std::vector<TcpServer::ptr> servers;
     Application::GetInstance()->getAllServers(servers);
     std::stringstream ss;
@@ -79,11 +92,13 @@ std::string Module::statusString() {
     return ss.str();
 }
 
-static void getServersByType(const std::string& type, std::vector<TcpServer::ptr>& out) {
+static void getServersByType(const std::string& type, std::vector<TcpServer::ptr>& out)
+{
     Application::GetInstance()->getServer(type, out);
 }
 
-void Module::getAllHttpServer(std::vector<std::shared_ptr<http::HttpServer>>& servers) {
+void Module::getAllHttpServer(std::vector<std::shared_ptr<http::HttpServer>>& servers)
+{
     std::vector<TcpServer::ptr> tcps;
     getServersByType("http", tcps);
     for (auto& svr : tcps) {
@@ -94,7 +109,8 @@ void Module::getAllHttpServer(std::vector<std::shared_ptr<http::HttpServer>>& se
     }
 }
 
-void Module::getAllWSServer(std::vector<std::shared_ptr<http::WSServer>>& servers) {
+void Module::getAllWSServer(std::vector<std::shared_ptr<http::WSServer>>& servers)
+{
     std::vector<TcpServer::ptr> tcps;
     getServersByType("ws", tcps);
     for (auto& svr : tcps) {
@@ -105,7 +121,8 @@ void Module::getAllWSServer(std::vector<std::shared_ptr<http::WSServer>>& server
     }
 }
 
-void Module::getAllRpcServer(std::vector<std::shared_ptr<rpc::RpcServer>>& servers) {
+void Module::getAllRpcServer(std::vector<std::shared_ptr<rpc::RpcServer>>& servers)
+{
     std::vector<TcpServer::ptr> tcps;
     getServersByType("rpc", tcps);
     for (auto& svr : tcps) {
@@ -116,7 +133,8 @@ void Module::getAllRpcServer(std::vector<std::shared_ptr<rpc::RpcServer>>& serve
     }
 }
 
-void Module::getAllGameServer(std::vector<std::shared_ptr<game::GenericProtocolServer>>& servers) {
+void Module::getAllGameServer(std::vector<std::shared_ptr<game::GenericProtocolServer>>& servers)
+{
     std::vector<TcpServer::ptr> tcps;
     getServersByType("game", tcps);
     for (auto& svr : tcps) {
@@ -127,21 +145,24 @@ void Module::getAllGameServer(std::vector<std::shared_ptr<game::GenericProtocolS
     }
 }
 
-ModuleManager::ModuleManager() {
+ModuleManager::ModuleManager()
+{
 }
 
-void ModuleManager::add(Module::ptr mod) {
+void ModuleManager::add(Module::ptr mod)
+{
     del(mod->getId());
     std::unique_lock lock(m_mutex);
     m_modules[mod->getId()] = mod;
 }
 
-void ModuleManager::del(const std::string& name) {
+void ModuleManager::del(const std::string& name)
+{
     Module::ptr module;
     std::unique_lock lock(m_mutex);
     auto it = m_modules.find(name);
     if (it == m_modules.end()) {
-        return ;
+        return;
     }
     module = it->second;
     m_modules.erase(it);
@@ -149,7 +170,8 @@ void ModuleManager::del(const std::string& name) {
     module->onUnload();
 }
 
-void ModuleManager::delAll() {
+void ModuleManager::delAll()
+{
     std::unique_lock lock(m_mutex);
     auto tmp = m_modules;
     lock.unlock();
@@ -159,17 +181,21 @@ void ModuleManager::delAll() {
     }
 }
 
-void ModuleManager::init() {
+void ModuleManager::init()
+{
     auto path = EnvMgr::GetInstance()->getAbsolutePath(g_module_path->getValue());
 
     std::vector<std::string> files;
     FSUtil::ListAllFile(files, path, ".so");
     // 跳过隐藏文件（如遗留的热重载临时 .so，避免被误当成模块加载）
-    files.erase(std::remove_if(files.begin(), files.end(),
-        [](const std::string& f) {
-            auto base = FSUtil::Basename(f);
-            return !base.empty() && base[0] == '.';
-        }), files.end());
+    files.erase(
+        std::remove_if(
+            files.begin(), files.end(),
+            [](const std::string& f) {
+                auto base = FSUtil::Basename(f);
+                return !base.empty() && base[0] == '.';
+            }),
+        files.end());
 
     std::sort(files.begin(), files.end());
     for (auto& i : files) {
@@ -177,13 +203,15 @@ void ModuleManager::init() {
     }
 }
 
-Module::ptr ModuleManager::get(const std::string& name) {
+Module::ptr ModuleManager::get(const std::string& name)
+{
     std::shared_lock lock(m_mutex);
     auto it = m_modules.find(name);
     return it == m_modules.end() ? nullptr : it->second;
 }
 
-void ModuleManager::onConnect(Stream::ptr stream) {
+void ModuleManager::onConnect(Stream::ptr stream)
+{
     std::vector<Module::ptr> ms;
     listAll(ms);
 
@@ -192,7 +220,8 @@ void ModuleManager::onConnect(Stream::ptr stream) {
     }
 }
 
-void ModuleManager::onDisconnect(Stream::ptr stream) {
+void ModuleManager::onDisconnect(Stream::ptr stream)
+{
     std::vector<Module::ptr> ms;
     listAll(ms);
 
@@ -201,32 +230,36 @@ void ModuleManager::onDisconnect(Stream::ptr stream) {
     }
 }
 
-void ModuleManager::listAll(std::vector<Module::ptr>& ms) {
+void ModuleManager::listAll(std::vector<Module::ptr>& ms)
+{
     std::shared_lock lock(m_mutex);
     for (auto& i : m_modules) {
         ms.push_back(i.second);
     }
 }
 
-void ModuleManager::initModule(const std::string& path) {
+void ModuleManager::initModule(const std::string& path)
+{
     Module::ptr m = Library::GetModule(path);
     if (m) {
         add(m);
     }
 }
 
-void ModuleManager::listByType(uint32_t type, std::vector<Module::ptr>& ms) {
+void ModuleManager::listByType(uint32_t type, std::vector<Module::ptr>& ms)
+{
     std::shared_lock lock(m_mutex);
     auto it = m_type2Modules.find(type);
-    if(it == m_type2Modules.end()) {
+    if (it == m_type2Modules.end()) {
         return;
     }
-    for(auto& i : it->second) {
+    for (auto& i : it->second) {
         ms.push_back(i.second);
     }
 }
 
-void ModuleManager::foreach(uint32_t type, std::function<void(Module::ptr)> cb) {
+void ModuleManager::foreach(uint32_t type, std::function<void(Module::ptr)> cb)
+{
     std::vector<Module::ptr> ms;
     listByType(type, ms);
 

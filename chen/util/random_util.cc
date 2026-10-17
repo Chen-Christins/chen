@@ -8,7 +8,8 @@
 
 namespace chen {
 
-std::mt19937_64& RandomUtil::Rng() {
+std::mt19937_64& RandomUtil::Rng()
+{
     static thread_local std::mt19937_64 rng([]() {
         std::random_device rd;
         std::array<uint64_t, 8> seeds;
@@ -21,16 +22,19 @@ std::mt19937_64& RandomUtil::Rng() {
     return rng;
 }
 
-void RandomUtil::Seed(uint64_t seed) {
+void RandomUtil::Seed(uint64_t seed)
+{
     Rng().seed(seed);
 }
 
-void RandomUtil::SeedWithEntropy() {
+void RandomUtil::SeedWithEntropy()
+{
     std::random_device rd;
     Rng().seed(rd());
 }
 
-int32_t RandomUtil::RandInt(int32_t min, int32_t max) {
+int32_t RandomUtil::RandInt(int32_t min, int32_t max)
+{
     if (min > max) {
         std::swap(min, max);
     }
@@ -38,7 +42,8 @@ int32_t RandomUtil::RandInt(int32_t min, int32_t max) {
     return dist(Rng());
 }
 
-uint32_t RandomUtil::RandUint(uint32_t min, uint32_t max) {
+uint32_t RandomUtil::RandUint(uint32_t min, uint32_t max)
+{
     if (min > max) {
         std::swap(min, max);
     }
@@ -46,7 +51,8 @@ uint32_t RandomUtil::RandUint(uint32_t min, uint32_t max) {
     return dist(Rng());
 }
 
-int64_t RandomUtil::RandInt64(int64_t min, int64_t max) {
+int64_t RandomUtil::RandInt64(int64_t min, int64_t max)
+{
     if (min > max) {
         std::swap(min, max);
     }
@@ -54,7 +60,8 @@ int64_t RandomUtil::RandInt64(int64_t min, int64_t max) {
     return dist(Rng());
 }
 
-uint64_t RandomUtil::RandUint64(uint64_t min, uint64_t max) {
+uint64_t RandomUtil::RandUint64(uint64_t min, uint64_t max)
+{
     if (min > max) {
         std::swap(min, max);
     }
@@ -62,7 +69,8 @@ uint64_t RandomUtil::RandUint64(uint64_t min, uint64_t max) {
     return dist(Rng());
 }
 
-double RandomUtil::RandDouble(double min, double max) {
+double RandomUtil::RandDouble(double min, double max)
+{
     if (min > max) {
         std::swap(min, max);
     }
@@ -70,7 +78,8 @@ double RandomUtil::RandDouble(double min, double max) {
     return dist(Rng());
 }
 
-float RandomUtil::RandFloat(float min, float max) {
+float RandomUtil::RandFloat(float min, float max)
+{
     if (min > max) {
         std::swap(min, max);
     }
@@ -78,11 +87,13 @@ float RandomUtil::RandFloat(float min, float max) {
     return dist(Rng());
 }
 
-bool RandomUtil::RandBool(double prob) {
+bool RandomUtil::RandBool(double prob)
+{
     return RandDouble() < prob;
 }
 
-int32_t RandomUtil::WeightedSelect(const std::vector<int32_t>& weights) {
+int32_t RandomUtil::WeightedSelect(const std::vector<int32_t>& weights)
+{
     if (weights.empty()) {
         return -1;
     }
@@ -111,7 +122,8 @@ int32_t RandomUtil::WeightedSelect(const std::vector<int32_t>& weights) {
     return static_cast<int32_t>(weights.size() - 1);
 }
 
-int32_t RandomUtil::WeightedSelect(const std::vector<double>& weights) {
+int32_t RandomUtil::WeightedSelect(const std::vector<double>& weights)
+{
     if (weights.empty()) {
         return -1;
     }
@@ -140,7 +152,8 @@ int32_t RandomUtil::WeightedSelect(const std::vector<double>& weights) {
     return static_cast<int32_t>(weights.size() - 1);
 }
 
-std::vector<int32_t> RandomUtil::WeightedSelectMultiple(const std::vector<int32_t>& weights, size_t count) {
+std::vector<int32_t> RandomUtil::WeightedSelectMultiple(const std::vector<int32_t>& weights, size_t count)
+{
     if (weights.empty() || count == 0) {
         return {};
     }
@@ -181,7 +194,8 @@ std::vector<int32_t> RandomUtil::WeightedSelectMultiple(const std::vector<int32_
     return result;
 }
 
-std::vector<int32_t> RandomUtil::WeightedSelectMultiple(const std::vector<double>& weights, size_t count) {
+std::vector<int32_t> RandomUtil::WeightedSelectMultiple(const std::vector<double>& weights, size_t count)
+{
     if (weights.empty() || count == 0) {
         return {};
     }
@@ -222,15 +236,16 @@ std::vector<int32_t> RandomUtil::WeightedSelectMultiple(const std::vector<double
     return result;
 }
 
-std::string RandomUtil::RandString(size_t length) {
-    static const char kAlphanum[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
+std::string RandomUtil::RandString(size_t length)
+{
+    static const char kAlphanum[] = "0123456789"
+                                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                    "abcdefghijklmnopqrstuvwxyz";
     return RandString(length, std::string(kAlphanum, sizeof(kAlphanum) - 1));
 }
 
-std::string RandomUtil::RandString(size_t length, const std::string& charset) {
+std::string RandomUtil::RandString(size_t length, const std::string& charset)
+{
     if (charset.empty() || length == 0) {
         return "";
     }
@@ -245,7 +260,8 @@ std::string RandomUtil::RandString(size_t length, const std::string& charset) {
     return result;
 }
 
-std::string RandomUtil::RandBytes(size_t count) {
+std::string RandomUtil::RandBytes(size_t count)
+{
     if (count == 0) {
         return "";
     }
@@ -259,7 +275,8 @@ std::string RandomUtil::RandBytes(size_t count) {
     return result;
 }
 
-std::vector<size_t> RandomUtil::RandSample(size_t n, size_t k) {
+std::vector<size_t> RandomUtil::RandSample(size_t n, size_t k)
+{
     if (k == 0 || n == 0) {
         return {};
     }
@@ -284,10 +301,11 @@ std::vector<size_t> RandomUtil::RandSample(size_t n, size_t k) {
     return result;
 }
 
-uint64_t SnowflakeIdGenerator::next() {
+uint64_t SnowflakeIdGenerator::next()
+{
     std::lock_guard<std::mutex> lock(mutex_);
 
-    uint64_t now_ms = GetCurrentMs();
+    uint64_t now_ms = TimeUtil::GetCurrentMs();
     if (now_ms < last_ms_) {
         now_ms = last_ms_;
     }
@@ -310,7 +328,8 @@ uint64_t SnowflakeIdGenerator::next() {
     return ts_part | node_part | seq_part;
 }
 
-uint16_t SnowflakeIdGenerator::resolveNodeId() {
+uint16_t SnowflakeIdGenerator::resolveNodeId()
+{
     const char* env = std::getenv("S1_NODE_ID");
     if (!env || *env == '\0') {
         return 0U;

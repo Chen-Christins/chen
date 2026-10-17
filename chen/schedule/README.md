@@ -42,13 +42,14 @@ sc.schedule([]{ INFO(LOG_ROOT()) << "task 2"; },
 
 ## 关键方法
 
-| 方法 | 说明 |
-|------|------|
-| `start()` | 创建线程池并启动 |
-| `stop()` | 设置停止标志，唤醒线程，join 等待退出 |
-| `schedule(fiber/cb)` | 将任务加入队列 |
-| `tickle()` | 唤醒空闲线程 |
+| 方法                 | 说明                                  |
+|----------------------|---------------------------------------|
+| `start()`            | 创建线程池并启动                      |
+| `stop()`             | 设置停止标志，唤醒线程，join 等待退出 |
+| `schedule(fiber/cb)` | 将任务加入队列                        |
+| `tickle()`           | 唤醒空闲线程                          |
 
 ## 退出安全
 
-`run()` 的 while 循环退出后，调用 `Fiber::SetThis(t_schedule_fiber)` 将 `t_fiber` 重置为线程主协程，避免局部 `idle_fiber` 析构时悬垂指针。
+`run()` 的 while 循环退出后，调用 `Fiber::SetThis(t_schedule_fiber)` 将 `t_fiber` 重置为线程主协程，避免局部 `idle_fiber`
+析构时悬垂指针。

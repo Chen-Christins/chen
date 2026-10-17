@@ -30,14 +30,14 @@ double   d = ba.readDouble();        // → 3.14
 
 ## 写入方法
 
-| 方法 | 说明 |
-|------|------|
-| `writeFint8/16/32/64(v)` | 写入定长整数（网络字节序） |
-| `writeStringF16/F32(s)` | 写入字符串 + 定长长度前缀 |
-| `writeStringVint(s)` | 写入字符串 + 变长长度前缀 |
-| `writeInt32/64(v)` | 写入有符号整数（ZigZag 编码） |
-| `writeFloat/Double(v)` | 写入浮点数 |
-| `writeBytes(data, len)` | 写入原始字节 |
+| 方法                     | 说明                          |
+|--------------------------|-------------------------------|
+| `writeFint8/16/32/64(v)` | 写入定长整数（网络字节序）    |
+| `writeStringF16/F32(s)`  | 写入字符串 + 定长长度前缀     |
+| `writeStringVint(s)`     | 写入字符串 + 变长长度前缀     |
+| `writeInt32/64(v)`       | 写入有符号整数（ZigZag 编码） |
+| `writeFloat/Double(v)`   | 写入浮点数                    |
+| `writeBytes(data, len)`  | 写入原始字节                  |
 
 ## 读取方法
 

@@ -16,7 +16,8 @@ using namespace chen;
 // ========== 辅助函数 ==========
 
 /// 生成指定长度的可读测试字符串
-static std::string makeTestString(size_t len) {
+static std::string makeTestString(size_t len)
+{
     std::string s;
     s.reserve(len);
     for (size_t i = 0; i < len; ++i) {
@@ -27,7 +28,8 @@ static std::string makeTestString(size_t len) {
 
 // ========== AES-GCM 加解密往返测试 ==========
 
-void test_aes128_gcm_roundtrip_basic() {
+void test_aes128_gcm_roundtrip_basic()
+{
     std::cout << "=== test_aes128_gcm_roundtrip_basic ===" << std::endl;
 
     std::string key = EncryptorUtil::GenerateRandomKey(16);
@@ -38,7 +40,7 @@ void test_aes128_gcm_roundtrip_basic() {
     assert(enc.success);
     assert(!enc.data.empty());
     assert(!enc.tag.empty());
-    assert(enc.tag.size() == 16);  // GCM tag is 16 bytes
+    assert(enc.tag.size() == 16); // GCM tag is 16 bytes
 
     auto dec = EncryptorUtil::DecryptAES128GCM(enc.data, enc.tag, key, iv);
     assert(dec.success);
@@ -49,7 +51,8 @@ void test_aes128_gcm_roundtrip_basic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_aes128_gcm_roundtrip_with_explicit_iv() {
+void test_aes128_gcm_roundtrip_with_explicit_iv()
+{
     std::cout << "=== test_aes128_gcm_roundtrip_with_explicit_iv ===" << std::endl;
 
     std::string key = EncryptorUtil::GenerateRandomKey(16);
@@ -61,7 +64,7 @@ void test_aes128_gcm_roundtrip_with_explicit_iv() {
     assert(enc.success);
     assert(!enc.data.empty());
     assert(!enc.tag.empty());
-    assert(enc.tag.size() == 16);  // GCM tag is 16 bytes
+    assert(enc.tag.size() == 16); // GCM tag is 16 bytes
 
     // 解密（使用相同的 IV）
     auto dec = EncryptorUtil::DecryptAES128GCM(enc.data, enc.tag, key, iv);
@@ -73,7 +76,8 @@ void test_aes128_gcm_roundtrip_with_explicit_iv() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_aes128_gcm_various_inputs() {
+void test_aes128_gcm_various_inputs()
+{
     std::cout << "=== test_aes128_gcm_various_inputs ===" << std::endl;
 
     std::string key = EncryptorUtil::GenerateRandomKey(16);
@@ -81,17 +85,17 @@ void test_aes128_gcm_various_inputs() {
 
     // 测试不同长度的明文
     std::vector<std::string> inputs = {
-        "",                                  // 空字符串
-        "A",                                 // 单字节
-        "Hello",                             // 短字符串
-        makeTestString(15),                  // 小于 AES block size
-        makeTestString(16),                  // 刚好 AES block size
-        makeTestString(17),                  // 略大于 block size
-        makeTestString(100),                 // 中等长度
-        makeTestString(1024),                // 1KB
-        std::string(4096, 'X'),              // 4KB 重复字符
-        "你好世界！🌍",                       // UTF-8 多字节字符
-        "data\x00with\x00null\x00bytes",     // 包含 null 字节的二进制数据
+        "",                              // 空字符串
+        "A",                             // 单字节
+        "Hello",                         // 短字符串
+        makeTestString(15),              // 小于 AES block size
+        makeTestString(16),              // 刚好 AES block size
+        makeTestString(17),              // 略大于 block size
+        makeTestString(100),             // 中等长度
+        makeTestString(1024),            // 1KB
+        std::string(4096, 'X'),          // 4KB 重复字符
+        "你好世界！🌍",                  // UTF-8 多字节字符
+        "data\x00with\x00null\x00bytes", // 包含 null 字节的二进制数据
     };
 
     for (size_t i = 0; i < inputs.size(); ++i) {
@@ -109,7 +113,8 @@ void test_aes128_gcm_various_inputs() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_aes128_gcm_wrong_key_fails() {
+void test_aes128_gcm_wrong_key_fails()
+{
     std::cout << "=== test_aes128_gcm_wrong_key_fails ===" << std::endl;
 
     std::string key = EncryptorUtil::GenerateRandomKey(16);
@@ -128,7 +133,8 @@ void test_aes128_gcm_wrong_key_fails() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_aes128_gcm_wrong_tag_fails() {
+void test_aes128_gcm_wrong_tag_fails()
+{
     std::cout << "=== test_aes128_gcm_wrong_tag_fails ===" << std::endl;
 
     std::string key = EncryptorUtil::GenerateRandomKey(16);
@@ -149,7 +155,8 @@ void test_aes128_gcm_wrong_tag_fails() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_aes128_gcm_wrong_iv_fails() {
+void test_aes128_gcm_wrong_iv_fails()
+{
     std::cout << "=== test_aes128_gcm_wrong_iv_fails ===" << std::endl;
 
     std::string key = EncryptorUtil::GenerateRandomKey(16);
@@ -168,7 +175,8 @@ void test_aes128_gcm_wrong_iv_fails() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_aes128_gcm_key_size_validation() {
+void test_aes128_gcm_key_size_validation()
+{
     std::cout << "=== test_aes128_gcm_key_size_validation ===" << std::endl;
 
     // 密钥长度不对时应该失败
@@ -193,7 +201,8 @@ void test_aes128_gcm_key_size_validation() {
 
 // ========== AES-256-GCM 加解密往返测试 ==========
 
-void test_aes256_gcm_roundtrip_basic() {
+void test_aes256_gcm_roundtrip_basic()
+{
     std::cout << "=== test_aes256_gcm_roundtrip_basic ===" << std::endl;
 
     std::string key = EncryptorUtil::GenerateRandomKey(32);
@@ -215,7 +224,8 @@ void test_aes256_gcm_roundtrip_basic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_aes256_gcm_various_inputs() {
+void test_aes256_gcm_various_inputs()
+{
     std::cout << "=== test_aes256_gcm_various_inputs ===" << std::endl;
 
     std::string key = EncryptorUtil::GenerateRandomKey(32);
@@ -248,7 +258,8 @@ void test_aes256_gcm_various_inputs() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_aes256_gcm_wrong_key_fails() {
+void test_aes256_gcm_wrong_key_fails()
+{
     std::cout << "=== test_aes256_gcm_wrong_key_fails ===" << std::endl;
 
     std::string key = EncryptorUtil::GenerateRandomKey(32);
@@ -266,10 +277,11 @@ void test_aes256_gcm_wrong_key_fails() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_aes256_gcm_key_size_validation() {
+void test_aes256_gcm_key_size_validation()
+{
     std::cout << "=== test_aes256_gcm_key_size_validation ===" << std::endl;
 
-    std::string bad_key = EncryptorUtil::GenerateRandomKey(16);  // 16 bytes, should be 32
+    std::string bad_key = EncryptorUtil::GenerateRandomKey(16); // 16 bytes, should be 32
     std::string iv = EncryptorUtil::GenerateRandomIV(12);
 
     auto enc = EncryptorUtil::EncryptAES256GCM("test", bad_key, iv);
@@ -279,7 +291,8 @@ void test_aes256_gcm_key_size_validation() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_aes_gcm_auto_iv() {
+void test_aes_gcm_auto_iv()
+{
     std::cout << "=== test_aes_gcm_auto_iv ===" << std::endl;
 
     // 测试自动生成 IV 的情况：加密不会失败，且两次加密产生不同密文（IV 随机）
@@ -310,7 +323,8 @@ void test_aes_gcm_auto_iv() {
 
 // ========== RSA 签名验签往返测试 ==========
 
-void test_rsa_sign_verify_roundtrip() {
+void test_rsa_sign_verify_roundtrip()
+{
     std::cout << "=== test_rsa_sign_verify_roundtrip ===" << std::endl;
 
     // 生成密钥对
@@ -335,20 +349,15 @@ void test_rsa_sign_verify_roundtrip() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_rsa_sign_verify_various_data() {
+void test_rsa_sign_verify_various_data()
+{
     std::cout << "=== test_rsa_sign_verify_various_data ===" << std::endl;
 
     auto keys = EncryptorUtil::GenerateRSAKeyPair(2048);
     assert(keys.success);
 
     std::vector<std::string> messages = {
-        "",
-        "a",
-        "Hello, RSA!",
-        makeTestString(100),
-        makeTestString(500),
-        "JWT payload: {\"sub\":\"123\",\"name\":\"John\"}",
-        std::string(1024, 'R'),
+        "", "a", "Hello, RSA!", makeTestString(100), makeTestString(500), "JWT payload: {\"sub\":\"123\",\"name\":\"John\"}", std::string(1024, 'R'),
     };
 
     for (size_t i = 0; i < messages.size(); ++i) {
@@ -365,7 +374,8 @@ void test_rsa_sign_verify_various_data() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_rsa_wrong_signature_fails() {
+void test_rsa_wrong_signature_fails()
+{
     std::cout << "=== test_rsa_wrong_signature_fails ===" << std::endl;
 
     auto keys = EncryptorUtil::GenerateRSAKeyPair(2048);
@@ -388,7 +398,8 @@ void test_rsa_wrong_signature_fails() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_rsa_wrong_data_fails() {
+void test_rsa_wrong_data_fails()
+{
     std::cout << "=== test_rsa_wrong_data_fails ===" << std::endl;
 
     auto keys = EncryptorUtil::GenerateRSAKeyPair(2048);
@@ -406,7 +417,8 @@ void test_rsa_wrong_data_fails() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_rsa_wrong_key_fails() {
+void test_rsa_wrong_key_fails()
+{
     std::cout << "=== test_rsa_wrong_key_fails ===" << std::endl;
 
     auto keys1 = EncryptorUtil::GenerateRSAKeyPair(2048);
@@ -425,14 +437,14 @@ void test_rsa_wrong_key_fails() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_rsa_key_pair_generation() {
+void test_rsa_key_pair_generation()
+{
     std::cout << "=== test_rsa_key_pair_generation ===" << std::endl;
 
     // 默认 2048 位
     auto k1 = EncryptorUtil::GenerateRSAKeyPair();
     assert(k1.success);
-    assert(k1.private_key.find("BEGIN RSA PRIVATE KEY") != std::string::npos
-           || k1.private_key.find("BEGIN PRIVATE KEY") != std::string::npos);
+    assert(k1.private_key.find("BEGIN RSA PRIVATE KEY") != std::string::npos || k1.private_key.find("BEGIN PRIVATE KEY") != std::string::npos);
     assert(k1.public_key.find("BEGIN PUBLIC KEY") != std::string::npos);
 
     // 4096 位
@@ -453,14 +465,15 @@ void test_rsa_key_pair_generation() {
 
 // ========== bcrypt 密码哈希往返测试 ==========
 
-void test_bcrypt_hash_verify_roundtrip() {
+void test_bcrypt_hash_verify_roundtrip()
+{
     std::cout << "=== test_bcrypt_hash_verify_roundtrip ===" << std::endl;
 
     std::string password = "MySecurePassword123!";
 
     std::string hash = EncryptorUtil::BCryptHash(password);
     assert(!hash.empty());
-    assert(hash.find("$2b$") == 0);  // bcrypt hash 前缀
+    assert(hash.find("$2b$") == 0); // bcrypt hash 前缀
     std::cout << "  hash: " << hash << std::endl;
 
     bool valid = EncryptorUtil::BCryptVerify(password, hash);
@@ -470,7 +483,8 @@ void test_bcrypt_hash_verify_roundtrip() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_bcrypt_various_passwords() {
+void test_bcrypt_various_passwords()
+{
     std::cout << "=== test_bcrypt_various_passwords ===" << std::endl;
 
     std::vector<std::string> passwords = {
@@ -481,7 +495,7 @@ void test_bcrypt_various_passwords() {
         "CorrectHorseBatteryStaple",
         "中文密码测试",
         "a very long password that exceeds typical length limits for some systems but bcrypt should handle it",
-        std::string(72, 'X'),  // bcrypt 最大有效输入长度
+        std::string(72, 'X'), // bcrypt 最大有效输入长度
         "!@#$%^&*()_+-=[]{}|;':\",./<>?",
     };
 
@@ -499,7 +513,8 @@ void test_bcrypt_various_passwords() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_bcrypt_wrong_password_fails() {
+void test_bcrypt_wrong_password_fails()
+{
     std::cout << "=== test_bcrypt_wrong_password_fails ===" << std::endl;
 
     std::string hash = EncryptorUtil::BCryptHash("correct_password");
@@ -512,7 +527,8 @@ void test_bcrypt_wrong_password_fails() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_bcrypt_different_hashes() {
+void test_bcrypt_different_hashes()
+{
     std::cout << "=== test_bcrypt_different_hashes ===" << std::endl;
 
     std::string password = "SamePassword";
@@ -532,7 +548,8 @@ void test_bcrypt_different_hashes() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_bcrypt_custom_rounds() {
+void test_bcrypt_custom_rounds()
+{
     std::cout << "=== test_bcrypt_custom_rounds ===" << std::endl;
 
     std::string password = "RoundsTest123";
@@ -556,7 +573,8 @@ void test_bcrypt_custom_rounds() {
 
 // ========== 摘要/Hash 确定性测试 ==========
 
-void test_md5_deterministic() {
+void test_md5_deterministic()
+{
     std::cout << "=== test_md5_deterministic ===" << std::endl;
 
     std::string data = "The quick brown fox jumps over the lazy dog";
@@ -575,7 +593,8 @@ void test_md5_deterministic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_sha1_deterministic() {
+void test_sha1_deterministic()
+{
     std::cout << "=== test_sha1_deterministic ===" << std::endl;
 
     std::string h1 = EncryptorUtil::SHA1("hello");
@@ -588,7 +607,8 @@ void test_sha1_deterministic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_sha256_deterministic() {
+void test_sha256_deterministic()
+{
     std::cout << "=== test_sha256_deterministic ===" << std::endl;
 
     std::string h1 = EncryptorUtil::SHA256("hello");
@@ -604,7 +624,8 @@ void test_sha256_deterministic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_sha512_deterministic() {
+void test_sha512_deterministic()
+{
     std::cout << "=== test_sha512_deterministic ===" << std::endl;
 
     std::string h1 = EncryptorUtil::SHA512("hello");
@@ -616,7 +637,8 @@ void test_sha512_deterministic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_sha3_deterministic() {
+void test_sha3_deterministic()
+{
     std::cout << "=== test_sha3_deterministic ===" << std::endl;
 
     std::string s256_1 = EncryptorUtil::SHA3_256("hello");
@@ -637,7 +659,8 @@ void test_sha3_deterministic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_hash_raw_data() {
+void test_hash_raw_data()
+{
     std::cout << "=== test_hash_raw_data ===" << std::endl;
 
     const uint8_t data[] = {0x00, 0x01, 0x02, 0x03, 0xFF, 0xFE, 0xFD};
@@ -665,7 +688,8 @@ void test_hash_raw_data() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_hash_different_inputs_different_outputs() {
+void test_hash_different_inputs_different_outputs()
+{
     std::cout << "=== test_hash_different_inputs_different_outputs ===" << std::endl;
 
     // 不同输入应该产生不同哈希
@@ -684,7 +708,8 @@ void test_hash_different_inputs_different_outputs() {
 
 // ========== HMAC 确定性测试 ==========
 
-void test_hmac_sha256_deterministic() {
+void test_hmac_sha256_deterministic()
+{
     std::cout << "=== test_hmac_sha256_deterministic ===" << std::endl;
 
     std::string data = "message";
@@ -694,7 +719,7 @@ void test_hmac_sha256_deterministic() {
     std::string h2 = EncryptorUtil::HMAC_SHA256(data, key);
     assert(h1 == h2);
     assert(!h1.empty());
-    assert(h1.size() == 32);  // SHA256 produces 32 bytes
+    assert(h1.size() == 32); // SHA256 produces 32 bytes
 
     // 不同 key 产生不同 HMAC
     std::string h3 = EncryptorUtil::HMAC_SHA256(data, "different-key");
@@ -708,7 +733,8 @@ void test_hmac_sha256_deterministic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_hmac_sha384_deterministic() {
+void test_hmac_sha384_deterministic()
+{
     std::cout << "=== test_hmac_sha384_deterministic ===" << std::endl;
 
     std::string data = "message";
@@ -718,7 +744,7 @@ void test_hmac_sha384_deterministic() {
     std::string h2 = EncryptorUtil::HMAC_SHA384(data, key);
     assert(h1 == h2);
     assert(!h1.empty());
-    assert(h1.size() == 48);  // SHA384 produces 48 bytes
+    assert(h1.size() == 48); // SHA384 produces 48 bytes
 
     // 不同算法产生不同长度和不同结果
     std::string hmac256 = EncryptorUtil::HMAC_SHA256(data, key);
@@ -729,7 +755,8 @@ void test_hmac_sha384_deterministic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_hmac_raw_data() {
+void test_hmac_raw_data()
+{
     std::cout << "=== test_hmac_raw_data ===" << std::endl;
 
     const char data[] = "binary data test";
@@ -749,7 +776,8 @@ void test_hmac_raw_data() {
 
 // ========== 非加密 Hash 测试 ==========
 
-void test_murmur3_deterministic() {
+void test_murmur3_deterministic()
+{
     std::cout << "=== test_murmur3_deterministic ===" << std::endl;
 
     const char* str = "Hello, MurmurHash3!";
@@ -781,7 +809,8 @@ void test_murmur3_deterministic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_quickhash_deterministic() {
+void test_quickhash_deterministic()
+{
     std::cout << "=== test_quickhash_deterministic ===" << std::endl;
 
     const char* str = "QuickHash test string";
@@ -800,7 +829,8 @@ void test_quickhash_deterministic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_xxhash_deterministic() {
+void test_xxhash_deterministic()
+{
     std::cout << "=== test_xxhash_deterministic ===" << std::endl;
 
     const char* str = "XXHash test data";
@@ -825,7 +855,8 @@ void test_xxhash_deterministic() {
 
 // ========== 工具函数测试 ==========
 
-void test_generate_random_key() {
+void test_generate_random_key()
+{
     std::cout << "=== test_generate_random_key ===" << std::endl;
 
     std::string k1 = EncryptorUtil::GenerateRandomKey(16);
@@ -842,7 +873,8 @@ void test_generate_random_key() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_generate_random_iv() {
+void test_generate_random_iv()
+{
     std::cout << "=== test_generate_random_iv ===" << std::endl;
 
     std::string iv1 = EncryptorUtil::GenerateRandomIV(12);
@@ -859,7 +891,8 @@ void test_generate_random_iv() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_validate_key_size() {
+void test_validate_key_size()
+{
     std::cout << "=== test_validate_key_size ===" << std::endl;
 
     assert(EncryptorUtil::ValidateKeySize(makeTestString(16), 16) == true);
@@ -874,7 +907,8 @@ void test_validate_key_size() {
 
 // ========== 边界和压力测试 ==========
 
-void test_aes_large_data() {
+void test_aes_large_data()
+{
     std::cout << "=== test_aes_large_data ===" << std::endl;
 
     std::string key = EncryptorUtil::GenerateRandomKey(32);
@@ -883,7 +917,7 @@ void test_aes_large_data() {
     // 100KB 数据
     std::string large(100 * 1024, 'D');
     for (size_t i = 0; i < large.size(); ++i) {
-        large[i] = static_cast<char>('A' + (i % 62));  // 可打印字符
+        large[i] = static_cast<char>('A' + (i % 62)); // 可打印字符
     }
 
     auto enc = EncryptorUtil::EncryptAES256GCM(large, key, iv);
@@ -898,7 +932,8 @@ void test_aes_large_data() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_repeated_encrypt_decrypt() {
+void test_repeated_encrypt_decrypt()
+{
     std::cout << "=== test_repeated_encrypt_decrypt ===" << std::endl;
 
     std::string key = EncryptorUtil::GenerateRandomKey(16);
@@ -921,7 +956,8 @@ void test_repeated_encrypt_decrypt() {
 
 // ========== main ==========
 
-int main() {
+int main()
+{
     std::cout << "=== EncryptorUtil Unit Tests ===" << std::endl;
     std::cout << std::endl;
 

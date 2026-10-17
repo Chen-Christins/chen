@@ -7,13 +7,13 @@ Redis 客户端、MySQL / SQLite3 连接、异步数据库线程。
 
 ## 核心类
 
-| 类 | 说明 |
-|----|------|
-| `Redis` | Redis 客户端封装，基于 hiredis |
-| `RedisMgr` | Redis 连接管理（单例） |
-| `MySQL` | MySQL 连接封装 |
-| `FoxThread` | 独立数据库线程，避免阻塞 I/O |
-| `FoxThreadMgr` | FoxThread 管理器（单例） |
+| 类             | 说明                           |
+|----------------|--------------------------------|
+| `Redis`        | Redis 客户端封装，基于 hiredis |
+| `RedisMgr`     | Redis 连接管理（单例）         |
+| `MySQL`        | MySQL 连接封装                 |
+| `FoxThread`    | 独立数据库线程，避免阻塞 I/O   |
+| `FoxThreadMgr` | FoxThread 管理器（单例）       |
 
 ## 设计
 
@@ -27,7 +27,8 @@ I/O 线程 (IOManager) → 发起 DB 请求 → 放入 FoxThread 请求队列
 
 数据库操作在独立线程中同步执行，避免阻塞 epoll 事件循环。
 
-`FoxThreadMgr` 采用懒启动：首次调用任意 `dispatch()` 时才根据 `fox_thread` 配置创建并启动线程池，因此不使用 DB 的进程不会产生额外的 libevent 线程。
+`FoxThreadMgr` 采用懒启动：首次调用任意 `dispatch()` 时才根据 `fox_thread` 配置创建并启动线程池，因此不使用 DB 的进程不会产生额外的
+libevent 线程。
 
 ## 生命周期由业务侧负责
 

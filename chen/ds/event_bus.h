@@ -75,7 +75,8 @@ public:
      * @tparam T 事件数据类型（自动推导，存入 std::any）
      */
     template <typename T>
-    void emit(EventKey event, T&& data) {
+    void emit(EventKey event, T&& data)
+    {
         doEmit(std::move(event), std::forward<T>(data));
     }
 
@@ -85,7 +86,8 @@ public:
     void emitAsync(EventKey event, std::any data);
 
     template <typename T>
-    void emitAsync(EventKey event, T&& data) {
+    void emitAsync(EventKey event, T&& data)
+    {
         emitAsync(std::move(event), std::any(std::forward<T>(data)));
     }
 
@@ -106,7 +108,8 @@ private:
     };
 
     template <typename T>
-    void doEmit(EventKey event, T&& data) {
+    void doEmit(EventKey event, T&& data)
+    {
         std::vector<EventCallback> cbs;
         {
             std::shared_lock lock(m_mutex);

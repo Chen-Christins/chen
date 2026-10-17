@@ -40,49 +40,49 @@ Atomic::addFetch(val, 1);                                   // 线程安全自�
 
 ## 模块清单
 
-| 文件 | 用途 | 注意 |
-|------|------|------|
-| `util.h` | 聚合头文件 + 线程/fiber ID + 堆栈回溯 + `Atomic`（`__sync_*` 旧版原子操作） | `Atomic` 使用 GCC `__sync_*` 而非 `std::atomic`，始终全序一致性 |
-| `noncopyable.h` | 不可拷贝基类 | 析构函数是 `virtual` 的，会引入 vtable 开销 |
-| `macro.h` | `ASSERT`/`ASSERT_MSG` 断言 + `LIKELY`/`UNLIKELY` 分支预测 | 拼写故意写错以避免宏名冲突 |
-| `endian.h` | 字节序转换（`byteswap`、`byteswapOnLittleEndian`） | `byteswapOnLittleEndian` 在小端机上转成大端（网络字节序） |
+| 文件            | 用途                                                                        | 注意                                                            |
+|-----------------|-----------------------------------------------------------------------------|-----------------------------------------------------------------|
+| `util.h`        | 聚合头文件 + 线程/fiber ID + 堆栈回溯 + `Atomic`（`__sync_*` 旧版原子操作） | `Atomic` 使用 GCC `__sync_*` 而非 `std::atomic`，始终全序一致性 |
+| `noncopyable.h` | 不可拷贝基类                                                                | 析构函数是 `virtual` 的，会引入 vtable 开销                     |
+| `macro.h`       | `ASSERT`/`ASSERT_MSG` 断言 + `LIKELY`/`UNLIKELY` 分支预测                   | 拼写故意写错以避免宏名冲突                                      |
+| `endian.h`      | 字节序转换（`byteswap`、`byteswapOnLittleEndian`）                          | `byteswapOnLittleEndian` 在小端机上转成大端（网络字节序）       |
 
 ### 加密 / 哈希
 
-| 文件 | 用途 | 注意 |
-|------|------|------|
-| `encryptor_util.h` | SHA1/256/512、MD5、AES-GCM、HMAC、bcrypt、MurmurHash3、XXHash | **SHA/MD5 系列返回 hex 字符串**，不是原始字节。<br>**HMAC 系列返回原始二进制**，与 SHA 不一致。 |
-| `random_util.h` | 随机数、随机字符串/字节、shuffle、加权选择、Snowflake ID 生成器 | `RandInt(a, b)` **两端闭合** `[a, b]`；内部用 `thread_local mt19937_64` |
+| 文件               | 用途                                                            | 注意                                                                                            |
+|--------------------|-----------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `encryptor_util.h` | SHA1/256/512、MD5、AES-GCM、HMAC、bcrypt、MurmurHash3、XXHash   | **SHA/MD5 系列返回 hex 字符串**，不是原始字节。<br>**HMAC 系列返回原始二进制**，与 SHA 不一致。 |
+| `random_util.h`    | 随机数、随机字符串/字节、shuffle、加权选择、Snowflake ID 生成器 | `RandInt(a, b)` **两端闭合** `[a, b]`；内部用 `thread_local mt19937_64`                         |
 
 ### 字符串
 
-| 文件 | 用途 | 注意 |
-|------|------|------|
+| 文件            | 用途                                                                    | 注意                                                                                 |
+|-----------------|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
 | `string_util.h` | Format、UrlEncode/Decode、Trim、Split/Join、Base64、HexEncode/HexDecode | **有两套 URL 编解码：** `UrlEncode`(space→`+`) 和 `URLEncode`(space→`%20`)，容易搞混 |
 
 ### 时间
 
-| 文件 | 用途 | 注意 |
-|------|------|------|
+| 文件          | 用途                                                                     | 注意                                                                                 |
+|---------------|--------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
 | `time_util.h` | 高精度时钟、时间格式化/解析(ISO 8601)、HTTP 时间、日/周/月边界、TTL 检查 | `Str2Time` 自动检测 ISO 8601 / 日期 / 时间格式；还提供 `chen` 命名空间的内联快捷函数 |
 
 ### 文件系统
 
-| 文件 | 用途 | 注意 |
-|------|------|------|
+| 文件        | 用途                                             | 注意                                                     |
+|-------------|--------------------------------------------------|----------------------------------------------------------|
 | `fs_util.h` | 文件列表、PID 检查、目录创建、路径分割、文件读写 | `ListAllFile` 第二个参数叫 `subfix`（拼写如此，非 typo） |
 
 ### 序列化 / 类型
 
-| 文件 | 用途 | 注意 |
-|------|------|------|
-| `string_util.h` | Format、UrlEncode、Base64、Hex | — |
-| `json_util.h` | JsonCpp 的 `Value ↔ string` 包装 | 极简，无文件 I/O |
-| `type_util.h` | `Atoi`/`Atof`/`ToString`/`ToChar` | `Atoi`/`Atof` 不返回错误标志，转换失败抛异常 |
-| `compress_util.h` | Gzip / Zlib 压缩解压 | — |
-| `mutex.h` | 互斥锁封装 | 从 `chen/mutex.h` 移入，框架基础设施 |
-| `singleton.h` | 单例模板 | 从 `chen/singleton.h` 移入 |
-| `env.h` | 命令行参数解析、环境变量 | 从 `chen/env.h` 移入 |
+| 文件              | 用途                              | 注意                                         |
+|-------------------|-----------------------------------|----------------------------------------------|
+| `string_util.h`   | Format、UrlEncode、Base64、Hex    | —                                            |
+| `json_util.h`     | JsonCpp 的 `Value ↔ string` 包装  | 极简，无文件 I/O                             |
+| `type_util.h`     | `Atoi`/`Atof`/`ToString`/`ToChar` | `Atoi`/`Atof` 不返回错误标志，转换失败抛异常 |
+| `compress_util.h` | Gzip / Zlib 压缩解压              | —                                            |
+| `mutex.h`         | 互斥锁封装                        | 从 `chen/mutex.h` 移入，框架基础设施         |
+| `singleton.h`     | 单例模板                          | 从 `chen/singleton.h` 移入                   |
+| `env.h`           | 命令行参数解析、环境变量          | 从 `chen/env.h` 移入                         |
 
 ## 常见坑
 
@@ -115,4 +115,5 @@ EncryptorUtil::HMAC_SHA256("data", "key")
 ```cpp
 RandomUtil::RandInt(0, 100)  // 返回 [0, 100] 闭区间
 ```
+
 大多数随机库是 `[min, max)` 半开区间，这里是闭合的。

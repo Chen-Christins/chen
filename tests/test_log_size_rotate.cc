@@ -16,34 +16,38 @@ using namespace chen;
 namespace {
 
 /// 构造一条日志事件并写入 logger，time_us 为事件时间（微秒），用于模拟跨时间边界
-void WriteLineAt(Logger::ptr logger, const std::string& msg, uint64_t time_us) {
-    LogEvent::ptr event(new LogEvent(logger, LogLevel::INFO, __FILE__, __LINE__, 0
-        , GetThreadId(), GetFiberId(), time_us, "test"));
+void WriteLineAt(Logger::ptr logger, const std::string& msg, uint64_t time_us)
+{
+    LogEvent::ptr event(new LogEvent(logger, LogLevel::INFO, __FILE__, __LINE__, 0, GetThreadId(), GetFiberId(), time_us, "test"));
     event->getSS() << msg;
     logger->log(LogLevel::INFO, event);
 }
 
 /// 写一条日志，时间取当前时间
-void WriteLine(Logger::ptr logger, const std::string& msg) {
+void WriteLine(Logger::ptr logger, const std::string& msg)
+{
     WriteLineAt(logger, msg, GetCurrentUs());
 }
 
 /// 列出目录下指定扩展名的文件
-std::vector<std::string> ListFiles(const std::string& path) {
+std::vector<std::string> ListFiles(const std::string& path)
+{
     std::vector<std::string> files;
     FSUtil::ListAllFile(files, path, ".log");
     return files;
 }
 
 /// 清空目录下所有 .log 文件，避免上次运行残留影响断言
-void CleanDir(const std::string& path) {
+void CleanDir(const std::string& path)
+{
     for (auto& f : ListFiles(path)) {
         FSUtil::Unlink(f, false);
     }
 }
 
 /// 在扩展名前插入分片序号，模拟预期的分片文件名：app.log -> app_1.log
-std::string ShardName(const std::string& name) {
+std::string ShardName(const std::string& name)
+{
     size_t dot = name.find_last_of('.');
     if (dot == std::string::npos) {
         return name + "_1";
@@ -52,7 +56,8 @@ std::string ShardName(const std::string& name) {
 }
 
 /// 写足够多的日志把当前文件写满，触发至少一个分片（默认格式单条约 200 字节，12 条必超 512）
-void Fill(Logger::ptr logger, uint64_t time_us, const std::string& payload) {
+void Fill(Logger::ptr logger, uint64_t time_us, const std::string& payload)
+{
     for (int i = 0; i < 12; ++i) {
         WriteLineAt(logger, "line " + std::to_string(i) + " " + payload, time_us);
     }
@@ -61,7 +66,8 @@ void Fill(Logger::ptr logger, uint64_t time_us, const std::string& payload) {
 } // namespace
 
 // 纯大小分片：time_rotate=none，超过 max_size 后生成 app_1.log 等
-void test_size_rotate_none() {
+void test_size_rotate_none()
+{
     std::cout << "=== test_size_rotate_none ===" << std::endl;
 
     std::string dir = "/tmp/test_log_size_rotate_none";
@@ -97,7 +103,8 @@ void test_size_rotate_none() {
 //   1. 周期1内超大小 -> 分片（周期名_1）
 //   2. 跨周期边界 -> 切换到周期2的基础文件
 //   3. 周期2内超大小 -> 分片序号从 0 重新开始（周期2名_1）
-void test_size_rotate_all_time_types() {
+void test_size_rotate_all_time_types()
+{
     std::cout << "=== test_size_rotate_all_time_types ===" << std::endl;
 
     // t1 与 t1+dt 在本地时区下必然跨越对应的周期边界（秒）
@@ -108,12 +115,9 @@ void test_size_rotate_all_time_types() {
         uint64_t dt; // 周期2相对周期1的时间偏移（秒）
     };
     const Case cases[] = {
-        {"30min",  FileLogAppender::MINUTE_30, 30 * 60},
-        {"hour",   FileLogAppender::HOUR,       60 * 60},
-        {"12hour", FileLogAppender::HOUR_12,    12 * 3600},
-        {"day",    FileLogAppender::DAY,        24 * 3600},
-        {"week",   FileLogAppender::WEEK,       8 * 24 * 3600},
-        {"month",  FileLogAppender::MONTH,      40 * 24 * 3600},
+        {"30min", FileLogAppender::MINUTE_30, 30 * 60},  {"hour", FileLogAppender::HOUR, 60 * 60},
+        {"12hour", FileLogAppender::HOUR_12, 12 * 3600}, {"day", FileLogAppender::DAY, 24 * 3600},
+        {"week", FileLogAppender::WEEK, 8 * 24 * 3600},  {"month", FileLogAppender::MONTH, 40 * 24 * 3600},
     };
 
     std::string payload(100, 'y');
@@ -146,14 +150,15 @@ void test_size_rotate_all_time_types() {
         Fill(logger, (t1_sec + c.dt) * 1000000, payload);
         assert(FSUtil::Exists(dir + "/" + ShardName(base2)));
 
-        std::cout << "  [" << c.label << "] " << base1 << " -> " << ShardName(base1)
-                  << ", rotate -> " << base2 << " -> " << ShardName(base2) << std::endl;
+        std::cout << "  [" << c.label << "] " << base1 << " -> " << ShardName(base1) << ", rotate -> " << base2 << " -> " << ShardName(base2)
+                  << std::endl;
         std::cout << "  PASS" << std::endl;
     }
 }
 
 // 关闭分片（max_size=0）：不应产生分片文件
-void test_no_size_rotate() {
+void test_no_size_rotate()
+{
     std::cout << "=== test_no_size_rotate ===" << std::endl;
 
     std::string dir = "/tmp/test_log_no_size_rotate";
@@ -178,7 +183,8 @@ void test_no_size_rotate() {
 }
 
 // retention_days 清理带分片序号的过期文件，且不误删近期文件与当前写入文件
-void test_retention_cleans_shards() {
+void test_retention_cleans_shards()
+{
     std::cout << "=== test_retention_cleans_shards ===" << std::endl;
 
     std::string dir = "/tmp/test_log_retention_shards";
@@ -226,7 +232,8 @@ void test_retention_cleans_shards() {
     std::cout << "PASS" << std::endl;
 }
 
-int main() {
+int main()
+{
     test_size_rotate_none();
     test_size_rotate_all_time_types();
     test_no_size_rotate();

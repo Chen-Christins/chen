@@ -29,13 +29,13 @@ public:
     /**
      * @brief 构造函数
      * @param[in] threads 线程数量，默认就是一根线程
-     * @param[in] use_caller 
+     * @param[in] use_caller
      *            true: 执行协程调度器的那一根线程也纳入工作线程中，这个的执行效率较高
      *            false: 不纳入进来
      * @param[in] name 调度器名称
      */
     Scheduler(size_t threadCount = 1, bool use_caller = true, const std::string& name = "");
-    
+
     /**
      * @brief 析构函数，设为虚类是为了充当基类
      */
@@ -55,19 +55,20 @@ public:
      * @brief 获取主协程
      */
     static Fiber* GetMainFiber();
-    
+
     /**
      * @brief 开始调度器
      */
     void start();
-    
+
     /**
      * @brief 停止调度器
      */
     void stop();
     /// 调度一个协程或者传入一个任务函数，需要在协程调度器里面执行
     template <class FiberOrCb>
-    void schedule(FiberOrCb fc, int thread = -1) {
+    void schedule(FiberOrCb fc, int thread = -1)
+    {
         bool need_tickle = false;
         {
             std::lock_guard lock(m_mutex);
@@ -80,7 +81,8 @@ public:
 
     /// 批量调度协程或者任务函数
     template <class InputIterator>
-    void schedule(InputIterator begin, InputIterator end) {
+    void schedule(InputIterator begin, InputIterator end)
+    {
         bool need_tickle = false;
         {
             std::lock_guard lock(m_mutex);
@@ -94,9 +96,10 @@ public:
         }
     }
 
-	void switchTo(int thread = -1);
+    void switchTo(int thread = -1);
 
     std::ostream& dump(std::ostream& os);
+
 protected:
     /**
      * @brief 通知有任务来了
@@ -116,13 +119,13 @@ protected:
      *             让其陷入epoll_wait中，让epoll_wait来唤醒执行
      */
     virtual void idle();
-    
+
     /**
      * @brief 为了让子类有清理任务的机会, 停止的条件
      */
     virtual bool stopping();
 
-	/**
+    /**
      * @brief 设置当前线程局部变量的调度器
      */
     void setThis();
@@ -137,11 +140,13 @@ protected:
      * @return size_t 当前任务队列长度
      */
     size_t getTaskCount();
+
 private:
     /// 协程调度启动(无锁的), 主要是检查任务队列是否还有任务，没有就添加，否则tickle一下
     template <class FiberOrCb>
-    bool scheduleNoLock(FiberOrCb fc, int thread) {
-		/* 是否需要通知一下, 为空就需要插入之后直接开始调度 */
+    bool scheduleNoLock(FiberOrCb fc, int thread)
+    {
+        /* 是否需要通知一下, 为空就需要插入之后直接开始调度 */
         bool need_tickle = m_fibers.empty();
         FiberAndThread ft(fc, thread);
         if (ft.fiber || ft.cb) {
@@ -149,6 +154,7 @@ private:
         }
         return need_tickle;
     }
+
 private:
     struct FiberAndThread {
         /// 协程
@@ -159,39 +165,48 @@ private:
         int threadId;
         // 确定协程在哪一个线程上面执行
         FiberAndThread(Fiber::ptr f, int thr)
-            :fiber(f), threadId(thr) {
+            : fiber(f)
+            , threadId(thr)
+        {
         }
         /* 传入的智能指针swap，这样传入的智能指针就是空指针，
             引用计数就会减一，防止出现引用释放的问题，引用数量并没有全部释放掉，
             没有真实的释放 */
         FiberAndThread(Fiber::ptr* f, int thr)
-            :threadId(thr) {
+            : threadId(thr)
+        {
             fiber.swap(*f);
         }
         // 确定回调函数在哪一个线程上面执行
         FiberAndThread(std::function<void()> f, int thr)
-            :cb(f), threadId(thr) {
+            : cb(f)
+            , threadId(thr)
+        {
         }
         /* 传入的智能指针swap，这样传入的智能指针就是空指针，
             引用计数就会减一，防止出现引用释放的问题，引用数量并没有全部释放掉，
             没有真实的释放 */
         FiberAndThread(std::function<void()>* f, int thr)
-            :threadId(thr) {
+            : threadId(thr)
+        {
             cb.swap(*f);
         }
         // 默认构造
         FiberAndThread()
-            :threadId(-1) {
+            : threadId(-1)
+        {
         }
         /**
          * @brief 将任务信息置为空
          */
-        void reset() {
+        void reset()
+        {
             fiber = nullptr;
             cb = nullptr;
             threadId = -1;
         }
     };
+
 private:
     /// 互斥锁
     std::mutex m_mutex;
@@ -203,6 +218,7 @@ private:
     std::string m_name;
     /// user_caller为true时生效，调度协程
     Fiber::ptr m_rootFiber;
+
 protected:
     /// 协程下的线程id数组
     std::vector<int> m_threadIds;
@@ -222,10 +238,11 @@ protected:
 
 class SchedulerSwitcher : public Scheduler {
 public:
-	SchedulerSwitcher(Scheduler* target = nullptr);
-	~SchedulerSwitcher();
+    SchedulerSwitcher(Scheduler* target = nullptr);
+    ~SchedulerSwitcher();
+
 private:
-	Scheduler* m_caller;
+    Scheduler* m_caller;
 };
 
-}
+} // namespace chen
