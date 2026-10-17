@@ -128,6 +128,12 @@ public:
     bool hasTimer();
 
     /**
+     * @brief 获取当前定时器数量
+     * @return size_t 定时器集合大小
+     */
+    size_t getTimerCount();
+
+    /**
      * @brief 取消所有定时器（仅清理集合，不触发回调）
      */
     void cancelAllTimers();

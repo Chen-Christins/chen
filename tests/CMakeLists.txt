@@ -6,6 +6,7 @@ chen_add_executable(test "test.cc" "" "${LIBS}")
 chen_add_executable(test_config "test_config.cc" "" "${LIBS}")
 chen_add_executable(test_config_xml "test_config_xml.cc" "" "${LIBS}")
 chen_add_executable(test_rate_limiter "test_rate_limiter.cc" "" "${LIBS}")
+chen_add_executable(test_metrics "test_metrics.cc" "" "${LIBS}")
 chen_add_executable(test_thread "test_thread.cc" "" "${LIBS}")
 chen_add_executable(test_fiber "test_fiber.cc" "" "${LIBS}")
 chen_add_executable(test_fiber_bench "test_fiber_bench.cc" "" "${LIBS}")
@@ -45,6 +46,9 @@ chen_add_executable(test_log_size_rotate "test_log_size_rotate.cc" "" "${LIBS}")
 endif()
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
+
+# Metrics 性能基准：不受 TEST 开关限制，建议用 Release 构建运行
+chen_add_executable(test_metrics_bench "test_metrics_bench.cc" "" "${LIBS}")
 
 # 游戏测试模块
 add_library(game_module SHARED

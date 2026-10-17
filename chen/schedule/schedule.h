@@ -131,6 +131,12 @@ protected:
      * @brief 是否有空闲的线程
      */
     bool hasIdleThreads() { return m_idleThreadCount > 0; }
+
+    /**
+     * @brief 获取待调度任务数量
+     * @return size_t 当前任务队列长度
+     */
+    size_t getTaskCount();
 private:
     /// 协程调度启动(无锁的), 主要是检查任务队列是否还有任务，没有就添加，否则tickle一下
     template <class FiberOrCb>

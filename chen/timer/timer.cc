@@ -204,6 +204,11 @@ bool TimerManager::hasTimer() {
     return m_timers.empty();
 }
 
+size_t TimerManager::getTimerCount() {
+    std::shared_lock lock(m_mutex);
+    return m_timers.size();
+}
+
 void TimerManager::cancelAllTimers() {
     std::unique_lock lock(m_mutex);
     m_timers.clear();

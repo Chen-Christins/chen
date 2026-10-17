@@ -124,6 +124,11 @@ void TcpServer::setWorkers(IOManager* process_worker, IOManager* io_worker, IOMa
 
 void TcpServer::handleClient(Socket::ptr client) { INFO(logger) << "handleClient: " << *client; }
 
+size_t TcpServer::getActiveClientCount() {
+    std::lock_guard lock(m_clientsMutex);
+    return m_activeClients.size();
+}
+
 void TcpServer::closeAllClients() {
     std::set<Socket::ptr> clients;
     {

@@ -239,6 +239,12 @@ public:
     void closeAllClients();
 
     /**
+     * @brief 获取当前活跃客户端连接数
+     * @return size_t 活跃连接数量
+     */
+    size_t getActiveClientCount();
+
+    /**
      * @brief 加载https证书
      * @param cert_file
      * @param key_file

@@ -291,6 +291,11 @@ void Scheduler::switchTo(int thread) {
 	Fiber::YieldToHold();
 }
 
+size_t Scheduler::getTaskCount() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_fibers.size();
+}
+
 std::ostream& Scheduler::dump(std::ostream& os) {
     os << "[Scheduler name=" << m_name
        << " size=" << m_threadCount
