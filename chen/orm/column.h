@@ -45,6 +45,7 @@ public:
 
     std::string getDefaultValueString();
     std::string getSQLite3Default();
+    std::string getMySQLDefault();
 
     bool isAutoIncrement() const { return m_autoIncrement; }
     Type getDType() const { return m_dtype; }

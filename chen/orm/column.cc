@@ -45,6 +45,18 @@ std::string Column::getSQLite3Default()
     return m_default;
 }
 
+std::string Column::getMySQLDefault()
+{
+    // MySQL DATETIME 支持 1970-01-01，TIMESTAMP 不支持，需保留 1980 哨兵
+    if (m_dtype == TYPE_TIMESTAMP && m_type == "datetime") {
+        if (m_default.empty()) {
+            return "'1970-01-01 00:00:00'";
+        }
+        return m_default;
+    }
+    return getSQLite3Default();
+}
+
 bool Column::init(const tinyxml2::XMLElement& node)
 {
     if (!node.Attribute("name")) {
@@ -220,8 +232,10 @@ std::string Column::getMySQLTypeString()
     XX(TYPE_DOUBLE, double);
     XX(TYPE_BLOB, blob);
     XX(TYPE_TEXT, text);
-    XX(TYPE_TIMESTAMP, timestamp);
 #undef XX
+    if (m_dtype == TYPE_TIMESTAMP) {
+        return m_type == "datetime" ? "datetime" : "timestamp";
+    }
     if (m_dtype == TYPE_STRING) {
         return "varchar(" + std::to_string(m_length ? m_length : 128) + ")";
     }

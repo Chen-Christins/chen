@@ -252,7 +252,13 @@ qb->insert("name", "hello")               // INSERT
 | `string`    | `std::string` | TEXT      | varchar(N)       |
 | `text`      | `std::string` | TEXT      | text             |
 | `blob`      | `std::string` | BLOB      | blob             |
+| `datetime`  | `int64_t`     | TIMESTAMP | datetime         |
 | `timestamp` | `int64_t`     | TIMESTAMP | timestamp        |
+
+> `datetime` 在 MySQL 中生成 `DATETIME`，支持 `1970-01-01` 及 2038 之后的时间；空时间默认值为
+> `'1970-01-01 00:00:00'`。
+> `timestamp` 生成 MySQL `TIMESTAMP`，受 `1970-01-01 00:00:01` ~ `2038-01-19 03:14:07` 范围限制，
+> 空时间默认值仍为 `'1980-01-01 00:00:00'`，需要宽范围时间时请使用 `datetime`。
 
 ## DDL 迁移
 

@@ -1431,7 +1431,7 @@ void Table::gen_dao_src(std::ofstream& ofs)
         } else {
             ofs << " NOT NULL";
             if (i->getDType() != Column::TYPE_TEXT && i->getDType() != Column::TYPE_BLOB) {
-                ofs << " DEFAULT " << i->getSQLite3Default();
+                ofs << " DEFAULT " << i->getMySQLDefault();
             }
         }
 
@@ -1697,7 +1697,10 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs)
         ofs << "            int rt = conn->execute(\"ALTER TABLE " << m_name << " MODIFY COLUMN `" << col->getName() << "` "
             << col->getMySQLTypeString() << " NOT NULL";
         if (col->getDType() != Column::TYPE_TEXT && col->getDType() != Column::TYPE_BLOB) {
-            ofs << " DEFAULT " << col->getSQLite3Default();
+            ofs << " DEFAULT " << col->getMySQLDefault();
+        }
+        if (!col->getUpdate().empty()) {
+            ofs << " ON UPDATE " << col->getUpdate();
         }
         if (!col->getDesc().empty()) {
             ofs << " COMMENT '" << col->getDesc() << "'";
@@ -1739,7 +1742,10 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs)
         ofs << "        INFO(logger) << \"Adding column " << m_name << "." << col->getName() << "\";" << std::endl;
         ofs << "        int rt = conn->execute(\"ALTER TABLE " << m_name << " ADD COLUMN `" << col->getName() << "` " << col->getMySQLTypeString();
         if (col->getDType() != Column::TYPE_TEXT && col->getDType() != Column::TYPE_BLOB) {
-            ofs << " NOT NULL DEFAULT " << col->getSQLite3Default();
+            ofs << " NOT NULL DEFAULT " << col->getMySQLDefault();
+        }
+        if (!col->getUpdate().empty()) {
+            ofs << " ON UPDATE " << col->getUpdate();
         }
         if (!col->getDesc().empty()) {
             ofs << " COMMENT '" << col->getDesc() << "'";
