@@ -35,11 +35,11 @@ static uint64_t benchSingleFiber(int64_t rounds) {
 
     chen::Fiber::ptr f(new chen::Fiber(std::bind(runner, &state)));
 
-    uint64_t start = chen::GetCurrentNanos();
+    uint64_t start = chen::TimeUtil::GetCurrentNanos();
     while (state.count < state.rounds) {
         f->swapIn();
     }
-    return chen::GetCurrentNanos() - start;
+    return chen::TimeUtil::GetCurrentNanos() - start;
 }
 
 // 双 fiber ping-pong，每次循环 = 4次 jump_fcontext
@@ -51,12 +51,12 @@ static uint64_t benchPingPong(int64_t rounds) {
     chen::Fiber::ptr a(new chen::Fiber(std::bind(runner, &state)));
     chen::Fiber::ptr b(new chen::Fiber(std::bind(runner, &state)));
 
-    uint64_t start = chen::GetCurrentNanos();
+    uint64_t start = chen::TimeUtil::GetCurrentNanos();
     while (state.count < state.rounds) {
         a->swapIn();
         b->swapIn();
     }
-    return chen::GetCurrentNanos() - start;
+    return chen::TimeUtil::GetCurrentNanos() - start;
 }
 
 int main(int argc, char** argv) {

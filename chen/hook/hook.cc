@@ -1,7 +1,9 @@
 #include "hook.h"
 
-#include <cstdarg>
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <stdarg.h>
+#include <sys/ioctl.h>
 
 #include "../config/config.h"
 #include "../fiber/fiber.h"
@@ -13,8 +15,7 @@ static chen::Logger::ptr logger = LOG_NAME("system");
 
 namespace chen {
 
-static ConfigVar<int>::ptr g_tcp_connect_timeout = 
-    Config::Lookup("tcp.connect.timeout", 5000, "tcp connect timeout");
+static ConfigVar<int>::ptr g_tcp_connect_timeout = Config::Lookup("tcp.connect.timeout", 5000, "tcp connect timeout");
 
 static thread_local bool t_hook_enable = false;
 
@@ -42,29 +43,29 @@ static thread_local bool t_hook_enable = false;
     XX(setsockopt)
 
 // main函数之前执行
-void hook_init() {
+void hook_init()
+{
     static bool is_inited = false;
     if (is_inited) {
-        return ;
+        return;
     }
 // sleep_f = dlsym(RTLD_NEXT, sleep) 这里就是把 XX(name) 定义为 name_f，
 // 而这个dlsym，就是在动态库中寻找出第一个叫做name的函数地址，所以，name_f 就代表源函数
 // 而下面这个 HOOK_FUN(XX) 就是将 name_f 加入 HOOK_FUN() 中，变成HOOK_FUN(name_f)
-#define XX(name) name ## _f = (name ## _fun)dlsym(RTLD_NEXT, #name);
+#define XX(name) name##_f = (name##_fun)dlsym(RTLD_NEXT, #name);
     HOOK_FUN(XX);
 #undef XX
-
 }
 
 static uint64_t s_connect_timeout = -1;
 struct _HookIniter {
-    _HookIniter() {
+    _HookIniter()
+    {
         hook_init();
 
         s_connect_timeout = g_tcp_connect_timeout->getValue();
         g_tcp_connect_timeout->addListener([](const int& old_value, const int& new_value) {
-            INFO(logger) << "tcp connect timeout changed from:"
-                << old_value << " new value:" << new_value;
+            INFO(logger) << "tcp connect timeout changed from:" << old_value << " new value:" << new_value;
             s_connect_timeout = new_value;
         });
     }
@@ -72,15 +73,17 @@ struct _HookIniter {
 
 static _HookIniter s_hook_initer;
 
-bool is_hook_enable() {
+bool is_hook_enable()
+{
     return t_hook_enable;
 }
 
-void set_hook_enable(bool flag) {
+void set_hook_enable(bool flag)
+{
     t_hook_enable = flag;
 }
 
-}
+} // namespace chen
 
 // 条件定时器的条件
 struct timer_info {
@@ -102,8 +105,8 @@ struct timer_info {
  * @return ssize_t 目标类型
  */
 template <typename OriginFun, typename... Args>
-static ssize_t do_io(int fd, OriginFun fun, const char* hook_fun_name
-        , uint32_t event, int timeout_so, Args&&... args) {
+static ssize_t do_io(int fd, OriginFun fun, const char* hook_fun_name, uint32_t event, int timeout_so, Args&&... args)
+{
     if (!chen::t_hook_enable) {
         return fun(fd, std::forward<Args>(args)...);
     }
@@ -153,35 +156,33 @@ retry:
         std::weak_ptr<timer_info> winfo(tinfo);
         // 这个地方是超时器，超时时间订好了
         if (to != (uint64_t)-1) {
-            timer = iom->addConditionTimer(to, [winfo, fd, iom, event]() {
-                auto t = winfo.lock();
-                // 没有触发定时器，相当于已经失效了
-                if (!t || t->cancelled) {
-                    return ;
-                }
-                // 设置取消
-                t->cancelled = ETIMEDOUT;
-                // 到时间就强制取消
-                iom->cancelEvent(fd, (chen::IOManager::Event)(event));
-            }, winfo);
+            timer = iom->addConditionTimer(
+                to,
+                [winfo, fd, iom, event]() {
+                    auto t = winfo.lock();
+                    // 没有触发定时器，相当于已经失效了
+                    if (!t || t->cancelled) {
+                        return;
+                    }
+                    // 设置取消
+                    t->cancelled = ETIMEDOUT;
+                    // 到时间就强制取消
+                    iom->cancelEvent(fd, (chen::IOManager::Event)(event));
+                },
+                winfo);
         }
 
         int rt = iom->addEvent(fd, (chen::IOManager::Event)(event));
         // 添加事件失败
         if (UNLIKELY(rt)) {
-            ERROR(logger) << hook_fun_name << " addEvent(" 
-                << fd << ", " << event << ")";
+            ERROR(logger) << hook_fun_name << " addEvent(" << fd << ", " << event << ")";
             // 记录 FdCtx 详细状态帮助诊断竞态／已关闭的问题
             chen::FdCtx::ptr info = chen::FdMgr::GetInstance()->get(fd);
             if (info) {
-                ERROR(logger) << "FdCtx fd=" << fd
-                    << " isInit=" << info->isInit()
-                    << " isSocket=" << info->isSocket()
-                    << " isClose=" << info->isClose()
-                    << " userNonblock=" << info->getUserNonblock()
-                    << " sysNonblock=" << info->getSysNonblock()
-                    << " rto=" << info->getTimeout(SO_RCVTIMEO)
-                    << " sto=" << info->getTimeout(SO_SNDTIMEO);
+                ERROR(logger) << "FdCtx fd=" << fd << " isInit=" << info->isInit() << " isSocket=" << info->isSocket()
+                              << " isClose=" << info->isClose() << " userNonblock=" << info->getUserNonblock()
+                              << " sysNonblock=" << info->getSysNonblock() << " rto=" << info->getTimeout(SO_RCVTIMEO)
+                              << " sto=" << info->getTimeout(SO_SNDTIMEO);
             } else {
                 ERROR(logger) << "FdCtx missing for fd=" << fd;
             }
@@ -216,13 +217,14 @@ retry:
 
 extern "C" {
 
-// 这里就是声明所有的 name_fun 类型的 name_f 的初始值为 nullptr, 
-#define XX(name) name ## _fun name ## _f = nullptr;
-    HOOK_FUN(XX);
+// 这里就是声明所有的 name_fun 类型的 name_f 的初始值为 nullptr,
+#define XX(name) name##_fun name##_f = nullptr;
+HOOK_FUN(XX);
 #undef XX
 
 // 秒
-unsigned int sleep(unsigned int seconds) {
+unsigned int sleep(unsigned int seconds)
+{
     if (!chen::t_hook_enable) {
         return sleep_f(seconds);
     }
@@ -234,16 +236,17 @@ unsigned int sleep(unsigned int seconds) {
     iom->addTimer(seconds * 1000, [iom, fiber]() {
         iom->schedule(fiber, -1);
     });
-    
+
     chen::Fiber::YieldToHold();
     return 0;
 }
 // 微秒
-int usleep(useconds_t usec) {
+int usleep(useconds_t usec)
+{
     if (!chen::t_hook_enable) {
         return usleep_f(usec);
     }
-    
+
     chen::Fiber::ptr fiber = chen::Fiber::GetThis();
     chen::IOManager* iom = chen::IOManager::GetThis();
     iom->addTimer(usec / 1000, [iom, fiber]() {
@@ -253,7 +256,8 @@ int usleep(useconds_t usec) {
     return 0;
 }
 // 纳秒
-int nanosleep(const struct timespec *req, struct timespec *rem) {
+int nanosleep(const struct timespec* req, struct timespec* rem)
+{
     if (!chen::t_hook_enable) {
         return nanosleep_f(req, rem);
     }
@@ -268,7 +272,8 @@ int nanosleep(const struct timespec *req, struct timespec *rem) {
     return 0;
 }
 // socket
-int socket(int domain, int type, int protocol) {
+int socket(int domain, int type, int protocol)
+{
     if (!chen::t_hook_enable) {
         return socket_f(domain, type, protocol);
     }
@@ -277,12 +282,13 @@ int socket(int domain, int type, int protocol) {
     if (fd == -1) {
         return fd;
     }
-    
+
     chen::FdMgr::GetInstance()->get(fd, true);
     return fd;
 }
 // connect
-int connect_with_timeout(int fd, const struct sockaddr* addr, socklen_t addrlen, uint64_t timeout_ms) {
+int connect_with_timeout(int fd, const struct sockaddr* addr, socklen_t addrlen, uint64_t timeout_ms)
+{
     if (!chen::t_hook_enable) {
         return connect_f(fd, addr, addrlen);
     }
@@ -298,10 +304,10 @@ int connect_with_timeout(int fd, const struct sockaddr* addr, socklen_t addrlen,
     if (!ctx->isSocket() || ctx->getUserNonblock()) {
         return connect_f(fd, addr, addrlen);
     }
-    
+
     // 尝试连接
     int n = connect_f(fd, addr, addrlen);
-    
+
     if (n == 0) {
         return 0;
     } else if (n != -1 || errno != EINPROGRESS) {
@@ -315,14 +321,17 @@ int connect_with_timeout(int fd, const struct sockaddr* addr, socklen_t addrlen,
 
     // 设置了超时时间
     if (timeout_ms != (uint64_t)-1) {
-        timer = iom->addConditionTimer(timeout_ms, [winfo, fd, iom]() {
-            auto t = winfo.lock();
-            if (!t || t->cancelled) {
-                return ;
-            }
-            t->cancelled = ETIMEDOUT;
-            iom->cancelEvent(fd, chen::IOManager::WRITE);
-        }, winfo);
+        timer = iom->addConditionTimer(
+            timeout_ms,
+            [winfo, fd, iom]() {
+                auto t = winfo.lock();
+                if (!t || t->cancelled) {
+                    return;
+                }
+                t->cancelled = ETIMEDOUT;
+                iom->cancelEvent(fd, chen::IOManager::WRITE);
+            },
+            winfo);
     }
 
     int rt = iom->addEvent(fd, chen::IOManager::WRITE);
@@ -349,14 +358,9 @@ int connect_with_timeout(int fd, const struct sockaddr* addr, socklen_t addrlen,
         ERROR(logger) << "connect addEvent(" << fd << ", WRITE) error";
         chen::FdCtx::ptr info = chen::FdMgr::GetInstance()->get(fd);
         if (info) {
-            ERROR(logger) << "FdCtx fd=" << fd
-                << " isInit=" << info->isInit()
-                << " isSocket=" << info->isSocket()
-                << " isClose=" << info->isClose()
-                << " userNonblock=" << info->getUserNonblock()
-                << " sysNonblock=" << info->getSysNonblock()
-                << " rto=" << info->getTimeout(SO_RCVTIMEO)
-                << " sto=" << info->getTimeout(SO_SNDTIMEO);
+            ERROR(logger) << "FdCtx fd=" << fd << " isInit=" << info->isInit() << " isSocket=" << info->isSocket() << " isClose=" << info->isClose()
+                          << " userNonblock=" << info->getUserNonblock() << " sysNonblock=" << info->getSysNonblock()
+                          << " rto=" << info->getTimeout(SO_RCVTIMEO) << " sto=" << info->getTimeout(SO_SNDTIMEO);
         } else {
             ERROR(logger) << "FdCtx missing for fd=" << fd;
         }
@@ -377,11 +381,13 @@ int connect_with_timeout(int fd, const struct sockaddr* addr, socklen_t addrlen,
     }
 }
 
-int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
+{
     return connect_with_timeout(sockfd, addr, addrlen, chen::s_connect_timeout);
 }
 
-int accept(int s, struct sockaddr *addr, socklen_t *addrlen) {
+int accept(int s, struct sockaddr* addr, socklen_t* addrlen)
+{
     int fd = do_io(s, accept_f, "accept", chen::IOManager::READ, SO_RCVTIMEO, addr, addrlen);
     // 将新创建的文件描述符加入管理器中
     if (fd >= 0) {
@@ -390,55 +396,66 @@ int accept(int s, struct sockaddr *addr, socklen_t *addrlen) {
     return fd;
 }
 
-ssize_t read(int fd, void *buf, size_t count) {
+ssize_t read(int fd, void* buf, size_t count)
+{
     return do_io(fd, read_f, "read", chen::IOManager::READ, SO_RCVTIMEO, buf, count);
 }
 
-ssize_t readv(int fd, const struct iovec *iov, int iovcnt) {
+ssize_t readv(int fd, const struct iovec* iov, int iovcnt)
+{
     return do_io(fd, readv_f, "readv", chen::IOManager::READ, SO_RCVTIMEO, iov, iovcnt);
 }
 
-ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
+ssize_t recv(int sockfd, void* buf, size_t len, int flags)
+{
     return do_io(sockfd, recv_f, "recv", chen::IOManager::READ, SO_RCVTIMEO, buf, len, flags);
 }
 
-ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
+ssize_t recvfrom(int sockfd, void* buf, size_t len, int flags, struct sockaddr* src_addr, socklen_t* addrlen)
+{
     return do_io(sockfd, recvfrom_f, "recvfrom", chen::IOManager::READ, SO_RCVTIMEO, buf, len, flags, src_addr, addrlen);
 }
 
-ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags) {
+ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags)
+{
     return do_io(sockfd, recvmsg_f, "recvmsg", chen::IOManager::READ, SO_RCVTIMEO, msg, flags);
 }
 
-ssize_t write(int fd, const void *buf, size_t count) {
+ssize_t write(int fd, const void* buf, size_t count)
+{
     return do_io(fd, write_f, "write", chen::IOManager::WRITE, SO_SNDTIMEO, buf, count);
 }
 
-ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
+ssize_t writev(int fd, const struct iovec* iov, int iovcnt)
+{
     return do_io(fd, writev_f, "writev", chen::IOManager::WRITE, SO_SNDTIMEO, iov, iovcnt);
 }
 
-ssize_t send(int s, const void *msg, size_t len, int flags) {
+ssize_t send(int s, const void* msg, size_t len, int flags)
+{
     return do_io(s, send_f, "send", chen::IOManager::WRITE, SO_SNDTIMEO, msg, len, flags);
 }
 
-ssize_t sendto(int s, const void *msg, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) {
+ssize_t sendto(int s, const void* msg, size_t len, int flags, const struct sockaddr* to, socklen_t tolen)
+{
     return do_io(s, sendto_f, "sendto", chen::IOManager::WRITE, SO_SNDTIMEO, msg, len, flags, to, tolen);
 }
 
-ssize_t sendmsg(int s, const struct msghdr *msg, int flags) {
+ssize_t sendmsg(int s, const struct msghdr* msg, int flags)
+{
     return do_io(s, sendmsg_f, "sendmsg", chen::IOManager::WRITE, SO_SNDTIMEO, msg, flags);
 }
 
-int close(int fd) {
+int close(int fd)
+{
     if (!chen::t_hook_enable) {
         // 即使 hook 未启用，也需清理 FdMgr 和 IOManager 事件，
         // 否则 fd 被复用时残留的 FdCtx/FdContext 会导致 addEvent 断言失败
         chen::FdCtx::ptr ctx = chen::FdMgr::GetInstance()->get(fd);
         if (ctx) {
-            auto iom = ctx->getIOManager();       // 优先用 FdCtx 记录的
+            auto iom = ctx->getIOManager(); // 优先用 FdCtx 记录的
             if (!iom) {
-                iom = chen::IOManager::GetThis();  // 回退到当前线程的
+                iom = chen::IOManager::GetThis(); // 回退到当前线程的
             }
             chen::FdMgr::GetInstance()->del(fd);
             if (iom) {
@@ -450,9 +467,9 @@ int close(int fd) {
 
     chen::FdCtx::ptr ctx = chen::FdMgr::GetInstance()->get(fd);
     if (ctx) {
-        auto iom = ctx->getIOManager();       // 优先用 FdCtx 记录的
+        auto iom = ctx->getIOManager(); // 优先用 FdCtx 记录的
         if (!iom) {
-            iom = chen::IOManager::GetThis();  // 回退到当前线程的
+            iom = chen::IOManager::GetThis(); // 回退到当前线程的
         }
         chen::FdMgr::GetInstance()->del(fd);
         if (iom) {
@@ -463,45 +480,42 @@ int close(int fd) {
 }
 
 // 对用户反馈是否用户设置了非阻塞模式
-int fcntl(int fd, int cmd, ... /* arg */ ) {
+int fcntl(int fd, int cmd, ... /* arg */)
+{
     va_list va;
     va_start(va, cmd);
     switch (cmd) {
-    case F_SETFL:
-        {
-            int arg = va_arg(va, int);
-            va_end(va);
-            chen::FdCtx::ptr ctx = chen::FdMgr::GetInstance()->get(fd);
-            // 如果在文件描述符管理器中找不到，或者已经关闭了，或者不是socket系列的，就用原函数
-            if (!ctx || ctx->isClose() || !ctx->isSocket()) {
-                return fcntl_f(fd, cmd, arg);
-            }
-            // 判断要添加的信息包含非阻塞
-            ctx->setUserNonblock(arg & O_NONBLOCK);
-            // 如果是用户主动设置的，就将其加上，否则就拿掉
-            if (ctx->getUserNonblock()) {
-                arg |= O_NONBLOCK;
-            } else {
-                arg &= ~O_NONBLOCK;
-            }
+    case F_SETFL: {
+        int arg = va_arg(va, int);
+        va_end(va);
+        chen::FdCtx::ptr ctx = chen::FdMgr::GetInstance()->get(fd);
+        // 如果在文件描述符管理器中找不到，或者已经关闭了，或者不是socket系列的，就用原函数
+        if (!ctx || ctx->isClose() || !ctx->isSocket()) {
             return fcntl_f(fd, cmd, arg);
         }
-        break;
-    case F_GETFL:
-        {
-            va_end(va);
-            int arg = fcntl_f(fd, cmd);
-            chen::FdCtx::ptr ctx = chen::FdMgr::GetInstance()->get(fd);
-            if (!ctx || ctx->isClose() || !ctx->isSocket()) {
-                return arg;
-            }
-            if (ctx->getUserNonblock()) {
-                return arg | O_NONBLOCK;
-            } else {
-                return arg & ~O_NONBLOCK;
-            }
+        // 判断要添加的信息包含非阻塞
+        ctx->setUserNonblock(arg & O_NONBLOCK);
+        // 如果是用户主动设置的，就将其加上，否则就拿掉
+        if (ctx->getUserNonblock()) {
+            arg |= O_NONBLOCK;
+        } else {
+            arg &= ~O_NONBLOCK;
         }
-        break;
+        return fcntl_f(fd, cmd, arg);
+    } break;
+    case F_GETFL: {
+        va_end(va);
+        int arg = fcntl_f(fd, cmd);
+        chen::FdCtx::ptr ctx = chen::FdMgr::GetInstance()->get(fd);
+        if (!ctx || ctx->isClose() || !ctx->isSocket()) {
+            return arg;
+        }
+        if (ctx->getUserNonblock()) {
+            return arg | O_NONBLOCK;
+        } else {
+            return arg & ~O_NONBLOCK;
+        }
+    } break;
     case F_DUPFD:
     case F_DUPFD_CLOEXEC:
     case F_SETFD:
@@ -512,34 +526,30 @@ int fcntl(int fd, int cmd, ... /* arg */ ) {
 #ifdef F_SETPIPE_SZ
     case F_SETPIPE_SZ:
 #endif
-        {
-            va_end(va);
-            return fcntl_f(fd, cmd);
-        }
-        break;
+    {
+        va_end(va);
+        return fcntl_f(fd, cmd);
+    } break;
     case F_SETLK:
     case F_SETLKW:
-    case F_GETLK:
-        {
-            struct flock* arg = va_arg(va, struct flock*);
-            va_end(va);
-            return fcntl_f(fd, cmd, arg);
-        }
-        break;
-    case F_GETOWN_EX:
-        {
-            struct f_owner_exlock* arg = va_arg(va, struct f_owner_exlock*);
-            va_end(va);
-            return fcntl(fd, cmd, arg);
-        }
-        break;
+    case F_GETLK: {
+        struct flock* arg = va_arg(va, struct flock*);
+        va_end(va);
+        return fcntl_f(fd, cmd, arg);
+    } break;
+    case F_GETOWN_EX: {
+        struct f_owner_exlock* arg = va_arg(va, struct f_owner_exlock*);
+        va_end(va);
+        return fcntl(fd, cmd, arg);
+    } break;
     default:
         va_end(va);
         return fcntl_f(fd, cmd);
     }
 }
 
-int ioctl(int fd, unsigned long int request, ...) {
+int ioctl(int fd, unsigned long int request, ...)
+{
     va_list va;
     va_start(va, request);
     void* arg = va_arg(va, void*);
@@ -557,11 +567,13 @@ int ioctl(int fd, unsigned long int request, ...) {
     return ioctl_f(fd, request, arg);
 }
 
-int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen) {
+int getsockopt(int sockfd, int level, int optname, void* optval, socklen_t* optlen)
+{
     return getsockopt_f(sockfd, level, optname, optval, optlen);
 }
 
-int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen) {
+int setsockopt(int sockfd, int level, int optname, const void* optval, socklen_t optlen)
+{
     if (!chen::t_hook_enable) {
         return setsockopt_f(sockfd, level, optname, optval, optlen);
     }

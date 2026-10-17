@@ -10,29 +10,28 @@ namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
 
-ConfigVarBase::ptr Config::LookupBase(const std::string& name) {
+ConfigVarBase::ptr Config::LookupBase(const std::string& name)
+{
     auto it = GetDatas().find(name);
     return it == GetDatas().end() ? nullptr : it->second;
 }
 
-static void ListAllMember(const std::string& prefix
-        ,const YAML::Node& node
-        ,std::list<std::pair<std::string, const YAML::Node>>& output) {
-    if (prefix.find_first_not_of("abcdefghijklmnopqrstuvwxyz._0123456789")
-            != std::string::npos) {
+static void ListAllMember(const std::string& prefix, const YAML::Node& node, std::list<std::pair<std::string, const YAML::Node>>& output)
+{
+    if (prefix.find_first_not_of("abcdefghijklmnopqrstuvwxyz._0123456789") != std::string::npos) {
         ERROR(logger) << "Config invalid name: " << prefix << " : " << node;
-        return ;
+        return;
     }
     output.push_back({prefix, node});
     if (node.IsMap()) {
         for (auto it = node.begin(); it != node.end(); ++it) {
-            ListAllMember(prefix.empty() ? it->first.Scalar()
-                : prefix + "." + it->first.Scalar(), it->second, output);
+            ListAllMember(prefix.empty() ? it->first.Scalar() : prefix + "." + it->first.Scalar(), it->second, output);
         }
     }
 }
 
-void Config::LoadFromYaml(const YAML::Node& root) {
+void Config::LoadFromYaml(const YAML::Node& root)
+{
     std::list<std::pair<std::string, const YAML::Node>> all_nodes;
     ListAllMember("", root, all_nodes);
 
@@ -56,11 +55,11 @@ void Config::LoadFromYaml(const YAML::Node& root) {
     }
 }
 
-static YAML::Node XmlToYaml(const tinyxml2::XMLElement* elem) {
+static YAML::Node XmlToYaml(const tinyxml2::XMLElement* elem)
+{
     // 按标签名分组子元素
     std::map<std::string, std::vector<const tinyxml2::XMLElement*>> groups;
-    for (const tinyxml2::XMLElement* child = elem->FirstChildElement();
-            child; child = child->NextSiblingElement()) {
+    for (const tinyxml2::XMLElement* child = elem->FirstChildElement(); child; child = child->NextSiblingElement()) {
         groups[child->Name()].push_back(child);
     }
 
@@ -108,7 +107,8 @@ static YAML::Node XmlToYaml(const tinyxml2::XMLElement* elem) {
     return node;
 }
 
-void Config::LoadFromXml(const tinyxml2::XMLElement& root) {
+void Config::LoadFromXml(const tinyxml2::XMLElement& root)
+{
     LoadFromYaml(XmlToYaml(&root));
 }
 
@@ -118,7 +118,8 @@ void Config::LoadFromXml(const tinyxml2::XMLElement& root) {
  * @param[out] root 解析结果
  * @return bool 是否解析成功
  */
-static bool ParseFileToYaml(const std::string& filepath, YAML::Node& root) {
+static bool ParseFileToYaml(const std::string& filepath, YAML::Node& root)
+{
     if (filepath.size() >= 4 && filepath.compare(filepath.size() - 4, 4, ".xml") == 0) {
         tinyxml2::XMLDocument doc;
         if (doc.LoadFile(filepath.c_str()) != tinyxml2::XML_SUCCESS) {
@@ -138,7 +139,8 @@ static std::mutex mtx;
  * @brief 获取文件修改时间（纳秒精度）
  * @details 秒级精度会漏掉同一秒内的多次修改，导致热加载读到半截配置
  */
-static uint64_t GetModifyTimeNs(const struct stat& st) {
+static uint64_t GetModifyTimeNs(const struct stat& st)
+{
 #if defined(__linux__)
     return (uint64_t)st.st_mtim.tv_sec * 1000000000ull + (uint64_t)st.st_mtim.tv_nsec;
 #elif defined(__APPLE__)
@@ -148,7 +150,8 @@ static uint64_t GetModifyTimeNs(const struct stat& st) {
 #endif
 }
 
-bool Config::LoadFromFile(const std::string& filepath, bool force) {
+bool Config::LoadFromFile(const std::string& filepath, bool force)
+{
     struct stat st;
     if (lstat(filepath.c_str(), &st) != 0) {
         ERROR(logger) << "LoadFromFile stat failed: " << filepath;
@@ -177,7 +180,8 @@ bool Config::LoadFromFile(const std::string& filepath, bool force) {
     }
 }
 
-void Config::LoadFromConfDir(const std::string& path, bool force) {
+void Config::LoadFromConfDir(const std::string& path, bool force)
+{
     std::string absolute_path = EnvMgr::GetInstance()->getAbsolutePath(path);
     std::vector<std::string> files;
     FSUtil::ListAllFile(files, absolute_path, ".yml");
@@ -187,12 +191,13 @@ void Config::LoadFromConfDir(const std::string& path, bool force) {
     }
 }
 
-void Config::Visit(std::function<void(ConfigVarBase::ptr)> callback) {
-	std::shared_lock lock(GetMutex());
-	ConfigVarMap& m = GetDatas();
-	for (auto it = m.begin(); it != m.end(); ++it) {
-		callback(it->second);
-	}
+void Config::Visit(std::function<void(ConfigVarBase::ptr)> callback)
+{
+    std::shared_lock lock(GetMutex());
+    ConfigVarMap& m = GetDatas();
+    for (auto it = m.begin(); it != m.end(); ++it) {
+        callback(it->second);
+    }
 }
 
-}
+} // namespace chen

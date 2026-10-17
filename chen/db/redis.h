@@ -6,7 +6,6 @@
 
 #include <memory>
 #include <mutex>
-#include <stdlib.h>
 #include <string>
 
 #include <sys/time.h>
@@ -26,24 +25,24 @@ typedef std::shared_ptr<redisReply> ReplyPtr;
 class IRedis {
 public:
     enum Type {
-		REDIS = 1,
-		REDIS_CLUSTER = 2,
-		FOX_REDIS = 3,
-		FOX_REDIS_CLUSTER = 4
-	};
+        REDIS = 1,
+        REDIS_CLUSTER = 2,
+        FOX_REDIS = 3,
+        FOX_REDIS_CLUSTER = 4
+    };
     typedef std::shared_ptr<IRedis> ptr;
-    IRedis() : m_logEnable(true) {}
+    IRedis();
     virtual ~IRedis() {}
 
-    virtual ReplyPtr cmd(const char *fmt, ...) = 0;
-    virtual ReplyPtr cmd(const char *fmt, va_list ap) = 0;
-    virtual ReplyPtr cmd(const std::vector<std::string> &argv) = 0;
+    virtual ReplyPtr cmd(const char* fmt, ...) = 0;
+    virtual ReplyPtr cmd(const char* fmt, va_list ap) = 0;
+    virtual ReplyPtr cmd(const std::vector<std::string>& argv) = 0;
 
-    const std::string &getName() const { return m_name; }
-    void setName(const std::string &v) { m_name = v; }
+    const std::string& getName() const { return m_name; }
+    void setName(const std::string& v) { m_name = v; }
 
-    const std::string &getPasswd() const { return m_passwd; }
-    void setPasswd(const std::string &v) { m_passwd = v; }
+    const std::string& getPasswd() const { return m_passwd; }
+    void setPasswd(const std::string& v) { m_passwd = v; }
 
     Type getType() const { return m_type; }
 
@@ -60,13 +59,13 @@ public:
     virtual ~ISyncRedis() {}
 
     virtual bool reconnect() = 0;
-    virtual bool connect(const std::string &ip, int port, uint64_t ms = 0) = 0;
+    virtual bool connect(const std::string& ip, int port, uint64_t ms = 0) = 0;
     virtual bool connect() = 0;
     virtual bool setTimeout(uint64_t ms) = 0;
 
-    virtual int appendCmd(const char *fmt, ...) = 0;
-    virtual int appendCmd(const char *fmt, va_list ap) = 0;
-    virtual int appendCmd(const std::vector<std::string> &argv) = 0;
+    virtual int appendCmd(const char* fmt, ...) = 0;
+    virtual int appendCmd(const char* fmt, va_list ap) = 0;
+    virtual int appendCmd(const std::vector<std::string>& argv) = 0;
 
     virtual ReplyPtr getReply() = 0;
 
@@ -74,27 +73,27 @@ public:
     void setLastActiveTime(uint64_t v) { m_lastActiveTime = v; }
 
 protected:
-    uint64_t m_lastActiveTime;
+    uint64_t m_lastActiveTime = 0;
 };
 
 class Redis : public ISyncRedis {
 public:
     typedef std::shared_ptr<Redis> ptr;
     Redis();
-    Redis(const std::map<std::string, std::string> &conf);
+    Redis(const std::map<std::string, std::string>& conf);
 
     virtual bool reconnect();
-    virtual bool connect(const std::string &ip, int port, uint64_t ms = 0);
+    virtual bool connect(const std::string& ip, int port, uint64_t ms = 0);
     virtual bool connect();
     virtual bool setTimeout(uint64_t ms);
 
-    virtual ReplyPtr cmd(const char *fmt, ...);
-    virtual ReplyPtr cmd(const char *fmt, va_list ap);
-    virtual ReplyPtr cmd(const std::vector<std::string> &argv);
+    virtual ReplyPtr cmd(const char* fmt, ...);
+    virtual ReplyPtr cmd(const char* fmt, va_list ap);
+    virtual ReplyPtr cmd(const std::vector<std::string>& argv);
 
-    virtual int appendCmd(const char *fmt, ...);
-    virtual int appendCmd(const char *fmt, va_list ap);
-    virtual int appendCmd(const std::vector<std::string> &argv);
+    virtual int appendCmd(const char* fmt, ...);
+    virtual int appendCmd(const char* fmt, va_list ap);
+    virtual int appendCmd(const std::vector<std::string>& argv);
 
     virtual ReplyPtr getReply();
 
@@ -110,20 +109,20 @@ class RedisCluster : public ISyncRedis {
 public:
     typedef std::shared_ptr<RedisCluster> ptr;
     RedisCluster();
-    RedisCluster(const std::map<std::string, std::string> &conf);
+    RedisCluster(const std::map<std::string, std::string>& conf);
 
     virtual bool reconnect();
-    virtual bool connect(const std::string &ip, int port, uint64_t ms = 0);
+    virtual bool connect(const std::string& ip, int port, uint64_t ms = 0);
     virtual bool connect();
     virtual bool setTimeout(uint64_t ms);
 
-    virtual ReplyPtr cmd(const char *fmt, ...);
-    virtual ReplyPtr cmd(const char *fmt, va_list ap);
-    virtual ReplyPtr cmd(const std::vector<std::string> &argv);
+    virtual ReplyPtr cmd(const char* fmt, ...);
+    virtual ReplyPtr cmd(const char* fmt, va_list ap);
+    virtual ReplyPtr cmd(const std::vector<std::string>& argv);
 
-    virtual int appendCmd(const char *fmt, ...);
-    virtual int appendCmd(const char *fmt, va_list ap);
-    virtual int appendCmd(const std::vector<std::string> &argv);
+    virtual int appendCmd(const char* fmt, ...);
+    virtual int appendCmd(const char* fmt, va_list ap);
+    virtual int appendCmd(const std::vector<std::string>& argv);
 
     virtual ReplyPtr getReply();
 
@@ -139,37 +138,37 @@ class FoxRedis : public IRedis {
 public:
     typedef std::shared_ptr<FoxRedis> ptr;
     enum STATUS {
-		UNCONNECTED = 0,
-		CONNECTING = 1,
-		CONNECTED = 2
-	};
+        UNCONNECTED = 0,
+        CONNECTING = 1,
+        CONNECTED = 2
+    };
     enum RESULT {
-		OK = 0,
-		TIME_OUT = 1,
-		CONNECT_ERR = 2,
-		CMD_ERR = 3,
-		REPLY_NULL = 4,
-		REPLY_ERR = 5,
-		INIT_ERR = 6
-	};
+        OK = 0,
+        TIME_OUT = 1,
+        CONNECT_ERR = 2,
+        CMD_ERR = 3,
+        REPLY_NULL = 4,
+        REPLY_ERR = 5,
+        INIT_ERR = 6
+    };
 
-    FoxRedis(IFoxThread::ptr owner, FoxThread *thr, const std::map<std::string, std::string> &conf);
+    FoxRedis(IFoxThread::ptr owner, FoxThread* thr, const std::map<std::string, std::string>& conf);
     ~FoxRedis();
 
-    virtual ReplyPtr cmd(const char *fmt, ...);
-    virtual ReplyPtr cmd(const char *fmt, va_list ap);
-    virtual ReplyPtr cmd(const std::vector<std::string> &argv);
+    virtual ReplyPtr cmd(const char* fmt, ...);
+    virtual ReplyPtr cmd(const char* fmt, va_list ap);
+    virtual ReplyPtr cmd(const std::vector<std::string>& argv);
 
     bool init();
     int getCtxCount() const { return m_ctxCount; }
 
 private:
-    static void OnAuthCb(redisAsyncContext *c, void *rp, void *priv);
+    static void OnAuthCb(redisAsyncContext* c, void* rp, void* priv);
 
 private:
     struct FCtx {
         std::string cmd;
-        Scheduler *scheduler;
+        Scheduler* scheduler;
         Fiber::ptr fiber;
         ReplyPtr rpy;
     };
@@ -177,41 +176,35 @@ private:
     struct Ctx {
         typedef std::shared_ptr<Ctx> ptr;
 
-        event *ev;
+        event* ev;
         bool timeout;
-        FoxRedis *rds;
+        FoxRedis* rds;
         std::string cmd;
-        FCtx *fctx;
-        // std::vector<std::string> parts;
-        // Scheduler* scheduler;
-        // Fiber::ptr fiber;
-        // ReplyPtr rpy;
-        FoxThread *thread;
+        FCtx* fctx;
+        FoxThread* thread;
 
-        // Ctx::ptr ref;
-
-        Ctx(FoxRedis *rds);
+        Ctx(FoxRedis* rds);
         ~Ctx();
         bool init();
         void cancelEvent();
-        static void EventCb(int fd, short event, void *d);
+        static void EventCb(int fd, short event, void* d);
     };
 
 private:
-    virtual void pcmd(FCtx *ctx);
+    virtual void pcmd(FCtx* ctx);
     bool pinit();
-    void delayDelete(redisAsyncContext *c);
+    void delayDelete(redisAsyncContext* c);
 
 private:
-    static void ConnectCb(const redisAsyncContext *c, int status);
-    static void DisconnectCb(const redisAsyncContext *c, int status);
-    static void CmdCb(redisAsyncContext *c, void *r, void *privdata);
-    static void TimeCb(int fd, short event, void *d);
+    static void ConnectCb(const redisAsyncContext* c, int status);
+    static void DisconnectCb(const redisAsyncContext* c, int status);
+    static void CmdCb(redisAsyncContext* c, void* r, void* privdata);
+    static void TimeCb(int fd, short event, void* d);
 
 private:
     /// 拥有 m_thread 的线程/线程池，保证其生命周期不早于本连接
     IFoxThread::ptr m_threadOwner;
-    FoxThread *m_thread;
+    FoxThread* m_thread;
     std::shared_ptr<redisAsyncContext> m_context;
     std::string m_host;
     uint16_t m_port;
@@ -220,33 +213,33 @@ private:
 
     struct timeval m_cmdTimeout;
     std::string m_err;
-    struct event *m_event;
+    struct event* m_event;
 };
 
 class FoxRedisCluster : public IRedis {
 public:
     typedef std::shared_ptr<FoxRedisCluster> ptr;
     enum STATUS {
-		UNCONNECTED = 0,
-		CONNECTING = 1,
-		CONNECTED = 2
-	};
+        UNCONNECTED = 0,
+        CONNECTING = 1,
+        CONNECTED = 2
+    };
     enum RESULT {
-		OK = 0,
-		TIME_OUT = 1,
-		CONNECT_ERR = 2,
-		CMD_ERR = 3,
-		REPLY_NULL = 4,
-		REPLY_ERR = 5,
-		INIT_ERR = 6
-	};
+        OK = 0,
+        TIME_OUT = 1,
+        CONNECT_ERR = 2,
+        CMD_ERR = 3,
+        REPLY_NULL = 4,
+        REPLY_ERR = 5,
+        INIT_ERR = 6
+    };
 
-    FoxRedisCluster(IFoxThread::ptr owner, FoxThread *thr, const std::map<std::string, std::string> &conf);
+    FoxRedisCluster(IFoxThread::ptr owner, FoxThread* thr, const std::map<std::string, std::string>& conf);
     ~FoxRedisCluster();
 
-    virtual ReplyPtr cmd(const char *fmt, ...);
-    virtual ReplyPtr cmd(const char *fmt, va_list ap);
-    virtual ReplyPtr cmd(const std::vector<std::string> &argv);
+    virtual ReplyPtr cmd(const char* fmt, ...);
+    virtual ReplyPtr cmd(const char* fmt, va_list ap);
+    virtual ReplyPtr cmd(const std::vector<std::string>& argv);
 
     int getCtxCount() const { return m_ctxCount; }
 
@@ -255,72 +248,64 @@ public:
 private:
     struct FCtx {
         std::string cmd;
-        Scheduler *scheduler;
+        Scheduler* scheduler;
         Fiber::ptr fiber;
         ReplyPtr rpy;
     };
     struct Ctx {
         typedef std::shared_ptr<Ctx> ptr;
 
-        event *ev;
+        event* ev;
         bool timeout;
-        FoxRedisCluster *rds;
-        FCtx *fctx;
+        FoxRedisCluster* rds;
+        FCtx* fctx;
         std::string cmd;
-        // std::vector<std::string> parts;
-        FoxThread *thread;
-        // int cancel_count;
-        // int destroy;
-        // int callback_count;
-        // RWMutex mutex;
-
-        // Ctx::ptr ref;
-        // Ctx::ptr tref;
+        FoxThread* thread;
         void cancelEvent();
 
-        Ctx(FoxRedisCluster *rds);
+        Ctx(FoxRedisCluster* rds);
         ~Ctx();
         bool init();
-        static void EventCb(int fd, short event, void *d);
+        static void EventCb(int fd, short event, void* d);
     };
 
 private:
-    virtual void pcmd(FCtx *ctx);
+    virtual void pcmd(FCtx* ctx);
     bool pinit();
-    void delayDelete(redisAsyncContext *c);
-    static void OnAuthCb(redisClusterAsyncContext *c, void *rp, void *priv);
+    void delayDelete(redisAsyncContext* c);
+    static void OnAuthCb(redisClusterAsyncContext* c, void* rp, void* priv);
 
 private:
-    static void ConnectCb(const redisAsyncContext *c, int status);
-    static void DisconnectCb(const redisAsyncContext *c, int status);
-    static void CmdCb(redisClusterAsyncContext *c, void *r, void *privdata);
-    static void TimeCb(int fd, short event, void *d);
+    static void ConnectCb(const redisAsyncContext* c, int status);
+    static void DisconnectCb(const redisAsyncContext* c, int status);
+    static void CmdCb(redisClusterAsyncContext* c, void* r, void* privdata);
+    static void TimeCb(int fd, short event, void* d);
 
 private:
     /// 拥有 m_thread 的线程/线程池，保证其生命周期不早于本连接
     IFoxThread::ptr m_threadOwner;
-    FoxThread *m_thread;
+    FoxThread* m_thread;
     std::shared_ptr<redisClusterAsyncContext> m_context;
     std::string m_host;
     STATUS m_status;
     int m_ctxCount;
     timeval m_cmdTimeout;
     std::string m_err;
-    event *m_event;
+    event* m_event;
 };
 
 class RedisManager {
 public:
     void init();
 
-    IRedis::ptr get(const std::string &name);
+    IRedis::ptr get(const std::string& name);
 
-    std::ostream &dump(std::ostream &os);
+    std::ostream& dump(std::ostream& os);
 
     void freeAll();
 
 private:
-    void freeRedis(IRedis *r);
+    void freeRedis(IRedis* r);
 
 private:
     /// 保护 m_datas 的读写锁
@@ -329,7 +314,7 @@ private:
     std::mutex m_initMutex;
     /// 是否已初始化（进程内仅一次，避免热重载销毁在用连接）
     bool m_inited = false;
-    std::map<std::string, std::list<IRedis *>> m_datas;
+    std::map<std::string, std::list<IRedis*>> m_datas;
     std::map<std::string, std::map<std::string, std::string>> m_config;
 };
 
@@ -337,12 +322,12 @@ typedef Singleton<RedisManager> RedisMgr;
 
 class RedisUtil {
 public:
-    static ReplyPtr Cmd(const std::string &name, const char *fmt, ...);
-    static ReplyPtr Cmd(const std::string &name, const char *fmt, va_list ap);
-    static ReplyPtr Cmd(const std::string &name, const std::vector<std::string> &args);
+    static ReplyPtr Cmd(const std::string& name, const char* fmt, ...);
+    static ReplyPtr Cmd(const std::string& name, const char* fmt, va_list ap);
+    static ReplyPtr Cmd(const std::string& name, const std::vector<std::string>& args);
 
-    static ReplyPtr TryCmd(const std::string &name, uint32_t count, const char *fmt, ...);
-    static ReplyPtr TryCmd(const std::string &name, uint32_t count, const std::vector<std::string> &args);
+    static ReplyPtr TryCmd(const std::string& name, uint32_t count, const char* fmt, ...);
+    static ReplyPtr TryCmd(const std::string& name, uint32_t count, const std::vector<std::string>& args);
 };
 
 } // namespace chen

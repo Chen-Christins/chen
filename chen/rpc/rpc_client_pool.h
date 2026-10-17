@@ -23,9 +23,9 @@ public:
      * @brief Get or create a connected client to the given address (e.g. "127.0.0.1:8089").
      * @param address RPC server address in "host:port" format
      * @param timeout_ms Connection timeout in milliseconds (default 3000ms)
-     * @return chen::rpc::RpcClient::ptr 
+     * @return chen::rpc::RpcClient::ptr
      */
-    chen::rpc::RpcClient::ptr getClient(const std::string& address, uint64_t timeout_ms = 3000);
+    RpcClient::ptr getClient(const std::string& address, uint64_t timeout_ms = 3000);
 
     /**
      * @brief Close and remove the client for this address if it exists.
@@ -56,7 +56,7 @@ public:
 
 private:
     struct ClientEntry {
-        chen::rpc::RpcClient::ptr client;
+        RpcClient::ptr client;
         uint64_t lastUsedMs = 0;
     };
 
@@ -71,9 +71,9 @@ private:
     uint64_t m_heartbeatIntervalMs = 30000;
     uint64_t m_idleTimeoutMs = 60000;
     uint64_t m_pruneIntervalMs = 10000;
-    chen::Timer::ptr m_pruneTimer;
+    Timer::ptr m_pruneTimer;
 };
 
-using RpcClientPoolMgr = chen::Singleton<RpcClientPool>;
+using RpcClientPoolMgr = Singleton<RpcClientPool>;
 
 } // namespace chen::rpc

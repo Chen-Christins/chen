@@ -4,16 +4,16 @@
 
 ## 核心类
 
-| 类 | 说明 |
-|----|------|
-| `RockProtocol` | 协议帧定义 |
-| `RockServer` | Rock 协议服务器 |
-| `RockClient` | Rock 协议客户端 |
-| `RockStream` | Rock 协议流式连接 |
-| `RockModule` | Rock 协议模块基类 |
-| `RockRequest` | 请求消息 |
-| `RockResponse` | 响应消息 |
-| `RockNotify` | 通知消息（单向，无需响应） |
+| 类             | 说明                       |
+|----------------|----------------------------|
+| `RockProtocol` | 协议帧定义                 |
+| `RockServer`   | Rock 协议服务器            |
+| `RockClient`   | Rock 协议客户端            |
+| `RockStream`   | Rock 协议流式连接          |
+| `RockModule`   | Rock 协议模块基类          |
+| `RockRequest`  | 请求消息                   |
+| `RockResponse` | 响应消息                   |
+| `RockNotify`   | 通知消息（单向，无需响应） |
 
 ## 协议帧
 
@@ -29,6 +29,7 @@
 ## RockModule
 
 继承 `Module`，需实现：
+
 - `handleRockRequest(request, response, stream)` — 处理请求
 - `handleRockNotify(notify, stream)` — 处理通知
 

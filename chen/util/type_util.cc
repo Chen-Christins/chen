@@ -4,49 +4,56 @@
 
 namespace chen {
 
-int8_t TypeUtil::ToChar(const std::string& str) {
-    if(str.empty()) {
+int8_t TypeUtil::ToChar(const std::string& str)
+{
+    if (str.empty()) {
         return 0;
     }
     return *str.begin();
 }
 
-int64_t TypeUtil::Atoi(const std::string& str) {
-    if(str.empty()) {
+int64_t TypeUtil::Atoi(const std::string& str)
+{
+    if (str.empty()) {
         return 0;
     }
     return strtoull(str.c_str(), nullptr, 10);
 }
 
-double  TypeUtil::Atof(const std::string& str) {
-    if(str.empty()) {
+double TypeUtil::Atof(const std::string& str)
+{
+    if (str.empty()) {
         return 0;
     }
     return atof(str.c_str());
 }
 
-int8_t  TypeUtil::ToChar(const char* str) {
-    if(str == nullptr) {
+int8_t TypeUtil::ToChar(const char* str)
+{
+    if (str == nullptr) {
         return 0;
     }
     return str[0];
 }
 
-int64_t TypeUtil::Atoi(const char* str) {
-    if(str == nullptr) {
+int64_t TypeUtil::Atoi(const char* str)
+{
+    if (str == nullptr) {
         return 0;
     }
     return strtoull(str, nullptr, 10);
 }
 
-double TypeUtil::Atof(const char* str) {
-    if(str == nullptr) {
+double TypeUtil::Atof(const char* str)
+{
+    if (str == nullptr) {
         return 0;
     }
     return atof(str);
 }
 
-std::string TypeUtil::ToString(bool value) {
+std::string TypeUtil::ToString(bool value)
+{
     return value ? "true" : "false";
 }
 

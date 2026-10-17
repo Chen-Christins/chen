@@ -24,13 +24,15 @@ public:
     SessionData(bool auto_gen = false);
 
     template <class T>
-    void setData(const std::string& key, const T& v) {
+    void setData(const std::string& key, const T& v)
+    {
         std::unique_lock lock(m_mutex);
         m_datas[key] = v;
     }
 
     template <class T>
-    T getData(const std::string& key, const T& def = T{}) {
+    T getData(const std::string& key, const T& def = T{})
+    {
         std::shared_lock lock(m_mutex);
         auto it = m_datas.find(key);
         if (it == m_datas.end()) {

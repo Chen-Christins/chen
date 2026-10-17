@@ -31,21 +31,29 @@ static int g_failures = 0;
 /**
  * @brief 协程内睡眠（定时器唤醒，不占线程）
  */
-static void FiberSleep(uint64_t ms) {
+static void FiberSleep(uint64_t ms)
+{
     chen::Fiber::ptr fiber = chen::Fiber::GetThis();
     chen::Scheduler* scheduler = chen::Scheduler::GetThis();
-    chen::IOManager::GetThis()->addTimer(ms, [fiber, scheduler]() { scheduler->schedule(fiber); }, false);
+    chen::IOManager::GetThis()->addTimer(
+        ms,
+        [fiber, scheduler]() {
+            scheduler->schedule(fiber);
+        },
+        false);
     chen::Fiber::YieldToHold();
 }
 
-static chen::rpc::RpcRouting RoutingDirect(uint32_t dst_peer_id) {
+static chen::rpc::RpcRouting RoutingDirect(uint32_t dst_peer_id)
+{
     chen::rpc::RpcRouting routing;
     routing.method = chen::rpc::RoutingMethod::DIRECT;
     routing.dst_peer_id = dst_peer_id;
     return routing;
 }
 
-static chen::rpc::RpcRouting RoutingGroupId(uint32_t func_id, uint32_t group_id) {
+static chen::rpc::RpcRouting RoutingGroupId(uint32_t func_id, uint32_t group_id)
+{
     chen::rpc::RpcRouting routing;
     routing.method = chen::rpc::RoutingMethod::GROUPID;
     routing.func_id = func_id;
@@ -53,7 +61,8 @@ static chen::rpc::RpcRouting RoutingGroupId(uint32_t func_id, uint32_t group_id)
     return routing;
 }
 
-static chen::rpc::RpcRouting RoutingBindId(uint32_t func_id, uint32_t bind_id) {
+static chen::rpc::RpcRouting RoutingBindId(uint32_t func_id, uint32_t bind_id)
+{
     chen::rpc::RpcRouting routing;
     routing.method = chen::rpc::RoutingMethod::BIND_ID;
     routing.func_id = func_id;
@@ -61,15 +70,16 @@ static chen::rpc::RpcRouting RoutingBindId(uint32_t func_id, uint32_t bind_id) {
     return routing;
 }
 
-static chen::rpc::RpcRouting RoutingBroadcast(uint32_t func_id) {
+static chen::rpc::RpcRouting RoutingBroadcast(uint32_t func_id)
+{
     chen::rpc::RpcRouting routing;
     routing.method = chen::rpc::RoutingMethod::BROADCAST;
     routing.func_id = func_id;
     return routing;
 }
 
-static chen::rpc::RpcClient::ptr ConnectService(uint32_t peer_id, uint32_t func_id, uint32_t instance_id,
-                                                std::vector<uint32_t> bind_ids) {
+static chen::rpc::RpcClient::ptr ConnectService(uint32_t peer_id, uint32_t func_id, uint32_t instance_id, std::vector<uint32_t> bind_ids)
+{
     auto client = std::make_shared<chen::rpc::RpcClient>();
     chen::Address::ptr addr = chen::Address::LookupAny("127.0.0.1:18080");
     if (!addr || !client->connect(addr)) {
@@ -84,7 +94,8 @@ static chen::rpc::RpcClient::ptr ConnectService(uint32_t peer_id, uint32_t func_
     return client;
 }
 
-void run() {
+void run()
+{
     // ---- M1: 帧头扩展编解码 round-trip ----
     {
         chen::rpc::Protocol::ptr p(new chen::rpc::Protocol);
@@ -129,8 +140,12 @@ void run() {
         ERROR(logger) << "bind hub " << *hub_addr << " fail";
         sleep(1);
     }
-    hub->registerMethod("hub_ping", []() { return std::string("pong"); });
-    hub->registerMethod(0x10, [](uint32_t v) { return v + 100; });
+    hub->registerMethod("hub_ping", []() {
+        return std::string("pong");
+    });
+    hub->registerMethod(0x10, [](uint32_t v) {
+        return v + 100;
+    });
     hub->start();
 
     // ---- 两个 mock 服务 ----
@@ -143,18 +158,43 @@ void run() {
     if (!svc_a || !svc_b) {
         return;
     }
-    svc_a->registerMethod("whoami", []() { return (uint32_t)1001; });
-    svc_a->registerMethod("echo", [](const std::string& s) { return "echo: " + s; });
-    svc_a->registerMethod("broadcast_hit", []() { g_broadcast_hits.fetch_add(1); });
-    svc_a->registerMethod("notify_hit", []() { g_notify_hits.fetch_add(1); });
-    svc_a->registerMethod("slow", []() { FiberSleep(1000); return (uint32_t)1001; });
-    svc_a->registerMethod(0x01, [](uint32_t v) { return v * 2; });
-    svc_a->registerMethod(0x02, []() { return (uint32_t)1001; });
-    svc_a->registerMethod(0x03, []() { g_notify_hits.fetch_add(1); });
-    svc_b->registerMethod("whoami", []() { return (uint32_t)2002; });
-    svc_b->registerMethod("broadcast_hit", []() { g_broadcast_hits.fetch_add(1); });
-    svc_b->registerMethod("notify_hit", []() { g_notify_hits.fetch_add(1); });
-    svc_b->registerMethod(0x02, []() { return (uint32_t)2002; });
+    svc_a->registerMethod("whoami", []() {
+        return (uint32_t)1001;
+    });
+    svc_a->registerMethod("echo", [](const std::string& s) {
+        return "echo: " + s;
+    });
+    svc_a->registerMethod("broadcast_hit", []() {
+        g_broadcast_hits.fetch_add(1);
+    });
+    svc_a->registerMethod("notify_hit", []() {
+        g_notify_hits.fetch_add(1);
+    });
+    svc_a->registerMethod("slow", []() {
+        FiberSleep(1000);
+        return (uint32_t)1001;
+    });
+    svc_a->registerMethod(0x01, [](uint32_t v) {
+        return v * 2;
+    });
+    svc_a->registerMethod(0x02, []() {
+        return (uint32_t)1001;
+    });
+    svc_a->registerMethod(0x03, []() {
+        g_notify_hits.fetch_add(1);
+    });
+    svc_b->registerMethod("whoami", []() {
+        return (uint32_t)2002;
+    });
+    svc_b->registerMethod("broadcast_hit", []() {
+        g_broadcast_hits.fetch_add(1);
+    });
+    svc_b->registerMethod("notify_hit", []() {
+        g_notify_hits.fetch_add(1);
+    });
+    svc_b->registerMethod(0x02, []() {
+        return (uint32_t)2002;
+    });
 
     // ---- 调用方 ----
     auto caller = ConnectService(9001, 9, 1, {});
@@ -220,14 +260,14 @@ void run() {
         } catch (...) {
         }
     });
-    FiberSleep(100);  // 让慢请求先到达 hub 并在途
-    uint64_t t0 = chen::GetCurrentMs();
+    FiberSleep(100); // 让慢请求先到达 hub 并在途
+    uint64_t t0 = chen::TimeUtil::GetCurrentMs();
     who = caller->callRouted<uint32_t>(RoutingDirect(2002), "whoami");
-    uint64_t fast_ms = chen::GetCurrentMs() - t0;
+    uint64_t fast_ms = chen::TimeUtil::GetCurrentMs() - t0;
     CHECK(who == 2002);
-    CHECK(fast_ms < 500);  // 慢请求 1000ms，快请求应远早于它返回
+    CHECK(fast_ms < 500); // 慢请求 1000ms，快请求应远早于它返回
     INFO(logger) << "A1 fast call elapsed " << fast_ms << "ms (slow=1000ms)";
-    FiberSleep(1100);  // 等慢请求完成，释放 svc_a
+    FiberSleep(1100); // 等慢请求完成，释放 svc_a
 
     // ---- BROADCAST（单向，即时回 code=0，fan-out 异步送达） ----
     g_broadcast_hits = 0;
@@ -289,36 +329,37 @@ void run() {
         chen::FiberSemaphore done{0};
         std::atomic<int> async_ok{0};
 
-        caller->callRoutedAsync<uint32_t>(RoutingDirect(1001), "whoami"
-                , [&](chen::rpc::RpcResult<uint32_t> r) {
+        caller->callRoutedAsync<uint32_t>(RoutingDirect(1001), "whoami", [&](chen::rpc::RpcResult<uint32_t> r) {
             if (r.ok() && r.value == 1001) {
                 ++async_ok;
             }
-            INFO(logger) << "[async] DIRECT 1001 whoami = " << r.value
-                << " status=" << static_cast<int>(r.status) << " code=" << r.code;
+            INFO(logger) << "[async] DIRECT 1001 whoami = " << r.value << " status=" << static_cast<int>(r.status) << " code=" << r.code;
             done.notify();
         });
 
-        caller->callRoutedAsync<std::string>(RoutingDirect(1001), "echo"
-                , [&](chen::rpc::RpcResult<std::string> r) {
-            if (r.ok() && r.value == "echo: hello async") {
-                ++async_ok;
-            }
-            INFO(logger) << "[async] DIRECT echo = " << r.value;
-            done.notify();
-        }, "hello async");
+        caller->callRoutedAsync<std::string>(
+            RoutingDirect(1001), "echo",
+            [&](chen::rpc::RpcResult<std::string> r) {
+                if (r.ok() && r.value == "echo: hello async") {
+                    ++async_ok;
+                }
+                INFO(logger) << "[async] DIRECT echo = " << r.value;
+                done.notify();
+            },
+            "hello async");
 
-        caller->callRoutedAsync<uint32_t>(RoutingDirect(1001), 0x01
-                , [&](chen::rpc::RpcResult<uint32_t> r) {
-            if (r.ok() && r.value == 42) {
-                ++async_ok;
-            }
-            INFO(logger) << "[async] DIRECT cmd=0x01(21) = " << r.value;
-            done.notify();
-        }, 21);
+        caller->callRoutedAsync<uint32_t>(
+            RoutingDirect(1001), 0x01,
+            [&](chen::rpc::RpcResult<uint32_t> r) {
+                if (r.ok() && r.value == 42) {
+                    ++async_ok;
+                }
+                INFO(logger) << "[async] DIRECT cmd=0x01(21) = " << r.value;
+                done.notify();
+            },
+            21);
 
-        caller->callRoutedAsync<uint32_t>(RoutingGroupId(1, 1), 0x02
-                , [&](chen::rpc::RpcResult<uint32_t> r) {
+        caller->callRoutedAsync<uint32_t>(RoutingGroupId(1, 1), 0x02, [&](chen::rpc::RpcResult<uint32_t> r) {
             if (r.ok() && r.value == 2002) {
                 ++async_ok;
             }
@@ -327,13 +368,11 @@ void run() {
         });
 
         // 异步错误路径：未知 peer 经 hub 回 404，回调收到业务错误码而非抛异常
-        caller->callRoutedAsyncWithTimeout<uint32_t>(2000, RoutingDirect(9999), "whoami"
-                , [&](chen::rpc::RpcResult<uint32_t> r) {
+        caller->callRoutedAsyncWithTimeout<uint32_t>(2000, RoutingDirect(9999), "whoami", [&](chen::rpc::RpcResult<uint32_t> r) {
             if (!r.ok() && r.code == 404) {
                 ++async_ok;
             }
-            INFO(logger) << "[async] unknown peer code=" << r.code
-                << " err=" << r.error;
+            INFO(logger) << "[async] unknown peer code=" << r.code << " err=" << r.error;
             done.notify();
         });
 
@@ -407,7 +446,8 @@ void run() {
     hub->stop();
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     chen::IOManager iom(2);
     std::atomic<bool> done{false};
     iom.schedule([&done]() {

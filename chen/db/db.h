@@ -43,7 +43,8 @@ public:
      * @brief 按列名查找列索引
      * @return 列索引，-1 表示未找到
      */
-    int findColumn(const std::string& name) {
+    int findColumn(const std::string& name)
+    {
         for (int i = 0; i < getColumnCount(); ++i) {
             if (getColumnName(i) == name) {
                 return i;
@@ -76,7 +77,7 @@ public:
 class IStmt {
 public:
     typedef std::shared_ptr<IStmt> ptr;
-    virtual ~IStmt(){}
+    virtual ~IStmt() {}
     virtual int bindInt8(int idx, const int8_t& value) = 0;
     virtual int bindUint8(int idx, const uint8_t& value) = 0;
     virtual int bindInt16(int idx, const int16_t& value) = 0;
@@ -122,4 +123,4 @@ public:
     virtual ITransaction::ptr openTransaction(bool auto_commit = false) = 0;
 };
 
-}
+} // namespace chen

@@ -3,10 +3,12 @@
 namespace chen::http {
 
 SSEClient::SSEClient()
-    : m_callback(nullptr) {
+    : m_callback(nullptr)
+{
 }
 
-size_t SSEClient::feed(const char* data, size_t len) {
+size_t SSEClient::feed(const char* data, size_t len)
+{
     if (len == 0) {
         return 0;
     }
@@ -106,7 +108,8 @@ size_t SSEClient::feed(const char* data, size_t len) {
     return consumed;
 }
 
-void SSEClient::reset() {
+void SSEClient::reset()
+{
     m_buffer.clear();
 }
 

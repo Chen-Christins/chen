@@ -10,50 +10,54 @@ static Logger::ptr logger = LOG_NAME("system");
 static thread_local Thread* t_thread = nullptr;
 static thread_local std::string t_thread_name = "UNKNOW";
 
-Thread* Thread::GetThis() {
+Thread* Thread::GetThis()
+{
     return t_thread;
 }
 
 Thread::Thread(std::function<void()> task, const std::string& name)
-    :m_task(task)
-    ,m_name(name) {
+    : m_task(task)
+    , m_name(name)
+{
     if (name.empty()) {
         m_name = "UNKNOW";
     }
     int rt = pthread_create(&m_thread, nullptr, &Thread::run, this);
     if (rt) {
-        ERROR(logger) << "pthread_create thread fail, rt= " << rt
-            << "name=" << name;
+        ERROR(logger) << "pthread_create thread fail, rt= " << rt << "name=" << name;
         throw std::logic_error("pthread_create error!");
     }
     m_semaphore.wait();
 }
 
-Thread::~Thread() {
+Thread::~Thread()
+{
     if (m_thread) {
         pthread_detach(m_thread);
     }
 }
 
-void Thread::join() {
+void Thread::join()
+{
     if (m_thread) {
         int rt = pthread_join(m_thread, nullptr);
         if (rt) {
-            ERROR(logger) << "pthread_join thread fail, rt= " << rt
-                << "name=" << m_name;
+            ERROR(logger) << "pthread_join thread fail, rt= " << rt << "name=" << m_name;
             throw std::logic_error("pthread_join error!");
         }
         m_thread = 0;
     }
 }
 
-const std::string& Thread::GetName() {
+const std::string& Thread::GetName()
+{
     return t_thread_name;
 }
 
-void Thread::SetName(const std::string& name) {
+void Thread::SetName(const std::string& name)
+{
     if (name.empty()) {
-        return ;
+        return;
     }
     if (t_thread) {
         t_thread->m_name = name;
@@ -61,7 +65,8 @@ void Thread::SetName(const std::string& name) {
     t_thread_name = name;
 }
 
-void* Thread::run(void *arg) {
+void* Thread::run(void* arg)
+{
     Thread* thread = (Thread*)arg;
     t_thread = thread;
     t_thread_name = thread->m_name;
@@ -74,8 +79,8 @@ void* Thread::run(void *arg) {
 
     thread->m_semaphore.notify();
     task();
-    
+
     return 0;
 }
 
-}
+} // namespace chen

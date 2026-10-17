@@ -24,12 +24,13 @@ public:
 
     enum Event {
         /// 无事件
-        NONE  = 0x0,
+        NONE = 0x0,
         /// EPOLLIN
-        READ  = 0x1,
+        READ = 0x1,
         /// EPOLLOUT
         WRITE = 0x4
     };
+
 private:
     struct FdContext {
         /**
@@ -43,7 +44,8 @@ private:
         /**
          * @brief 获取对应事件上下文
          */
-        EventContext& getContext(Event event) {
+        EventContext& getContext(Event event)
+        {
             switch (event) {
             case IOManager::READ:
                 return read;
@@ -57,7 +59,8 @@ private:
         /**
          * @brief 重置事件上下文
          */
-        void resetContext(EventContext& ctx) {
+        void resetContext(EventContext& ctx)
+        {
             ctx.scheduler = nullptr;
             ctx.fiber.reset();
             ctx.cb = nullptr;
@@ -65,7 +68,8 @@ private:
         /**
          * @brief 触发事件
          */
-        void triggerEvent(Event event) {
+        void triggerEvent(Event event)
+        {
             ASSERT(events & event);
             // 触发事件就从注册事件中删除
             events = (Event)(events & ~event);
@@ -78,7 +82,7 @@ private:
                 ctx.scheduler->schedule(&ctx.fiber);
             }
             ctx.scheduler = nullptr;
-            return ;
+            return;
         }
         /// 事件文件描述符
         int fd = 0;
@@ -91,6 +95,7 @@ private:
         /// 互斥锁
         std::mutex mutex;
     };
+
 public:
     /**
      * @brief 构造函数
@@ -108,7 +113,7 @@ public:
     /**
      * @brief 为当前的
      * @param fd 文件描述符
-     * @param event 要添加的事件 
+     * @param event 要添加的事件
      * @param cb 回调函数
      * @return int 0 成功，-1 失败
      */
@@ -145,36 +150,38 @@ public:
      * @return IOManager* 当前IO调度器
      */
     static IOManager* GetThis();
+
 protected:
     /**
      * @brief 通知有任务来了
      */
     void tickle() override;
-    
+
     /**
      * @brief 停止条件
      */
     bool stopping() override;
-    
+
     /**
      * @brief 调度器无任务执行的时候
      */
     void idle() override;
-    
+
     /**
      * @brief 真正的停止条件
      */
     bool stopping(uint64_t& timeout);
-    
+
     /**
      * @brief 扩容
      */
     void contextResize(size_t v);
-    
+
     /**
      * @brief tickle一下
      */
     virtual void onTimerInsertedAtFront() override;
+
 private:
     /// Epollfd
     int m_epfd = 0;
@@ -188,4 +195,4 @@ private:
     std::vector<FdContext*> m_fdContexts;
 };
 
-}
+} // namespace chen

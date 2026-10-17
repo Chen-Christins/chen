@@ -1,7 +1,6 @@
 #include "fs_util.h"
 
 #include <csignal>
-#include <cstdlib>
 #include <cstring>
 #include <dirent.h>
 #include <filesystem>
@@ -13,7 +12,8 @@
 
 namespace chen {
 
-static int __lstat(const char* file, struct stat* st = nullptr) {
+static int __lstat(const char* file, struct stat* st = nullptr)
+{
     struct stat lst;
     int ret = lstat(file, &lst);
     if (st) {
@@ -22,26 +22,28 @@ static int __lstat(const char* file, struct stat* st = nullptr) {
     return ret;
 }
 
-static int __mkdir(const char* dirname) {
+static int __mkdir(const char* dirname)
+{
     if (access(dirname, F_OK) == 0) {
         return 0;
     }
     return mkdir(dirname, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 }
 
-void FSUtil::ListAllFile(std::vector<std::string>& files, const std::string& path, const std::string& subfix) {
+void FSUtil::ListAllFile(std::vector<std::string>& files, const std::string& path, const std::string& subfix)
+{
     if (access(path.c_str(), 0) != 0) {
-        return ;
+        return;
     }
     DIR* dir = opendir(path.c_str());
     if (dir == nullptr) {
-        return ;
+        return;
     }
     struct dirent* dp = nullptr;
     while ((dp = readdir(dir)) != nullptr) {
         if (dp->d_type == DT_DIR) {
             if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, "..")) {
-                continue ;
+                continue;
             }
             ListAllFile(files, path + "/" + dp->d_name, subfix);
         } else if (dp->d_type == DT_REG) {
@@ -50,7 +52,7 @@ void FSUtil::ListAllFile(std::vector<std::string>& files, const std::string& pat
                 files.push_back(path + "/" + filename);
             } else {
                 if (filename.size() < subfix.size()) {
-                    continue ;
+                    continue;
                 }
                 if (filename.substr(filename.length() - subfix.size()) == subfix) {
                     files.push_back(path + "/" + filename);
@@ -61,7 +63,8 @@ void FSUtil::ListAllFile(std::vector<std::string>& files, const std::string& pat
     closedir(dir);
 }
 
-bool FSUtil::IsRunningPidfile(const std::string& pidfile) {
+bool FSUtil::IsRunningPidfile(const std::string& pidfile)
+{
     if (__lstat(pidfile.c_str()) != 0) {
         return false;
     }
@@ -83,7 +86,8 @@ bool FSUtil::IsRunningPidfile(const std::string& pidfile) {
     return true;
 }
 
-bool FSUtil::Mkdir(const std::string& dirname) {
+bool FSUtil::Mkdir(const std::string& dirname)
+{
     if (__lstat(dirname.c_str()) == 0) {
         return true;
     }
@@ -109,7 +113,8 @@ bool FSUtil::Mkdir(const std::string& dirname) {
     return false;
 }
 
-std::string FSUtil::Dirname(const std::string& filename) {
+std::string FSUtil::Dirname(const std::string& filename)
+{
     if (filename.empty()) {
         return ".";
     }
@@ -123,7 +128,8 @@ std::string FSUtil::Dirname(const std::string& filename) {
     }
 }
 
-std::string FSUtil::Basename(const std::string& path) {
+std::string FSUtil::Basename(const std::string& path)
+{
     if (path.empty()) {
         return path;
     }
@@ -135,7 +141,8 @@ std::string FSUtil::Basename(const std::string& path) {
     }
 }
 
-bool FSUtil::OpenForWrite(std::ofstream& ofs, const std::string& filename, std::ios_base::openmode mode) {
+bool FSUtil::OpenForWrite(std::ofstream& ofs, const std::string& filename, std::ios_base::openmode mode)
+{
     ofs.open(filename.c_str(), mode);
     if (!ofs.is_open()) {
         std::string dir = Dirname(filename);
@@ -145,14 +152,16 @@ bool FSUtil::OpenForWrite(std::ofstream& ofs, const std::string& filename, std::
     return ofs.is_open();
 }
 
-bool FSUtil::Unlink(const std::string& filename, bool exist) {
+bool FSUtil::Unlink(const std::string& filename, bool exist)
+{
     if (!exist && __lstat(filename.c_str())) {
         return true;
     }
     return ::unlink(filename.c_str()) == 0;
 }
 
-std::string FSUtil::ReadFileToString(const std::string& filename) {
+std::string FSUtil::ReadFileToString(const std::string& filename)
+{
     std::ifstream ifs(filename);
     if (!ifs.is_open()) {
         return "";
@@ -162,7 +171,8 @@ std::string FSUtil::ReadFileToString(const std::string& filename) {
     return ss.str();
 }
 
-std::pair<int32_t, uint64_t> FSUtil::DirSize(const std::string& path) {
+std::pair<int32_t, uint64_t> FSUtil::DirSize(const std::string& path)
+{
     uint64_t total_size = 0;
     if (access(path.c_str(), 0) != 0) {
         return {0, total_size};
@@ -177,17 +187,20 @@ std::pair<int32_t, uint64_t> FSUtil::DirSize(const std::string& path) {
     return {count, total_size};
 }
 
-bool FSUtil::Exists(const std::string& path) {
+bool FSUtil::Exists(const std::string& path)
+{
     std::error_code ec;
     return std::filesystem::exists(path, ec);
 }
 
-bool FSUtil::IsDirectory(const std::string& path) {
+bool FSUtil::IsDirectory(const std::string& path)
+{
     std::error_code ec;
     return std::filesystem::is_directory(path, ec);
 }
 
-int64_t FSUtil::FileSize(const std::string& filename) {
+int64_t FSUtil::FileSize(const std::string& filename)
+{
     std::error_code ec;
     auto size = std::filesystem::file_size(filename, ec);
     if (ec) {
@@ -196,7 +209,8 @@ int64_t FSUtil::FileSize(const std::string& filename) {
     return static_cast<int64_t>(size);
 }
 
-std::string FSUtil::GetCwd() {
+std::string FSUtil::GetCwd()
+{
     return std::filesystem::current_path().string();
 }
 

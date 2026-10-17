@@ -86,7 +86,8 @@ struct FunctionTraits<R (C::*)(Args...) const> {
  *          名称分派与 CmdID 分派共用同一处理器。
  */
 template <typename Func>
-std::function<Protocol::ptr(ByteArray::ptr, uint32_t)> MakeRpcHandler(Func func) {
+std::function<Protocol::ptr(ByteArray::ptr, uint32_t)> MakeRpcHandler(Func func)
+{
     return [func](ByteArray::ptr ba, uint32_t sequence) {
         try {
             using Traits = FunctionTraits<Func>;
@@ -97,10 +98,10 @@ std::function<Protocol::ptr(ByteArray::ptr, uint32_t)> MakeRpcHandler(Func func)
             ByteArray::ptr rba(new ByteArray);
             if constexpr (std::is_void_v<typename Traits::return_type>) {
                 std::apply(func, args);
-                rba->writeFint32(0);  // code = 0
+                rba->writeFint32(0); // code = 0
             } else {
                 auto result = std::apply(func, args);
-                rba->writeFint32(0);  // code = 0
+                rba->writeFint32(0); // code = 0
                 Serializer::SerializeToByteArray(rba, result);
             }
             rba->setPosition(0);

@@ -15,7 +15,8 @@ using namespace chen;
 
 // ========== URL 编码/解码 往返测试 ==========
 
-void test_url_encode_decode_roundtrip_basic() {
+void test_url_encode_decode_roundtrip_basic()
+{
     std::cout << "=== test_url_encode_decode_roundtrip_basic ===" << std::endl;
 
     // UrlEncode/UrlDecode（小写，支持 space_as_plus）
@@ -30,7 +31,8 @@ void test_url_encode_decode_roundtrip_basic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_url_encode_decode_roundtrip_various() {
+void test_url_encode_decode_roundtrip_various()
+{
     std::cout << "=== test_url_encode_decode_roundtrip_various ===" << std::endl;
 
     std::vector<std::string> inputs = {
@@ -44,7 +46,7 @@ void test_url_encode_decode_roundtrip_various() {
         "special chars: !@#$%^&*()",
         "/?query=hello world#fragment",
         "spaces   and+++plus",
-        "~.-_",  // unreserved chars
+        "~.-_", // unreserved chars
         "100% sure",
         "already%20encoded",
         std::string(256, 'x') + " with spaces at end ",
@@ -69,7 +71,8 @@ void test_url_encode_decode_roundtrip_various() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_url_encode_decode_space_as_plus() {
+void test_url_encode_decode_space_as_plus()
+{
     std::cout << "=== test_url_encode_decode_space_as_plus ===" << std::endl;
 
     std::string text = "hello world foo bar";
@@ -93,7 +96,8 @@ void test_url_encode_decode_space_as_plus() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_URLEncode_Decode_roundtrip() {
+void test_URLEncode_Decode_roundtrip()
+{
     std::cout << "=== test_URLEncode_Decode_roundtrip ===" << std::endl;
 
     // URLEncode/URLDecode（大写，固定 space→+）
@@ -104,7 +108,7 @@ void test_URLEncode_Decode_roundtrip() {
         "中文 URL 测试",
         "~.-_unreserved",
         "!@#$%^&*()[]{}|;':\",./<>?",
-        std::string("a\0b\0c", 5),  // 含 null 字节
+        std::string("a\0b\0c", 5), // 含 null 字节
     };
 
     for (size_t i = 0; i < inputs.size(); ++i) {
@@ -119,7 +123,8 @@ void test_URLEncode_Decode_roundtrip() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_url_decode_invalid_input() {
+void test_url_decode_invalid_input()
+{
     std::cout << "=== test_url_decode_invalid_input ===" << std::endl;
 
     // 不完整的百分号编码
@@ -142,7 +147,8 @@ void test_url_decode_invalid_input() {
 
 // ========== Base64 编码/解码 往返测试 ==========
 
-void test_base64_roundtrip_basic() {
+void test_base64_roundtrip_basic()
+{
     std::cout << "=== test_base64_roundtrip_basic ===" << std::endl;
 
     std::string original = "Hello, World! This is a Base64 test.";
@@ -158,22 +164,31 @@ void test_base64_roundtrip_basic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_base64_roundtrip_various() {
+void test_base64_roundtrip_various()
+{
     std::cout << "=== test_base64_roundtrip_various ===" << std::endl;
 
     std::vector<std::string> inputs = {
-        "",                              // 空
-        "a",                             // 1 byte: padding ==
-        "ab",                            // 2 bytes: padding =
-        "abc",                           // 3 bytes: no padding
-        "abcd",                          // 4 bytes: padding ==
-        "Hello, World!",                 // 普通文本
-        std::string(100, 'B'),           // 100 bytes
-        std::string(1024, 'C'),          // 1KB
-        "中文 Base64 测试",               // UTF-8
-        std::string("\x00\x01\x02\x03\xFF\xFE\xFD", 7),  // 二进制
-        std::string("\x00" "\x00" "\x00", 3),             // 全零
-        std::string("\xFF" "\xFF" "\xFF", 3),             // 全 FF
+        "",                                             // 空
+        "a",                                            // 1 byte: padding ==
+        "ab",                                           // 2 bytes: padding =
+        "abc",                                          // 3 bytes: no padding
+        "abcd",                                         // 4 bytes: padding ==
+        "Hello, World!",                                // 普通文本
+        std::string(100, 'B'),                          // 100 bytes
+        std::string(1024, 'C'),                         // 1KB
+        "中文 Base64 测试",                             // UTF-8
+        std::string("\x00\x01\x02\x03\xFF\xFE\xFD", 7), // 二进制
+        std::string(
+            "\x00"
+            "\x00"
+            "\x00",
+            3), // 全零
+        std::string(
+            "\xFF"
+            "\xFF"
+            "\xFF",
+            3), // 全 FF
     };
 
     for (size_t i = 0; i < inputs.size(); ++i) {
@@ -182,14 +197,14 @@ void test_base64_roundtrip_various() {
         std::string dec = StringUtil::Base64Decode(enc);
 
         assert(dec == input);
-        std::cout << "  input[" << i << "] len=" << input.size()
-                  << " enc_len=" << enc.size() << " OK" << std::endl;
+        std::cout << "  input[" << i << "] len=" << input.size() << " enc_len=" << enc.size() << " OK" << std::endl;
     }
 
     std::cout << "PASS" << std::endl;
 }
 
-void test_base64_known_vectors() {
+void test_base64_known_vectors()
+{
     std::cout << "=== test_base64_known_vectors ===" << std::endl;
 
     // RFC 4648 已知测试向量
@@ -221,7 +236,8 @@ void test_base64_known_vectors() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_base64_url_roundtrip_basic() {
+void test_base64_url_roundtrip_basic()
+{
     std::cout << "=== test_base64_url_roundtrip_basic ===" << std::endl;
 
     std::string original = "Hello, World! Base64URL test.";
@@ -242,7 +258,8 @@ void test_base64_url_roundtrip_basic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_base64_url_roundtrip_various() {
+void test_base64_url_roundtrip_various()
+{
     std::cout << "=== test_base64_url_roundtrip_various ===" << std::endl;
 
     std::vector<std::string> inputs = {
@@ -274,7 +291,8 @@ void test_base64_url_roundtrip_various() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_base64_url_decode_compat() {
+void test_base64_url_decode_compat()
+{
     std::cout << "=== test_base64_url_decode_compat ===" << std::endl;
 
     // Base64UrlDecode 应兼容标准 Base64 格式（含 +/=）
@@ -295,7 +313,8 @@ void test_base64_url_decode_compat() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_base64_decode_invalid() {
+void test_base64_decode_invalid()
+{
     std::cout << "=== test_base64_decode_invalid ===" << std::endl;
 
     // 空字符串
@@ -306,7 +325,7 @@ void test_base64_decode_invalid() {
     std::cout << "  Base64Decode(\"!!!!\") = len=" << s1.size() << std::endl;
 
     // Base64UrlDecode 长度不合法
-    std::string s2 = StringUtil::Base64UrlDecode("a");  // 余 1 → 非法
+    std::string s2 = StringUtil::Base64UrlDecode("a"); // 余 1 → 非法
     assert(s2 == "");
     std::cout << "  Base64UrlDecode(\"a\") returns empty (invalid len)" << std::endl;
 
@@ -315,7 +334,8 @@ void test_base64_decode_invalid() {
 
 // ========== Hex 编码/解码 往返测试 ==========
 
-void test_hex_roundtrip_basic() {
+void test_hex_roundtrip_basic()
+{
     std::cout << "=== test_hex_roundtrip_basic ===" << std::endl;
 
     std::string original = "Hello, Hex!";
@@ -332,7 +352,8 @@ void test_hex_roundtrip_basic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_hex_roundtrip_various() {
+void test_hex_roundtrip_various()
+{
     std::cout << "=== test_hex_roundtrip_various ===" << std::endl;
 
     std::vector<std::string> inputs = {
@@ -361,7 +382,8 @@ void test_hex_roundtrip_various() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_hex_encode_case() {
+void test_hex_encode_case()
+{
     std::cout << "=== test_hex_encode_case ===" << std::endl;
 
     std::string data("\xAB\xCD\xEF", 3);
@@ -383,14 +405,15 @@ void test_hex_encode_case() {
     // 大小写都应能正确解码
     assert(StringUtil::HexDecode(upper) == data);
     assert(StringUtil::HexDecode(lower) == data);
-    assert(StringUtil::HexDecode("AbCdEf") == data);  // 混合大小写
+    assert(StringUtil::HexDecode("AbCdEf") == data); // 混合大小写
 
     std::cout << "  uppercase: " << upper << std::endl;
     std::cout << "  lowercase: " << lower << std::endl;
     std::cout << "PASS" << std::endl;
 }
 
-void test_hex_decode_invalid() {
+void test_hex_decode_invalid()
+{
     std::cout << "=== test_hex_decode_invalid ===" << std::endl;
 
     // 奇数长度返回空
@@ -409,24 +432,21 @@ void test_hex_decode_invalid() {
 
 // ========== Split / Join 往返测试 ==========
 
-void test_split_join_roundtrip() {
+void test_split_join_roundtrip()
+{
     std::cout << "=== test_split_join_roundtrip ===" << std::endl;
 
     // Split → Join 往返（字符串分隔符）
     std::vector<std::string> test_cases = {
-        "a,b,c",
-        "one::two::three",
-        "hello world",
-        "",
-        "single",
-        "a,,b,,c",  // 含空段
+        "a,b,c",   "one::two::three", "hello world", "", "single",
+        "a,,b,,c", // 含空段
     };
     std::vector<std::string> delimiters = {",", "::", " ", "|"};
 
     for (const auto& delim : delimiters) {
         for (size_t i = 0; i < test_cases.size(); ++i) {
             const auto& input = test_cases[i];
-            auto parts = StringUtil::Split(input, delim, false);  // 保留空段
+            auto parts = StringUtil::Split(input, delim, false); // 保留空段
             std::string joined = StringUtil::Join(parts, delim);
             assert(joined == input);
 
@@ -442,31 +462,33 @@ void test_split_join_roundtrip() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_split_skip_empty() {
+void test_split_skip_empty()
+{
     std::cout << "=== test_split_skip_empty ===" << std::endl;
 
     // skip_empty=true（默认）
     auto parts1 = StringUtil::Split("a,,b,,c", ",");
-    assert(parts1.size() == 3);  // ["a", "b", "c"]
+    assert(parts1.size() == 3); // ["a", "b", "c"]
     assert(parts1[0] == "a" && parts1[1] == "b" && parts1[2] == "c");
 
     // skip_empty=false
     auto parts2 = StringUtil::Split("a,,b,,c", ",", false);
-    assert(parts2.size() == 5);  // ["a", "", "b", "", "c"]
+    assert(parts2.size() == 5); // ["a", "", "b", "", "c"]
 
     // 首尾空段
     auto parts3 = StringUtil::Split(",leading,trailing,", ",", false);
-    assert(parts3.size() == 4);  // ["", "leading", "trailing", ""]
+    assert(parts3.size() == 4); // ["", "leading", "trailing", ""]
 
     auto parts4 = StringUtil::Split(",leading,trailing,", ",");
-    assert(parts4.size() == 2);  // ["leading", "trailing"]
+    assert(parts4.size() == 2); // ["leading", "trailing"]
 
     std::cout << "  skip_empty=true: " << parts1.size() << " parts" << std::endl;
     std::cout << "  skip_empty=false: " << parts2.size() << " parts" << std::endl;
     std::cout << "PASS" << std::endl;
 }
 
-void test_split_char_delimiter() {
+void test_split_char_delimiter()
+{
     std::cout << "=== test_split_char_delimiter ===" << std::endl;
 
     auto parts = StringUtil::Split("one:two:three", ':');
@@ -480,7 +502,8 @@ void test_split_char_delimiter() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_join_empty() {
+void test_join_empty()
+{
     std::cout << "=== test_join_empty ===" << std::endl;
 
     std::vector<std::string> empty;
@@ -495,7 +518,8 @@ void test_join_empty() {
 
 // ========== Trim 测试 ==========
 
-void test_trim_basic() {
+void test_trim_basic()
+{
     std::cout << "=== test_trim_basic ===" << std::endl;
 
     assert(StringUtil::Trim("  hello  ") == "hello");
@@ -507,7 +531,8 @@ void test_trim_basic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_trim_left_right() {
+void test_trim_left_right()
+{
     std::cout << "=== test_trim_left_right ===" << std::endl;
 
     assert(StringUtil::TrimLeft("  hello  ") == "hello  ");
@@ -519,7 +544,8 @@ void test_trim_left_right() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_trim_custom_delimit() {
+void test_trim_custom_delimit()
+{
     std::cout << "=== test_trim_custom_delimit ===" << std::endl;
 
     assert(StringUtil::Trim("...test...", ".") == "test");
@@ -532,7 +558,8 @@ void test_trim_custom_delimit() {
 
 // ========== Replace 测试 ==========
 
-void test_replace_char_char() {
+void test_replace_char_char()
+{
     std::cout << "=== test_replace_char_char ===" << std::endl;
 
     assert(StringUtil::Replace("hello", 'l', 'x') == "hexxo");
@@ -543,7 +570,8 @@ void test_replace_char_char() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_replace_char_string() {
+void test_replace_char_string()
+{
     std::cout << "=== test_replace_char_string ===" << std::endl;
 
     assert(StringUtil::Replace("hello", 'l', "LL") == "heLLLLo");
@@ -552,11 +580,12 @@ void test_replace_char_string() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_replace_string_string() {
+void test_replace_string_string()
+{
     std::cout << "=== test_replace_string_string ===" << std::endl;
 
     assert(StringUtil::Replace("hello world", "world", "C++") == "hello C++");
-    assert(StringUtil::Replace("aaaa", "aa", "b") == "bb");  // 非重叠替换
+    assert(StringUtil::Replace("aaaa", "aa", "b") == "bb"); // 非重叠替换
     assert(StringUtil::Replace("one two one two", "one", "1") == "1 two 1 two");
     assert(StringUtil::Replace("nothing", "xyz", "abc") == "nothing");
     assert(StringUtil::Replace("", "a", "b") == "");
@@ -566,7 +595,8 @@ void test_replace_string_string() {
 
 // ========== Case 测试 ==========
 
-void test_to_upper_lower() {
+void test_to_upper_lower()
+{
     std::cout << "=== test_to_upper_lower ===" << std::endl;
 
     assert(StringUtil::ToUpper("hello") == "HELLO");
@@ -584,7 +614,8 @@ void test_to_upper_lower() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_equals_ignore_case() {
+void test_equals_ignore_case()
+{
     std::cout << "=== test_equals_ignore_case ===" << std::endl;
 
     assert(StringUtil::EqualsIgnoreCase("hello", "HELLO") == true);
@@ -600,7 +631,8 @@ void test_equals_ignore_case() {
 
 // ========== Format 测试 ==========
 
-void test_format_basic() {
+void test_format_basic()
+{
     std::cout << "=== test_format_basic ===" << std::endl;
 
     std::string s1 = StringUtil::Format("Hello, %s!", "World");
@@ -612,7 +644,7 @@ void test_format_basic() {
     std::string s3 = StringUtil::Format("float: %.2f", 3.14159);
     // 注意：printf 受 locale 影响，小数点可能是 . 或 ,
     assert(s3.find("float:") == 0);
-    assert(s3.size() > 7);  // "float: " + at least 3 chars for the number
+    assert(s3.size() > 7); // "float: " + at least 3 chars for the number
 
     std::string s4 = StringUtil::Format("");
     assert(s4 == "");
@@ -623,7 +655,8 @@ void test_format_basic() {
 
 // ========== WString ↔ String 转换测试 ==========
 
-void test_wstring_string_roundtrip() {
+void test_wstring_string_roundtrip()
+{
     std::cout << "=== test_wstring_string_roundtrip ===" << std::endl;
 
     std::string original = "Hello, Wide String!";
@@ -650,7 +683,8 @@ void test_wstring_string_roundtrip() {
 
 // ========== 编码确定性测试 ==========
 
-void test_url_encode_deterministic() {
+void test_url_encode_deterministic()
+{
     std::cout << "=== test_url_encode_deterministic ===" << std::endl;
 
     std::string input = "test string with spaces & special chars!";
@@ -668,7 +702,8 @@ void test_url_encode_deterministic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_base64_encode_deterministic() {
+void test_base64_encode_deterministic()
+{
     std::cout << "=== test_base64_encode_deterministic ===" << std::endl;
 
     std::string input = "Deterministic base64 encoding test";
@@ -684,7 +719,8 @@ void test_base64_encode_deterministic() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_hex_encode_deterministic() {
+void test_hex_encode_deterministic()
+{
     std::cout << "=== test_hex_encode_deterministic ===" << std::endl;
 
     std::string input("\x01\x02\x03\x04\xFF\xFE\xFD\xFC", 8);
@@ -698,13 +734,14 @@ void test_hex_encode_deterministic() {
 
 // ========== 边界测试 ==========
 
-void test_large_string_roundtrip() {
+void test_large_string_roundtrip()
+{
     std::cout << "=== test_large_string_roundtrip ===" << std::endl;
 
     // 100KB 字符串
     std::string large(100 * 1024, 'D');
     for (size_t i = 0; i < large.size(); ++i) {
-        large[i] = static_cast<char>('!' + (i % 93));  // 各种可打印字符
+        large[i] = static_cast<char>('!' + (i % 93)); // 各种可打印字符
     }
 
     // Base64 往返
@@ -735,7 +772,8 @@ void test_large_string_roundtrip() {
     std::cout << "PASS" << std::endl;
 }
 
-void test_binary_data_roundtrip() {
+void test_binary_data_roundtrip()
+{
     std::cout << "=== test_binary_data_roundtrip ===" << std::endl;
 
     // 构造包含所有字节值 0x00-0xFF 的二进制数据
@@ -766,7 +804,7 @@ void test_binary_data_roundtrip() {
     std::cout << "  Hex all-256-bytes roundtrip OK" << std::endl;
 
     // URL 编码所有字节（使用 UrlEncode 小写版本，正确处理所有 bytes）
-    std::string url_enc = StringUtil::UrlEncode(all_bytes, false);  // space as %20
+    std::string url_enc = StringUtil::UrlEncode(all_bytes, false); // space as %20
     std::string url_dec = StringUtil::UrlDecode(url_enc, false);
     assert(url_dec.size() == all_bytes.size());
     assert(url_dec == all_bytes);
@@ -777,7 +815,8 @@ void test_binary_data_roundtrip() {
 
 // ========== main ==========
 
-int main() {
+int main()
+{
     std::cout << "=== StringUtil Unit Tests ===" << std::endl;
     std::cout << std::endl;
 

@@ -12,34 +12,39 @@ namespace chen {
 static Logger::ptr logger = LOG_NAME("system");
 
 ByteArray::Node::Node(size_t s)
-    :ptr(new char[s])
-    ,next(nullptr)
-    ,size(s) {
+    : ptr(new char[s])
+    , next(nullptr)
+    , size(s)
+{
 }
 
 ByteArray::Node::Node()
-    :ptr(nullptr)
-    ,next(nullptr)
-    ,size(0) {
+    : ptr(nullptr)
+    , next(nullptr)
+    , size(0)
+{
 }
 
-ByteArray::Node::~Node() {
+ByteArray::Node::~Node()
+{
     if (ptr) {
-        delete [] ptr;
+        delete[] ptr;
     }
 }
 
 ByteArray::ByteArray(size_t base_size)
-    :m_baseSize(base_size)
-    ,m_position(0)
-    ,m_capacity(base_size)
-    ,m_size(0)
-    ,m_endian(CHEN_BIG_ENDIAN)
-    ,m_root(new Node(base_size))
-    ,m_cur(m_root) {
+    : m_baseSize(base_size)
+    , m_position(0)
+    , m_capacity(base_size)
+    , m_size(0)
+    , m_endian(CHEN_BIG_ENDIAN)
+    , m_root(new Node(base_size))
+    , m_cur(m_root)
+{
 }
 
-ByteArray::~ByteArray() {
+ByteArray::~ByteArray()
+{
     Node* tmp = m_root;
     while (tmp) {
         m_cur = tmp;
@@ -48,7 +53,8 @@ ByteArray::~ByteArray() {
     }
 }
 
-static uint32_t EncodeZigzag32(const int32_t& v) {
+static uint32_t EncodeZigzag32(const int32_t& v)
+{
     if (v < 0) {
         return ((uint32_t)(-v)) * 2 - 1;
     } else {
@@ -56,7 +62,8 @@ static uint32_t EncodeZigzag32(const int32_t& v) {
     }
 }
 
-static uint64_t EncodeZigzag64(const int64_t& v) {
+static uint64_t EncodeZigzag64(const int64_t& v)
+{
     if (v < 0) {
         return ((uint64_t)(-v)) * 2 - 1;
     } else {
@@ -64,69 +71,81 @@ static uint64_t EncodeZigzag64(const int64_t& v) {
     }
 }
 
-static int32_t DecodeZigzag32(const uint32_t& v) {
+static int32_t DecodeZigzag32(const uint32_t& v)
+{
     return (v >> 1) ^ -(v & 1);
 }
 
-static int64_t DecodeZigzag64(const uint64_t& v) {
+static int64_t DecodeZigzag64(const uint64_t& v)
+{
     return (v >> 1) ^ -(v & 1);
 }
 
-void ByteArray::writeFint8(int8_t value) {
+void ByteArray::writeFint8(int8_t value)
+{
     write(&value, sizeof(value));
 }
 
-void ByteArray::writeFuint8(uint8_t value) {
+void ByteArray::writeFuint8(uint8_t value)
+{
     write(&value, sizeof(value));
 }
 
-void ByteArray::writeFint16(int16_t value) {
+void ByteArray::writeFint16(int16_t value)
+{
     if (m_endian != CHEN_BYTE_ORDER) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
 }
 
-void ByteArray::writeFuint16(uint16_t value) {
+void ByteArray::writeFuint16(uint16_t value)
+{
     if (m_endian != CHEN_BYTE_ORDER) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
 }
 
-void ByteArray::writeFint32(int32_t value) {
+void ByteArray::writeFint32(int32_t value)
+{
     if (m_endian != CHEN_BYTE_ORDER) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
 }
 
-void ByteArray::writeFuint32(uint32_t value) {
+void ByteArray::writeFuint32(uint32_t value)
+{
     if (m_endian != CHEN_BYTE_ORDER) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
 }
 
-void ByteArray::writeFint64(int64_t value) {
+void ByteArray::writeFint64(int64_t value)
+{
     if (m_endian != CHEN_BYTE_ORDER) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
 }
 
-void ByteArray::writeFuint64(uint64_t value) {
+void ByteArray::writeFuint64(uint64_t value)
+{
     if (m_endian != CHEN_BYTE_ORDER) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
 }
 
-void ByteArray::writeInt32(int32_t value) {
+void ByteArray::writeInt32(int32_t value)
+{
     writeUint32(EncodeZigzag32(value));
 }
 
-void ByteArray::writeUint32(uint32_t value) {
+void ByteArray::writeUint32(uint32_t value)
+{
     uint8_t tmp[5];
     uint8_t i = 0;
     /* 0x80 = 128, 0x7f = 127*/
@@ -134,15 +153,17 @@ void ByteArray::writeUint32(uint32_t value) {
         tmp[i++] = (value & 0x7F) | 0x80; /* 需要保存的数据 */
         value >>= 7;
     }
-    tmp[i++] = value;  /* 最后小于128的数据存入 */
+    tmp[i++] = value; /* 最后小于128的数据存入 */
     write(tmp, i);
 }
 
-void ByteArray::writeInt64(int64_t value) {
+void ByteArray::writeInt64(int64_t value)
+{
     writeUint64(EncodeZigzag64(value));
 }
 
-void ByteArray::writeUint64(uint64_t value) {
+void ByteArray::writeUint64(uint64_t value)
+{
     uint8_t tmp[10];
     uint8_t i = 0;
     while (value >= 0x80) {
@@ -153,94 +174,111 @@ void ByteArray::writeUint64(uint64_t value) {
     write(tmp, i);
 }
 
-void ByteArray::writeFloat(float value) {
+void ByteArray::writeFloat(float value)
+{
     uint32_t v;
     memcpy(&v, &value, sizeof(value));
     writeFuint32(v);
 }
 
-void ByteArray::writeDouble(double value) {
+void ByteArray::writeDouble(double value)
+{
     uint64_t v;
     memcpy(&v, &value, sizeof(value));
     writeFuint64(v);
 }
 
-void ByteArray::writeStringF16(const std::string& value) {
+void ByteArray::writeStringF16(const std::string& value)
+{
     writeFuint16(value.size());
     write(value.c_str(), value.size());
 }
 
-void ByteArray::writeStringF32(const std::string& value) {
+void ByteArray::writeStringF32(const std::string& value)
+{
     writeFuint32(value.size());
     write(value.c_str(), value.size());
 }
 
-void ByteArray::writeStringF64(const std::string& value) {
+void ByteArray::writeStringF64(const std::string& value)
+{
     writeFuint64(value.size());
     write(value.c_str(), value.size());
 }
 
-void ByteArray::writeStringVint(const std::string& value) {
+void ByteArray::writeStringVint(const std::string& value)
+{
     writeUint64(value.size());
     write(value.c_str(), value.size());
 }
 
-void ByteArray::writeStringWithoutLength(const std::string& value) {
+void ByteArray::writeStringWithoutLength(const std::string& value)
+{
     write(value.c_str(), value.size());
 }
 
-int8_t ByteArray::readFint8() {
+int8_t ByteArray::readFint8()
+{
     int8_t v;
     read(&v, sizeof(v));
     return v;
 }
 
-uint8_t ByteArray::readFuint8() {
+uint8_t ByteArray::readFuint8()
+{
     uint8_t v;
     read(&v, sizeof(v));
     return v;
 }
 
-#define XX(type) \
-    type v; \
-    read(&v, sizeof(v)); \
+#define XX(type)                       \
+    type v;                            \
+    read(&v, sizeof(v));               \
     if (m_endian == CHEN_BYTE_ORDER) { \
-        return v; \
-    } else { \
-        return byteswap(v); \
+        return v;                      \
+    } else {                           \
+        return byteswap(v);            \
     }
 
-int16_t ByteArray::readFint16() {
+int16_t ByteArray::readFint16()
+{
     XX(int16_t);
 }
 
-uint16_t ByteArray::readFuint16() {
+uint16_t ByteArray::readFuint16()
+{
     XX(uint16_t);
 }
 
-int32_t ByteArray::readFint32() {
+int32_t ByteArray::readFint32()
+{
     XX(int32_t);
 }
 
-uint32_t ByteArray::readFuint32() {
+uint32_t ByteArray::readFuint32()
+{
     XX(uint32_t);
 }
 
-int64_t ByteArray::readFint64() {
+int64_t ByteArray::readFint64()
+{
     XX(int64_t);
 }
 
-uint64_t ByteArray::readFuint64() {
+uint64_t ByteArray::readFuint64()
+{
     XX(uint64_t);
 }
 
 #undef XX
 
-int32_t ByteArray::readInt32() {
+int32_t ByteArray::readInt32()
+{
     return DecodeZigzag32(readUint32());
 }
 
-uint32_t ByteArray::readUint32() {
+uint32_t ByteArray::readUint32()
+{
     uint32_t result = 0;
     for (int i = 0; i < 32; i += 7) {
         uint8_t b = readFuint8();
@@ -254,11 +292,13 @@ uint32_t ByteArray::readUint32() {
     return result;
 }
 
-int64_t ByteArray::readInt64() {
+int64_t ByteArray::readInt64()
+{
     return DecodeZigzag64(readUint64());
 }
 
-uint64_t ByteArray::readUint64() {
+uint64_t ByteArray::readUint64()
+{
     uint64_t result = 0;
     for (int i = 0; i < 64; i += 7) {
         uint8_t b = readFuint8();
@@ -272,21 +312,24 @@ uint64_t ByteArray::readUint64() {
     return result;
 }
 
-float ByteArray::readFloat() {
+float ByteArray::readFloat()
+{
     uint32_t v = readFuint32();
     float value;
     memcpy(&value, &v, sizeof(v));
     return value;
 }
 
-double ByteArray::readDouble() {
+double ByteArray::readDouble()
+{
     uint64_t v = readFuint64();
     double value;
     memcpy(&value, &v, sizeof(v));
     return value;
 }
 
-std::string ByteArray::readStringF16() {
+std::string ByteArray::readStringF16()
+{
     uint16_t len = readFuint16();
     std::string buff;
     buff.resize(len);
@@ -294,7 +337,8 @@ std::string ByteArray::readStringF16() {
     return buff;
 }
 
-std::string ByteArray::readStringF32() {
+std::string ByteArray::readStringF32()
+{
     uint32_t len = readFuint32();
     std::string buff;
     buff.resize(len);
@@ -302,7 +346,8 @@ std::string ByteArray::readStringF32() {
     return buff;
 }
 
-std::string ByteArray::readStringF64() {
+std::string ByteArray::readStringF64()
+{
     uint64_t len = readFuint64();
     std::string buff;
     buff.resize(len);
@@ -310,7 +355,8 @@ std::string ByteArray::readStringF64() {
     return buff;
 }
 
-std::string ByteArray::readStringVint() {
+std::string ByteArray::readStringVint()
+{
     // Length is encoded as Varint (writeUint64). Decode accordingly.
     uint64_t len = readUint64();
     std::string buff;
@@ -319,7 +365,8 @@ std::string ByteArray::readStringVint() {
     return buff;
 }
 
-void ByteArray::clear() {
+void ByteArray::clear()
+{
     m_position = m_size = 0;
     m_capacity = m_baseSize;
     Node* tmp = m_root->next;
@@ -333,9 +380,10 @@ void ByteArray::clear() {
 }
 
 // 改变操作位置
-void ByteArray::write(const void* buf, size_t size) {
+void ByteArray::write(const void* buf, size_t size)
+{
     if (size == 0) {
-        return ;
+        return;
     }
     addCapacity(size);
 
@@ -358,7 +406,7 @@ void ByteArray::write(const void* buf, size_t size) {
             size = 0;
         } else {
             // 第一次是先将[buf, buf + ncp] 这个部分写入存储块，第一块满了就下一个块
-            // 然后下一个写就是[buf + ncp, ncap]的部分 
+            // 然后下一个写就是[buf + ncp, ncap]的部分
             memcpy(m_cur->ptr + npos, (const char*)buf + bpos, ncap);
             m_position += ncap;
             bpos += ncap;
@@ -374,7 +422,8 @@ void ByteArray::write(const void* buf, size_t size) {
     }
 }
 // 这个是改变操作位置的
-void ByteArray::read(void* buf, size_t size) {
+void ByteArray::read(void* buf, size_t size)
+{
     if (size > getReadSize()) {
         throw std::out_of_range("not enough len");
     }
@@ -397,7 +446,7 @@ void ByteArray::read(void* buf, size_t size) {
             size = 0;
         } else {
             // 第一次是先将[m_cur, m_cur + ncap] 这个部分写入存储块，第一块满了就下一个块
-            // 然后下一个写就是[buf + ncp, ncap]的部分 
+            // 然后下一个写就是[buf + ncp, ncap]的部分
             memcpy((char*)buf + bpos, m_cur->ptr + npos, ncap);
             m_position += ncap;
             bpos += ncap;
@@ -410,7 +459,8 @@ void ByteArray::read(void* buf, size_t size) {
 }
 
 // 这个是不改变操作位置的
-void ByteArray::read(void* buf, size_t size, size_t position) const {
+void ByteArray::read(void* buf, size_t size, size_t position) const
+{
     if (size > m_size - position) {
         throw std::out_of_range("not enough len");
     }
@@ -435,7 +485,7 @@ void ByteArray::read(void* buf, size_t size, size_t position) const {
             size = 0;
         } else {
             // 第一次是先将[cur, cur + ncap] 这个部分写入存储块，第一块满了就下一个块
-            // 然后下一个写就是[buf + ncp, ncap]的部分 
+            // 然后下一个写就是[buf + ncp, ncap]的部分
             memcpy((char*)buf + bpos, cur->ptr + npos, ncap);
             position += ncap;
             bpos += ncap;
@@ -448,7 +498,8 @@ void ByteArray::read(void* buf, size_t size, size_t position) const {
 }
 
 // 这里还将读取之前链表的位置给处理了
-void ByteArray::setPosition(size_t v) {
+void ByteArray::setPosition(size_t v)
+{
     if (v > m_capacity) {
         throw std::out_of_range("set_position out of range");
     }
@@ -469,13 +520,12 @@ void ByteArray::setPosition(size_t v) {
     }
 }
 
-bool ByteArray::writeToFile(const std::string& name) const {
+bool ByteArray::writeToFile(const std::string& name) const
+{
     std::ofstream ofs;
     ofs.open(name, std::ios::trunc | std::ios::binary);
     if (!ofs) {
-        ERROR(logger) << "writeToFile name=" << name
-            << " error, errno=" << errno << " errstr="
-            << strerror(errno);
+        ERROR(logger) << "writeToFile name=" << name << " error, errno=" << errno << " errstr=" << strerror(errno);
         return false;
     }
 
@@ -499,18 +549,17 @@ bool ByteArray::writeToFile(const std::string& name) const {
     return true;
 }
 
-bool ByteArray::readFromFile(const std::string& name) {
+bool ByteArray::readFromFile(const std::string& name)
+{
     std::ifstream ifs;
-    ifs.open(name, std::ios::binary);   
+    ifs.open(name, std::ios::binary);
     if (!ifs) {
-        ERROR(logger) << "readfromFile name=" << name
-            << " error, errno=" << errno << " errstr="
-            << strerror(errno);
+        ERROR(logger) << "readfromFile name=" << name << " error, errno=" << errno << " errstr=" << strerror(errno);
         return false;
     }
 
     std::shared_ptr<char> buff(new char[m_baseSize], [](char* ptr) {
-        delete [] ptr;
+        delete[] ptr;
     });
     // 只要还能读
     while (!ifs.eof()) {
@@ -521,11 +570,13 @@ bool ByteArray::readFromFile(const std::string& name) {
     return true;
 }
 
-bool ByteArray::isLittleEndian() const {
+bool ByteArray::isLittleEndian() const
+{
     return m_endian == CHEN_LITTLE_ENDIAN;
 }
 
-void ByteArray::setIsLittleEndian(bool val) {
+void ByteArray::setIsLittleEndian(bool val)
+{
     if (val) {
         m_endian = CHEN_LITTLE_ENDIAN;
     } else {
@@ -533,7 +584,8 @@ void ByteArray::setIsLittleEndian(bool val) {
     }
 }
 
-std::string ByteArray::toString() const {
+std::string ByteArray::toString() const
+{
     std::string str;
     str.resize(getReadSize());
     if (str.empty()) {
@@ -543,7 +595,8 @@ std::string ByteArray::toString() const {
     return str;
 }
 
-std::string ByteArray::toHexString() const {
+std::string ByteArray::toHexString() const
+{
     std::string str = toString();
     std::stringstream ss;
 
@@ -551,13 +604,13 @@ std::string ByteArray::toHexString() const {
         if (i > 0 && i % 32 == 0) {
             ss << std::endl;
         }
-        ss << std::setw(2) << std::setfill('0')
-           << std::hex << (int)(uint8_t)str[i] << " ";
+        ss << std::setw(2) << std::setfill('0') << std::hex << (int)(uint8_t)str[i] << " ";
     }
     return ss.str();
 }
 
-uint64_t ByteArray::getWriteBuffers(std::vector<iovec>& buffers, uint64_t len) {
+uint64_t ByteArray::getWriteBuffers(std::vector<iovec>& buffers, uint64_t len)
+{
     if (len == 0) {
         return 0;
     }
@@ -588,7 +641,8 @@ uint64_t ByteArray::getWriteBuffers(std::vector<iovec>& buffers, uint64_t len) {
     return size;
 }
 
-uint64_t ByteArray::getReadBuffers(std::vector<iovec>& buffers, uint64_t len) const {
+uint64_t ByteArray::getReadBuffers(std::vector<iovec>& buffers, uint64_t len) const
+{
     len = len > getReadSize() ? getReadSize() : len;
     if (len == 0) {
         return 0;
@@ -620,8 +674,8 @@ uint64_t ByteArray::getReadBuffers(std::vector<iovec>& buffers, uint64_t len) co
     return size;
 }
 
-uint64_t ByteArray::getReadBuffers(std::vector<iovec>& buffers, uint64_t len
-                                                    ,uint64_t position) const {
+uint64_t ByteArray::getReadBuffers(std::vector<iovec>& buffers, uint64_t len, uint64_t position) const
+{
     len = len > getReadSize() ? getReadSize() : len;
     if (len == 0) {
         return 0;
@@ -659,15 +713,16 @@ uint64_t ByteArray::getReadBuffers(std::vector<iovec>& buffers, uint64_t len
     return size;
 }
 
-void ByteArray::addCapacity(size_t size) {
+void ByteArray::addCapacity(size_t size)
+{
     if (size == 0) {
-        return ;
+        return;
     }
     // 获取以前的容量
     size_t old_cap = getCapacity();
     // 如果以前的容量够
     if (old_cap >= size) {
-        return ;
+        return;
     }
     // 获取需要补充的容量大小
     size = size - old_cap;
@@ -695,5 +750,4 @@ void ByteArray::addCapacity(size_t size) {
     }
 }
 
-
-}
+} // namespace chen

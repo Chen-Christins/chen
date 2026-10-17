@@ -9,7 +9,8 @@ namespace orm {
 
 static Logger::ptr logger = LOG_NAME("orm");
 
-bool Index::init(const tinyxml2::XMLElement& node) {
+bool Index::init(const tinyxml2::XMLElement& node)
+{
     if (!node.Attribute("name")) {
         ERROR(logger) << "index name not exists";
         return false;
@@ -24,8 +25,7 @@ bool Index::init(const tinyxml2::XMLElement& node) {
     m_type = node.Attribute("type");
     m_dtype = ParseType(m_type);
     if (m_dtype == TYPE_NULL) {
-        ERROR(logger) << "index name=" << m_name << " type=" << m_type
-            << " invalid(pk, index, uniq)";
+        ERROR(logger) << "index name=" << m_name << " type=" << m_type << " invalid(pk, index, uniq)";
         return false;
     }
 
@@ -41,7 +41,8 @@ bool Index::init(const tinyxml2::XMLElement& node) {
     return true;
 }
 
-Index::Type Index::ParseType(const std::string& v) {
+Index::Type Index::ParseType(const std::string& v)
+{
 #define XX(a, b)  \
     if (v == b) { \
         return a; \
@@ -53,7 +54,8 @@ Index::Type Index::ParseType(const std::string& v) {
     return TYPE_NULL;
 }
 
-std::string Index::TypeToString(Type v) {
+std::string Index::TypeToString(Type v)
+{
 #define XX(a, b)  \
     if (v == a) { \
         return b; \
@@ -65,5 +67,5 @@ std::string Index::TypeToString(Type v) {
     return "";
 }
 
-}
-}
+} // namespace orm
+} // namespace chen

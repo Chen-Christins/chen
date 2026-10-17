@@ -16,20 +16,20 @@ namespace chen {
  * @brief AES-GCM 加解密结果
  */
 struct GCMResult {
-    bool success;       ///< 操作是否成功
-    std::string data;   ///< 加密/解密后的数据
-    std::string tag;    ///< GCM 认证标签（加密时生成，解密时需传入）
-    std::string error;  ///< 错误描述（失败时有效）
+    bool success;      ///< 操作是否成功
+    std::string data;  ///< 加密/解密后的数据
+    std::string tag;   ///< GCM 认证标签（加密时生成，解密时需传入）
+    std::string error; ///< 错误描述（失败时有效）
 };
 
 /**
  * @brief RSA 密钥对生成结果
  */
 struct RSAKeyPairResult {
-    bool success;          ///< 操作是否成功
-    std::string private_key;  ///< PEM 格式 RSA 私钥
-    std::string public_key;   ///< PEM 格式 RSA 公钥
-    std::string error;     ///< 错误描述（失败时有效）
+    bool success;            ///< 操作是否成功
+    std::string private_key; ///< PEM 格式 RSA 私钥
+    std::string public_key;  ///< PEM 格式 RSA 公钥
+    std::string error;       ///< 错误描述（失败时有效）
 };
 
 /**
@@ -356,8 +356,7 @@ public:
      * @param publicKeyPem PEM 格式的 RSA 公钥字符串
      * @return bool 签名是否有效
      */
-    static bool RS256Verify(const std::string& data, const std::string& signature
-            , const std::string& publicKeyPem);
+    static bool RS256Verify(const std::string& data, const std::string& signature, const std::string& publicKeyPem);
 
     /**
      * @brief 生成 RSA 密钥对（PEM 格式）
@@ -394,8 +393,7 @@ private:
     static GCMResult DecryptGCM(const std::string& ciphertext, const std::string& tag, const std::string& key, const std::string& iv, int keySize);
 
     /// 内部：用指定 salt 计算 bcrypt hash（BCryptHash 生成随机 salt，BCryptVerify 用提取的 salt）
-    static std::string BCryptHashWithSalt(const std::string& password, unsigned rounds
-            , const uint8_t* salt, size_t saltLen);
+    static std::string BCryptHashWithSalt(const std::string& password, unsigned rounds, const uint8_t* salt, size_t saltLen);
 };
 
 } // namespace chen

@@ -9,10 +9,12 @@ namespace chen::http {
 static Logger::ptr logger = LOG_NAME("system");
 
 SSESession::SSESession(Socket::ptr sock, bool owner)
-    : HttpSession(sock, owner) {
+    : HttpSession(sock, owner)
+{
 }
 
-bool SSESession::sendSSEHeaders() {
+bool SSESession::sendSSEHeaders()
+{
     std::stringstream ss;
     // HTTP/1.1 200 OK
     ss << "HTTP/1.1 200 OK\r\n"
@@ -25,7 +27,8 @@ bool SSESession::sendSSEHeaders() {
     return writeFixSize(data.c_str(), data.size()) > 0;
 }
 
-int32_t SSESession::sendEvent(const std::string& data, const std::string& id, const std::string& event) {
+int32_t SSESession::sendEvent(const std::string& data, const std::string& id, const std::string& event)
+{
     std::stringstream ss;
     if (!id.empty()) {
         ss << "id: " << id << "\n";
@@ -48,12 +51,14 @@ int32_t SSESession::sendEvent(const std::string& data, const std::string& id, co
     return writeFixSize(msg.c_str(), msg.size());
 }
 
-int32_t SSESession::sendComment(const std::string& comment) {
+int32_t SSESession::sendComment(const std::string& comment)
+{
     std::string msg = ": " + comment + "\n\n";
     return writeFixSize(msg.c_str(), msg.size());
 }
 
-int32_t SSESession::sendRetry(uint32_t milliseconds) {
+int32_t SSESession::sendRetry(uint32_t milliseconds)
+{
     std::string msg = "retry: " + std::to_string(milliseconds) + "\n\n";
     return writeFixSize(msg.c_str(), msg.size());
 }

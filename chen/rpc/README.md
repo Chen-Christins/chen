@@ -2,21 +2,21 @@
 
 模板驱动的 RPC 框架，自动序列化/反序列化参数。无需 IDL / proto 定义。
 
-除点对点 RPC 外，`RpcServer` 支持**中心转发（relay/hub）模式**：服务全部连接到 hub，由 hub 按
+除点对点 RPC 外，`RpcServer` 支持 **中心转发（relay/hub）模式**：服务全部连接到 hub，由 hub 按
 `peer_id`/`func_id`/`bind_id` 路由转发并中继回包（对应旧版 Tunnel 的中心消息转发）。
 
 ## 核心类
 
-| 类 | 说明 |
-|----|------|
-| `RpcServer` | RPC 服务端，继承 `TcpServer`；`setRelay(true)` 开启中心转发模式 |
-| `RpcClient` | RPC 客户端，同步/异步调用 + 超时控制；支持注册/路由/单向通知 |
-| `RpcClientPool` | 客户端连接池（地址复用 + 空闲回收） |
+| 类               | 说明                                                                    |
+|------------------|-------------------------------------------------------------------------|
+| `RpcServer`      | RPC 服务端，继承 `TcpServer`；`setRelay(true)` 开启中心转发模式         |
+| `RpcClient`      | RPC 客户端，同步/异步调用 + 超时控制；支持注册/路由/单向通知            |
+| `RpcClientPool`  | 客户端连接池（地址复用 + 空闲回收）                                     |
 | `RpcHubRegistry` | hub 的服务注册表（`peer_id`/`func_id`/`bind_id` 索引，即 CSvrRouteMgr） |
-| `RpcRouting` | 路由描述（DIRECT / GROUPID / BROADCAST / BIND_ID） |
-| `Protocol` | 二进制传输帧，`ProtocolHeader + body` |
-| `Serializer` | 函数参数编解码，支持 int/string/vector/map 及自定义类型 |
-| `FunctionTraits` | 编译期函数签名萃取 |
+| `RpcRouting`     | 路由描述（DIRECT / GROUPID / BROADCAST / BIND_ID）                      |
+| `Protocol`       | 二进制传输帧，`ProtocolHeader + body`                                   |
+| `Serializer`     | 函数参数编解码，支持 int/string/vector/map 及自定义类型                 |
+| `FunctionTraits` | 编译期函数签名萃取                                                      |
 
 ## 使用示例
 
@@ -81,7 +81,7 @@ client->callWithTimeout<int>(5000, "method", args...);  // 5s
 
 ### 异步调用
 
-异步接口与同步接口一一对应，发起后**立即返回**，完成（响应/超时/断开）时回调被
+异步接口与同步接口一一对应，发起后 **立即返回**，完成（响应/超时/断开）时回调被
 调度为独立协程执行，不阻塞调用方。回调参数为 `RpcResult<R>`：
 
 ```cpp
@@ -110,7 +110,7 @@ client->callAsync<void>("on_event", [](chen::rpc::RpcResult<void> r) { /* ... */
 
 ### Future 调用
 
-Future 接口也是**发起即发送**（eager），但不在回调里处理结果，而是返回一个
+Future 接口也是 **发起即发送**（eager），但不在回调里处理结果，而是返回一个
 `RpcFuture<R>` 句柄，之后在需要时调用 `get()` 挂起当前协程等待结果——适合
 「并发发起多个请求，再按顺序取结果继续处理」的写法。因为基于协程，`get()`
 只挂起当前 fiber，不阻塞线程。
@@ -148,7 +148,7 @@ int sum = f1.getValue();
 
 - **magic:** `0xCC`
 - **version:** `0x03`（v0x02/v0x01 旧帧在解码层直接拒绝）
-- **type:** `0`=REQUEST, `1`=RESPONSE, `2`=HEARTBEAT, `3`=NOTIFY(单向，无回包)
+- **type:** `0`=REQUEST, `1`=RESPONSE, `2`=HEARTBEAT, `3`=NOTIFY (单向，无回包)
 - **routing:** `0`=NONE, `1`=DIRECT, `2`=GROUPID, `3`=BROADCAST, `4`=BIND_ID
 - **real_random:** GROUPID 动态拓扑标记（`0`=固定拓扑，`1`=按在线实例数实时选择）
 - **cmd:** CmdID 分派（`0`=按 body 中方法名分派，非 `0`=按 CmdID 分派，body 直接为参数）
@@ -176,10 +176,10 @@ int sum = f1.getValue();
   RpcClient        服务注册表+路由转发          RpcClient
 ```
 
-- 所有服务只**主动连接** hub，不互连；消息经 hub 转发并中继回包
+- 所有服务只 **主动连接** hub，不互连；消息经 hub 转发并中继回包
 - hub 内 `RpcHubRegistry` 维护：`peer_id → conn`、`func_id → [instance_id → conn]`、
   `(func_id, bind_id) → conn`
-- 转发**非阻塞**：登记中继上下文后立即返回，同一连接可同时有多个 in-flight 请求；
+- 转发 **非阻塞**：登记中继上下文后立即返回，同一连接可同时有多个 in-flight 请求；
   目标回包由目标连接的收包循环直接中继回调用方
 - 中继超时（默认 3s）回 `code=504`；目标断开回 `code=502`
 
@@ -240,7 +240,7 @@ caller->notifyRouted({RoutingMethod::DIRECT, .dst_peer_id = 1001}, "on_event");
 方法名分派 body 里带方法名字符串（开发调试直观）；线上热路径推荐用 **CmdID**——
 `cmd != 0` 时 body 直接是参数，无字符串，按 `uint32_t` 命令号查表分派。
 
-调用侧与 `registerMethod` 一样只用**一组接口**：首参传方法名字符串走方法名分派，
+调用侧与 `registerMethod` 一样只用 **一组接口**：首参传方法名字符串走方法名分派，
 传 `uint32_t` 命令号走 CmdID 分派（`cmd` 必须非 0，否则抛 `std::invalid_argument`），
 方法名与 CmdID 共用同一张分发表（`HandlerKey` = `std::variant<uint32_t, std::string>`，
 方法名 `"16"` 与 cmd `16` 互不冲突）。

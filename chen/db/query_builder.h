@@ -202,7 +202,7 @@ public:
      * @param col 列名（空字符串 = 第 0 列）
      * @return 0 成功，非 0 失败
      */
-    template<typename T>
+    template <typename T>
     int queryColumn(std::vector<T>& results, chen::IDB::ptr conn, const std::string& col = "") const;
 
     /**
@@ -212,7 +212,7 @@ public:
      * @tparam V 第二列类型
      * @return 0 成功，非 0 失败
      */
-    template<typename K, typename V>
+    template <typename K, typename V>
     int queryPairs(std::vector<std::pair<K, V>>& results, chen::IDB::ptr conn) const;
 
     /**
@@ -231,7 +231,13 @@ public:
 
 private:
     struct Param {
-        enum Type { INT32_VAL, INT64_VAL, STRING_VAL, FLOAT_VAL, DOUBLE_VAL };
+        enum Type {
+            INT32_VAL,
+            INT64_VAL,
+            STRING_VAL,
+            FLOAT_VAL,
+            DOUBLE_VAL
+        };
         Type type;
         int64_t intVal = 0;
         double dblVal = 0.0;
@@ -266,7 +272,8 @@ private:
 namespace detail {
 
 template <typename T>
-T queryColumnGet(ISQLData::ptr rt, int idx) {
+T queryColumnGet(ISQLData::ptr rt, int idx)
+{
     if constexpr (std::is_same_v<T, int32_t>) {
         return rt->getInt32(idx);
     } else if constexpr (std::is_same_v<T, int64_t>) {
@@ -283,7 +290,8 @@ T queryColumnGet(ISQLData::ptr rt, int idx) {
 } // namespace detail
 
 template <typename T>
-int QueryBuilder::queryColumn(std::vector<T>& results, IDB::ptr conn, const std::string& col) const {
+int QueryBuilder::queryColumn(std::vector<T>& results, IDB::ptr conn, const std::string& col) const
+{
     auto rt = executeQuery(conn);
     if (!rt) {
         return -1;
@@ -299,7 +307,8 @@ int QueryBuilder::queryColumn(std::vector<T>& results, IDB::ptr conn, const std:
 }
 
 template <typename K, typename V>
-int QueryBuilder::queryPairs(std::vector<std::pair<K, V>>& results, IDB::ptr conn) const {
+int QueryBuilder::queryPairs(std::vector<std::pair<K, V>>& results, IDB::ptr conn) const
+{
     auto rt = executeQuery(conn);
     if (!rt) {
         return -1;

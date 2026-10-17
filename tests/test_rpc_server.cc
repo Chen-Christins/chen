@@ -4,17 +4,20 @@
 
 static chen::Logger::ptr logger = LOG_ROOT();
 
-int add(int a, int b) {
+int add(int a, int b)
+{
     INFO(logger) << "call add(" << a << ", " << b << ")";
     return a + b;
 }
 
-std::string echo(std::string str) {
+std::string echo(std::string str)
+{
     INFO(logger) << "call echo(" << str << ")";
     return "echo: " + str;
 }
 
-std::vector<std::string> echoVec(const std::vector<std::string>& vec) {
+std::vector<std::string> echoVec(const std::vector<std::string>& vec)
+{
     INFO(logger) << "call echoVec(...) size=" << vec.size();
     std::vector<std::string> res;
     for (auto& s : vec) {
@@ -23,7 +26,8 @@ std::vector<std::string> echoVec(const std::vector<std::string>& vec) {
     return res;
 }
 
-void echoTest() {
+void echoTest()
+{
     INFO(logger) << "call echoTest() void version";
 }
 
@@ -36,24 +40,26 @@ struct UserInfo {
 
 namespace chen::rpc {
 
-template<>
+template <>
 struct Serialization<UserInfo> {
-    static void write(ByteArray::ptr ba, const UserInfo& u) {
+    static void write(ByteArray::ptr ba, const UserInfo& u)
+    {
         ba->writeFint32(u.id);
         ba->writeStringVint(u.name);
         ba->writeFint32(u.age);
         ba->writeUint32(u.tags.size());
-        for(auto& t : u.tags) {
+        for (auto& t : u.tags) {
             ba->writeStringVint(t);
         }
     }
-    static void read(ByteArray::ptr ba, UserInfo& u) {
+    static void read(ByteArray::ptr ba, UserInfo& u)
+    {
         u.id = ba->readFint32();
         u.name = ba->readStringVint();
         u.age = ba->readFint32();
         uint32_t size = ba->readUint32();
         u.tags.clear();
-        for(uint32_t i=0; i<size; ++i) {
+        for (uint32_t i = 0; i < size; ++i) {
             u.tags.push_back(ba->readStringVint());
         }
     }
@@ -61,7 +67,8 @@ struct Serialization<UserInfo> {
 
 } // namespace chen::rpc
 
-UserInfo getUserInfo(int id) {
+UserInfo getUserInfo(int id)
+{
     INFO(logger) << "call getUserInfo(" << id << ")";
     UserInfo u;
     u.id = id;
@@ -71,7 +78,8 @@ UserInfo getUserInfo(int id) {
     return u;
 }
 
-void run() {
+void run()
+{
     chen::Address::ptr addr = chen::Address::LookupAny("0.0.0.0:8080");
     if (!addr) {
         ERROR(logger) << "get address error";
@@ -94,7 +102,8 @@ void run() {
     server->start();
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     chen::IOManager iom(1);
     iom.schedule(run);
     return 0;

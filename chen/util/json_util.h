@@ -29,4 +29,4 @@ public:
     static std::string ToString(const Json::Value& json);
 };
 
-}
+} // namespace chen

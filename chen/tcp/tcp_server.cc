@@ -15,7 +15,8 @@ struct TcpServerFactoryRegistry {
     std::mutex mutex;
 };
 
-TcpServerFactoryRegistry& GetServerFactoryRegistry() {
+TcpServerFactoryRegistry& GetServerFactoryRegistry()
+{
     static TcpServerFactoryRegistry instance;
     return instance;
 }
@@ -23,7 +24,8 @@ TcpServerFactoryRegistry& GetServerFactoryRegistry() {
 /**
  * @brief 获取 IOManager 显示名，未设置/空名返回 "-"
  */
-static std::string WorkerName(const IOManager* iom) {
+std::string WorkerName(const IOManager* iom)
+{
     if (!iom) {
         return "-";
     }
@@ -43,23 +45,29 @@ TcpServer::TcpServer(IOManager* worker, IOManager* io_worker, IOManager* accept_
     , m_ioWorker(io_worker)
     , m_acceptWorker(accept_worker)
     , m_recvTimeout(g_tcp_server_read_timeout->getValue())
-    , m_name("chen/1.0.0"), m_isStop(true) {}
+    , m_name("chen/1.0.0")
+    , m_isStop(true)
+{
+}
 
-TcpServer::~TcpServer() {
+TcpServer::~TcpServer()
+{
     for (auto& i : m_socks) {
         i->close();
     }
     m_socks.clear();
 }
 
-bool TcpServer::bind(Address::ptr addr, bool ssl) {
+bool TcpServer::bind(Address::ptr addr, bool ssl)
+{
     std::vector<Address::ptr> addrs;
     std::vector<Address::ptr> fails;
     addrs.push_back(addr);
     return bind(addrs, fails, ssl);
 }
 
-bool TcpServer::bind(const std::vector<Address::ptr>& addrs, std::vector<Address::ptr>& fails, bool ssl) {
+bool TcpServer::bind(const std::vector<Address::ptr>& addrs, std::vector<Address::ptr>& fails, bool ssl)
+{
     m_ssl = ssl;
     for (auto& addr : addrs) {
         Socket::ptr sock = ssl ? SSLSocket::CreateTCP(addr) : Socket::CreateTCP(addr);
@@ -87,7 +95,8 @@ bool TcpServer::bind(const std::vector<Address::ptr>& addrs, std::vector<Address
     return true;
 }
 
-bool TcpServer::start() {
+bool TcpServer::start()
+{
     // 是开启的，就不用操作了
     if (!m_isStop) {
         return true;
@@ -99,7 +108,8 @@ bool TcpServer::start() {
     return true;
 }
 
-void TcpServer::stop() {
+void TcpServer::stop()
+{
     m_isStop = true;
     auto self = shared_from_this();
     // 将this和self作为参数传递给异步任务的lambda函数，以确保异步任务执行期间当前对象的shared_ptr一直有效
@@ -116,15 +126,26 @@ void TcpServer::stop() {
     });
 }
 
-void TcpServer::setWorkers(IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
+void TcpServer::setWorkers(IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker)
+{
     m_worker = process_worker;
     m_ioWorker = io_worker;
     m_acceptWorker = accept_worker;
 }
 
-void TcpServer::handleClient(Socket::ptr client) { INFO(logger) << "handleClient: " << *client; }
+void TcpServer::handleClient(Socket::ptr client)
+{
+    INFO(logger) << "handleClient: " << *client;
+}
 
-void TcpServer::closeAllClients() {
+size_t TcpServer::getActiveClientCount()
+{
+    std::lock_guard lock(m_clientsMutex);
+    return m_activeClients.size();
+}
+
+void TcpServer::closeAllClients()
+{
     std::set<Socket::ptr> clients;
     {
         std::lock_guard lock(m_clientsMutex);
@@ -138,7 +159,8 @@ void TcpServer::closeAllClients() {
     }
 }
 
-void TcpServer::startAccept(Socket::ptr sock) {
+void TcpServer::startAccept(Socket::ptr sock)
+{
     while (!m_isStop) {
         Socket::ptr client = sock->accept();
         if (client) {
@@ -173,20 +195,20 @@ void TcpServer::startAccept(Socket::ptr sock) {
     }
 }
 
-void TcpServer::setConf(const TcpServerConf& v) {
+void TcpServer::setConf(const TcpServerConf& v)
+{
     m_conf.reset(new TcpServerConf(v));
     if (v.timeout > 0) {
         m_recvTimeout = static_cast<uint64_t>(v.timeout);
     }
     m_connLimiter = ConnLimiter::CreateFromArgs(v.args);
     DEBUG(logger) << "apply server conf"
-        << " name=" << (v.name.empty() ? m_name : v.name)
-        << " type=" << v.type
-        << " conf_timeout_ms=" << v.timeout
-        << " effective_recv_timeout_ms=" << m_recvTimeout;
+                  << " name=" << (v.name.empty() ? m_name : v.name) << " type=" << v.type << " conf_timeout_ms=" << v.timeout
+                  << " effective_recv_timeout_ms=" << m_recvTimeout;
 }
 
-bool TcpServer::loadCertificates(const std::string& cert_file, const std::string& key_file) {
+bool TcpServer::loadCertificates(const std::string& cert_file, const std::string& key_file)
+{
     for (auto& i : m_socks) {
         auto ssl_sock = std::dynamic_pointer_cast<SSLSocket>(i);
         if (ssl_sock) {
@@ -198,14 +220,11 @@ bool TcpServer::loadCertificates(const std::string& cert_file, const std::string
     return true;
 }
 
-std::string TcpServer::toString(const std::string& prefix) {
+std::string TcpServer::toString(const std::string& prefix)
+{
     std::stringstream ss;
-    ss << prefix << "[type=" << m_type
-       << " name=" << (m_name.empty() ? "-" : m_name)
-       << " worker=" << WorkerName(m_worker)
-       << " io=" << WorkerName(m_ioWorker)
-       << " accept=" << WorkerName(m_acceptWorker)
-       << " recv_timeout=" << m_recvTimeout
+    ss << prefix << "[type=" << m_type << " name=" << (m_name.empty() ? "-" : m_name) << " worker=" << WorkerName(m_worker)
+       << " io=" << WorkerName(m_ioWorker) << " accept=" << WorkerName(m_acceptWorker) << " recv_timeout=" << m_recvTimeout
        << " ssl=" << (m_ssl ? 1 : 0);
 
     if (m_connLimiter && m_connLimiter->isLimited()) {
@@ -227,7 +246,8 @@ std::string TcpServer::toString(const std::string& prefix) {
     return ss.str();
 }
 
-bool TcpServerFactory::Register(const std::string& type, Creator cb) {
+bool TcpServerFactory::Register(const std::string& type, Creator cb)
+{
     if (type.empty() || !cb) {
         return false;
     }
@@ -236,17 +256,14 @@ bool TcpServerFactory::Register(const std::string& type, Creator cb) {
     return registry.creators.emplace(type, std::move(cb)).second;
 }
 
-bool TcpServerFactory::Unregister(const std::string& type) {
+bool TcpServerFactory::Unregister(const std::string& type)
+{
     auto& registry = GetServerFactoryRegistry();
     std::lock_guard lock(registry.mutex);
     return registry.creators.erase(type) > 0;
 }
 
-TcpServer::ptr TcpServerFactory::Create(
-    const TcpServerConf& conf,
-    IOManager* process_worker,
-    IOManager* io_worker,
-    IOManager* accept_worker)
+TcpServer::ptr TcpServerFactory::Create(const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker)
 {
     auto& registry = GetServerFactoryRegistry();
     std::lock_guard lock(registry.mutex);
@@ -257,7 +274,8 @@ TcpServer::ptr TcpServerFactory::Create(
     return it->second(conf, process_worker, io_worker, accept_worker);
 }
 
-std::vector<std::string> TcpServerFactory::ListTypes() {
+std::vector<std::string> TcpServerFactory::ListTypes()
+{
     auto& registry = GetServerFactoryRegistry();
     std::lock_guard lock(registry.mutex);
     std::vector<std::string> types;

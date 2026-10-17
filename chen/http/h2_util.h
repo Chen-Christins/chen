@@ -30,8 +30,11 @@ std::string to_lower(const std::string& s);
 // Build nghttp2_nv array from HttpResponse for nghttp2_submit_response.
 // Handles :status pseudo-header, skips HTTP/1.1-specific headers, lowercases keys.
 // temp_strs receives temporary strings that must outlive the returned nva.
-std::vector<nghttp2_nv> build_response_nva(int status_code, const HttpResponse::MapType& headers,
-                                           const std::vector<std::string>& cookies, std::list<std::string>& temp_strs);
+std::vector<nghttp2_nv> build_response_nva(
+    int status_code,
+    const HttpResponse::MapType& headers,
+    const std::vector<std::string>& cookies,
+    std::list<std::string>& temp_strs);
 
 // Check if a header name is a connection-specific header (should be skipped in HTTP/2).
 bool is_http1_specific_header(const std::string& name);

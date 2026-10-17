@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include <cstdint>
 #include <sstream>
 #include <string>
 
@@ -63,7 +62,8 @@ public:
      * @return std::string 转换后的字符串
      */
     template <class T>
-    static std::string ToString(const T& value) {
+    static std::string ToString(const T& value)
+    {
         std::ostringstream oss;
         oss << value;
         return oss.str();
