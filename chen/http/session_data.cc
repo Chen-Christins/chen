@@ -12,7 +12,7 @@ SessionData::SessionData(bool auto_gen)
 {
     if (auto_gen) {
         std::stringstream ss;
-        ss << "chen::GetCurrentUs()" << "|" << rand() << "|" << rand() << "|" << rand();
+        ss << "chen::TimeUtil::GetCurrentUs()" << "|" << rand() << "|" << rand() << "|" << rand();
         m_id = EncryptorUtil::MD5(ss.str());
     }
 }

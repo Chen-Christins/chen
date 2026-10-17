@@ -22,7 +22,7 @@ std::string Column::getDefaultValueString()
     if (m_default == "current_timestamp") {
         return "time(0)";
     }
-    return "chen::Str2Time(\"" + m_default + "\")";
+    return "chen::TimeUtil::Str2Time(\"" + m_default + "\")";
 }
 
 std::string Column::getSQLite3Default()
