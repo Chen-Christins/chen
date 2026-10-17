@@ -6,10 +6,7 @@
  */
 #pragma once
 
-#include <fcntl.h>
-
 #include <arpa/inet.h>
-#include <sys/ioctl.h>
 #include <sys/types.h>
 
 namespace chen {

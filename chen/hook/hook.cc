@@ -1,7 +1,8 @@
 #include "hook.h"
 
-#include <cstdarg>
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
 
 #include "../config/config.h"
 #include "../fiber/fiber.h"
