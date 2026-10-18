@@ -11,13 +11,22 @@ static Logger::ptr logger = LOG_NAME("system");
 static ConfigVar<std::map<std::string, std::map<std::string, std::string>>>::ptr g_redis =
     Config::Lookup("redis.config", std::map<std::string, std::map<std::string, std::string>>(), "redis config");
 
-static std::string get_value(const std::map<std::string, std::string>& m, const std::string& key
-        , const std::string& def = "") {
+IRedis::~IRedis()
+{
+}
+
+ISyncRedis::~ISyncRedis()
+{
+}
+
+static std::string get_value(const std::map<std::string, std::string>& m, const std::string& key, const std::string& def = "")
+{
     auto it = m.find(key);
     return it == m.end() ? def : it->second;
 }
 
-redisReply* RedisReplyClone(redisReply* r) {
+redisReply* RedisReplyClone(redisReply* r)
+{
     redisReply* c = (redisReply*)calloc(1, sizeof(*c));
     c->type = r->type;
 
@@ -53,9 +62,23 @@ redisReply* RedisReplyClone(redisReply* r) {
     return c;
 }
 
-Redis::Redis() { m_type = IRedis::REDIS; }
+IRedis::IRedis()
+    : m_type()
+    , m_logEnable(true)
+{
+}
 
-Redis::Redis(const std::map<std::string, std::string>& conf) {
+Redis::Redis()
+    : m_port(0)
+    , m_connectMs(0)
+    , m_cmdTimeout()
+{
+    m_type = IRedis::REDIS;
+}
+
+Redis::Redis(const std::map<std::string, std::string>& conf)
+    : m_connectMs(0)
+{
     m_type = IRedis::REDIS;
     auto tmp = get_value(conf, "host");
     auto pos = tmp.find(":");
@@ -74,7 +97,8 @@ Redis::Redis(const std::map<std::string, std::string>& conf) {
     m_cmdTimeout.tv_usec = v % 1000 * 1000;
 }
 
-bool Redis::reconnect() {
+bool Redis::reconnect()
+{
     if (!m_context) {
         ERROR(logger) << "Redis::reconnect m_context is null";
         return false;
@@ -82,9 +106,13 @@ bool Redis::reconnect() {
     return redisReconnect(m_context.get());
 }
 
-bool Redis::connect() { return connect(m_host, m_port, 50); }
+bool Redis::connect()
+{
+    return connect(m_host, m_port, 50);
+}
 
-bool Redis::connect(const std::string& ip, int port, uint64_t ms) {
+bool Redis::connect(const std::string& ip, int port, uint64_t ms)
+{
     m_host = ip;
     m_port = port;
     m_connectMs = ms;
@@ -125,7 +153,8 @@ bool Redis::connect(const std::string& ip, int port, uint64_t ms) {
     return false;
 }
 
-bool Redis::setTimeout(uint64_t v) {
+bool Redis::setTimeout(uint64_t v)
+{
     m_cmdTimeout.tv_sec = v / 1000;
     m_cmdTimeout.tv_usec = v % 1000 * 1000;
     if (!m_context) {
@@ -136,7 +165,8 @@ bool Redis::setTimeout(uint64_t v) {
     return true;
 }
 
-ReplyPtr Redis::cmd(const char* fmt, ...) {
+ReplyPtr Redis::cmd(const char* fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     ReplyPtr rt = cmd(fmt, ap);
@@ -144,7 +174,8 @@ ReplyPtr Redis::cmd(const char* fmt, ...) {
     return rt;
 }
 
-ReplyPtr Redis::cmd(const char* fmt, va_list ap) {
+ReplyPtr Redis::cmd(const char* fmt, va_list ap)
+{
     if (!m_context) {
         ERROR(logger) << "Redis::cmd m_context is null";
         return nullptr;
@@ -167,7 +198,8 @@ ReplyPtr Redis::cmd(const char* fmt, va_list ap) {
     return nullptr;
 }
 
-ReplyPtr Redis::cmd(const std::vector<std::string>& argv) {
+ReplyPtr Redis::cmd(const std::vector<std::string>& argv)
+{
     if (!m_context) {
         ERROR(logger) << "Redis::cmd m_context is null";
         return nullptr;
@@ -196,7 +228,8 @@ ReplyPtr Redis::cmd(const std::vector<std::string>& argv) {
     return nullptr;
 }
 
-ReplyPtr Redis::getReply() {
+ReplyPtr Redis::getReply()
+{
     if (!m_context) {
         ERROR(logger) << "Redis::getReply m_context is null";
         return nullptr;
@@ -212,7 +245,8 @@ ReplyPtr Redis::getReply() {
     return nullptr;
 }
 
-int Redis::appendCmd(const char* fmt, ...) {
+int Redis::appendCmd(const char* fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     int rt = appendCmd(fmt, ap);
@@ -220,7 +254,8 @@ int Redis::appendCmd(const char* fmt, ...) {
     return rt;
 }
 
-int Redis::appendCmd(const char* fmt, va_list ap) {
+int Redis::appendCmd(const char* fmt, va_list ap)
+{
     if (!m_context) {
         ERROR(logger) << "Redis::appendCmd m_context is null";
         return REDIS_ERR;
@@ -228,7 +263,8 @@ int Redis::appendCmd(const char* fmt, va_list ap) {
     return redisvAppendCommand(m_context.get(), fmt, ap);
 }
 
-int Redis::appendCmd(const std::vector<std::string>& argv) {
+int Redis::appendCmd(const std::vector<std::string>& argv)
+{
     if (!m_context) {
         ERROR(logger) << "Redis::appendCmd m_context is null";
         return REDIS_ERR;
@@ -242,9 +278,18 @@ int Redis::appendCmd(const std::vector<std::string>& argv) {
     return redisAppendCommandArgv(m_context.get(), argv.size(), &v[0], &l[0]);
 }
 
-RedisCluster::RedisCluster() { m_type = IRedis::REDIS_CLUSTER; }
+RedisCluster::RedisCluster()
+    : m_port(0)
+    , m_connectMs(0)
+    , m_cmdTimeout()
+{
+    m_type = IRedis::REDIS_CLUSTER;
+}
 
-RedisCluster::RedisCluster(const std::map<std::string, std::string>& conf) {
+RedisCluster::RedisCluster(const std::map<std::string, std::string>& conf)
+    : m_port(0)
+    , m_connectMs(0)
+{
     m_type = IRedis::REDIS_CLUSTER;
     m_host = get_value(conf, "host");
     m_passwd = get_value(conf, "passwd");
@@ -260,14 +305,19 @@ RedisCluster::RedisCluster(const std::map<std::string, std::string>& conf) {
 }
 
 ////RedisCluster
-bool RedisCluster::reconnect() {
+bool RedisCluster::reconnect()
+{
     return true;
     // return redisReconnect(m_context.get());
 }
 
-bool RedisCluster::connect() { return connect(m_host, m_port, 50); }
+bool RedisCluster::connect()
+{
+    return connect(m_host, m_port, 50);
+}
 
-bool RedisCluster::connect(const std::string& ip, int port, uint64_t ms) {
+bool RedisCluster::connect(const std::string& ip, int port, uint64_t ms)
+{
     m_host = ip;
     m_port = port;
     m_connectMs = ms;
@@ -304,13 +354,15 @@ bool RedisCluster::connect(const std::string& ip, int port, uint64_t ms) {
     return false;
 }
 
-bool RedisCluster::setTimeout(uint64_t ms) {
+bool RedisCluster::setTimeout(uint64_t ms)
+{
     // timeval tv = {(int)ms / 1000, (int)ms % 1000 * 1000};
     // redisSetTimeout(m_context.get(), tv);
     return true;
 }
 
-ReplyPtr RedisCluster::cmd(const char* fmt, ...) {
+ReplyPtr RedisCluster::cmd(const char* fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     ReplyPtr rt = cmd(fmt, ap);
@@ -318,7 +370,8 @@ ReplyPtr RedisCluster::cmd(const char* fmt, ...) {
     return rt;
 }
 
-ReplyPtr RedisCluster::cmd(const char* fmt, va_list ap) {
+ReplyPtr RedisCluster::cmd(const char* fmt, va_list ap)
+{
     if (!m_context) {
         ERROR(logger) << "RedisCluster::cmd m_context is null";
         return nullptr;
@@ -341,7 +394,8 @@ ReplyPtr RedisCluster::cmd(const char* fmt, va_list ap) {
     return nullptr;
 }
 
-ReplyPtr RedisCluster::cmd(const std::vector<std::string>& argv) {
+ReplyPtr RedisCluster::cmd(const std::vector<std::string>& argv)
+{
     if (!m_context) {
         ERROR(logger) << "RedisCluster::cmd m_context is null";
         return nullptr;
@@ -370,7 +424,8 @@ ReplyPtr RedisCluster::cmd(const std::vector<std::string>& argv) {
     return nullptr;
 }
 
-ReplyPtr RedisCluster::getReply() {
+ReplyPtr RedisCluster::getReply()
+{
     if (!m_context) {
         ERROR(logger) << "RedisCluster::getReply m_context is null";
         return nullptr;
@@ -386,7 +441,8 @@ ReplyPtr RedisCluster::getReply() {
     return nullptr;
 }
 
-int RedisCluster::appendCmd(const char* fmt, ...) {
+int RedisCluster::appendCmd(const char* fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     int rt = appendCmd(fmt, ap);
@@ -394,7 +450,8 @@ int RedisCluster::appendCmd(const char* fmt, ...) {
     return rt;
 }
 
-int RedisCluster::appendCmd(const char* fmt, va_list ap) {
+int RedisCluster::appendCmd(const char* fmt, va_list ap)
+{
     if (!m_context) {
         ERROR(logger) << "RedisCluster::appendCmd m_context is null";
         return REDIS_ERR;
@@ -402,7 +459,8 @@ int RedisCluster::appendCmd(const char* fmt, va_list ap) {
     return redisClustervAppendCommand(m_context.get(), fmt, ap);
 }
 
-int RedisCluster::appendCmd(const std::vector<std::string>& argv) {
+int RedisCluster::appendCmd(const std::vector<std::string>& argv)
+{
     if (!m_context) {
         ERROR(logger) << "RedisCluster::appendCmd m_context is null";
         return REDIS_ERR;
@@ -417,7 +475,11 @@ int RedisCluster::appendCmd(const std::vector<std::string>& argv) {
 }
 
 FoxRedis::FoxRedis(IFoxThread::ptr owner, FoxThread* thr, const std::map<std::string, std::string>& conf)
-    : m_threadOwner(owner), m_thread(thr), m_status(UNCONNECTED), m_event(nullptr) {
+    : m_threadOwner(owner)
+    , m_thread(thr)
+    , m_status(UNCONNECTED)
+    , m_event(nullptr)
+{
     m_type = IRedis::FOX_REDIS;
     auto tmp = get_value(conf, "host");
     auto pos = tmp.find(":");
@@ -437,7 +499,8 @@ FoxRedis::FoxRedis(IFoxThread::ptr owner, FoxThread* thr, const std::map<std::st
     m_cmdTimeout.tv_usec = v % 1000 * 1000;
 }
 
-void FoxRedis::OnAuthCb(redisAsyncContext* c, void* rp, void* priv) {
+void FoxRedis::OnAuthCb(redisAsyncContext* c, void* rp, void* priv)
+{
     FoxRedis* fr = (FoxRedis*)priv;
     redisReply* r = (redisReply*)rp;
     if (!r) {
@@ -445,8 +508,7 @@ void FoxRedis::OnAuthCb(redisAsyncContext* c, void* rp, void* priv) {
         return;
     }
     if (r->type != REDIS_REPLY_STATUS) {
-        ERROR(logger) << "auth reply type error:" << r->type << "(" << fr->m_host << ":" << fr->m_port << ", "
-                      << fr->m_name << ")";
+        ERROR(logger) << "auth reply type error:" << r->type << "(" << fr->m_host << ":" << fr->m_port << ", " << fr->m_name << ")";
         return;
     }
     if (!r->str) {
@@ -460,7 +522,8 @@ void FoxRedis::OnAuthCb(redisAsyncContext* c, void* rp, void* priv) {
     }
 }
 
-void FoxRedis::ConnectCb(const redisAsyncContext* c, int status) {
+void FoxRedis::ConnectCb(const redisAsyncContext* c, int status)
+{
     FoxRedis* ar = static_cast<FoxRedis*>(c->data);
     if (!status) {
         INFO(logger) << "FoxRedis::ConnectCb " << c->c.tcp.host << ":" << c->c.tcp.port << " success";
@@ -473,19 +536,20 @@ void FoxRedis::ConnectCb(const redisAsyncContext* c, int status) {
         }
 
     } else {
-        ERROR(logger) << "FoxRedis::ConnectCb " << c->c.tcp.host << ":" << c->c.tcp.port
-                      << " fail, error:" << c->errstr;
+        ERROR(logger) << "FoxRedis::ConnectCb " << c->c.tcp.host << ":" << c->c.tcp.port << " fail, error:" << c->errstr;
         ar->m_status = UNCONNECTED;
     }
 }
 
-void FoxRedis::DisconnectCb(const redisAsyncContext* c, int status) {
+void FoxRedis::DisconnectCb(const redisAsyncContext* c, int status)
+{
     INFO(logger) << "FoxRedis::DisconnectCb " << c->c.tcp.host << ":" << c->c.tcp.port << " status:" << status;
     FoxRedis* ar = static_cast<FoxRedis*>(c->data);
     ar->m_status = UNCONNECTED;
 }
 
-void FoxRedis::CmdCb(redisAsyncContext* ac, void* r, void* privdata) {
+void FoxRedis::CmdCb(redisAsyncContext* ac, void* r, void* privdata)
+{
     Ctx* ctx = static_cast<Ctx*>(privdata);
     if (!ctx) {
         return;
@@ -540,26 +604,14 @@ void FoxRedis::CmdCb(redisAsyncContext* ac, void* r, void* privdata) {
     delete ctx;
 }
 
-void FoxRedis::TimeCb(int fd, short event, void* d) {
+void FoxRedis::TimeCb(int fd, short event, void* d)
+{
     FoxRedis* ar = static_cast<FoxRedis*>(d);
     redisAsyncCommand(ar->m_context.get(), CmdCb, nullptr, "ping");
 }
 
-struct Res {
-    redisAsyncContext* ctx;
-    struct event* event;
-};
-
-// void DelayTimeCb(int fd, short event, void* d) {
-//     INFO(logger) << "DelayTimeCb";
-//     Res* res = static_cast<Res*>(d);
-//     redisAsyncFree(res->ctx);
-//     evtimer_del(res->event);
-//     event_free(res->event);
-//     delete res;
-// }
-
-bool FoxRedis::init() {
+bool FoxRedis::init()
+{
     if (m_thread == FoxThread::GetThis()) {
         return pinit();
     } else {
@@ -568,7 +620,8 @@ bool FoxRedis::init() {
     return true;
 }
 
-void FoxRedis::delayDelete(redisAsyncContext* c) {
+void FoxRedis::delayDelete(redisAsyncContext* c)
+{
     // if(!c) {
     //     return;
     // }
@@ -582,7 +635,8 @@ void FoxRedis::delayDelete(redisAsyncContext* c) {
     // evtimer_add(event, &tv);
 }
 
-bool FoxRedis::pinit() {
+bool FoxRedis::pinit()
+{
     // INFO(logger) << "pinit m_status=" << m_status;
     if (m_status != UNCONNECTED) {
         return true;
@@ -613,7 +667,8 @@ bool FoxRedis::pinit() {
     return true;
 }
 
-ReplyPtr FoxRedis::cmd(const char* fmt, ...) {
+ReplyPtr FoxRedis::cmd(const char* fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     auto r = cmd(fmt, ap);
@@ -621,7 +676,8 @@ ReplyPtr FoxRedis::cmd(const char* fmt, ...) {
     return r;
 }
 
-ReplyPtr FoxRedis::cmd(const char* fmt, va_list ap) {
+ReplyPtr FoxRedis::cmd(const char* fmt, va_list ap)
+{
     char* buf = nullptr;
     // int len = vasprintf(&buf, fmt, ap);
     int len = redisvFormatCommand(&buf, fmt, ap);
@@ -649,7 +705,8 @@ ReplyPtr FoxRedis::cmd(const char* fmt, va_list ap) {
     return fctx.rpy;
 }
 
-ReplyPtr FoxRedis::cmd(const std::vector<std::string>& argv) {
+ReplyPtr FoxRedis::cmd(const std::vector<std::string>& argv)
+{
     // Ctx::ptr ctx(new Ctx(this));
     // ctx->parts = argv;
     FCtx fctx;
@@ -682,7 +739,8 @@ ReplyPtr FoxRedis::cmd(const std::vector<std::string>& argv) {
     return fctx.rpy;
 }
 
-void FoxRedis::pcmd(FCtx* fctx) {
+void FoxRedis::pcmd(FCtx* fctx)
+{
     if (m_status == UNCONNECTED) {
         INFO(logger) << "redis (" << m_host << ":" << m_port << ") unconnected " << fctx->cmd;
         init();
@@ -712,7 +770,8 @@ void FoxRedis::pcmd(FCtx* fctx) {
     }
 }
 
-FoxRedis::~FoxRedis() {
+FoxRedis::~FoxRedis()
+{
     if (m_event) {
         evtimer_del(m_event);
         event_free(m_event);
@@ -726,14 +785,17 @@ FoxRedis::~FoxRedis() {
 }
 
 FoxRedis::Ctx::Ctx(FoxRedis* r)
-    : ev(nullptr), timeout(false), rds(r)
-      //,scheduler(nullptr)
-      ,
-      thread(nullptr) {
+    : ev(nullptr)
+    , timeout(false)
+    , rds(r)
+    , fctx(nullptr)
+    , thread(nullptr)
+{
     Atomic::addFetch(rds->m_ctxCount, 1);
 }
 
-FoxRedis::Ctx::~Ctx() {
+FoxRedis::Ctx::~Ctx()
+{
     // cancelEvent();
     ASSERT(thread == FoxThread::GetThis());
     // ASSERT(destroy == 0);
@@ -747,7 +809,8 @@ FoxRedis::Ctx::~Ctx() {
     }
 }
 
-void FoxRedis::Ctx::cancelEvent() {
+void FoxRedis::Ctx::cancelEvent()
+{
     // if(ev) {
     //     if(thread == FoxThread::GetThis()) {
     //         evtimer_del(ev);
@@ -764,13 +827,15 @@ void FoxRedis::Ctx::cancelEvent() {
     // ref = nullptr;
 }
 
-bool FoxRedis::Ctx::init() {
+bool FoxRedis::Ctx::init()
+{
     ev = evtimer_new(rds->m_thread->getBase(), EventCb, this);
     evtimer_add(ev, &rds->m_cmdTimeout);
     return true;
 }
 
-void FoxRedis::Ctx::EventCb(int fd, short event, void* d) {
+void FoxRedis::Ctx::EventCb(int fd, short event, void* d)
+{
     Ctx* ctx = static_cast<Ctx*>(d);
     ctx->timeout = 1;
     if (ctx->rds->m_logEnable) {
@@ -786,7 +851,11 @@ void FoxRedis::Ctx::EventCb(int fd, short event, void* d) {
 }
 
 FoxRedisCluster::FoxRedisCluster(IFoxThread::ptr owner, FoxThread* thr, const std::map<std::string, std::string>& conf)
-    : m_threadOwner(owner), m_thread(thr), m_status(UNCONNECTED), m_event(nullptr) {
+    : m_threadOwner(owner)
+    , m_thread(thr)
+    , m_status(UNCONNECTED)
+    , m_event(nullptr)
+{
     m_ctxCount = 0;
 
     m_type = IRedis::FOX_REDIS_CLUSTER;
@@ -803,7 +872,8 @@ FoxRedisCluster::FoxRedisCluster(IFoxThread::ptr owner, FoxThread* thr, const st
     m_cmdTimeout.tv_usec = v % 1000 * 1000;
 }
 
-void FoxRedisCluster::OnAuthCb(redisClusterAsyncContext* c, void* rp, void* priv) {
+void FoxRedisCluster::OnAuthCb(redisClusterAsyncContext* c, void* rp, void* priv)
+{
     FoxRedisCluster* fr = (FoxRedisCluster*)priv;
     redisReply* r = (redisReply*)rp;
     if (!r) {
@@ -825,28 +895,29 @@ void FoxRedisCluster::OnAuthCb(redisClusterAsyncContext* c, void* rp, void* priv
     }
 }
 
-void FoxRedisCluster::ConnectCb(const redisAsyncContext* c, int status) {
+void FoxRedisCluster::ConnectCb(const redisAsyncContext* c, int status)
+{
     FoxRedisCluster* ar = static_cast<FoxRedisCluster*>(c->data);
     if (!status) {
         INFO(logger) << "FoxRedisCluster::ConnectCb " << c->c.tcp.host << ":" << c->c.tcp.port << " success";
         if (!ar->m_passwd.empty()) {
-            int rt = redisClusterAsyncCommand(ar->m_context.get(), FoxRedisCluster::OnAuthCb, ar, "auth %s",
-                                              ar->m_passwd.c_str());
+            int rt = redisClusterAsyncCommand(ar->m_context.get(), FoxRedisCluster::OnAuthCb, ar, "auth %s", ar->m_passwd.c_str());
             if (rt) {
                 ERROR(logger) << "FoxRedisCluster Auth fail: " << rt;
             }
         }
     } else {
-        ERROR(logger) << "FoxRedisCluster::ConnectCb " << c->c.tcp.host << ":" << c->c.tcp.port
-                      << " fail, error:" << c->errstr;
+        ERROR(logger) << "FoxRedisCluster::ConnectCb " << c->c.tcp.host << ":" << c->c.tcp.port << " fail, error:" << c->errstr;
     }
 }
 
-void FoxRedisCluster::DisconnectCb(const redisAsyncContext* c, int status) {
+void FoxRedisCluster::DisconnectCb(const redisAsyncContext* c, int status)
+{
     INFO(logger) << "FoxRedisCluster::DisconnectCb " << c->c.tcp.host << ":" << c->c.tcp.port << " status:" << status;
 }
 
-void FoxRedisCluster::CmdCb(redisClusterAsyncContext* ac, void* r, void* privdata) {
+void FoxRedisCluster::CmdCb(redisClusterAsyncContext* ac, void* r, void* privdata)
+{
     Ctx* ctx = static_cast<Ctx*>(privdata);
     if (ctx->timeout) {
         delete ctx;
@@ -902,12 +973,14 @@ void FoxRedisCluster::CmdCb(redisClusterAsyncContext* ac, void* r, void* privdat
     // ctx->tref = nullptr;
 }
 
-void FoxRedisCluster::TimeCb(int fd, short event, void* d) {
+void FoxRedisCluster::TimeCb(int fd, short event, void* d)
+{
     // FoxRedisCluster* ar = static_cast<FoxRedisCluster*>(d);
     // redisAsyncCommand(ar->m_context.get(), CmdCb, nullptr, "ping");
 }
 
-bool FoxRedisCluster::init() {
+bool FoxRedisCluster::init()
+{
     if (m_thread == FoxThread::GetThis()) {
         return pinit();
     } else {
@@ -916,7 +989,8 @@ bool FoxRedisCluster::init() {
     return true;
 }
 
-void FoxRedisCluster::delayDelete(redisAsyncContext* c) {
+void FoxRedisCluster::delayDelete(redisAsyncContext* c)
+{
     // if(!c) {
     //     return;
     // }
@@ -930,7 +1004,8 @@ void FoxRedisCluster::delayDelete(redisAsyncContext* c) {
     // evtimer_add(event, &tv);
 }
 
-bool FoxRedisCluster::pinit() {
+bool FoxRedisCluster::pinit()
+{
     if (m_status != UNCONNECTED) {
         return true;
     }
@@ -961,7 +1036,8 @@ bool FoxRedisCluster::pinit() {
     return true;
 }
 
-ReplyPtr FoxRedisCluster::cmd(const char* fmt, ...) {
+ReplyPtr FoxRedisCluster::cmd(const char* fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     auto r = cmd(fmt, ap);
@@ -969,7 +1045,8 @@ ReplyPtr FoxRedisCluster::cmd(const char* fmt, ...) {
     return r;
 }
 
-ReplyPtr FoxRedisCluster::cmd(const char* fmt, va_list ap) {
+ReplyPtr FoxRedisCluster::cmd(const char* fmt, va_list ap)
+{
     char* buf = nullptr;
     // int len = vasprintf(&buf, fmt, ap);
     int len = redisvFormatCommand(&buf, fmt, ap);
@@ -996,7 +1073,8 @@ ReplyPtr FoxRedisCluster::cmd(const char* fmt, va_list ap) {
     return fctx.rpy;
 }
 
-ReplyPtr FoxRedisCluster::cmd(const std::vector<std::string>& argv) {
+ReplyPtr FoxRedisCluster::cmd(const std::vector<std::string>& argv)
+{
     // Ctx::ptr ctx(new Ctx(this));
     // ctx->parts = argv;
     FCtx fctx;
@@ -1025,7 +1103,8 @@ ReplyPtr FoxRedisCluster::cmd(const std::vector<std::string>& argv) {
     return fctx.rpy;
 }
 
-void FoxRedisCluster::pcmd(FCtx* fctx) {
+void FoxRedisCluster::pcmd(FCtx* fctx)
+{
     if (m_status != CONNECTED) {
         INFO(logger) << "redis (" << m_host << ") unconnected " << fctx->cmd;
         init();
@@ -1056,7 +1135,8 @@ void FoxRedisCluster::pcmd(FCtx* fctx) {
     }
 }
 
-FoxRedisCluster::~FoxRedisCluster() {
+FoxRedisCluster::~FoxRedisCluster()
+{
     if (m_event) {
         evtimer_del(m_event);
         event_free(m_event);
@@ -1064,10 +1144,12 @@ FoxRedisCluster::~FoxRedisCluster() {
 }
 
 FoxRedisCluster::Ctx::Ctx(FoxRedisCluster* r)
-    : ev(nullptr), timeout(false), rds(r)
-      //,scheduler(nullptr)
-      ,
-      thread(nullptr) {
+    : ev(nullptr)
+    , timeout(false)
+    , rds(r)
+    //,scheduler(nullptr)
+    , thread(nullptr)
+{
     //,cancel_count(0)
     //,destroy(0)
     //,callback_count(0) {
@@ -1075,7 +1157,8 @@ FoxRedisCluster::Ctx::Ctx(FoxRedisCluster* r)
     Atomic::addFetch(rds->m_ctxCount, 1);
 }
 
-FoxRedisCluster::Ctx::~Ctx() {
+FoxRedisCluster::Ctx::~Ctx()
+{
     ASSERT(thread == FoxThread::GetThis());
     // ASSERT(destroy == 0);
     Atomic::subFetch(rds->m_ctxCount, 1);
@@ -1089,7 +1172,8 @@ FoxRedisCluster::Ctx::~Ctx() {
     }
 }
 
-void FoxRedisCluster::Ctx::cancelEvent() {
+void FoxRedisCluster::Ctx::cancelEvent()
+{
     // INFO(logger) << "cancelEvent " << FoxThread::GetThis()
     //            << " - " << thread
     //            << " - " << IOManager::GetThis()
@@ -1132,14 +1216,16 @@ void FoxRedisCluster::Ctx::cancelEvent() {
     // ref = nullptr;
 }
 
-bool FoxRedisCluster::Ctx::init() {
+bool FoxRedisCluster::Ctx::init()
+{
     ASSERT(thread == FoxThread::GetThis());
     ev = evtimer_new(rds->m_thread->getBase(), EventCb, this);
     evtimer_add(ev, &rds->m_cmdTimeout);
     return true;
 }
 
-void FoxRedisCluster::Ctx::EventCb(int fd, short event, void* d) {
+void FoxRedisCluster::Ctx::EventCb(int fd, short event, void* d)
+{
     Ctx* ctx = static_cast<Ctx*>(d);
     if (!ctx->ev) {
         return;
@@ -1159,7 +1245,8 @@ void FoxRedisCluster::Ctx::EventCb(int fd, short event, void* d) {
     // ctx->tref = nullptr;
 }
 
-IRedis::ptr RedisManager::get(const std::string& name) {
+IRedis::ptr RedisManager::get(const std::string& name)
+{
     std::unique_lock lock(m_mutex);
     auto it = m_datas.find(name);
     if (it == m_datas.end()) {
@@ -1179,7 +1266,7 @@ IRedis::ptr RedisManager::get(const std::string& name) {
     if ((time(0) - rr->getLastActiveTime()) > 30) {
         if (!rr->cmd("ping")) {
             if (!rr->reconnect()) {
-                std::unique_lock lock(m_mutex);
+                std::unique_lock lock1(m_mutex);
                 m_datas[name].push_back(r);
                 return nullptr;
             }
@@ -1189,7 +1276,8 @@ IRedis::ptr RedisManager::get(const std::string& name) {
     return std::shared_ptr<IRedis>(r, std::bind(&RedisManager::freeRedis, this, std::placeholders::_1));
 }
 
-void RedisManager::freeRedis(IRedis* r) {
+void RedisManager::freeRedis(IRedis* r)
+{
     if (!r) {
         ERROR(logger) << "RedisManager::freeRedis r is null";
         return;
@@ -1198,7 +1286,8 @@ void RedisManager::freeRedis(IRedis* r) {
     m_datas[r->getName()].push_back(r);
 }
 
-void RedisManager::freeAll() {
+void RedisManager::freeAll()
+{
     {
         std::unique_lock lock(m_mutex);
         for (auto& [name, list] : m_datas) {
@@ -1214,7 +1303,8 @@ void RedisManager::freeAll() {
     m_inited = false;
 }
 
-void RedisManager::init() {
+void RedisManager::init()
+{
     std::unique_lock init_lock(m_initMutex);
     if (m_inited) {
         INFO(logger) << "RedisManager already initialized, skip";
@@ -1283,7 +1373,8 @@ void RedisManager::init() {
     m_inited = true;
 }
 
-std::ostream& RedisManager::dump(std::ostream& os) {
+std::ostream& RedisManager::dump(std::ostream& os)
+{
     os << "[RedisManager total=" << m_config.size() << "]" << std::endl;
     for (auto& i : m_config) {
         os << "    " << i.first << " :[";
@@ -1295,7 +1386,8 @@ std::ostream& RedisManager::dump(std::ostream& os) {
     return os;
 }
 
-ReplyPtr RedisUtil::Cmd(const std::string& name, const char* fmt, ...) {
+ReplyPtr RedisUtil::Cmd(const std::string& name, const char* fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     ReplyPtr rt = Cmd(name, fmt, ap);
@@ -1303,7 +1395,8 @@ ReplyPtr RedisUtil::Cmd(const std::string& name, const char* fmt, ...) {
     return rt;
 }
 
-ReplyPtr RedisUtil::Cmd(const std::string& name, const char* fmt, va_list ap) {
+ReplyPtr RedisUtil::Cmd(const std::string& name, const char* fmt, va_list ap)
+{
     auto rds = RedisMgr::GetInstance()->get(name);
     if (!rds) {
         return nullptr;
@@ -1311,7 +1404,8 @@ ReplyPtr RedisUtil::Cmd(const std::string& name, const char* fmt, va_list ap) {
     return rds->cmd(fmt, ap);
 }
 
-ReplyPtr RedisUtil::Cmd(const std::string& name, const std::vector<std::string>& args) {
+ReplyPtr RedisUtil::Cmd(const std::string& name, const std::vector<std::string>& args)
+{
     auto rds = RedisMgr::GetInstance()->get(name);
     if (!rds) {
         return nullptr;
@@ -1319,7 +1413,8 @@ ReplyPtr RedisUtil::Cmd(const std::string& name, const std::vector<std::string>&
     return rds->cmd(args);
 }
 
-ReplyPtr RedisUtil::TryCmd(const std::string& name, uint32_t count, const char* fmt, ...) {
+ReplyPtr RedisUtil::TryCmd(const std::string& name, uint32_t count, const char* fmt, ...)
+{
     for (uint32_t i = 0; i < count; ++i) {
         va_list ap;
         va_start(ap, fmt);
@@ -1333,7 +1428,8 @@ ReplyPtr RedisUtil::TryCmd(const std::string& name, uint32_t count, const char* 
     return nullptr;
 }
 
-ReplyPtr RedisUtil::TryCmd(const std::string& name, uint32_t count, const std::vector<std::string>& args) {
+ReplyPtr RedisUtil::TryCmd(const std::string& name, uint32_t count, const std::vector<std::string>& args)
+{
     for (uint32_t i = 0; i < count; ++i) {
         ReplyPtr rt = Cmd(name, args);
         if (rt) {

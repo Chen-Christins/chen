@@ -18,7 +18,8 @@ Bitmap::base_type Bitmap::POS[sizeof(base_type) * 8];
 Bitmap::base_type Bitmap::NPOS[sizeof(base_type) * 8];
 Bitmap::base_type Bitmap::MASK[sizeof(base_type) * 8];
 
-bool Bitmap::init() {
+bool Bitmap::init()
+{
     for (size_t i = 0; i < (sizeof(base_type) * 8); ++i) {
         POS[i] = ((base_type)1) << i;
         NPOS[i] = ~POS[i];
@@ -30,16 +31,27 @@ bool Bitmap::init() {
 static bool s_init = Bitmap::init();
 
 Bitmap::Bitmap(uint32_t size, uint8_t def)
-    : m_compress(false), m_size(size), m_dataSize(ceil(size * 1.0 / VALUE_SIZE)), m_data(NULL) {
+    : m_compress(false)
+    , m_size(size)
+    , m_dataSize(ceil(size * 1.0 / VALUE_SIZE))
+    , m_data(NULL)
+{
     if (m_dataSize) {
         m_data = (base_type*)malloc(m_dataSize * sizeof(base_type));
         memset(m_data, def, m_dataSize * sizeof(base_type));
     }
 }
 
-Bitmap::Bitmap() : m_compress(true), m_size(0), m_dataSize(0), m_data(NULL) {}
+Bitmap::Bitmap()
+    : m_compress(true)
+    , m_size(0)
+    , m_dataSize(0)
+    , m_data(NULL)
+{
+}
 
-Bitmap::Bitmap(const Bitmap& b) {
+Bitmap::Bitmap(const Bitmap& b)
+{
     m_compress = b.m_compress;
     m_size = b.m_size;
     m_dataSize = b.m_dataSize;
@@ -47,20 +59,23 @@ Bitmap::Bitmap(const Bitmap& b) {
     memcpy(m_data, b.m_data, m_dataSize * sizeof(base_type));
 }
 
-Bitmap::~Bitmap() {
+Bitmap::~Bitmap()
+{
     if (m_data) {
         free(m_data);
     }
 }
 
-void Bitmap::writeTo(ByteArray::ptr ba) const {
+void Bitmap::writeTo(ByteArray::ptr ba) const
+{
     ba->writeFuint8(m_compress);
     ba->writeFuint32(m_size);
     ba->writeFuint32(m_dataSize);
     ba->write((const char*)m_data, m_dataSize * sizeof(base_type));
 }
 
-bool Bitmap::readFrom(ByteArray::ptr ba) {
+bool Bitmap::readFrom(ByteArray::ptr ba)
+{
     try {
         m_compress = ba->readFuint8();
         m_size = ba->readFuint32();
@@ -76,7 +91,8 @@ bool Bitmap::readFrom(ByteArray::ptr ba) {
     return false;
 }
 
-Bitmap& Bitmap::operator=(const Bitmap& b) {
+Bitmap& Bitmap::operator=(const Bitmap& b)
+{
     if (this == &b) {
         return *this;
     }
@@ -91,7 +107,8 @@ Bitmap& Bitmap::operator=(const Bitmap& b) {
     return *this;
 }
 
-Bitmap& Bitmap::operator&=(const Bitmap& b) {
+Bitmap& Bitmap::operator&=(const Bitmap& b)
+{
     if (m_size != b.m_size) {
         throw std::logic_error("m_size != b.m_size");
     }
@@ -141,7 +158,8 @@ Bitmap& Bitmap::operator&=(const Bitmap& b) {
     return *this;
 }
 
-Bitmap& Bitmap::operator~() {
+Bitmap& Bitmap::operator~()
+{
     if (!m_compress) {
         uint32_t max_size = m_size / U64_VALUE_SIZE;
         for (uint32_t i = 0; i < max_size; ++i) {
@@ -168,7 +186,8 @@ Bitmap& Bitmap::operator~() {
     }
 }
 
-Bitmap& Bitmap::operator|=(const Bitmap& b) {
+Bitmap& Bitmap::operator|=(const Bitmap& b)
+{
     if (m_size != b.m_size) {
         throw std::logic_error("m_size != b.m_size");
     }
@@ -218,7 +237,8 @@ Bitmap& Bitmap::operator|=(const Bitmap& b) {
     return *this;
 }
 
-bool Bitmap::operator==(const Bitmap& b) const {
+bool Bitmap::operator==(const Bitmap& b) const
+{
     if (this == &b) {
         return true;
     }
@@ -236,19 +256,25 @@ bool Bitmap::operator==(const Bitmap& b) const {
     return true;
 }
 
-bool Bitmap::operator!=(const Bitmap& b) const { return !(*this == b); }
+bool Bitmap::operator!=(const Bitmap& b) const
+{
+    return !(*this == b);
+}
 
-Bitmap Bitmap::operator&(const Bitmap& b) {
+Bitmap Bitmap::operator&(const Bitmap& b)
+{
     Bitmap t(*this);
     return t &= b;
 }
 
-Bitmap Bitmap::operator|(const Bitmap& b) {
+Bitmap Bitmap::operator|(const Bitmap& b)
+{
     Bitmap t(*this);
     return t |= b;
 }
 
-std::string Bitmap::toString() const {
+std::string Bitmap::toString() const
+{
     std::stringstream ss;
     ss << "[Bitmap compress=" << m_compress << " size=" << m_size << " data_size=" << m_dataSize << " data=";
     for (size_t i = 0; i < m_dataSize; ++i) {
@@ -281,13 +307,15 @@ std::string Bitmap::toString() const {
     return ss.str();
 }
 
-bool Bitmap::get(uint32_t idx) const {
+bool Bitmap::get(uint32_t idx) const
+{
     uint32_t cur = idx / VALUE_SIZE;
     uint32_t pos = idx % VALUE_SIZE;
     return m_data[cur] & POS[pos];
 }
 
-void Bitmap::set(uint32_t idx, bool v) {
+void Bitmap::set(uint32_t idx, bool v)
+{
     uint32_t cur = idx / VALUE_SIZE;
     uint32_t pos = idx % VALUE_SIZE;
     if (v) {
@@ -298,16 +326,19 @@ void Bitmap::set(uint32_t idx, bool v) {
 }
 
 template <class T>
-T count_bits(const T& v) {
+T count_bits(const T& v)
+{
     return __builtin_popcount(v);
 }
 
 template <>
-uint64_t count_bits(const uint64_t& v) {
+uint64_t count_bits(const uint64_t& v)
+{
     return __builtin_popcount(v & 0xFFFFFFFF) + __builtin_popcount(v >> 32);
 }
 
-Bitmap::ptr Bitmap::compress() const {
+Bitmap::ptr Bitmap::compress() const
+{
     if (m_compress) {
         return ptr(new Bitmap(*this));
     }
@@ -335,8 +366,8 @@ Bitmap::ptr Bitmap::compress() const {
             ASSERT(cur_count % VALUE_SIZE == 0);
             // ASSERT(cur_count < (1ul << VALUE_SIZE));
             while (cur_count) {
-                data[dst_cur_pos++] = cur_value ? (COMPRESS_MASK | VALUE_MASK | (cur_count & COUNT_MASK))
-                                                : (COMPRESS_MASK | (cur_count & COUNT_MASK));
+                data[dst_cur_pos++] =
+                    cur_value ? (COMPRESS_MASK | VALUE_MASK | (cur_count & COUNT_MASK)) : (COMPRESS_MASK | (cur_count & COUNT_MASK));
                 cur_count >>= VALUE_SIZE;
             }
         } else {
@@ -357,8 +388,8 @@ Bitmap::ptr Bitmap::compress() const {
     if (cur_count > 0) {
         if ((cur_count / VALUE_SIZE) > 1) {
             while (cur_count) {
-                data[dst_cur_pos++] = cur_value ? (COMPRESS_MASK | VALUE_MASK | (cur_count & COUNT_MASK))
-                                                : (COMPRESS_MASK | (cur_count & COUNT_MASK));
+                data[dst_cur_pos++] =
+                    cur_value ? (COMPRESS_MASK | VALUE_MASK | (cur_count & COUNT_MASK)) : (COMPRESS_MASK | (cur_count & COUNT_MASK));
                 cur_count >>= VALUE_SIZE;
             }
         } else {
@@ -376,7 +407,8 @@ Bitmap::ptr Bitmap::compress() const {
     return b;
 }
 
-Bitmap::ptr Bitmap::uncompress() const {
+Bitmap::ptr Bitmap::uncompress() const
+{
     if (!m_compress) {
         return ptr(new Bitmap(*this));
     }
@@ -409,7 +441,8 @@ Bitmap::ptr Bitmap::uncompress() const {
     return b;
 }
 
-bool Bitmap::any() const {
+bool Bitmap::any() const
+{
     if (!m_data) {
         return false;
     }
@@ -437,7 +470,8 @@ bool Bitmap::any() const {
     return false;
 }
 
-void Bitmap::resize(uint32_t size, bool v) {
+void Bitmap::resize(uint32_t size, bool v)
+{
     if (m_compress) {
         throw std::logic_error("compress bitmap not support resize");
     }
@@ -467,7 +501,8 @@ void Bitmap::resize(uint32_t size, bool v) {
     m_dataSize = len;
 }
 
-void Bitmap::foreach (std::function<bool(uint32_t)> cb) {
+void Bitmap::foreach(std::function<bool(uint32_t)> cb)
+{
     uint32_t max_size = m_size / U64_VALUE_SIZE;
     uint32_t cur_pos = 0;
     uint64_t tmp = 0;
@@ -504,7 +539,8 @@ void Bitmap::foreach (std::function<bool(uint32_t)> cb) {
     }
 }
 
-void Bitmap::rforeach(std::function<bool(uint32_t)> cb) {
+void Bitmap::rforeach(std::function<bool(uint32_t)> cb)
+{
     uint32_t max_size = m_size / U64_VALUE_SIZE;
     uint32_t cur_pos = m_size - 1;
     uint64_t tmp = 0;
@@ -588,7 +624,8 @@ void Bitmap::rforeach(std::function<bool(uint32_t)> cb) {
     }
 }
 
-void Bitmap::listPosAsc(std::vector<uint32_t>& pos) {
+void Bitmap::listPosAsc(std::vector<uint32_t>& pos)
+{
     uint32_t max_size = m_size / U64_VALUE_SIZE;
     uint32_t cur_pos = 0;
     uint64_t tmp = 0;
@@ -621,7 +658,8 @@ void Bitmap::listPosAsc(std::vector<uint32_t>& pos) {
     }
 }
 
-bool Bitmap::cross(const Bitmap& b) const {
+bool Bitmap::cross(const Bitmap& b) const
+{
     if (!m_compress && b.m_compress) {
         return compressCross(b);
     } else if (!m_compress && !b.m_compress) {
@@ -632,7 +670,8 @@ bool Bitmap::cross(const Bitmap& b) const {
     return false;
 }
 
-bool Bitmap::compressCross(const Bitmap& b) const {
+bool Bitmap::compressCross(const Bitmap& b) const
+{
     uint32_t cur_pos = 0;
     for (uint32_t i = 0; i < b.m_dataSize; ++i) {
         base_type cur = b.m_data[i];
@@ -667,7 +706,8 @@ bool Bitmap::compressCross(const Bitmap& b) const {
     return false;
 }
 
-bool Bitmap::normalCross(const Bitmap& b) const {
+bool Bitmap::normalCross(const Bitmap& b) const
+{
     uint32_t max_size = m_size / U64_VALUE_SIZE;
     for (uint32_t i = 0; i < max_size; ++i) {
         if ((((uint64_t*)m_data)[i]) != 0) {
@@ -684,30 +724,49 @@ bool Bitmap::normalCross(const Bitmap& b) const {
     return false;
 }
 
-Bitmap::iterator_base::iterator_base() : m_pos(-1), m_size(0), m_dataSize(0), m_compress(false), m_data(NULL) {}
+Bitmap::iterator_base::iterator_base()
+    : m_pos(-1)
+    , m_size(0)
+    , m_dataSize(0)
+    , m_compress(false)
+    , m_data(NULL)
+{
+}
 
-bool Bitmap::iterator_base::operator!() {
+Bitmap::iterator_base::~iterator_base()
+{
+}
+
+bool Bitmap::iterator_base::operator!()
+{
     if (m_pos >= m_size || m_pos < 0) {
         return false;
     }
     return true;
 }
 
-int32_t Bitmap::iterator_base::operator*() {
+int32_t Bitmap::iterator_base::operator*()
+{
     return m_pos;
 }
 
-Bitmap::iterator::iterator(Bitmap* b) {
+Bitmap::iterator::iterator()
+{
+}
+
+Bitmap::iterator::iterator(Bitmap* b)
+{
     m_pos = -1;
     m_size = b->m_size;
     m_dataSize = b->m_dataSize;
     m_data = b->m_data;
     m_compress = b->m_compress;
 
-    next();
+    iterator::next();
 }
 
-void Bitmap::iterator::next() {
+void Bitmap::iterator::next()
+{
     ++m_pos;
     uint32_t pos = m_pos / VALUE_SIZE;
     uint32_t left = m_pos % VALUE_SIZE;
@@ -735,17 +794,23 @@ void Bitmap::iterator::next() {
     }
 }
 
-Bitmap::iterator_reverse::iterator_reverse(Bitmap* b) {
+Bitmap::iterator_reverse::iterator_reverse()
+{
+}
+
+Bitmap::iterator_reverse::iterator_reverse(Bitmap* b)
+{
     m_pos = b->m_size;
     m_size = b->m_size;
     m_dataSize = b->m_dataSize;
     m_data = b->m_data;
     m_compress = b->m_compress;
 
-    next();
+    iterator_reverse::next();
 }
 
-void Bitmap::iterator_reverse::next() {
+void Bitmap::iterator_reverse::next()
+{
     if (m_pos <= 0) {
         m_pos = -1;
         return;
@@ -778,7 +843,8 @@ void Bitmap::iterator_reverse::next() {
     }
 }
 
-void Bitmap::set(uint32_t from, uint32_t size, bool v) {
+void Bitmap::set(uint32_t from, uint32_t size, bool v)
+{
     if (size == 0) {
         return;
     }
@@ -795,7 +861,8 @@ void Bitmap::set(uint32_t from, uint32_t size, bool v) {
     }
 }
 
-bool Bitmap::get(uint32_t from, uint32_t size, bool v) const {
+bool Bitmap::get(uint32_t from, uint32_t size, bool v) const
+{
     if (size == 0) {
         return false;
     }
@@ -821,7 +888,8 @@ bool Bitmap::get(uint32_t from, uint32_t size, bool v) const {
     return false;
 }
 
-float Bitmap::getCompressRate() const {
+float Bitmap::getCompressRate() const
+{
     if (!m_compress) {
         return 100;
     } else {
@@ -829,15 +897,18 @@ float Bitmap::getCompressRate() const {
     }
 }
 
-Bitmap::iterator_base::ptr Bitmap::begin_new() {
+Bitmap::iterator_base::ptr Bitmap::begin_new()
+{
     return iterator_base::ptr(new iterator(this));
 }
 
-Bitmap::iterator_base::ptr Bitmap::rbegin_new() {
+Bitmap::iterator_base::ptr Bitmap::rbegin_new()
+{
     return iterator_base::ptr(new iterator_reverse(this));
 }
 
-uint32_t Bitmap::getCount() const {
+uint32_t Bitmap::getCount() const
+{
     if (!m_compress) {
         uint32_t len = m_dataSize / U64_DIV_BASE; // - (m_dataSize % 8 == 0 ? 1 : 0);
         uint32_t count = 0;

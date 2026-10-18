@@ -10,7 +10,8 @@ namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
 
-MultipartParser::MultipartParser(const std::string& content_type) {
+MultipartParser::MultipartParser(const std::string& content_type)
+{
     size_t pos = content_type.find("boundary=");
     if (pos != std::string::npos) {
         m_boundary = content_type.substr(pos + 9);
@@ -22,7 +23,8 @@ MultipartParser::MultipartParser(const std::string& content_type) {
 
 // ============ 流式接口 ============
 
-bool MultipartParser::feed(const std::string& data, const std::string& save_dir) {
+bool MultipartParser::feed(const std::string& data, const std::string& save_dir)
+{
     if (m_state == COMPLETE) {
         return true;
     }
@@ -32,7 +34,7 @@ bool MultipartParser::feed(const std::string& data, const std::string& save_dir)
     while (!m_buffer.empty() && m_state != COMPLETE) {
         size_t consumed = tryParsePart(save_dir);
         if (consumed == 0) {
-            break;  // 数据不够，等下一块
+            break; // 数据不够，等下一块
         }
         m_buffer.erase(0, consumed);
     }
@@ -40,7 +42,8 @@ bool MultipartParser::feed(const std::string& data, const std::string& save_dir)
     return true;
 }
 
-size_t MultipartParser::tryParsePart(const std::string& save_dir) {
+size_t MultipartParser::tryParsePart(const std::string& save_dir)
+{
     switch (m_state) {
     case PREAMBLE: {
         // 跳过第一个 --boundary 之前的所有数据（理论上没有）
@@ -64,11 +67,11 @@ size_t MultipartParser::tryParsePart(const std::string& save_dir) {
         }
 
         std::string headers = m_buffer.substr(0, header_end);
-        m_curFileName    = extractFilename(headers);
-        m_curFieldName   = extractFieldName(headers);
+        m_curFileName = extractFilename(headers);
+        m_curFieldName = extractFieldName(headers);
         m_curContentType = "";
-        m_curIsFile      = !m_curFileName.empty();
-        m_curFileSize    = 0;
+        m_curIsFile = !m_curFileName.empty();
+        m_curFileSize = 0;
         m_curFieldValue.clear();
 
         // 提取 Content-Type
@@ -88,7 +91,7 @@ size_t MultipartParser::tryParsePart(const std::string& save_dir) {
         }
 
         m_state = BODY;
-        return header_end + 4;  // 包括 \r\n\r\n
+        return header_end + 4; // 包括 \r\n\r\n
     }
     case BODY: {
         std::string boundary_str = "--" + m_boundary;
@@ -98,8 +101,7 @@ size_t MultipartParser::tryParsePart(const std::string& save_dir) {
             // 还没找到下一个 boundary
             if (m_curIsFile && m_curFileStream.is_open()) {
                 // 文件数据：安全地写大部分到磁盘（保留 boundary 长度的尾部以免截断）
-                size_t safe = m_buffer.size() > m_boundary.size()
-                    ? m_buffer.size() - m_boundary.size() : 0;
+                size_t safe = m_buffer.size() > m_boundary.size() ? m_buffer.size() - m_boundary.size() : 0;
                 if (safe > 0) {
                     m_curFileStream.write(m_buffer.data(), safe);
                     m_curFileSize += safe;
@@ -123,8 +125,7 @@ size_t MultipartParser::tryParsePart(const std::string& save_dir) {
                 m_curFileSize += content_end;
                 m_curFileStream.close();
             }
-            m_files.push_back({m_curFieldName, m_curFileName, m_curContentType,
-                save_dir + "/" + m_curFileName, m_curFileSize});
+            m_files.push_back({m_curFieldName, m_curFileName, m_curContentType, save_dir + "/" + m_curFileName, m_curFileSize});
         } else {
             std::string text_content(m_buffer.data(), content_end);
             m_curFieldValue += text_content;
@@ -135,16 +136,14 @@ size_t MultipartParser::tryParsePart(const std::string& save_dir) {
         size_t consumed = pos + boundary_str.length();
 
         // 检查是否结束边界 --boundary--
-        if (m_buffer.size() >= consumed + 2
-            && m_buffer.substr(consumed, 2) == "--") {
-            m_state  = COMPLETE;
+        if (m_buffer.size() >= consumed + 2 && m_buffer.substr(consumed, 2) == "--") {
+            m_state = COMPLETE;
             m_complete = true;
             return consumed + 2;
         }
 
         // 跳过 boundary 后的 \r\n
-        if (m_buffer.size() >= consumed + 2
-            && m_buffer.substr(consumed, 2) == "\r\n") {
+        if (m_buffer.size() >= consumed + 2 && m_buffer.substr(consumed, 2) == "\r\n") {
             consumed += 2;
         }
 
@@ -159,7 +158,8 @@ size_t MultipartParser::tryParsePart(const std::string& save_dir) {
 
 // ============ 旧接口（向后兼容） ============
 
-bool MultipartParser::parse(const std::string& data, const std::string& save_dir) {
+bool MultipartParser::parse(const std::string& data, const std::string& save_dir)
+{
     if (m_boundary.empty()) {
         ERROR(logger) << "Boundary not found";
         return false;
@@ -198,8 +198,7 @@ bool MultipartParser::parse(const std::string& data, const std::string& save_dir
         if (!filename.empty()) {
             std::string full_path = save_dir + "/" + filename;
             size_t content_length = next_boundary - body_start - 2;
-            if (next_boundary - 2 >= body_start
-                && data.substr(next_boundary - 2, 2) == "\r\n") {
+            if (next_boundary - 2 >= body_start && data.substr(next_boundary - 2, 2) == "\r\n") {
                 content_length = next_boundary - body_start - 2;
             } else {
                 content_length = next_boundary - body_start;
@@ -222,7 +221,8 @@ bool MultipartParser::parse(const std::string& data, const std::string& save_dir
     return files_saved;
 }
 
-std::vector<MultipartParser::FilePart> MultipartParser::parseToMemory(const std::string& data) {
+std::vector<MultipartParser::FilePart> MultipartParser::parseToMemory(const std::string& data)
+{
     std::vector<FilePart> files;
     if (m_boundary.empty()) {
         return files;
@@ -254,8 +254,8 @@ std::vector<MultipartParser::FilePart> MultipartParser::parseToMemory(const std:
 
         std::string filename = extractFilename(headers);
         FilePart f;
-        f.filename    = filename;
-        f.field_name  = extractFieldName(headers);
+        f.filename = filename;
+        f.field_name = extractFieldName(headers);
 
         std::string ct_key = "Content-Type: ";
         size_t ct_pos = headers.find(ct_key);
@@ -268,8 +268,7 @@ std::vector<MultipartParser::FilePart> MultipartParser::parseToMemory(const std:
         }
 
         size_t content_length = next_boundary - body_start - 2;
-        if (next_boundary - 2 >= body_start
-            && data.substr(next_boundary - 2, 2) == "\r\n") {
+        if (next_boundary - 2 >= body_start && data.substr(next_boundary - 2, 2) == "\r\n") {
             f.content = data.substr(body_start, content_length);
         } else {
             f.content = data.substr(body_start, next_boundary - body_start);
@@ -281,7 +280,8 @@ std::vector<MultipartParser::FilePart> MultipartParser::parseToMemory(const std:
     return files;
 }
 
-std::string MultipartParser::extractFilename(const std::string& headers) {
+std::string MultipartParser::extractFilename(const std::string& headers)
+{
     std::string key = "filename=\"";
     size_t pos = headers.find(key);
     if (pos == std::string::npos) {
@@ -300,7 +300,8 @@ std::string MultipartParser::extractFilename(const std::string& headers) {
     return filename;
 }
 
-std::string MultipartParser::extractFieldName(const std::string& headers) {
+std::string MultipartParser::extractFieldName(const std::string& headers)
+{
     std::string key = "name=\"";
     size_t pos = headers.find(key);
     if (pos == std::string::npos) {

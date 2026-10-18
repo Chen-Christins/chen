@@ -1,6 +1,9 @@
 /**
  * @file rock_stream.h
  * @brief Rock 协议流定义
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -13,8 +16,7 @@ namespace chen {
 struct RockResult {
     typedef std::shared_ptr<RockResult> ptr;
 
-    RockResult(int32_t _result, int32_t _used, RockResponse::ptr rsp, RockRequest::ptr req)
-        : result(_result), used(_used), response(rsp), request(req) {}
+    RockResult(int32_t _result, int32_t _used, RockResponse::ptr rsp, RockRequest::ptr req);
 
     int32_t result;
     int32_t used;
@@ -43,12 +45,14 @@ public:
     void setNotifyHandler(notify_handler v) { m_notifyHandler = v; }
 
     template <class T>
-    void setData(const T& v) {
+    void setData(const T& v)
+    {
         m_data = v;
     }
 
     template <class T>
-    T getData() {
+    T getData()
+    {
         try {
             return boost::any_cast<T>(m_data);
         } catch (...) {
@@ -106,8 +110,7 @@ public:
     virtual void stop();
     void start(const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& confs);
 
-    RockResult::ptr request(const std::string& domain
-        , const std::string& service, RockRequest::ptr req, uint32_t timeout_ms, uint64_t idx = -1);
+    RockResult::ptr request(const std::string& domain, const std::string& service, RockRequest::ptr req, uint32_t timeout_ms, uint64_t idx = -1);
 };
 
 } // namespace chen

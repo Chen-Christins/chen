@@ -3,9 +3,9 @@
  * @brief 游戏RPC服务 - 提供服务器间通讯的游戏逻辑接口
  * @author Christins
  * @date 2025-01-21
+ * @copyright GPL-3.0
  */
-#ifndef __GAME_RPC_SERVICE_H__
-#define __GAME_RPC_SERVICE_H__
+#pragma once
 
 #include "chen/rpc/rpc_server.h"
 #include <map>
@@ -117,5 +117,3 @@ private:
 };
 
 } // namespace chen::game
-
-#endif // __GAME_RPC_SERVICE_H__

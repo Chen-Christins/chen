@@ -9,22 +9,29 @@ namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
 
-SmtpClient::SmtpClient(Socket::ptr sock) : SocketStream(sock) {
+SmtpResult::SmtpResult(int r, const std::string& m)
+    : result(r)
+    , msg(m)
+{
 }
 
-SmtpClient::ptr SmtpClient::Create(const std::string& host, uint32_t port, bool ssl) {
+SmtpClient::SmtpClient(Socket::ptr sock)
+    : SocketStream(sock)
+{
+}
+
+SmtpClient::ptr SmtpClient::Create(const std::string& host, uint32_t port, bool ssl)
+{
     IPAddress::ptr addr = Address::LookupAnyIPAddress(host);
-    if(!addr) {
-        ERROR(logger) << "invalid smtp server: " << host << ":" << port
-            << " ssl=" << ssl;
+    if (!addr) {
+        ERROR(logger) << "invalid smtp server: " << host << ":" << port << " ssl=" << ssl;
         return nullptr;
     }
     addr->setPort(port);
     Socket::ptr sock;
-	sock = ssl ? SSLSocket::CreateTCP(addr) : Socket::CreateTCP(addr);
-    if(!sock->connect(addr)) {
-        ERROR(logger) << "connect smtp server: " << host << ":" << port
-            << " ssl=" << ssl << " fail";
+    sock = ssl ? SSLSocket::CreateTCP(addr) : Socket::CreateTCP(addr);
+    if (!sock->connect(addr)) {
+        ERROR(logger) << "connect smtp server: " << host << ":" << port << " ssl=" << ssl << " fail";
         return nullptr;
     }
     std::string buf;
@@ -32,41 +39,43 @@ SmtpClient::ptr SmtpClient::Create(const std::string& host, uint32_t port, bool 
 
     SmtpClient::ptr rt(new SmtpClient(sock));
     int len = rt->read(&buf[0], buf.size());
-    if(len <= 0) {
+    if (len <= 0) {
         return nullptr;
     }
     buf.resize(len);
-    if(TypeUtil::Atoi(buf) != 220) {
+    if (TypeUtil::Atoi(buf) != 220) {
         return nullptr;
     }
     rt->m_host = host;
     return rt;
 }
 
-SmtpResult::ptr SmtpClient::doCmd(const std::string& cmd, bool debug) {
-    if(writeFixSize(cmd.c_str(), cmd.size()) <= 0) {
+SmtpResult::ptr SmtpClient::doCmd(const std::string& cmd, bool debug)
+{
+    if (writeFixSize(cmd.c_str(), cmd.size()) <= 0) {
         return std::make_shared<SmtpResult>(SmtpResult::IO_ERROR, "write io error");
     }
     std::string buf;
     buf.resize(4096);
     auto len = read(&buf[0], buf.size());
-    if(len <= 0) {
+    if (len <= 0) {
         return std::make_shared<SmtpResult>(SmtpResult::IO_ERROR, "read io error");
     }
     buf.resize(len);
-    if(debug) {
+    if (debug) {
         m_ss << "C: " << cmd;
         m_ss << "S: " << buf;
     }
 
     int code = TypeUtil::Atoi(buf);
-    if(code >= 400) {
+    if (code >= 400) {
         return std::make_shared<SmtpResult>(code, StringUtil::Replace(buf.substr(buf.find(' ') + 1), "\r\n", ""));
     }
     return nullptr;
 }
 
-SmtpResult::ptr SmtpClient::send(EMail::ptr email, int64_t timeout_ms, bool debug) {
+SmtpResult::ptr SmtpClient::send(EMail::ptr email, int64_t timeout_ms, bool debug)
+{
 #define DO_CMD()                \
     result = doCmd(cmd, debug); \
     if (result) {               \
@@ -74,7 +83,7 @@ SmtpResult::ptr SmtpClient::send(EMail::ptr email, int64_t timeout_ms, bool debu
     }
 
     Socket::ptr sock = getSocket();
-    if(sock) {
+    if (sock) {
         sock->setRecvTimeout(timeout_ms);
         sock->setSendTimeout(timeout_ms);
     }
@@ -82,7 +91,7 @@ SmtpResult::ptr SmtpClient::send(EMail::ptr email, int64_t timeout_ms, bool debu
     SmtpResult::ptr result;
     std::string cmd = "HELO " + m_host + "\r\n";
     DO_CMD();
-    if(!m_authed && !email->getFromEMailAddress().empty()) {
+    if (!m_authed && !email->getFromEMailAddress().empty()) {
         cmd = "AUTH LOGIN\r\n";
         DO_CMD();
         auto pos = email->getFromEMailAddress().find('@');
@@ -105,7 +114,7 @@ SmtpResult::ptr SmtpClient::send(EMail::ptr email, int64_t timeout_ms, bool debu
     XX(getCcEMailAddress);
     XX(getBccEMailAddress);
 #undef XX
-    for(auto& i : targets) {
+    for (auto& i : targets) {
         cmd = "RCPT TO: <" + i + ">\r\n";
         DO_CMD();
     }
@@ -132,29 +141,28 @@ SmtpResult::ptr SmtpClient::send(EMail::ptr email, int64_t timeout_ms, bool debu
         }                                       \
     } while (0);
     XX(getToEMailAddress);
-    if(!email->getCcEMailAddress().empty()) {
+    if (!email->getCcEMailAddress().empty()) {
         ss << "Cc: ";
         XX(getCcEMailAddress);
     }
     ss << "Subject: " << email->getTitle() << "\r\n";
     std::string boundary;
-    if(!entitys.empty()) {
+    if (!entitys.empty()) {
         boundary = RandomUtil::RandString(16);
-        ss << "Content-Type: multipart/mixed;boundary="
-           << boundary << "\r\n";
+        ss << "Content-Type: multipart/mixed;boundary=" << boundary << "\r\n";
     }
     ss << "MIME-Version: 1.0\r\n";
-    if(!boundary.empty()) {
+    if (!boundary.empty()) {
         ss << "\r\n--" << boundary << "\r\n";
     }
     ss << "Content-Type: text/html;charset=\"utf-8\"\r\n"
        << "\r\n"
        << email->getBody() << "\r\n";
-    for(auto& i : entitys) {
+    for (auto& i : entitys) {
         ss << "\r\n--" << boundary << "\r\n";
         ss << i->toString();
     }
-    if(!boundary.empty()) {
+    if (!boundary.empty()) {
         ss << "\r\n--" << boundary << "--\r\n";
     }
     ss << "\r\n.\r\n";
@@ -165,8 +173,9 @@ SmtpResult::ptr SmtpClient::send(EMail::ptr email, int64_t timeout_ms, bool debu
     return std::make_shared<SmtpResult>(0, "ok");
 }
 
-std::string SmtpClient::getDebugInfo() {
+std::string SmtpClient::getDebugInfo()
+{
     return m_ss.str();
 }
 
-}
+} // namespace chen

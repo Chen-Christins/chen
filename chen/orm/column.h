@@ -16,7 +16,8 @@ namespace chen {
 namespace orm {
 
 class Column {
-friend class Table;
+    friend class Table;
+
 public:
     typedef std::shared_ptr<Column> ptr;
     enum Type {
@@ -44,6 +45,7 @@ public:
 
     std::string getDefaultValueString();
     std::string getSQLite3Default();
+    std::string getMySQLDefault();
 
     bool isAutoIncrement() const { return m_autoIncrement; }
     Type getDType() const { return m_dtype; }
@@ -59,13 +61,14 @@ public:
     static Type ParseType(const std::string& v);
     static std::string TypeToString(Type type);
 
-    std::string getDTypeString() { return TypeToString(m_dtype); }
+    std::string getDTypeString();
     std::string getSQLite3TypeString();
     std::string getMySQLTypeString();
 
     std::string getBindString();
     std::string getGetString();
     const std::string& getUpdate() const { return m_update; }
+
 private:
     std::string m_name;
     std::string m_type;
@@ -79,5 +82,5 @@ private:
     int m_length;
 };
 
-}
-}
+} // namespace orm
+} // namespace chen

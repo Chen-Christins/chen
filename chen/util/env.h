@@ -3,6 +3,7 @@
  * @brief 参数解析
  * @author Christins
  * @date 2025-03-01
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -25,7 +26,7 @@ public:
      * @return bool 是否初始化成功
      */
     bool init(int argc, char** argv);
-    
+
     /**
      * @brief 添加一个环境变量
      * @param key 环境变量的名称
@@ -107,8 +108,8 @@ public:
 
     /**
      * @brief 根据yaml配置文件，获取绝对的工作路径
-     * @param path 
-     * @return std::string 
+     * @param path
+     * @return std::string
      */
     std::string getAbsoluteWorkPath(const std::string& path) const;
 
@@ -117,6 +118,7 @@ public:
      * @return std::string 返回值类型
      */
     std::string getConfigPath();
+
 private:
     /// 读写锁
     std::shared_mutex m_mutex;
@@ -134,4 +136,4 @@ private:
 
 typedef Singleton<Env> EnvMgr;
 
-}
+} // namespace chen

@@ -3,6 +3,7 @@
  * @brief 封装Server端的请求和响应
  * @author Christins
  * @date 2024-12-15
+ * @copyright GPL-3.0
  */
 #pragma once
 

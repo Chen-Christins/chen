@@ -1,5 +1,5 @@
 /**
- * @file zlib_stream.cc
+ * @file zlib_stream.h
  * @brief zlib stream
  * @author Christins (chen.christins@icloud.com)
  * @date 2026-05-26
@@ -41,8 +41,14 @@ public:
     static ZlibStream::ptr CreateGzip(bool encode, uint32_t buff_size = 4096);
     static ZlibStream::ptr CreateZlib(bool encode, uint32_t buff_size = 4096);
     static ZlibStream::ptr CreateDeflate(bool encode, uint32_t buff_size = 4096);
-    static ZlibStream::ptr Create(bool encode, uint32_t buff_size = 4096, Type type = DEFLATE, int level = DEFAULT_COMPRESSION,
-                                  int window_bits = 15, int memlevel = 8, Strategy strategy = DEFAULT);
+    static ZlibStream::ptr Create(
+        bool encode,
+        uint32_t buff_size = 4096,
+        Type type = DEFLATE,
+        int level = DEFAULT_COMPRESSION,
+        int window_bits = 15,
+        int memlevel = 8,
+        Strategy strategy = DEFAULT);
 
     ZlibStream(bool encode, uint32_t buff_size = 4096);
     ~ZlibStream();
@@ -66,8 +72,7 @@ public:
     ByteArray::ptr getByteArray();
 
 private:
-    int init(Type type = DEFLATE, int level = DEFAULT_COMPRESSION, int window_bits = 15, int memlevel = 8,
-             Strategy strategy = DEFAULT);
+    int init(Type type = DEFLATE, int level = DEFAULT_COMPRESSION, int window_bits = 15, int memlevel = 8, Strategy strategy = DEFAULT);
 
     int encode(const iovec* v, const uint64_t& size, bool finish);
     int decode(const iovec* v, const uint64_t& size, bool finish);

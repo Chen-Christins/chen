@@ -4,19 +4,15 @@
  * @details 支持解密Python端的多种加密方案
  * @author Christins
  * @date 2024-11-06
+ * @copyright GPL-3.0
  */
 #pragma once
 
-#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
-#include <openssl/rand.h>
 #include <openssl/sha.h>
 
 namespace chen::data {
@@ -40,7 +36,7 @@ struct DecryptionMetadata {
     EncryptionType type;
     std::map<std::string, std::string> data; // 存储字符串形式的元数据
 
-    DecryptionMetadata() : type(EncryptionType::NONE) {}
+    DecryptionMetadata();
 };
 
 /**

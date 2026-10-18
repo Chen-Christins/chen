@@ -2,7 +2,8 @@
 
 namespace chen::rpc {
 
-ByteArray::ptr Protocol::Encode(Protocol::ptr proto) {
+ByteArray::ptr Protocol::Encode(Protocol::ptr proto)
+{
     ByteArray::ptr ba(new ByteArray);
     ba->writeFuint8(proto->magic);
     ba->writeFuint8(proto->version);
@@ -27,7 +28,8 @@ ByteArray::ptr Protocol::Encode(Protocol::ptr proto) {
     return ba;
 }
 
-Protocol::ptr Protocol::Decode(ByteArray::ptr ba) {
+Protocol::ptr Protocol::Decode(ByteArray::ptr ba)
+{
     Protocol::ptr proto(new Protocol);
     proto->magic = ba->readFuint8();
     proto->version = ba->readFuint8();

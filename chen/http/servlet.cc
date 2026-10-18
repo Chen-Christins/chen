@@ -6,37 +6,55 @@
 
 namespace chen::http {
 
+Servlet::Servlet(const std::string& name)
+    : m_name(name)
+{
+}
+
+Servlet::~Servlet()
+{
+}
+
+bool Servlet::isStreamingBody() const
+{
+    return false;
+}
+
 FunctionServlet::FunctionServlet(callback cb, bool streamingBody)
     : Servlet("FunctionServlet")
     , m_cb(cb)
-    , m_streamingBody(streamingBody) {
+    , m_streamingBody(streamingBody)
+{
 }
 
-int32_t FunctionServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response
-        , HttpSession::ptr session) {
+int32_t FunctionServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)
+{
     return m_cb(request, response, session);
 }
 
 MethodServlet::MethodServlet()
-    : Servlet("MethodServlet") {
+    : Servlet("MethodServlet")
+{
 }
 
-void MethodServlet::addHandler(HttpMethod method, FunctionServlet::callback cb, bool streamingBody) {
+void MethodServlet::addHandler(HttpMethod method, FunctionServlet::callback cb, bool streamingBody)
+{
     m_handlers[method] = cb;
     if (streamingBody) {
         m_anyStreaming = true;
     }
 }
 
-void MethodServlet::setDefaultHandler(FunctionServlet::callback cb, bool streamingBody) {
+void MethodServlet::setDefaultHandler(FunctionServlet::callback cb, bool streamingBody)
+{
     m_defaultHandler = cb;
     if (streamingBody) {
         m_anyStreaming = true;
     }
 }
 
-int32_t MethodServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response
-        , HttpSession::ptr session) {
+int32_t MethodServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)
+{
     auto it = m_handlers.find(request->getMethod());
     if (it != m_handlers.end()) {
         return it->second(request, response, session);
@@ -48,7 +66,8 @@ int32_t MethodServlet::handle(HttpRequest::ptr request, HttpResponse::ptr respon
     std::stringstream allow;
     bool first = true;
     for (auto& pair : m_handlers) {
-        if (!first) allow << ", ";
+        if (!first)
+            allow << ", ";
         allow << HttpMethodToString(pair.first);
         first = false;
     }
@@ -58,14 +77,14 @@ int32_t MethodServlet::handle(HttpRequest::ptr request, HttpResponse::ptr respon
 
 NotFoundServlet::NotFoundServlet(const std::string& name)
     : Servlet("NotFoundServlet")
-    , m_name(name) {
-    m_content = "<html><head><title>404 Not Found"
-        "</title></head><body><center><h1>404 Not Found</h1></center>"
-        "<hr><center>" + name + "</center></body></html>";
+    , m_name(name)
+{
+    m_content =
+        "<html><head><title>404 Not Found</title></head><body><center><h1>404 Not Found</h1></center><hr><center>" + name + "</center></body></html>";
 }
 
-int32_t NotFoundServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response
-        , HttpSession::ptr session) {
+int32_t NotFoundServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)
+{
     response->setStatus(HttpStatus::NOT_FOUND);
     response->setHeader("Server", m_name);
     response->setHeader("Content-Type", "text/html");
@@ -76,7 +95,8 @@ int32_t NotFoundServlet::handle(HttpRequest::ptr request, HttpResponse::ptr resp
 
 // --- ServletDispatch helpers ---
 
-static std::vector<std::string> splitPath(const std::string& path) {
+static std::vector<std::string> splitPath(const std::string& path)
+{
     std::vector<std::string> result;
     size_t start = 0;
     if (!path.empty() && path[0] == '/') {
@@ -98,7 +118,8 @@ static std::vector<std::string> splitPath(const std::string& path) {
     return result;
 }
 
-static bool isRestfulPattern(const std::vector<std::string>& segments) {
+static bool isRestfulPattern(const std::vector<std::string>& segments)
+{
     for (auto& seg : segments) {
         if (!seg.empty() && seg[0] == ':') {
             return true;
@@ -109,7 +130,8 @@ static bool isRestfulPattern(const std::vector<std::string>& segments) {
 
 // Match a RESTful route against a request path. If request != nullptr,
 // extracted path params are stored in request->m_params.
-static Servlet::ptr matchRestfulRoute(const ServletDispatch::RestfulRoute& route, const std::string& path, HttpRequest::ptr request = nullptr) {
+static Servlet::ptr matchRestfulRoute(const ServletDispatch::RestfulRoute& route, const std::string& path, HttpRequest::ptr request = nullptr)
+{
     auto pathSegs = splitPath(path);
     if (pathSegs.size() != route.segments.size()) {
         return nullptr;
@@ -133,11 +155,13 @@ static Servlet::ptr matchRestfulRoute(const ServletDispatch::RestfulRoute& route
 // --- ServletDispatch ---
 
 ServletDispatch::ServletDispatch()
-        : Servlet("ServletDispatch") {
+    : Servlet("ServletDispatch")
+{
     m_default.reset(new NotFoundServlet("chen/1.0"));
 }
 
-int32_t ServletDispatch::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session) {
+int32_t ServletDispatch::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)
+{
     std::shared_lock lock(m_mutex);
     const std::string& path = request->getPath();
 
@@ -170,7 +194,8 @@ int32_t ServletDispatch::handle(HttpRequest::ptr request, HttpResponse::ptr resp
     return 0;
 }
 
-void ServletDispatch::addServlet(const std::string& uri, Servlet::ptr slt) {
+void ServletDispatch::addServlet(const std::string& uri, Servlet::ptr slt)
+{
     std::unique_lock lock(m_mutex);
     auto segs = splitPath(uri);
     if (isRestfulPattern(segs)) {
@@ -187,11 +212,13 @@ void ServletDispatch::addServlet(const std::string& uri, Servlet::ptr slt) {
     }
 }
 
-void ServletDispatch::addServlet(const std::string& uri, FunctionServlet::callback cb) {
+void ServletDispatch::addServlet(const std::string& uri, FunctionServlet::callback cb)
+{
     addServlet(uri, Servlet::ptr(new FunctionServlet(cb)));
 }
 
-void ServletDispatch::addServlet(const std::string& uri, HttpMethod method, FunctionServlet::callback cb, bool streamingBody) {
+void ServletDispatch::addServlet(const std::string& uri, HttpMethod method, FunctionServlet::callback cb, bool streamingBody)
+{
     std::unique_lock lock(m_mutex);
     auto segs = splitPath(uri);
     if (isRestfulPattern(segs)) {
@@ -222,7 +249,8 @@ void ServletDispatch::addServlet(const std::string& uri, HttpMethod method, Func
     }
 }
 
-void ServletDispatch::addGlobServlet(const std::string& uri, Servlet::ptr slt) {
+void ServletDispatch::addGlobServlet(const std::string& uri, Servlet::ptr slt)
+{
     std::unique_lock lock(m_mutex);
     for (auto it = m_globs.begin(); it != m_globs.end(); ++it) {
         if (it->first == uri) {
@@ -233,11 +261,13 @@ void ServletDispatch::addGlobServlet(const std::string& uri, Servlet::ptr slt) {
     m_globs.push_back(std::pair(uri, slt));
 }
 
-void ServletDispatch::addGlobServlet(const std::string& uri, FunctionServlet::callback cb) {
+void ServletDispatch::addGlobServlet(const std::string& uri, FunctionServlet::callback cb)
+{
     return addGlobServlet(uri, FunctionServlet::ptr(new FunctionServlet(cb)));
 }
 
-void ServletDispatch::delServlet(const std::string& uri) {
+void ServletDispatch::delServlet(const std::string& uri)
+{
     std::unique_lock lock(m_mutex);
     m_datas.erase(uri);
     // Also try to remove RESTful route
@@ -250,7 +280,8 @@ void ServletDispatch::delServlet(const std::string& uri) {
     }
 }
 
-void ServletDispatch::delGlobServlet(const std::string& uri) {
+void ServletDispatch::delGlobServlet(const std::string& uri)
+{
     std::unique_lock lock(m_mutex);
     for (auto it = m_globs.begin(); it != m_globs.end(); ++it) {
         if (it->first == uri) {
@@ -260,7 +291,8 @@ void ServletDispatch::delGlobServlet(const std::string& uri) {
     }
 }
 
-void ServletDispatch::clear() {
+void ServletDispatch::clear()
+{
     std::unique_lock lock(m_mutex);
     m_datas.clear();
     m_restful.clear();
@@ -268,7 +300,8 @@ void ServletDispatch::clear() {
     m_default.reset();
 }
 
-void ServletDispatch::clearServlets() {
+void ServletDispatch::clearServlets()
+{
     std::unique_lock lock(m_mutex);
     m_datas.clear();
     m_restful.clear();
@@ -276,7 +309,8 @@ void ServletDispatch::clearServlets() {
     // 保留 m_default（NotFoundServlet），不清空
 }
 
-Servlet::ptr ServletDispatch::getServlet(const std::string& uri) {
+Servlet::ptr ServletDispatch::getServlet(const std::string& uri)
+{
     std::shared_lock lock(m_mutex);
     auto it = m_datas.find(uri);
     if (it != m_datas.end()) {
@@ -292,7 +326,8 @@ Servlet::ptr ServletDispatch::getServlet(const std::string& uri) {
     return nullptr;
 }
 
-Servlet::ptr ServletDispatch::getGlobServlet(const std::string& uri) {
+Servlet::ptr ServletDispatch::getGlobServlet(const std::string& uri)
+{
     std::shared_lock lock(m_mutex);
     for (auto it = m_globs.begin(); it != m_globs.end(); ++it) {
         if (it->first == uri) {
@@ -302,7 +337,8 @@ Servlet::ptr ServletDispatch::getGlobServlet(const std::string& uri) {
     return nullptr;
 }
 
-Servlet::ptr ServletDispatch::getMatchedServlet(const std::string& uri) {
+Servlet::ptr ServletDispatch::getMatchedServlet(const std::string& uri)
+{
     std::shared_lock lock(m_mutex);
     // 1. Exact match
     auto mit = m_datas.find(uri);
@@ -325,7 +361,8 @@ Servlet::ptr ServletDispatch::getMatchedServlet(const std::string& uri) {
     return m_default;
 }
 
-Servlet::ptr ServletDispatch::matchForRequest(HttpRequest::ptr request) {
+Servlet::ptr ServletDispatch::matchForRequest(HttpRequest::ptr request)
+{
     std::shared_lock lock(m_mutex);
     const std::string& path = request->getPath();
 

@@ -6,13 +6,15 @@ namespace chen::http {
 
 static Logger::ptr logger = LOG_NAME("system");
 
-WSServer::WSServer(IOManager* worker, IOManager* io_worker, IOManager* accept_worker) 
-        : TcpServer(worker, io_worker, accept_worker) {
+WSServer::WSServer(IOManager* worker, IOManager* io_worker, IOManager* accept_worker)
+    : TcpServer(worker, io_worker, accept_worker)
+{
     m_dispatch.reset(new WSServletDispatch);
     m_type = "websocket_server";
 }
 
-void WSServer::handleClient(Socket::ptr client) {
+void WSServer::handleClient(Socket::ptr client)
+{
     DEBUG(logger) << "handleClient " << *client;
     WSSession::ptr session(std::make_shared<WSSession>(client));
     do {

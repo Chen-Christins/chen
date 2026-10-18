@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18..3.22)
-project(chen VERSION 1.5.5)
+project(chen VERSION 1.6.0)
 
 set(ROOT_DIR ${PROJECT_SOURCE_DIR})
 
@@ -26,11 +26,6 @@ protobuf_maker(chen/rpc/rpc.proto LIB_SRC ${CMAKE_CURRENT_SOURCE_DIR}/chen/rpc)
 
 add_library(chen SHARED ${LIB_SRC})
 
-# 依赖统一链接进 libchen.so，并区分可见性：
-#  - PUBLIC：这些库的头文件出现在 chen 的公开头文件里（protobuf/yaml-cpp/tinyxml2/jsoncpp/
-#    hiredis-vip/nghttp2/sqlite3/mysql/event/openssl/boost/pthread），消费者需要从而传递；
-#  - PRIVATE：仅实现内部使用、公开头文件不暴露（crypt/dl）。
-# 三方静态库静态进 libchen 后，其符号随共享库导出，下游 dlopen 的模块可直接解析。
 target_link_libraries(chen
     PUBLIC
         ${JSONCPP_LIB}

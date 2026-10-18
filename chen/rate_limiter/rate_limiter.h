@@ -3,6 +3,7 @@
  * @brief 令牌桶限流器
  * @author Christins
  * @date 2026-08-24
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -64,4 +65,4 @@ private:
     std::chrono::steady_clock::time_point m_lastTime;
 };
 
-}
+} // namespace chen

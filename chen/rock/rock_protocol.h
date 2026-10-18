@@ -15,19 +15,20 @@ namespace chen {
 class RockBody {
 public:
     typedef std::shared_ptr<RockBody> ptr;
-    virtual ~RockBody(){}
+    virtual ~RockBody();
 
-    void setBody(const std::string& v) { m_body = v;}
-    const std::string& getBody() const { return m_body;}
+    void setBody(const std::string& v) { m_body = v; }
+    const std::string& getBody() const { return m_body; }
 
     virtual bool serializeToByteArray(ByteArray::ptr bytearray);
     virtual bool parseFromByteArray(ByteArray::ptr bytearray);
 
-    template<class T>
-    std::shared_ptr<T> getAsPB() const {
+    template <class T>
+    std::shared_ptr<T> getAsPB() const
+    {
         try {
             std::shared_ptr<T> data(new T);
-            if(data->ParseFromString(m_body)) {
+            if (data->ParseFromString(m_body)) {
                 return data;
             }
         } catch (...) {
@@ -35,14 +36,16 @@ public:
         return nullptr;
     }
 
-    template<class T>
-    bool setAsPB(const T& v) {
+    template <class T>
+    bool setAsPB(const T& v)
+    {
         try {
             return v.SerializeToString(&m_body);
         } catch (...) {
         }
         return false;
     }
+
 protected:
     std::string m_body;
 };

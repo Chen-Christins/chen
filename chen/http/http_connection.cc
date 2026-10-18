@@ -10,19 +10,26 @@ namespace chen::http {
 
 static Logger::ptr logger = LOG_NAME("system");
 
-std::string HttpResult::toString() const {
+HttpResult::HttpResult(int _result, HttpResponse::ptr _response, const std::string& _error)
+    : result(_result)
+    , response(_response)
+    , error(_error)
+{
+}
+
+std::string HttpResult::toString() const
+{
     std::stringstream ss;
-    ss << "[HttpResult result=" << result
-       << " error=" << error
-       << " response=" << (response ? response->toString() : "nullptr")
-       << "]";
+    ss << "[HttpResult result=" << result << " error=" << error << " response=" << (response ? response->toString() : "nullptr") << "]";
     return ss.str();
 }
 
-HttpResult::ptr HttpConnection::DoGet(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers
-                ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoGet(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     Uri::ptr uri = Uri::Create(url);
     if (!uri) {
         return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL, nullptr, "invalid url: " + url);
@@ -30,17 +37,17 @@ HttpResult::ptr HttpConnection::DoGet(const std::string& url
     return DoGet(uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoGet(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoGet(Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers, const std::string& body)
+{
     return DoRequest(HttpMethod::GET, uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoPost(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoPost(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     Uri::ptr uri = Uri::Create(url);
     if (!uri) {
         return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL, nullptr, "invalid url: " + url);
@@ -48,17 +55,17 @@ HttpResult::ptr HttpConnection::DoPost(const std::string& url
     return DoPost(uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoPost(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoPost(Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers, const std::string& body)
+{
     return DoRequest(HttpMethod::POST, uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoPut(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoPut(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     Uri::ptr uri = Uri::Create(url);
     if (!uri) {
         return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL, nullptr, "invalid url: " + url);
@@ -66,17 +73,17 @@ HttpResult::ptr HttpConnection::DoPut(const std::string& url
     return DoPut(uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoPut(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoPut(Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers, const std::string& body)
+{
     return DoRequest(HttpMethod::PUT, uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoPatch(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoPatch(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     Uri::ptr uri = Uri::Create(url);
     if (!uri) {
         return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL, nullptr, "invalid url: " + url);
@@ -84,17 +91,17 @@ HttpResult::ptr HttpConnection::DoPatch(const std::string& url
     return DoPatch(uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoPatch(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoPatch(Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers, const std::string& body)
+{
     return DoRequest(HttpMethod::PATCH, uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoDelete(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoDelete(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     Uri::ptr uri = Uri::Create(url);
     if (!uri) {
         return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL, nullptr, "invalid url: " + url);
@@ -102,17 +109,21 @@ HttpResult::ptr HttpConnection::DoDelete(const std::string& url
     return DoDelete(uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoDelete(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoDelete(
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     return DoRequest(HttpMethod::DELETE, uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoHead(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoHead(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     Uri::ptr uri = Uri::Create(url);
     if (!uri) {
         return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL, nullptr, "invalid url: " + url);
@@ -120,17 +131,17 @@ HttpResult::ptr HttpConnection::DoHead(const std::string& url
     return DoHead(uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoHead(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoHead(Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers, const std::string& body)
+{
     return DoRequest(HttpMethod::HEAD, uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoOptions(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoOptions(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     Uri::ptr uri = Uri::Create(url);
     if (!uri) {
         return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL, nullptr, "invalid url: " + url);
@@ -138,18 +149,22 @@ HttpResult::ptr HttpConnection::DoOptions(const std::string& url
     return DoOptions(uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoOptions(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoOptions(
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     return DoRequest(HttpMethod::OPTIONS, uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoRequest(HttpMethod method
-            ,const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoRequest(
+    HttpMethod method,
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     Uri::ptr uri = Uri::Create(url);
     if (!uri) {
         return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL, nullptr, "invalid url: " + url);
@@ -157,11 +172,13 @@ HttpResult::ptr HttpConnection::DoRequest(HttpMethod method
     return DoRequest(method, uri, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoRequest(HttpMethod method
-            ,Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoRequest(
+    HttpMethod method,
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     HttpRequest::ptr req = std::make_shared<HttpRequest>();
     req->setPath(uri->getPath());
     req->setQuery(uri->getQuery());
@@ -189,13 +206,11 @@ HttpResult::ptr HttpConnection::DoRequest(HttpMethod method
     return DoRequest(req, uri, timeout_ms);
 }
 
-HttpResult::ptr HttpConnection::DoRequest(HttpRequest::ptr req
-            ,Uri::ptr uri
-            ,uint64_t timeout_ms) {
+HttpResult::ptr HttpConnection::DoRequest(HttpRequest::ptr req, Uri::ptr uri, uint64_t timeout_ms)
+{
     Address::ptr addr = uri->createAddress();
     if (!addr) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_HOST, nullptr,
-                                            "invalid host: " + uri->getHost());
+        return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_HOST, nullptr, "invalid host: " + uri->getHost());
     }
     Socket::ptr sock;
     if (uri->getScheme() == "https") {
@@ -204,42 +219,40 @@ HttpResult::ptr HttpConnection::DoRequest(HttpRequest::ptr req
         sock = Socket::CreateTCP(addr);
     }
     if (!sock) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::CREATE_SOCKET_ERROR
-                , nullptr, "create socket fail: " + addr->toString()
-                        + " errno=" + std::to_string(errno)
-                        + " errstr=" + std::string(strerror(errno)));
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::CREATE_SOCKET_ERROR, nullptr,
+            "create socket fail: " + addr->toString() + " errno=" + std::to_string(errno) + " errstr=" + std::string(strerror(errno)));
     }
     if (!sock->connect(addr)) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::CONNECT_FAIL
-                , nullptr, "connect fail: " + addr->toString());
+        return std::make_shared<HttpResult>((int)HttpResult::Error::CONNECT_FAIL, nullptr, "connect fail: " + addr->toString());
     }
     sock->setRecvTimeout(timeout_ms);
     HttpConnection::ptr conn = std::make_shared<HttpConnection>(sock);
     int rt = conn->sendRequest(req);
     if (rt == 0) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_CLOSE_BY_PEER, nullptr,
-                                            "send request closed by peer: " + addr->toString());
+        return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_CLOSE_BY_PEER, nullptr, "send request closed by peer: " + addr->toString());
     }
     if (rt < 0) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_SOCKET_ERROR, nullptr,
-                                            "send request socket error errno=" + std::to_string(errno) +
-                                                " errstr=" + std::string(strerror(errno)));
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::SEND_SOCKET_ERROR, nullptr,
+            "send request socket error errno=" + std::to_string(errno) + " errstr=" + std::string(strerror(errno)));
     }
     auto rsp = conn->recvResponse();
     if (!rsp) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::TIMEOUT, nullptr,
-                                            "recv response timeout: " + addr->toString() +
-                                                " timeout_ms:" + std::to_string(timeout_ms));
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::TIMEOUT, nullptr, "recv response timeout: " + addr->toString() + " timeout_ms:" + std::to_string(timeout_ms));
     }
     return std::make_shared<HttpResult>((int)HttpResult::Error::OK, rsp, "ok");
 }
 
-HttpResult::ptr HttpConnection::DoRequestStreaming(HttpMethod method
-            ,const std::string& url
-            ,uint64_t timeout_ms
-            ,HttpStreamCallback callback
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoRequestStreaming(
+    HttpMethod method,
+    const std::string& url,
+    uint64_t timeout_ms,
+    HttpStreamCallback callback,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     Uri::ptr uri = Uri::Create(url);
     if (!uri) {
         return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL, nullptr, "invalid url: " + url);
@@ -247,12 +260,14 @@ HttpResult::ptr HttpConnection::DoRequestStreaming(HttpMethod method
     return DoRequestStreaming(method, uri, timeout_ms, callback, headers, body);
 }
 
-HttpResult::ptr HttpConnection::DoRequestStreaming(HttpMethod method
-            ,Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,HttpStreamCallback callback
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnection::DoRequestStreaming(
+    HttpMethod method,
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    HttpStreamCallback callback,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     HttpRequest::ptr req = std::make_shared<HttpRequest>();
     req->setPath(uri->getPath());
     req->setQuery(uri->getQuery());
@@ -280,14 +295,11 @@ HttpResult::ptr HttpConnection::DoRequestStreaming(HttpMethod method
     return DoRequestStreaming(req, uri, timeout_ms, callback);
 }
 
-HttpResult::ptr HttpConnection::DoRequestStreaming(HttpRequest::ptr req
-            ,Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,HttpStreamCallback callback) {
+HttpResult::ptr HttpConnection::DoRequestStreaming(HttpRequest::ptr req, Uri::ptr uri, uint64_t timeout_ms, HttpStreamCallback callback)
+{
     Address::ptr addr = uri->createAddress();
     if (!addr) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_HOST, nullptr,
-                                            "invalid host: " + uri->getHost());
+        return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_HOST, nullptr, "invalid host: " + uri->getHost());
     }
     Socket::ptr sock;
     if (uri->getScheme() == "https") {
@@ -296,49 +308,50 @@ HttpResult::ptr HttpConnection::DoRequestStreaming(HttpRequest::ptr req
         sock = Socket::CreateTCP(addr);
     }
     if (!sock) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::CREATE_SOCKET_ERROR
-                , nullptr, "create socket fail: " + addr->toString()
-                        + " errno=" + std::to_string(errno)
-                        + " errstr=" + std::string(strerror(errno)));
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::CREATE_SOCKET_ERROR, nullptr,
+            "create socket fail: " + addr->toString() + " errno=" + std::to_string(errno) + " errstr=" + std::string(strerror(errno)));
     }
     if (!sock->connect(addr)) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::CONNECT_FAIL
-                , nullptr, "connect fail: " + addr->toString());
+        return std::make_shared<HttpResult>((int)HttpResult::Error::CONNECT_FAIL, nullptr, "connect fail: " + addr->toString());
     }
     sock->setRecvTimeout(timeout_ms);
     HttpConnection::ptr conn = std::make_shared<HttpConnection>(sock);
     int rt = conn->sendRequest(req);
     if (rt == 0) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_CLOSE_BY_PEER, nullptr,
-                                            "send request closed by peer: " + addr->toString());
+        return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_CLOSE_BY_PEER, nullptr, "send request closed by peer: " + addr->toString());
     }
     if (rt < 0) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_SOCKET_ERROR, nullptr,
-                                            "send request socket error errno=" + std::to_string(errno) +
-                                                " errstr=" + std::string(strerror(errno)));
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::SEND_SOCKET_ERROR, nullptr,
+            "send request socket error errno=" + std::to_string(errno) + " errstr=" + std::string(strerror(errno)));
     }
     auto rsp = conn->recvResponseStreaming(callback);
     if (!rsp) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::TIMEOUT, nullptr,
-                                            "recv response timeout: " + addr->toString() +
-                                                " timeout_ms:" + std::to_string(timeout_ms));
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::TIMEOUT, nullptr, "recv response timeout: " + addr->toString() + " timeout_ms:" + std::to_string(timeout_ms));
     }
     return std::make_shared<HttpResult>((int)HttpResult::Error::OK, rsp, "ok");
 }
 
 HttpConnection::HttpConnection(Socket::ptr sock, bool owner)
-    : SocketStream(sock, owner) {
+    : SocketStream(sock, owner)
+{
 }
 
-HttpConnection::~HttpConnection() {
+HttpConnection::~HttpConnection()
+{
     DEBUG(logger) << "HttpConnection::~HttpConnection";
 }
 
-HttpResponse::ptr HttpConnection::recvResponse() {
+HttpResponse::ptr HttpConnection::recvResponse()
+{
     HttpResponseParser::ptr parser(new HttpResponseParser);
     uint64_t buff_size = HttpRequestParser::GetHttpRequestBufferSize();
-    
-    std::shared_ptr<char> buffer(new char[buff_size + 1], [](char* ptr) { delete[] ptr; });
+
+    std::shared_ptr<char> buffer(new char[buff_size + 1], [](char* ptr) {
+        delete[] ptr;
+    });
     char* data = buffer.get();
     int offset = 0;
     do {
@@ -454,11 +467,14 @@ HttpResponse::ptr HttpConnection::recvResponse() {
     return parser->getData();
 }
 
-HttpResponse::ptr HttpConnection::recvResponseStreaming(HttpStreamCallback callback) {
+HttpResponse::ptr HttpConnection::recvResponseStreaming(HttpStreamCallback callback)
+{
     HttpResponseParser::ptr parser(new HttpResponseParser);
     uint64_t buff_size = HttpRequestParser::GetHttpRequestBufferSize();
 
-    std::shared_ptr<char> buffer(new char[buff_size + 1], [](char* ptr) { delete[] ptr; });
+    std::shared_ptr<char> buffer(new char[buff_size + 1], [](char* ptr) {
+        delete[] ptr;
+    });
     char* data = buffer.get();
     int offset = 0;
     do {
@@ -593,28 +609,33 @@ HttpResponse::ptr HttpConnection::recvResponseStreaming(HttpStreamCallback callb
     return parser->getData();
 }
 
-int HttpConnection::sendRequest(HttpRequest::ptr req) {
+int HttpConnection::sendRequest(HttpRequest::ptr req)
+{
     std::stringstream ss;
     ss << *req;
     std::string data = ss.str();
     return writeFixSize(data.c_str(), data.size());
 }
 
-HttpConnectionPool::HttpConnectionPool(const std::string& host, const std::string& vhost
-                ,int32_t port
-                ,uint32_t max_size
-                ,uint32_t max_alive_time
-                ,uint32_t max_request)
-    :m_host(host)
-    ,m_vhost(vhost)
-    ,m_port(port)
-    ,m_maxSize(max_size)
-    ,m_maxAliveTime(max_alive_time)
-    ,m_maxRequest(max_request) {
+HttpConnectionPool::HttpConnectionPool(
+    const std::string& host,
+    const std::string& vhost,
+    int32_t port,
+    uint32_t max_size,
+    uint32_t max_alive_time,
+    uint32_t max_request)
+    : m_host(host)
+    , m_vhost(vhost)
+    , m_port(port)
+    , m_maxSize(max_size)
+    , m_maxAliveTime(max_alive_time)
+    , m_maxRequest(max_request)
+{
 }
 
-HttpConnection::ptr HttpConnectionPool::getConnection() {
-    uint64_t now_ms = GetCurrentMs();
+HttpConnection::ptr HttpConnectionPool::getConnection()
+{
+    uint64_t now_ms = TimeUtil::GetCurrentMs();
     std::vector<HttpConnection*> invalid_conns;
     HttpConnection* ptr = nullptr;
     std::unique_lock lock(m_mutex);
@@ -661,151 +682,153 @@ HttpConnection::ptr HttpConnectionPool::getConnection() {
     return HttpConnection::ptr(ptr, std::bind(&HttpConnectionPool::ReleasePtr, std::placeholders::_1, this));
 }
 
-HttpResult::ptr HttpConnectionPool::doGet(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doGet(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     return doRequest(HttpMethod::GET, url, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doGet(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doGet(
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     std::stringstream ss;
-    ss << uri->getPath()
-       << (uri->getQuery().empty() ? "" : "?")
-       << uri->getQuery()
-       << (uri->getFragment().empty() ? "" : "#")
-       << uri->getFragment();
+    ss << uri->getPath() << (uri->getQuery().empty() ? "" : "?") << uri->getQuery() << (uri->getFragment().empty() ? "" : "#") << uri->getFragment();
     return doGet(ss.str(), timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doPost(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doPost(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     return doRequest(HttpMethod::POST, url, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doPost(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doPost(
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     std::stringstream ss;
-    ss << uri->getPath()
-       << (uri->getQuery().empty() ? "" : "?")
-       << uri->getQuery()
-       << (uri->getFragment().empty() ? "" : "#")
-       << uri->getFragment();
+    ss << uri->getPath() << (uri->getQuery().empty() ? "" : "?") << uri->getQuery() << (uri->getFragment().empty() ? "" : "#") << uri->getFragment();
     return doPost(ss.str(), timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doPut(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doPut(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     return doRequest(HttpMethod::PUT, url, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doPut(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doPut(
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     std::stringstream ss;
-    ss << uri->getPath()
-       << (uri->getQuery().empty() ? "" : "?")
-       << uri->getQuery()
-       << (uri->getFragment().empty() ? "" : "#")
-       << uri->getFragment();
+    ss << uri->getPath() << (uri->getQuery().empty() ? "" : "?") << uri->getQuery() << (uri->getFragment().empty() ? "" : "#") << uri->getFragment();
     return doPut(ss.str(), timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doPatch(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doPatch(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     return doRequest(HttpMethod::PATCH, url, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doPatch(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doPatch(
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     std::stringstream ss;
-    ss << uri->getPath()
-       << (uri->getQuery().empty() ? "" : "?")
-       << uri->getQuery()
-       << (uri->getFragment().empty() ? "" : "#")
-       << uri->getFragment();
+    ss << uri->getPath() << (uri->getQuery().empty() ? "" : "?") << uri->getQuery() << (uri->getFragment().empty() ? "" : "#") << uri->getFragment();
     return doPatch(ss.str(), timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doDelete(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doDelete(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     return doRequest(HttpMethod::DELETE, url, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doDelete(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doDelete(
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     std::stringstream ss;
-    ss << uri->getPath()
-       << (uri->getQuery().empty() ? "" : "?")
-       << uri->getQuery()
-       << (uri->getFragment().empty() ? "" : "#")
-       << uri->getFragment();
+    ss << uri->getPath() << (uri->getQuery().empty() ? "" : "?") << uri->getQuery() << (uri->getFragment().empty() ? "" : "#") << uri->getFragment();
     return doDelete(ss.str(), timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doHead(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doHead(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     return doRequest(HttpMethod::HEAD, url, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doHead(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doHead(
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     std::stringstream ss;
-    ss << uri->getPath()
-       << (uri->getQuery().empty() ? "" : "?")
-       << uri->getQuery()
-       << (uri->getFragment().empty() ? "" : "#")
-       << uri->getFragment();
+    ss << uri->getPath() << (uri->getQuery().empty() ? "" : "?") << uri->getQuery() << (uri->getFragment().empty() ? "" : "#") << uri->getFragment();
     return doHead(ss.str(), timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doOptions(const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doOptions(
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     return doRequest(HttpMethod::OPTIONS, url, timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doOptions(Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doOptions(
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     std::stringstream ss;
-    ss << uri->getPath()
-       << (uri->getQuery().empty() ? "" : "?")
-       << uri->getQuery()
-       << (uri->getFragment().empty() ? "" : "#")
-       << uri->getFragment();
+    ss << uri->getPath() << (uri->getQuery().empty() ? "" : "?") << uri->getQuery() << (uri->getFragment().empty() ? "" : "#") << uri->getFragment();
     return doOptions(ss.str(), timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doRequest(HttpMethod method
-            ,const std::string& url
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doRequest(
+    HttpMethod method,
+    const std::string& url,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     HttpRequest::ptr req = std::make_shared<HttpRequest>();
     req->setPath(url);
     req->setMethod(method);
@@ -836,56 +859,54 @@ HttpResult::ptr HttpConnectionPool::doRequest(HttpMethod method
     return doRequest(req, timeout_ms);
 }
 
-HttpResult::ptr HttpConnectionPool::doRequest(HttpMethod method
-            ,Uri::ptr uri
-            ,uint64_t timeout_ms
-            ,const std::map<std::string, std::string>& headers
-            ,const std::string& body) {
+HttpResult::ptr HttpConnectionPool::doRequest(
+    HttpMethod method,
+    Uri::ptr uri,
+    uint64_t timeout_ms,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body)
+{
     std::stringstream ss;
-    ss << uri->getPath()
-       << (uri->getQuery().empty() ? "" : "?")
-       << uri->getQuery()
-       << (uri->getFragment().empty() ? "" : "#")
-       << uri->getFragment();
+    ss << uri->getPath() << (uri->getQuery().empty() ? "" : "?") << uri->getQuery() << (uri->getFragment().empty() ? "" : "#") << uri->getFragment();
     return doRequest(method, ss.str(), timeout_ms, headers, body);
 }
 
-HttpResult::ptr HttpConnectionPool::doRequest(HttpRequest::ptr req, uint64_t timeout_ms) {
+HttpResult::ptr HttpConnectionPool::doRequest(HttpRequest::ptr req, uint64_t timeout_ms)
+{
     auto conn = getConnection();
     if (!conn) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::POOL_GET_CONNECTION, nullptr
-                            ,"pool host:" + m_host + " port:" + std::to_string(m_port));
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::POOL_GET_CONNECTION, nullptr, "pool host:" + m_host + " port:" + std::to_string(m_port));
     }
     auto sock = conn->getSocket();
     if (!sock) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::POOL_INVALID_CONNECTION, nullptr
-                            ,"pool host:" + m_host + " port:" + std::to_string(m_port));
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::POOL_INVALID_CONNECTION, nullptr, "pool host:" + m_host + " port:" + std::to_string(m_port));
     }
     sock->setRecvTimeout(timeout_ms);
     int rt = conn->sendRequest(req);
     if (rt == 0) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_CLOSE_BY_PEER, nullptr
-                            ,"send request closed by peer: " + sock->getRemoteAddress()->toString());
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::SEND_CLOSE_BY_PEER, nullptr, "send request closed by peer: " + sock->getRemoteAddress()->toString());
     }
     if (rt < 0) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_SOCKET_ERROR, nullptr
-                            ,"send request socket error errno=" + std::to_string(errno) 
-                            + " errstr=" + std::string(strerror(errno)));
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::SEND_SOCKET_ERROR, nullptr,
+            "send request socket error errno=" + std::to_string(errno) + " errstr=" + std::string(strerror(errno)));
     }
     auto rsp = conn->recvResponse();
     if (!rsp) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::TIMEOUT, nullptr
-                            ,"recv response timeout: " + sock->getRemoteAddress()->toString() 
-                            + " timeout_ms:" + std::to_string(timeout_ms));
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::TIMEOUT, nullptr,
+            "recv response timeout: " + sock->getRemoteAddress()->toString() + " timeout_ms:" + std::to_string(timeout_ms));
     }
     return std::make_shared<HttpResult>((int)HttpResult::Error::OK, rsp, "ok");
 }
 
-void HttpConnectionPool::ReleasePtr(HttpConnection* ptr, HttpConnectionPool* pool) {
+void HttpConnectionPool::ReleasePtr(HttpConnection* ptr, HttpConnectionPool* pool)
+{
     ++ptr->m_request;
-    if (!ptr->isConnected()
-            || ((ptr->m_createTime + pool->m_maxAliveTime) >= GetCurrentMs())
-            || (ptr->m_request >= pool->m_maxRequest)) {
+    if (!ptr->isConnected() || ((ptr->m_createTime + pool->m_maxAliveTime) >= TimeUtil::GetCurrentMs()) || (ptr->m_request >= pool->m_maxRequest)) {
         delete ptr;
         --pool->m_total;
         return;

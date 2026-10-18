@@ -8,31 +8,36 @@ namespace chen {
 
 static chen::Logger::ptr g_logger = LOG_NAME("system");
 
-QueryBuilder::ptr QueryBuilder::Create(const std::string& table) {
+QueryBuilder::ptr QueryBuilder::Create(const std::string& table)
+{
     QueryBuilder::ptr qb(new QueryBuilder);
     qb->m_table = table;
     return qb;
 }
 
-QueryBuilder::ptr QueryBuilder::select(const std::string& cols) {
+QueryBuilder::ptr QueryBuilder::select(const std::string& cols)
+{
     m_selectCols = cols;
     return shared_from_this();
 }
 
 // ---- Internal helpers ----
 
-void QueryBuilder::addWhereClause(const std::string& conjunction, const std::string& clause, Param p) {
+void QueryBuilder::addWhereClause(const std::string& conjunction, const std::string& clause, Param p)
+{
     m_whereClauses.push_back(clause);
     m_whereConjunctions.push_back(conjunction);
     m_whereParams.push_back(std::move(p));
 }
 
-void QueryBuilder::addHavingClause(const std::string& clause, Param p) {
+void QueryBuilder::addHavingClause(const std::string& clause, Param p)
+{
     m_havingClauses.push_back(clause);
     m_havingParams.push_back(std::move(p));
 }
 
-void QueryBuilder::bindParamArray(chen::IStmt::ptr stmt, const std::vector<Param>& params, int& idx) const {
+void QueryBuilder::bindParamArray(chen::IStmt::ptr stmt, const std::vector<Param>& params, int& idx) const
+{
     if (!stmt) {
         ERROR(g_logger) << "QueryBuilder::bindParamArray stmt is null";
         return;
@@ -59,7 +64,8 @@ void QueryBuilder::bindParamArray(chen::IStmt::ptr stmt, const std::vector<Param
     }
 }
 
-void QueryBuilder::buildWhereClause(std::stringstream& ss) const {
+void QueryBuilder::buildWhereClause(std::stringstream& ss) const
+{
     if (!m_whereClauses.empty()) {
         ss << " WHERE ";
         for (size_t i = 0; i < m_whereClauses.size(); ++i) {
@@ -73,138 +79,176 @@ void QueryBuilder::buildWhereClause(std::stringstream& ss) const {
 
 // ---- WHERE (AND) ----
 
-QueryBuilder::ptr QueryBuilder::where(const std::string& col, const std::string& op, int64_t val) {
+QueryBuilder::ptr QueryBuilder::where(const std::string& col, const std::string& op, int64_t val)
+{
     addWhereClause("AND", col + " " + op + " ?", {Param::INT64_VAL, val, 0.0, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::where(const std::string& col, const std::string& op, const std::string& val) {
+QueryBuilder::ptr QueryBuilder::where(const std::string& col, const std::string& op, const std::string& val)
+{
     addWhereClause("AND", col + " " + op + " ?", {Param::STRING_VAL, 0, 0.0, val});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::where(const std::string& col, const std::string& op, double val) {
+QueryBuilder::ptr QueryBuilder::where(const std::string& col, const std::string& op, double val)
+{
     addWhereClause("AND", col + " " + op + " ?", {Param::DOUBLE_VAL, 0, val, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereIf(bool condition, const std::string& col, const std::string& op, int64_t val) {
-    if (condition) return where(col, op, val);
+QueryBuilder::ptr QueryBuilder::whereIf(bool condition, const std::string& col, const std::string& op, int64_t val)
+{
+    if (condition)
+        return where(col, op, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereIf(bool condition, const std::string& col, const std::string& op, const std::string& val) {
-    if (condition) return where(col, op, val);
+QueryBuilder::ptr QueryBuilder::whereIf(bool condition, const std::string& col, const std::string& op, const std::string& val)
+{
+    if (condition)
+        return where(col, op, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereIf(bool condition, const std::string& col, const std::string& op, double val) {
-    if (condition) return where(col, op, val);
+QueryBuilder::ptr QueryBuilder::whereIf(bool condition, const std::string& col, const std::string& op, double val)
+{
+    if (condition)
+        return where(col, op, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereSQL(const std::string& sql, int64_t val) {
+QueryBuilder::ptr QueryBuilder::whereSQL(const std::string& sql, int64_t val)
+{
     addWhereClause("AND", sql, {Param::INT64_VAL, val, 0.0, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereSQL(const std::string& sql, const std::string& val) {
+QueryBuilder::ptr QueryBuilder::whereSQL(const std::string& sql, const std::string& val)
+{
     addWhereClause("AND", sql, {Param::STRING_VAL, 0, 0.0, val});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereSQL(const std::string& sql, double val) {
+QueryBuilder::ptr QueryBuilder::whereSQL(const std::string& sql, double val)
+{
     addWhereClause("AND", sql, {Param::DOUBLE_VAL, 0, val, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereSQLIf(bool condition, const std::string& sql, int64_t val) {
-    if (condition) return whereSQL(sql, val);
+QueryBuilder::ptr QueryBuilder::whereSQLIf(bool condition, const std::string& sql, int64_t val)
+{
+    if (condition)
+        return whereSQL(sql, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereSQLIf(bool condition, const std::string& sql, const std::string& val) {
-    if (condition) return whereSQL(sql, val);
+QueryBuilder::ptr QueryBuilder::whereSQLIf(bool condition, const std::string& sql, const std::string& val)
+{
+    if (condition)
+        return whereSQL(sql, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereSQLIf(bool condition, const std::string& sql, double val) {
-    if (condition) return whereSQL(sql, val);
+QueryBuilder::ptr QueryBuilder::whereSQLIf(bool condition, const std::string& sql, double val)
+{
+    if (condition)
+        return whereSQL(sql, val);
     return shared_from_this();
 }
 
 // ---- WHERE (OR) ----
 
-QueryBuilder::ptr QueryBuilder::orWhere(const std::string& col, const std::string& op, int64_t val) {
+QueryBuilder::ptr QueryBuilder::orWhere(const std::string& col, const std::string& op, int64_t val)
+{
     addWhereClause("OR", col + " " + op + " ?", {Param::INT64_VAL, val, 0.0, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhere(const std::string& col, const std::string& op, const std::string& val) {
+QueryBuilder::ptr QueryBuilder::orWhere(const std::string& col, const std::string& op, const std::string& val)
+{
     addWhereClause("OR", col + " " + op + " ?", {Param::STRING_VAL, 0, 0.0, val});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhere(const std::string& col, const std::string& op, double val) {
+QueryBuilder::ptr QueryBuilder::orWhere(const std::string& col, const std::string& op, double val)
+{
     addWhereClause("OR", col + " " + op + " ?", {Param::DOUBLE_VAL, 0, val, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereIf(bool condition, const std::string& col, const std::string& op, int64_t val) {
-    if (condition) return orWhere(col, op, val);
+QueryBuilder::ptr QueryBuilder::orWhereIf(bool condition, const std::string& col, const std::string& op, int64_t val)
+{
+    if (condition)
+        return orWhere(col, op, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereIf(bool condition, const std::string& col, const std::string& op, const std::string& val) {
-    if (condition) return orWhere(col, op, val);
+QueryBuilder::ptr QueryBuilder::orWhereIf(bool condition, const std::string& col, const std::string& op, const std::string& val)
+{
+    if (condition)
+        return orWhere(col, op, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereIf(bool condition, const std::string& col, const std::string& op, double val) {
-    if (condition) return orWhere(col, op, val);
+QueryBuilder::ptr QueryBuilder::orWhereIf(bool condition, const std::string& col, const std::string& op, double val)
+{
+    if (condition)
+        return orWhere(col, op, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereSQL(const std::string& sql, int64_t val) {
+QueryBuilder::ptr QueryBuilder::orWhereSQL(const std::string& sql, int64_t val)
+{
     addWhereClause("OR", sql, {Param::INT64_VAL, val, 0.0, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereSQL(const std::string& sql, const std::string& val) {
+QueryBuilder::ptr QueryBuilder::orWhereSQL(const std::string& sql, const std::string& val)
+{
     addWhereClause("OR", sql, {Param::STRING_VAL, 0, 0.0, val});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereSQL(const std::string& sql, double val) {
+QueryBuilder::ptr QueryBuilder::orWhereSQL(const std::string& sql, double val)
+{
     addWhereClause("OR", sql, {Param::DOUBLE_VAL, 0, val, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereSQLIf(bool condition, const std::string& sql, int64_t val) {
-    if (condition) return orWhereSQL(sql, val);
+QueryBuilder::ptr QueryBuilder::orWhereSQLIf(bool condition, const std::string& sql, int64_t val)
+{
+    if (condition)
+        return orWhereSQL(sql, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereSQLIf(bool condition, const std::string& sql, const std::string& val) {
-    if (condition) return orWhereSQL(sql, val);
+QueryBuilder::ptr QueryBuilder::orWhereSQLIf(bool condition, const std::string& sql, const std::string& val)
+{
+    if (condition)
+        return orWhereSQL(sql, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereSQLIf(bool condition, const std::string& sql, double val) {
-    if (condition) return orWhereSQL(sql, val);
+QueryBuilder::ptr QueryBuilder::orWhereSQLIf(bool condition, const std::string& sql, double val)
+{
+    if (condition)
+        return orWhereSQL(sql, val);
     return shared_from_this();
 }
 
 // ---- WHERE IN ----
 
-QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, const std::vector<int64_t>& vals) {
+QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, const std::vector<int64_t>& vals)
+{
     if (vals.empty()) {
         return shared_from_this();
     }
     std::stringstream ss;
     ss << col << " IN (";
     for (size_t i = 0; i < vals.size(); ++i) {
-        if (i) ss << ", ";
+        if (i)
+            ss << ", ";
         ss << "?";
     }
     ss << ")";
@@ -216,14 +260,16 @@ QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, const std::vecto
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, const std::vector<std::string>& vals) {
+QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, const std::vector<std::string>& vals)
+{
     if (vals.empty()) {
         return shared_from_this();
     }
     std::stringstream ss;
     ss << col << " IN (";
     for (size_t i = 0; i < vals.size(); ++i) {
-        if (i) ss << ", ";
+        if (i)
+            ss << ", ";
         ss << "?";
     }
     ss << ")";
@@ -235,8 +281,10 @@ QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, const std::vecto
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, QueryBuilder::ptr sub) {
-    if (!sub) return shared_from_this();
+QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, QueryBuilder::ptr sub)
+{
+    if (!sub)
+        return shared_from_this();
     // Build subquery SQL without pagination (subquery in IN clause shouldn't have LIMIT/OFFSET)
     std::string subSql = sub->buildQuerySQL(sub->m_selectCols, false);
     m_whereClauses.push_back(col + " IN (" + subSql + ")");
@@ -253,36 +301,45 @@ QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, QueryBuilder::pt
 
 // ---- NULL / NOT NULL ----
 
-QueryBuilder::ptr QueryBuilder::whereNull(const std::string& col) {
+QueryBuilder::ptr QueryBuilder::whereNull(const std::string& col)
+{
     m_whereClauses.push_back(col + " IS NULL");
     m_whereConjunctions.push_back("AND");
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereNotNull(const std::string& col) {
+QueryBuilder::ptr QueryBuilder::whereNotNull(const std::string& col)
+{
     m_whereClauses.push_back(col + " IS NOT NULL");
     m_whereConjunctions.push_back("AND");
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereNullIf(bool cond, const std::string& col) {
-    if (cond) return whereNull(col);
+QueryBuilder::ptr QueryBuilder::whereNullIf(bool cond, const std::string& col)
+{
+    if (cond)
+        return whereNull(col);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereNotNullIf(bool cond, const std::string& col) {
-    if (cond) return whereNotNull(col);
+QueryBuilder::ptr QueryBuilder::whereNotNullIf(bool cond, const std::string& col)
+{
+    if (cond)
+        return whereNotNull(col);
     return shared_from_this();
 }
 
 // ---- WHERE NOT IN ----
 
-QueryBuilder::ptr QueryBuilder::whereNotIn(const std::string& col, const std::vector<int64_t>& vals) {
-    if (vals.empty()) return shared_from_this();
+QueryBuilder::ptr QueryBuilder::whereNotIn(const std::string& col, const std::vector<int64_t>& vals)
+{
+    if (vals.empty())
+        return shared_from_this();
     std::stringstream ss;
     ss << col << " NOT IN (";
     for (size_t i = 0; i < vals.size(); ++i) {
-        if (i) ss << ", ";
+        if (i)
+            ss << ", ";
         ss << "?";
     }
     ss << ")";
@@ -294,12 +351,15 @@ QueryBuilder::ptr QueryBuilder::whereNotIn(const std::string& col, const std::ve
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereNotIn(const std::string& col, const std::vector<std::string>& vals) {
-    if (vals.empty()) return shared_from_this();
+QueryBuilder::ptr QueryBuilder::whereNotIn(const std::string& col, const std::vector<std::string>& vals)
+{
+    if (vals.empty())
+        return shared_from_this();
     std::stringstream ss;
     ss << col << " NOT IN (";
     for (size_t i = 0; i < vals.size(); ++i) {
-        if (i) ss << ", ";
+        if (i)
+            ss << ", ";
         ss << "?";
     }
     ss << ")";
@@ -311,19 +371,24 @@ QueryBuilder::ptr QueryBuilder::whereNotIn(const std::string& col, const std::ve
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereNotInIf(bool cond, const std::string& col, const std::vector<int64_t>& vals) {
-    if (cond) return whereNotIn(col, vals);
+QueryBuilder::ptr QueryBuilder::whereNotInIf(bool cond, const std::string& col, const std::vector<int64_t>& vals)
+{
+    if (cond)
+        return whereNotIn(col, vals);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereNotInIf(bool cond, const std::string& col, const std::vector<std::string>& vals) {
-    if (cond) return whereNotIn(col, vals);
+QueryBuilder::ptr QueryBuilder::whereNotInIf(bool cond, const std::string& col, const std::vector<std::string>& vals)
+{
+    if (cond)
+        return whereNotIn(col, vals);
     return shared_from_this();
 }
 
 // ---- WHERE BETWEEN ----
 
-QueryBuilder::ptr QueryBuilder::whereBetween(const std::string& col, int64_t lo, int64_t hi) {
+QueryBuilder::ptr QueryBuilder::whereBetween(const std::string& col, int64_t lo, int64_t hi)
+{
     m_whereClauses.push_back(col + " BETWEEN ? AND ?");
     m_whereConjunctions.push_back("AND");
     m_whereParams.push_back({Param::INT64_VAL, lo, 0.0, ""});
@@ -331,7 +396,8 @@ QueryBuilder::ptr QueryBuilder::whereBetween(const std::string& col, int64_t lo,
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereBetween(const std::string& col, const std::string& lo, const std::string& hi) {
+QueryBuilder::ptr QueryBuilder::whereBetween(const std::string& col, const std::string& lo, const std::string& hi)
+{
     m_whereClauses.push_back(col + " BETWEEN ? AND ?");
     m_whereConjunctions.push_back("AND");
     m_whereParams.push_back({Param::STRING_VAL, 0, 0.0, lo});
@@ -339,179 +405,222 @@ QueryBuilder::ptr QueryBuilder::whereBetween(const std::string& col, const std::
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereBetweenIf(bool cond, const std::string& col, int64_t lo, int64_t hi) {
-    if (cond) return whereBetween(col, lo, hi);
+QueryBuilder::ptr QueryBuilder::whereBetweenIf(bool cond, const std::string& col, int64_t lo, int64_t hi)
+{
+    if (cond)
+        return whereBetween(col, lo, hi);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereBetweenIf(bool cond, const std::string& col, const std::string& lo, const std::string& hi) {
-    if (cond) return whereBetween(col, lo, hi);
+QueryBuilder::ptr QueryBuilder::whereBetweenIf(bool cond, const std::string& col, const std::string& lo, const std::string& hi)
+{
+    if (cond)
+        return whereBetween(col, lo, hi);
     return shared_from_this();
 }
 
 // ---- WHERE LIKE ----
 
-QueryBuilder::ptr QueryBuilder::whereLike(const std::string& col, const std::string& val) {
+QueryBuilder::ptr QueryBuilder::whereLike(const std::string& col, const std::string& val)
+{
     addWhereClause("AND", col + " LIKE ?", {Param::STRING_VAL, 0, 0.0, "%" + val + "%"});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereLeftLike(const std::string& col, const std::string& val) {
+QueryBuilder::ptr QueryBuilder::whereLeftLike(const std::string& col, const std::string& val)
+{
     addWhereClause("AND", col + " LIKE ?", {Param::STRING_VAL, 0, 0.0, val + "%"});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereLikeIf(bool cond, const std::string& col, const std::string& val) {
-    if (cond) return whereLike(col, val);
+QueryBuilder::ptr QueryBuilder::whereLikeIf(bool cond, const std::string& col, const std::string& val)
+{
+    if (cond)
+        return whereLike(col, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::whereLeftLikeIf(bool cond, const std::string& col, const std::string& val) {
-    if (cond) return whereLeftLike(col, val);
+QueryBuilder::ptr QueryBuilder::whereLeftLikeIf(bool cond, const std::string& col, const std::string& val)
+{
+    if (cond)
+        return whereLeftLike(col, val);
     return shared_from_this();
 }
 
 // ---- OR NULL / NOT NULL ----
 
-QueryBuilder::ptr QueryBuilder::orWhereNull(const std::string& col) {
+QueryBuilder::ptr QueryBuilder::orWhereNull(const std::string& col)
+{
     m_whereClauses.push_back(col + " IS NULL");
     m_whereConjunctions.push_back("OR");
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereNotNull(const std::string& col) {
+QueryBuilder::ptr QueryBuilder::orWhereNotNull(const std::string& col)
+{
     m_whereClauses.push_back(col + " IS NOT NULL");
     m_whereConjunctions.push_back("OR");
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereNullIf(bool cond, const std::string& col) {
-    if (cond) return orWhereNull(col);
+QueryBuilder::ptr QueryBuilder::orWhereNullIf(bool cond, const std::string& col)
+{
+    if (cond)
+        return orWhereNull(col);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::orWhereNotNullIf(bool cond, const std::string& col) {
-    if (cond) return orWhereNotNull(col);
+QueryBuilder::ptr QueryBuilder::orWhereNotNullIf(bool cond, const std::string& col)
+{
+    if (cond)
+        return orWhereNotNull(col);
     return shared_from_this();
 }
 
 // ---- HAVING ----
 
-QueryBuilder::ptr QueryBuilder::having(const std::string& col, const std::string& op, int64_t val) {
+QueryBuilder::ptr QueryBuilder::having(const std::string& col, const std::string& op, int64_t val)
+{
     addHavingClause(col + " " + op + " ?", {Param::INT64_VAL, val, 0.0, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::having(const std::string& col, const std::string& op, const std::string& val) {
+QueryBuilder::ptr QueryBuilder::having(const std::string& col, const std::string& op, const std::string& val)
+{
     addHavingClause(col + " " + op + " ?", {Param::STRING_VAL, 0, 0.0, val});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::having(const std::string& col, const std::string& op, double val) {
+QueryBuilder::ptr QueryBuilder::having(const std::string& col, const std::string& op, double val)
+{
     addHavingClause(col + " " + op + " ?", {Param::DOUBLE_VAL, 0, val, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::havingIf(bool condition, const std::string& col, const std::string& op, int64_t val) {
-    if (condition) return having(col, op, val);
+QueryBuilder::ptr QueryBuilder::havingIf(bool condition, const std::string& col, const std::string& op, int64_t val)
+{
+    if (condition)
+        return having(col, op, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::havingIf(bool condition, const std::string& col, const std::string& op, const std::string& val) {
-    if (condition) return having(col, op, val);
+QueryBuilder::ptr QueryBuilder::havingIf(bool condition, const std::string& col, const std::string& op, const std::string& val)
+{
+    if (condition)
+        return having(col, op, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::havingIf(bool condition, const std::string& col, const std::string& op, double val) {
-    if (condition) return having(col, op, val);
+QueryBuilder::ptr QueryBuilder::havingIf(bool condition, const std::string& col, const std::string& op, double val)
+{
+    if (condition)
+        return having(col, op, val);
     return shared_from_this();
 }
 
 // ---- JOIN ----
 
-QueryBuilder::ptr QueryBuilder::join(const std::string& type, const std::string& table, const std::string& on) {
+QueryBuilder::ptr QueryBuilder::join(const std::string& type, const std::string& table, const std::string& on)
+{
     m_joins.push_back(type + " JOIN " + table + " ON " + on);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::join(const std::string& table, const std::string& on) {
+QueryBuilder::ptr QueryBuilder::join(const std::string& table, const std::string& on)
+{
     return join("INNER", table, on);
 }
 
 // ---- ORDER BY / LIMIT / OFFSET / GROUP BY ----
 
-QueryBuilder::ptr QueryBuilder::orderBy(const std::string& col, const std::string& dir) {
+QueryBuilder::ptr QueryBuilder::orderBy(const std::string& col, const std::string& dir)
+{
     m_orderBy = col + " " + dir;
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::limit(int32_t n) {
+QueryBuilder::ptr QueryBuilder::limit(int32_t n)
+{
     m_hasLimit = true;
     m_limit = n;
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::offset(int32_t n) {
+QueryBuilder::ptr QueryBuilder::offset(int32_t n)
+{
     m_hasOffset = true;
     m_offset = n;
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::groupBy(const std::string& col) {
+QueryBuilder::ptr QueryBuilder::groupBy(const std::string& col)
+{
     m_groupBy = col;
     return shared_from_this();
 }
 
 // ---- UPDATE SET ----
 
-QueryBuilder::ptr QueryBuilder::set(const std::string& col, int64_t val) {
+QueryBuilder::ptr QueryBuilder::set(const std::string& col, int64_t val)
+{
     m_setClauses.push_back(col + " = ?");
     m_setParams.push_back({Param::INT64_VAL, val, 0.0, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::set(const std::string& col, const std::string& val) {
+QueryBuilder::ptr QueryBuilder::set(const std::string& col, const std::string& val)
+{
     m_setClauses.push_back(col + " = ?");
     m_setParams.push_back({Param::STRING_VAL, 0, 0.0, val});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::set(const std::string& col, double val) {
+QueryBuilder::ptr QueryBuilder::set(const std::string& col, double val)
+{
     m_setClauses.push_back(col + " = ?");
     m_setParams.push_back({Param::DOUBLE_VAL, 0, val, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::setIf(bool condition, const std::string& col, int64_t val) {
-    if (condition) return set(col, val);
+QueryBuilder::ptr QueryBuilder::setIf(bool condition, const std::string& col, int64_t val)
+{
+    if (condition)
+        return set(col, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::setIf(bool condition, const std::string& col, const std::string& val) {
-    if (condition) return set(col, val);
+QueryBuilder::ptr QueryBuilder::setIf(bool condition, const std::string& col, const std::string& val)
+{
+    if (condition)
+        return set(col, val);
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::setIf(bool condition, const std::string& col, double val) {
-    if (condition) return set(col, val);
+QueryBuilder::ptr QueryBuilder::setIf(bool condition, const std::string& col, double val)
+{
+    if (condition)
+        return set(col, val);
     return shared_from_this();
 }
 
 // ---- INSERT ----
 
-QueryBuilder::ptr QueryBuilder::insert(const std::string& col, int64_t val) {
+QueryBuilder::ptr QueryBuilder::insert(const std::string& col, int64_t val)
+{
     m_insertCols.push_back(col);
     m_insertParams.push_back({Param::INT64_VAL, val, 0.0, ""});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::insert(const std::string& col, const std::string& val) {
+QueryBuilder::ptr QueryBuilder::insert(const std::string& col, const std::string& val)
+{
     m_insertCols.push_back(col);
     m_insertParams.push_back({Param::STRING_VAL, 0, 0.0, val});
     return shared_from_this();
 }
 
-QueryBuilder::ptr QueryBuilder::insert(const std::string& col, double val) {
+QueryBuilder::ptr QueryBuilder::insert(const std::string& col, double val)
+{
     m_insertCols.push_back(col);
     m_insertParams.push_back({Param::DOUBLE_VAL, 0, val, ""});
     return shared_from_this();
@@ -519,7 +628,8 @@ QueryBuilder::ptr QueryBuilder::insert(const std::string& col, double val) {
 
 // ---- SQL builders ----
 
-std::string QueryBuilder::buildCountSQL() const {
+std::string QueryBuilder::buildCountSQL() const
+{
     std::stringstream ss;
     ss << "SELECT COUNT(*) FROM " << m_table;
     for (auto& j : m_joins) {
@@ -529,7 +639,8 @@ std::string QueryBuilder::buildCountSQL() const {
     return ss.str();
 }
 
-std::string QueryBuilder::buildQuerySQL(const std::string& selectCols, bool withPagination) const {
+std::string QueryBuilder::buildQuerySQL(const std::string& selectCols, bool withPagination) const
+{
     std::stringstream ss;
     ss << "SELECT " << selectCols << " FROM " << m_table;
     for (auto& j : m_joins) {
@@ -542,7 +653,8 @@ std::string QueryBuilder::buildQuerySQL(const std::string& selectCols, bool with
     if (!m_havingClauses.empty()) {
         ss << " HAVING ";
         for (size_t i = 0; i < m_havingClauses.size(); ++i) {
-            if (i) ss << " AND ";
+            if (i)
+                ss << " AND ";
             ss << m_havingClauses[i];
         }
     }
@@ -560,15 +672,18 @@ std::string QueryBuilder::buildQuerySQL(const std::string& selectCols, bool with
     return ss.str();
 }
 
-std::string QueryBuilder::buildQuerySQL() const {
+std::string QueryBuilder::buildQuerySQL() const
+{
     return buildQuerySQL(m_selectCols, true);
 }
 
-std::string QueryBuilder::buildUpdateSQL() const {
+std::string QueryBuilder::buildUpdateSQL() const
+{
     std::stringstream ss;
     ss << "UPDATE " << m_table << " SET ";
     for (size_t i = 0; i < m_setClauses.size(); ++i) {
-        if (i) ss << ", ";
+        if (i)
+            ss << ", ";
         ss << m_setClauses[i];
     }
     buildWhereClause(ss);
@@ -578,23 +693,27 @@ std::string QueryBuilder::buildUpdateSQL() const {
     return ss.str();
 }
 
-std::string QueryBuilder::buildDeleteSQL() const {
+std::string QueryBuilder::buildDeleteSQL() const
+{
     std::stringstream ss;
     ss << "DELETE FROM " << m_table;
     buildWhereClause(ss);
     return ss.str();
 }
 
-std::string QueryBuilder::buildInsertSQL() const {
+std::string QueryBuilder::buildInsertSQL() const
+{
     std::stringstream ss;
     ss << "INSERT INTO " << m_table << " (";
     for (size_t i = 0; i < m_insertCols.size(); ++i) {
-        if (i) ss << ", ";
+        if (i)
+            ss << ", ";
         ss << m_insertCols[i];
     }
     ss << ") VALUES (";
     for (size_t i = 0; i < m_insertParams.size(); ++i) {
-        if (i) ss << ", ";
+        if (i)
+            ss << ", ";
         ss << "?";
     }
     ss << ")";
@@ -603,7 +722,8 @@ std::string QueryBuilder::buildInsertSQL() const {
 
 // ---- Parameter binding ----
 
-void QueryBuilder::bindParams(chen::IStmt::ptr stmt) const {
+void QueryBuilder::bindParams(chen::IStmt::ptr stmt) const
+{
     int idx = 1;
     bindParamArray(stmt, m_whereParams, idx);
     bindParamArray(stmt, m_havingParams, idx);
@@ -617,13 +737,15 @@ void QueryBuilder::bindParams(chen::IStmt::ptr stmt) const {
     }
 }
 
-void QueryBuilder::bindQueryParams(chen::IStmt::ptr stmt) const {
+void QueryBuilder::bindQueryParams(chen::IStmt::ptr stmt) const
+{
     int idx = 1;
     bindParamArray(stmt, m_whereParams, idx);
     bindParamArray(stmt, m_havingParams, idx);
 }
 
-void QueryBuilder::bindUpdateParams(chen::IStmt::ptr stmt) const {
+void QueryBuilder::bindUpdateParams(chen::IStmt::ptr stmt) const
+{
     int idx = 1;
     bindParamArray(stmt, m_setParams, idx);
     bindParamArray(stmt, m_whereParams, idx);
@@ -633,14 +755,16 @@ void QueryBuilder::bindUpdateParams(chen::IStmt::ptr stmt) const {
     }
 }
 
-void QueryBuilder::bindInsertParams(chen::IStmt::ptr stmt) const {
+void QueryBuilder::bindInsertParams(chen::IStmt::ptr stmt) const
+{
     int idx = 1;
     bindParamArray(stmt, m_insertParams, idx);
 }
 
 // ---- Executors ----
 
-int QueryBuilder::executeUpdate(chen::IDB::ptr conn) {
+int QueryBuilder::executeUpdate(chen::IDB::ptr conn)
+{
     if (!conn) {
         ERROR(g_logger) << "QueryBuilder::executeUpdate conn is null";
         return -1;
@@ -648,15 +772,15 @@ int QueryBuilder::executeUpdate(chen::IDB::ptr conn) {
     std::string sql = buildUpdateSQL();
     auto stmt = conn->prepare(sql);
     if (!stmt) {
-        ERROR(g_logger) << "stmt=" << sql
-            << " errno=" << conn->getErrno() << " errstr=" << conn->getErrStr();
+        ERROR(g_logger) << "stmt=" << sql << " errno=" << conn->getErrno() << " errstr=" << conn->getErrStr();
         return conn->getErrno();
     }
     bindUpdateParams(stmt);
     return stmt->execute();
 }
 
-int QueryBuilder::executeDelete(chen::IDB::ptr conn) {
+int QueryBuilder::executeDelete(chen::IDB::ptr conn)
+{
     if (!conn) {
         ERROR(g_logger) << "QueryBuilder::executeDelete conn is null";
         return -1;
@@ -664,8 +788,7 @@ int QueryBuilder::executeDelete(chen::IDB::ptr conn) {
     std::string sql = buildDeleteSQL();
     auto stmt = conn->prepare(sql);
     if (!stmt) {
-        ERROR(g_logger) << "stmt=" << sql
-            << " errno=" << conn->getErrno() << " errstr=" << conn->getErrStr();
+        ERROR(g_logger) << "stmt=" << sql << " errno=" << conn->getErrno() << " errstr=" << conn->getErrStr();
         return conn->getErrno();
     }
     int idx = 1;
@@ -673,12 +796,14 @@ int QueryBuilder::executeDelete(chen::IDB::ptr conn) {
     return stmt->execute();
 }
 
-int QueryBuilder::executeInsert(chen::IDB::ptr conn) {
+int QueryBuilder::executeInsert(chen::IDB::ptr conn)
+{
     int64_t unused;
     return executeInsert(conn, unused);
 }
 
-int QueryBuilder::executeInsert(chen::IDB::ptr conn, int64_t& lastInsertId) {
+int QueryBuilder::executeInsert(chen::IDB::ptr conn, int64_t& lastInsertId)
+{
     if (!conn) {
         ERROR(g_logger) << "QueryBuilder::executeInsert conn is null";
         return -1;
@@ -686,8 +811,7 @@ int QueryBuilder::executeInsert(chen::IDB::ptr conn, int64_t& lastInsertId) {
     std::string sql = buildInsertSQL();
     auto stmt = conn->prepare(sql);
     if (!stmt) {
-        ERROR(g_logger) << "stmt=" << sql
-            << " errno=" << conn->getErrno() << " errstr=" << conn->getErrStr();
+        ERROR(g_logger) << "stmt=" << sql << " errno=" << conn->getErrno() << " errstr=" << conn->getErrStr();
         return conn->getErrno();
     }
     bindInsertParams(stmt);
@@ -698,7 +822,8 @@ int QueryBuilder::executeInsert(chen::IDB::ptr conn, int64_t& lastInsertId) {
     return rt;
 }
 
-int QueryBuilder::executeCount(int64_t& total, chen::IDB::ptr conn) const {
+int QueryBuilder::executeCount(int64_t& total, chen::IDB::ptr conn) const
+{
     if (!conn) {
         ERROR(g_logger) << "QueryBuilder::executeCount conn is null";
         return -1;
@@ -706,8 +831,7 @@ int QueryBuilder::executeCount(int64_t& total, chen::IDB::ptr conn) const {
     std::string sql = buildCountSQL();
     auto stmt = conn->prepare(sql);
     if (!stmt) {
-        ERROR(g_logger) << "stmt=" << sql
-            << " errno=" << conn->getErrno() << " errstr=" << conn->getErrStr();
+        ERROR(g_logger) << "stmt=" << sql << " errno=" << conn->getErrno() << " errstr=" << conn->getErrStr();
         return conn->getErrno();
     }
     bindQueryParams(stmt);
@@ -721,7 +845,8 @@ int QueryBuilder::executeCount(int64_t& total, chen::IDB::ptr conn) const {
     return 0;
 }
 
-ISQLData::ptr QueryBuilder::executeQuery(chen::IDB::ptr conn) const {
+ISQLData::ptr QueryBuilder::executeQuery(chen::IDB::ptr conn) const
+{
     if (!conn) {
         ERROR(g_logger) << "QueryBuilder::executeQuery conn is null";
         return nullptr;
@@ -729,15 +854,15 @@ ISQLData::ptr QueryBuilder::executeQuery(chen::IDB::ptr conn) const {
     std::string sql = buildQuerySQL();
     auto stmt = conn->prepare(sql);
     if (!stmt) {
-        ERROR(g_logger) << "stmt=" << sql
-            << " errno=" << conn->getErrno() << " errstr=" << conn->getErrStr();
+        ERROR(g_logger) << "stmt=" << sql << " errno=" << conn->getErrno() << " errstr=" << conn->getErrStr();
         return nullptr;
     }
     bindParams(stmt);
     return stmt->query();
 }
 
-int QueryBuilder::queryScalarInt64(int64_t& result, chen::IDB::ptr conn, const std::string& col) const {
+int QueryBuilder::queryScalarInt64(int64_t& result, chen::IDB::ptr conn, const std::string& col) const
+{
     auto rt = executeQuery(conn);
     if (!rt) {
         return -1;
@@ -753,7 +878,8 @@ int QueryBuilder::queryScalarInt64(int64_t& result, chen::IDB::ptr conn, const s
     return 0;
 }
 
-int QueryBuilder::queryScalarDouble(double& result, chen::IDB::ptr conn, const std::string& col) const {
+int QueryBuilder::queryScalarDouble(double& result, chen::IDB::ptr conn, const std::string& col) const
+{
     auto rt = executeQuery(conn);
     if (!rt) {
         return -1;

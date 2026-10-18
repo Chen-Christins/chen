@@ -38,8 +38,7 @@ public:
      * @param conn 服务连接
      * @return bool 成功与否（peer_id 冲突返回 false）
      */
-    bool registerService(uint32_t peer_id, uint32_t func_id, uint32_t instance_id, const std::vector<uint32_t>& bind_ids,
-                         RpcConnection::ptr conn);
+    bool registerService(uint32_t peer_id, uint32_t func_id, uint32_t instance_id, const std::vector<uint32_t>& bind_ids, RpcConnection::ptr conn);
 
     /**
      * @brief 按连接注销服务实例（连接断开时调用）

@@ -3,6 +3,7 @@
  * @brief 日志模块封装
  * @author Christins
  * @date 2024-11-02
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -21,20 +22,22 @@
 #include "../util/singleton.h"
 #include "../util/util.h" // IWYU pragma: keep
 
-#define LOG_LEVEL(logger, level)                                                 \
-    if (logger->getLevel() <= level)                                             \
-        chen::LogEventWrap(chen::LogEvent::ptr(new chen::LogEvent(logger, level, \
-            __FILE__, __LINE__, 0, chen::GetThreadId(), chen::GetFiberId(),      \
-            chen::GetCurrentUs(), chen::Thread::GetName()))).getSS()
+#define LOG_LEVEL(logger, level)                                                                                           \
+    if (logger->getLevel() <= level)                                                                                       \
+    chen::LogEventWrap(                                                                                                    \
+        chen::LogEvent::ptr(new chen::LogEvent(                                                                            \
+            logger, level, __FILE__, __LINE__, 0, chen::GetThreadId(), chen::GetFiberId(), chen::TimeUtil::GetCurrentUs(), \
+            chen::Thread::GetName())))                                                                                     \
+        .getSS()
 
-#define TRACE(...) chen::LogDispatch(chen::LogLevel::TRACE, __FILE__, __LINE__, __VA_ARGS__)
-#define DEBUG(...) chen::LogDispatch(chen::LogLevel::DEBUG, __FILE__, __LINE__, __VA_ARGS__)
-#define INFO(...) chen::LogDispatch(chen::LogLevel::INFO, __FILE__, __LINE__, __VA_ARGS__)
-#define WARN(...) chen::LogDispatch(chen::LogLevel::WARN, __FILE__, __LINE__, __VA_ARGS__)
-#define ERROR(...) chen::LogDispatch(chen::LogLevel::ERROR, __FILE__, __LINE__, __VA_ARGS__)
-#define FATAL(...) chen::LogDispatch(chen::LogLevel::FATAL, __FILE__, __LINE__, __VA_ARGS__)
+#define TRACE(...)     chen::LogDispatch(chen::LogLevel::TRACE, __FILE__, __LINE__, __VA_ARGS__)
+#define DEBUG(...)     chen::LogDispatch(chen::LogLevel::DEBUG, __FILE__, __LINE__, __VA_ARGS__)
+#define INFO(...)      chen::LogDispatch(chen::LogLevel::INFO, __FILE__, __LINE__, __VA_ARGS__)
+#define WARN(...)      chen::LogDispatch(chen::LogLevel::WARN, __FILE__, __LINE__, __VA_ARGS__)
+#define ERROR(...)     chen::LogDispatch(chen::LogLevel::ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#define FATAL(...)     chen::LogDispatch(chen::LogLevel::FATAL, __FILE__, __LINE__, __VA_ARGS__)
 
-#define LOG_ROOT() chen::LoggerMgr::GetInstance()->getRoot()
+#define LOG_ROOT()     chen::LoggerMgr::GetInstance()->getRoot()
 #define LOG_NAME(name) chen::LoggerMgr::GetInstance()->getLogger(name)
 
 namespace chen {
@@ -81,11 +84,12 @@ public:
  * @brief 日志器
  */
 class Logger : public std::enable_shared_from_this<Logger> {
-friend class LoggerManager;
+    friend class LoggerManager;
+
 public:
     typedef std::shared_ptr<Logger> ptr;
     typedef SpinLock MutexType;
-    
+
     /**
      * @brief 构造函数
      */
@@ -121,7 +125,7 @@ public:
      * @param event 日志事件
      */
     void warn(std::shared_ptr<LogEvent> event);
-    
+
     /**
      * @brief 写error级别的日志
      * @param event 日志事件
@@ -133,7 +137,7 @@ public:
      * @param event 日志事件
      */
     void fatal(std::shared_ptr<LogEvent> event);
-    
+
     /**
      * @brief 添加日志输出地
      * @param appender 日志输出地
@@ -190,6 +194,7 @@ public:
      * @brief 转换为YamlString
      */
     std::string toYamlString();
+
 private:
     /// 日志名称
     std::string m_name;
@@ -223,10 +228,16 @@ public:
      * @param time 日志事件(秒)
      * @param threadName 线程名称
      */
-    LogEvent(Logger::ptr logger, LogLevel::Level level
-        ,const char* file, int32_t line, uint32_t elapse
-        ,uint32_t threadId, uint32_t fiberId, uint64_t time
-        ,const std::string& threadName);
+    LogEvent(
+        Logger::ptr logger,
+        LogLevel::Level level,
+        const char* file,
+        int32_t line,
+        uint32_t elapse,
+        uint32_t threadId,
+        uint32_t fiberId,
+        uint64_t time,
+        const std::string& threadName);
 
     /**
      * @brief 获取文件名称
@@ -292,6 +303,7 @@ public:
      * @brief 返回日志内容字符串流
      */
     std::stringstream& getSS() { return m_ss; }
+
 private:
     /// 日志器
     Logger::ptr m_logger;
@@ -302,7 +314,7 @@ private:
     /// 行号
     int32_t m_line = 0;
     /// 程序启动到现在的秒数
-    uint32_t m_elapse = 0; 
+    uint32_t m_elapse = 0;
     /// 线程id
     uint32_t m_threadId = 0;
     /// 协程id
@@ -327,22 +339,18 @@ public:
      * @brief 构造函数
      * @param event 日志事件
      */
-    LogEventWrap(LogEvent::ptr event) : m_event(event) {}
+    LogEventWrap(LogEvent::ptr event);
 
     template <typename T>
-    LogEventWrap& operator<<(const T& val) {
+    LogEventWrap& operator<<(const T& val)
+    {
         if (m_event) {
             m_event->getSS() << val;
         }
         return *this;
     }
 
-    LogEventWrap& operator<<(StreamManipulator manip) {
-        if (m_event) {
-            manip(m_event->getSS());
-        }
-        return *this;
-    }
+    LogEventWrap& operator<<(StreamManipulator manip);
 
     /**
      * @brief 析构函数
@@ -354,7 +362,7 @@ public:
      * @brief 获取日志事件器
      */
     LogEvent::ptr getEvent() const { return m_event; }
-    
+
     /**
      * @brief 给当前日志的字符流
      */
@@ -382,7 +390,7 @@ public:
      * @param logger 日志器
      * @param level 日志级别
      * @param event 日志事件器
-     * @return std::string 
+     * @return std::string
      */
     std::string format(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event);
     /**
@@ -391,9 +399,10 @@ public:
      * @param logger 日志器
      * @param level 日志级别
      * @param event 日志事件器
-     * @return std::ostream& 
+     * @return std::ostream&
      */
     std::ostream& format(std::ostream& ofs, Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event);
+
 public:
     class FormatItem {
     public:
@@ -401,7 +410,7 @@ public:
         /**
          * @brief 析构函数
          */
-        virtual ~FormatItem() {}
+        virtual ~FormatItem();
         /**
          * @brief 格式化日志到流中，这是一个接口函数
          * @param os 日志输出流
@@ -426,6 +435,7 @@ public:
      * @brief 返回日志格式模板
      */
     const std::string getPattern() const { return m_pattern; }
+
 private:
     /// 日志格式模板
     std::string m_pattern;
@@ -439,7 +449,8 @@ private:
  * @brief 日志输出地
  */
 class LogAppender {
-friend class Logger;
+    friend class Logger;
+
 public:
     typedef std::shared_ptr<LogAppender> ptr;
     typedef SpinLock MutexType;
@@ -447,7 +458,7 @@ public:
     /**
      * @brief 析构函数
      */
-    virtual ~LogAppender() {}
+    virtual ~LogAppender();
 
     /**
      * @brief 它为子类提供写日志的接口
@@ -461,7 +472,7 @@ public:
      * @brief 刷新输出缓冲（默认空实现，子类按需覆写）
      * @details 多进程模型下 master 在 fork 前调用，避免子进程继承未刷新的缓冲
      */
-    virtual void flush() {}
+    virtual void flush();
 
     /**
      * @brief 获取日志格式器
@@ -487,6 +498,7 @@ public:
      * @brief 转换为YamlString
      */
     virtual std::string toYamlString() = 0;
+
 protected:
     /// 日志级别
     LogLevel::Level m_level = LogLevel::TRACE;
@@ -516,7 +528,7 @@ public:
      * @brief 转换为YamlString
      */
     virtual std::string toYamlString() override;
-};  
+};
 
 /**
  * @brief 日志文件输出器
@@ -649,6 +661,7 @@ public:
      * @return TimeRotateType
      */
     static TimeRotateType StringToTimeRotateType(const std::string& str);
+
 private:
     /**
      * @brief 打开适合写入的分片文件：从当前周期基础名开始，跳过已满文件
@@ -698,7 +711,7 @@ public:
 
     /**
      * @brief 获取根日志器
-     * @return Logger::ptr 
+     * @return Logger::ptr
      */
     Logger::ptr getRoot() const { return m_root; }
 
@@ -712,6 +725,7 @@ public:
      * @brief 转换为YamlString
      */
     std::string toYamlString();
+
 private:
     /// 日志器集合
     std::map<std::string, Logger::ptr> m_loggers;
@@ -726,58 +740,56 @@ private:
  */
 typedef Singleton<LoggerManager> LoggerMgr;
 
-inline std::string NormalizeFormatArg(const char* val) {
-    return val ? std::string(val) : std::string("(null)");
-}
+std::string NormalizeFormatArg(const char* val);
 
-inline std::string NormalizeFormatArg(char* val) {
-    return val ? std::string(val) : std::string("(null)");
-}
+std::string NormalizeFormatArg(char* val);
 
 template <typename T>
-decltype(auto) NormalizeFormatArg(T&& val) {
+decltype(auto) NormalizeFormatArg(T&& val)
+{
     return std::forward<T>(val);
 }
 
 template <typename... Args>
-inline void LogByFormatWithLogger(Logger::ptr logger, LogLevel::Level level
-        , const char* file, int32_t line, const std::string& pattern, Args&&... args) {
+inline void LogByFormatWithLogger(
+    Logger::ptr logger,
+    LogLevel::Level level,
+    const char* file,
+    int32_t line,
+    const std::string& pattern,
+    Args&&... args)
+{
     if (!logger || logger->getLevel() > level) {
         return;
     }
 
     LogEvent::ptr event(
-        new LogEvent(logger,level, file, line, 0, chen::GetThreadId(), chen::GetFiberId(), chen::GetCurrentUs(), chen::Thread::GetName())
-    );
+        new LogEvent(logger, level, file, line, 0, chen::GetThreadId(), chen::GetFiberId(), TimeUtil::GetCurrentUs(), chen::Thread::GetName()));
 
     try {
         auto formatArgs = std::make_tuple(NormalizeFormatArg(std::forward<Args>(args))...);
-        std::apply([&](auto&... vals) { event->getSS() << std::vformat(pattern, std::make_format_args(vals...)); }, formatArgs);
+        std::apply(
+            [&](auto&... vals) {
+                event->getSS() << std::vformat(pattern, std::make_format_args(vals...));
+            },
+            formatArgs);
     } catch (const std::format_error& e) {
         event->getSS() << "[format_error: " << e.what() << "] " << pattern;
     }
     logger->log(level, event);
 }
 
-inline LogEventWrap LogDispatch(LogLevel::Level level, const char* file, int32_t line, Logger::ptr logger) {
-    if (!logger || logger->getLevel() > level) {
-        return LogEventWrap(nullptr);
-    }
-
-    LogEvent::ptr event(
-        new LogEvent(logger, level, file, line, 0, chen::GetThreadId(), chen::GetFiberId(), chen::GetCurrentUs(), chen::Thread::GetName())
-    );
-
-    return LogEventWrap(event);
-}
+LogEventWrap LogDispatch(LogLevel::Level level, const char* file, int32_t line, Logger::ptr logger);
 
 template <typename... Args>
-inline void LogDispatch(LogLevel::Level level, const char* file, int32_t line, const std::string& pattern, Args&&... args) {
+inline void LogDispatch(LogLevel::Level level, const char* file, int32_t line, const std::string& pattern, Args&&... args)
+{
     LogByFormatWithLogger(LoggerMgr::GetInstance()->getRoot(), level, file, line, pattern, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
-inline void LogDispatch(LogLevel::Level level, const char* file, int32_t line, Logger::ptr logger, const std::string& pattern, Args&&... args) {
+inline void LogDispatch(LogLevel::Level level, const char* file, int32_t line, Logger::ptr logger, const std::string& pattern, Args&&... args)
+{
     LogByFormatWithLogger(logger, level, file, line, pattern, std::forward<Args>(args)...);
 }
 

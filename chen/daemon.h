@@ -3,6 +3,7 @@
  * @brief 守护进程
  * @author Christins
  * @date 2025-02-12
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -40,4 +41,4 @@ typedef Singleton<ProcessInfo> ProcessInfoMgr;
  */
 int start_daemon(int argc, char** argv, std::function<int(int argc, char** argv)> main_cb, bool is_daemon);
 
-}
+} // namespace chen

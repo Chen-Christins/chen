@@ -33,7 +33,8 @@ static chen::Logger::ptr logger = LOG_ROOT();
 // ============================================================
 class MessageBus {
 public:
-    void publish(const std::string& id, const std::string& event, const std::string& data) {
+    void publish(const std::string& id, const std::string& event, const std::string& data)
+    {
         std::lock_guard lock(m_mutex);
         m_queue.push({id, event, data});
         if (m_queue.size() > 1024) {
@@ -41,7 +42,8 @@ public:
         }
     }
 
-    bool consume(std::string& id, std::string& event, std::string& data) {
+    bool consume(std::string& id, std::string& event, std::string& data)
+    {
         std::lock_guard lock(m_mutex);
         if (!m_queue.empty()) {
             auto& msg = m_queue.front();
@@ -69,7 +71,8 @@ static MessageBus s_bus;
 // ============================================================
 // SSE 事件推送回调
 // ============================================================
-static int32_t on_sse_connect(chen::http::HttpRequest::ptr req, chen::http::SSESession::ptr session) {
+static int32_t on_sse_connect(chen::http::HttpRequest::ptr req, chen::http::SSESession::ptr session)
+{
     INFO(logger) << "[SSE] 客户端连接: " << session->getRemoteAddressString() << " 路径=" << req->getPath();
 
     std::string lastId = req->getHeader("Last-Event-Id");
@@ -111,7 +114,8 @@ static int32_t on_sse_connect(chen::http::HttpRequest::ptr req, chen::http::SSES
     return 0;
 }
 
-static int32_t on_sse_close(chen::http::HttpRequest::ptr req, chen::http::SSESession::ptr session) {
+static int32_t on_sse_close(chen::http::HttpRequest::ptr req, chen::http::SSESession::ptr session)
+{
     INFO(logger) << "[SSE] 客户端断开: " << session->getRemoteAddressString();
     return 0;
 }
@@ -119,7 +123,8 @@ static int32_t on_sse_close(chen::http::HttpRequest::ptr req, chen::http::SSESes
 // ============================================================
 // 模拟数据源：定时向消息总线投递数据
 // ============================================================
-static void run_broadcast_demo() {
+static void run_broadcast_demo()
+{
     uint64_t seq = 1;
 
     auto price_update = [&seq]() {
@@ -149,7 +154,8 @@ static void run_broadcast_demo() {
 // ============================================================
 // 入口
 // ============================================================
-void run() {
+void run()
+{
     chen::http::HttpServer::ptr server(new chen::http::HttpServer);
     chen::Address::ptr addr = chen::Address::LookupAnyIPAddress("0.0.0.0:8089");
     if (!addr) {
@@ -159,11 +165,9 @@ void run() {
 
     auto dispatch = server->getServletDispatch();
 
-    dispatch->addServlet("/sse/push",
-        std::make_shared<chen::http::FunctionSSEServlet>(on_sse_connect, on_sse_close));
+    dispatch->addServlet("/sse/push", std::make_shared<chen::http::FunctionSSEServlet>(on_sse_connect, on_sse_close));
 
-    dispatch->addGlobServlet("/sse/*",
-        std::make_shared<chen::http::FunctionSSEServlet>(on_sse_connect, on_sse_close));
+    dispatch->addGlobServlet("/sse/*", std::make_shared<chen::http::FunctionSSEServlet>(on_sse_connect, on_sse_close));
 
     while (!server->bind(addr)) {
         ERROR(logger) << "bind " << *addr << " fail";
@@ -174,14 +178,19 @@ void run() {
     server->start();
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     chen::IOManager::ptr iom(new chen::IOManager(2, true, "sse_demo"));
 
     iom->schedule(run_broadcast_demo);
 
     iom->schedule(run);
 
-    iom->addTimer(3000, []() {}, true);
+    iom->addTimer(
+        3000,
+        []() {
+        },
+        true);
     iom->stop();
     return 0;
 }

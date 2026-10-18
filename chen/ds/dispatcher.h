@@ -13,8 +13,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "event_bus.h"
 #include "../util/singleton.h"
+#include "event_bus.h"
 
 namespace chen {
 
@@ -70,7 +70,8 @@ public:
      * @brief 同步触发（解释器校验通过才执行回调）
      */
     template <typename T>
-    void emit(EventKey event, T&& data) {
+    void emit(EventKey event, T&& data)
+    {
         doEmit(std::move(event), std::forward<T>(data));
     }
 
@@ -83,7 +84,8 @@ public:
      * @brief 异步触发（模板版本，支持任意类型）
      */
     template <typename T>
-    void emitAsync(EventKey event, T&& data) {
+    void emitAsync(EventKey event, T&& data)
+    {
         emitAsync(std::move(event), std::any(std::forward<T>(data)));
     }
 
@@ -99,12 +101,15 @@ public:
 
 private:
     template <typename T>
-    void doEmit(EventKey event, T&& data) {
+    void doEmit(EventKey event, T&& data)
+    {
         std::vector<std::pair<EventCallback, ICondition::ptr>> cbs;
         {
             std::shared_lock lock(m_mutex);
             auto it = m_listeners.find(event);
-            if (it == m_listeners.end()) return;
+            if (it == m_listeners.end()) {
+                return;
+            }
             for (auto& e : it->second) {
                 cbs.emplace_back(e.cb, e.cond);
             }

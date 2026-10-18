@@ -29,7 +29,8 @@ t2->refresh(); // 重置计时
 
 ## 注意
 
-**不要直接使用 `TimerManager`**——它没有事件循环，无法驱动定时器到期。定时器必须通过 `IOManager::addTimer()` 创建，由 IOManager 的 idle fiber 在 `epoll_wait` 超时后统一触发到期回调。
+**不要直接使用 `TimerManager`**——它没有事件循环，无法驱动定时器到期。定时器必须通过 `IOManager::addTimer()` 创建，由
+IOManager 的 idle fiber 在 `epoll_wait` 超时后统一触发到期回调。
 
 ## 核心类
 
@@ -45,16 +46,17 @@ t2->refresh(); // 重置计时
 
 ## 关键方法
 
-| 方法 | 说明 |
-|------|------|
-| `addTimer(ms, cb, recurring)` | 添加定时器 |
-| `addConditionTimer(ms, cb, weak_cond, recurring)` | 添加条件定时器 |
-| `cancel()` | 取消定时器，从集合移除并清空回调 |
-| `refresh()` | 刷新（重新定时） |
-| `reset(ms, from_now)` | 重新设置间隔 |
-| `getNextTimer()` | 获取最近到期时间 |
-| `listExpiredCb(cbs)` | 取出所有到期回调 |
+| 方法                                              | 说明                             |
+|---------------------------------------------------|----------------------------------|
+| `addTimer(ms, cb, recurring)`                     | 添加定时器                       |
+| `addConditionTimer(ms, cb, weak_cond, recurring)` | 添加条件定时器                   |
+| `cancel()`                                        | 取消定时器，从集合移除并清空回调 |
+| `refresh()`                                       | 刷新（重新定时）                 |
+| `reset(ms, from_now)`                             | 重新设置间隔                     |
+| `getNextTimer()`                                  | 获取最近到期时间                 |
+| `listExpiredCb(cbs)`                              | 取出所有到期回调                 |
 
 ## 与 IOManager 的集成
 
-IOManager 的 idle fiber 在 `epoll_wait` 超时后调用 `listExpiredCb`，将到期回调调度执行。`onTimerInsertedAtFront` 回调在更早定时器插入时主动 tickle 唤醒。
+IOManager 的 idle fiber 在 `epoll_wait` 超时后调用 `listExpiredCb`，将到期回调调度执行。`onTimerInsertedAtFront`
+回调在更早定时器插入时主动 tickle 唤醒。

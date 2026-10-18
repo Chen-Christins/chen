@@ -3,10 +3,10 @@
  * @brief 类型转换工具类
  * @author Christins
  * @date 2026-06-26
+ * @copyright GPL-3.0
  */
 #pragma once
 
-#include <cstdint>
 #include <sstream>
 #include <string>
 
@@ -63,7 +63,8 @@ public:
      * @return std::string 转换后的字符串
      */
     template <class T>
-    static std::string ToString(const T& value) {
+    static std::string ToString(const T& value)
+    {
         std::ostringstream oss;
         oss << value;
         return oss.str();

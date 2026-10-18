@@ -22,7 +22,7 @@ public:
         RESPONSE = 2,
         NOTIFY = 3
     };
-    virtual ~Message() {}
+    virtual ~Message();
 
     virtual ByteArray::ptr toByteArray();
     virtual bool serializeToByteArray(ByteArray::ptr bytearray) = 0;
@@ -37,7 +37,7 @@ class MessageDecoder {
 public:
     typedef std::shared_ptr<MessageDecoder> ptr;
 
-    virtual ~MessageDecoder() {}
+    virtual ~MessageDecoder();
     virtual Message::ptr parseFrom(Stream::ptr stream) = 0;
     virtual int32_t serializeTo(Stream::ptr stream, Message::ptr msg) = 0;
 };

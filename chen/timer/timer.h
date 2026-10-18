@@ -3,6 +3,7 @@
  * @brief 定时器模块
  * @author Christins
  * @date 2024-11-14
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -17,7 +18,8 @@ namespace chen {
 class TimerManager;
 
 class Timer : public std::enable_shared_from_this<Timer> {
-friend class TimerManager;
+    friend class TimerManager;
+
 public:
     typedef std::shared_ptr<Timer> ptr;
     /**
@@ -29,13 +31,14 @@ public:
      * @brief 刷新定时器，将要执行的定时器进行类似延后的刷新
      */
     bool refresh();
-    
+
     /**
      * @brief 重新设置定时器，包括其中的任务和开始时间
      * @param ms 间隔时间
      * @param from_now 定时器的设置时间
      */
     bool reset(uint64_t ms, bool from_now);
+
 private:
     /**
      * @brief 构造函数（多参数）
@@ -44,9 +47,8 @@ private:
      * @param recurring 是否循环触发
      * @param manager 定时器管理器
      */
-    Timer(uint64_t ms, std::function<void()> cb
-            ,bool recurring, TimerManager* manager);
-    
+    Timer(uint64_t ms, std::function<void()> cb, bool recurring, TimerManager* manager);
+
     /**
      * @brief 构造函数（单一参数）
      * @param next 直接设置它的触发时间戳
@@ -59,6 +61,7 @@ private:
     struct Comparator {
         bool operator()(const Timer::ptr& lhs, const Timer::ptr& rhs) const;
     };
+
 private:
     /// 是否循环定时器
     bool m_recurring = false;
@@ -73,7 +76,8 @@ private:
 };
 
 class TimerManager {
-friend class Timer;
+    friend class Timer;
+
 public:
     /**
      * @brief 构造函数
@@ -84,7 +88,7 @@ public:
     /**
      * @brief 析构函数
      */
-    virtual ~TimerManager() {}
+    virtual ~TimerManager();
 
     /**
      * @brief 添加定时器
@@ -93,9 +97,8 @@ public:
      * @param recurring 是否循环触发
      * @return Timer::ptr 当前创建的定时器
      */
-    Timer::ptr addTimer(uint64_t ms, std::function<void()> cb
-                        ,bool recurring = false);
-    
+    Timer::ptr addTimer(uint64_t ms, std::function<void()> cb, bool recurring = false);
+
     /**
      * @brief 创建条件定时器
      * @param ms 触发的间隔时间
@@ -104,15 +107,13 @@ public:
      * @param recurring 是否循环触发
      * @return Timer::ptr 当前创建的定时器
      */
-    Timer::ptr addConditionTimer(uint64_t ms, std::function<void()> cb
-                        ,std::weak_ptr<void> weak_cond
-                        ,bool recurring = false);
+    Timer::ptr addConditionTimer(uint64_t ms, std::function<void()> cb, std::weak_ptr<void> weak_cond, bool recurring = false);
     /**
      * @brief 获取距离当前时间最近的一个定时器的执行时间
      * @details 1. 如果定时器集合为空，就返回无穷大
      *          2. 如果距离当前最近的一个定时器以及执行了，就返回 0
      *          3. 否则返回与现在间隔的时间长度
-     * @return uint64_t 
+     * @return uint64_t
      */
     uint64_t getNextTimer();
 
@@ -128,9 +129,16 @@ public:
     bool hasTimer();
 
     /**
+     * @brief 获取当前定时器数量
+     * @return size_t 定时器集合大小
+     */
+    size_t getTimerCount();
+
+    /**
      * @brief 取消所有定时器（仅清理集合，不触发回调）
      */
     void cancelAllTimers();
+
 protected:
     /**
      * @brief 添加定时到集合中，同时触发onTimerInsertedAtFront
@@ -143,12 +151,14 @@ protected:
      * @brief tickle()
      */
     virtual void onTimerInsertedAtFront() = 0;
+
 private:
     /**
      * @brief 用于校验服务器的时间
      * @param now_ms 当前的时间戳
      */
     bool detectClockRollover(uint64_t now_ms);
+
 private:
     /// 读写锁
     std::shared_mutex m_mutex;
@@ -160,4 +170,4 @@ private:
     uint64_t m_previouseTime = 0;
 };
 
-}
+} // namespace chen

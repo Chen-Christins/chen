@@ -3,6 +3,7 @@
  * @brief 协程模块
  * @author Christins
  * @date 2024-11-08
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -36,26 +37,28 @@ public:
         /// 异常状态
         EXCEPT
     };
+
 private:
     /**
-    * @brief 无参构造函数
-    * @attention 每个线程第一个协程的构造
-    */
+     * @brief 无参构造函数
+     * @attention 每个线程第一个协程的构造
+     */
     Fiber();
+
 public:
     /**
-    * @brief 构造函数，用于绑定当前m_ctx上下文触发时执行的函数，以及分配栈空间, 用户协程
-    * @param task 协程执行的函数
-    * @param stacksize 协程栈大小
-    * @param use_caller 是否在主协程上调度
-    */
+     * @brief 构造函数，用于绑定当前m_ctx上下文触发时执行的函数，以及分配栈空间, 用户协程
+     * @param task 协程执行的函数
+     * @param stacksize 协程栈大小
+     * @param use_caller 是否在主协程上调度
+     */
     Fiber(std::function<void()> task, size_t stacksize = 0, bool use_caller = false);
 
     /**
      * @brief 析构函数
      */
     ~Fiber();
-    
+
     /**
      * @brief 重置协程执行函数
      * @param task 新的执行函数
@@ -70,12 +73,12 @@ public:
      * @post getState = EXEC
      */
     void swapIn();
-    
+
     /**
      * @brief 将当前协程切换到后台, 当前协程切回主协程
      */
     void swapOut();
-    
+
     /**
      * @brief 将当前线程切换到执行状态
      * @pre 执行的为当前线程的主协程
@@ -103,6 +106,7 @@ public:
      * @brief 返回当前协程的id
      */
     uint64_t getId() const { return m_id; }
+
 public:
     /**
      * @brief 将静态局部变量t_fiber设置为f
@@ -115,9 +119,9 @@ public:
      * @details 因为开启了std::enable_shared_from_this
      *          可以从自己的作用域传智能指针, 如果它没有值，就
      *			会给他初始化一个主协程。
-	 * @details 每个线程第一次调用 Fiber::GetThis() 时
-	 * 			会自动创建一个“主协程”（主协程代表当前线程的原生栈环境）
-	 * 			并挂在 thread_local 指针上（t_fiber / t_threadFiber）。
+     * @details 每个线程第一次调用 Fiber::GetThis() 时
+     * 			会自动创建一个“主协程”（主协程代表当前线程的原生栈环境）
+     * 			并挂在 thread_local 指针上（t_fiber / t_threadFiber）。
      * @return Fiber::ptr Fiber的智能指针
      */
     static Fiber::ptr GetThis();
@@ -158,6 +162,7 @@ public:
      *          确保线程的主协程被正确释放，避免 ASan 报 indirect leak。
      */
     static void CleanupThread();
+
 private:
     /// 协程id
     uint64_t m_id = 0;
@@ -175,4 +180,4 @@ private:
     std::function<void()> m_task;
 };
 
-}
+} // namespace chen

@@ -1,6 +1,9 @@
 /**
  * @file rpc_connection.h
  * @brief RPC 连接层（协议帧收发）
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

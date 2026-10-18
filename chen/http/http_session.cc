@@ -15,16 +15,17 @@ namespace chen::http {
 static Logger::ptr logger = LOG_NAME("system");
 
 HttpSession::HttpSession(Socket::ptr sock, bool owner)
-    : SocketStream(sock, owner) {
+    : SocketStream(sock, owner)
+{
 }
 
-HttpRequest::ptr HttpSession::recvRequestHeader(std::string* leftover) {
+HttpRequest::ptr HttpSession::recvRequestHeader(std::string* leftover)
+{
     HttpRequestParser::ptr parser(new HttpRequestParser);
     uint64_t buff_size = HttpRequestParser::GetHttpRequestBufferSize();
 
-    std::shared_ptr<char> buffer(
-        new char[buff_size], [](char* ptr) {
-        delete [] ptr;
+    std::shared_ptr<char> buffer(new char[buff_size], [](char* ptr) {
+        delete[] ptr;
     });
 
     char* data = buffer.get();
@@ -36,9 +37,7 @@ HttpRequest::ptr HttpSession::recvRequestHeader(std::string* leftover) {
         int len = read(data + offset, buff_size - offset);
         /* 读取失败了 */
         if (len <= 0) {
-            if (len == -1 && errno == EAGAIN
-                    && eagain_retries < MAX_EAGAIN_RETRIES
-                    && isConnected()) {
+            if (len == -1 && errno == EAGAIN && eagain_retries < MAX_EAGAIN_RETRIES && isConnected()) {
                 ++eagain_retries;
                 auto iom = chen::IOManager::GetThis();
                 if (iom) {
@@ -74,7 +73,8 @@ HttpRequest::ptr HttpSession::recvRequestHeader(std::string* leftover) {
     return parser->getData();
 }
 
-int HttpSession::readBodyInto(HttpRequest::ptr req, const std::string& leftover) {
+int HttpSession::readBodyInto(HttpRequest::ptr req, const std::string& leftover)
+{
     int64_t length = req->getHeaderAs<uint64_t>("content-length", 0);
     if (length <= 0) {
         return 0;
@@ -99,11 +99,11 @@ int HttpSession::readBodyInto(HttpRequest::ptr req, const std::string& leftover)
     return 0;
 }
 
-int HttpSession::readBodyStreaming(uint64_t totalLen, BodyCallback cb) {
+int HttpSession::readBodyStreaming(uint64_t totalLen, BodyCallback cb)
+{
     uint64_t buff_size = HttpRequestParser::GetHttpRequestBufferSize();
-    std::shared_ptr<char> buffer(
-        new char[buff_size], [](char* ptr) {
-        delete [] ptr;
+    std::shared_ptr<char> buffer(new char[buff_size], [](char* ptr) {
+        delete[] ptr;
     });
     char* data = buffer.get();
 
@@ -139,15 +139,15 @@ int HttpSession::readBodyStreaming(uint64_t totalLen, BodyCallback cb) {
     return 0;
 }
 
-int HttpSession::drainBody() {
+int HttpSession::drainBody()
+{
     if (m_bodyRemaining == 0) {
         return 0;
     }
 
     uint64_t buff_size = HttpRequestParser::GetHttpRequestBufferSize();
-    std::shared_ptr<char> buffer(
-        new char[buff_size], [](char* ptr) {
-        delete [] ptr;
+    std::shared_ptr<char> buffer(new char[buff_size], [](char* ptr) {
+        delete[] ptr;
     });
     char* data = buffer.get();
 
@@ -163,7 +163,8 @@ int HttpSession::drainBody() {
     return 0;
 }
 
-HttpRequest::ptr HttpSession::recvRequest() {
+HttpRequest::ptr HttpSession::recvRequest()
+{
     std::string leftover;
     auto req = recvRequestHeader(&leftover);
     if (!req) {
@@ -176,25 +177,17 @@ HttpRequest::ptr HttpSession::recvRequest() {
     return req;
 }
 
-int HttpSession::sendResponseHeader(HttpResponse::ptr rsp) {
+int HttpSession::sendResponseHeader(HttpResponse::ptr rsp)
+{
     std::stringstream ss;
 
     uint8_t version = rsp->getVersion();
     if (version == HttpRequest::HTTP2_VERSION) {
-        ss << "[HTTP/2] :status=" << (uint32_t)rsp->getStatus()
-           << " "
-           << (rsp->getReason().empty() ? HttpStatusToString(rsp->getStatus()) : rsp->getReason())
-           << "\r\n";
+        ss << "[HTTP/2] :status=" << (uint32_t)rsp->getStatus() << " "
+           << (rsp->getReason().empty() ? HttpStatusToString(rsp->getStatus()) : rsp->getReason()) << "\r\n";
     } else {
-        ss << "HTTP/"
-           << ((uint32_t)(version >> 4))
-           << "."
-           << ((uint32_t)(version & 0x0F))
-           << " "
-           << (uint32_t)rsp->getStatus()
-           << " "
-           << (rsp->getReason().empty() ? HttpStatusToString(rsp->getStatus()) : rsp->getReason())
-           << "\r\n";
+        ss << "HTTP/" << ((uint32_t)(version >> 4)) << "." << ((uint32_t)(version & 0x0F)) << " " << (uint32_t)rsp->getStatus() << " "
+           << (rsp->getReason().empty() ? HttpStatusToString(rsp->getStatus()) : rsp->getReason()) << "\r\n";
     }
 
     for (auto& i : rsp->getHeaders()) {
@@ -215,7 +208,8 @@ int HttpSession::sendResponseHeader(HttpResponse::ptr rsp) {
     return writeFixSize(data.c_str(), data.size()) > 0 ? 0 : -1;
 }
 
-int HttpSession::sendResponse(HttpResponse::ptr rsp) {
+int HttpSession::sendResponse(HttpResponse::ptr rsp)
+{
     std::stringstream ss;
     ss << *rsp;
     std::string data = ss.str();

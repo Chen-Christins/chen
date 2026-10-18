@@ -16,7 +16,7 @@ class SSEServlet : public Servlet {
 public:
     typedef std::shared_ptr<SSEServlet> ptr;
     SSEServlet(const std::string& name);
-    virtual ~SSEServlet() {}
+    virtual ~SSEServlet();
 
     virtual int32_t handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session) override;
 

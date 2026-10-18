@@ -4,19 +4,20 @@
 
 ## 组件
 
-| 文件 | 说明 |
-|------|------|
-| `lru_cache.h` | 分段 LRU 缓存（`HashLruCache`） |
-| `event_bus.h/cc` | 事件总线（观察者模式） |
-| `dispatcher.h/cc` | 条件事件分发器（观察者 + 解释器模式） |
-| `bitmap.h/cc` | 位图 |
-| `roaring_bitmap.h/cc` | Roaring Bitmap（压缩位图） |
+| 文件                  | 说明                                  |
+|-----------------------|---------------------------------------|
+| `lru_cache.h`         | 分段 LRU 缓存（`HashLruCache`）       |
+| `event_bus.h/cc`      | 事件总线（观察者模式）                |
+| `dispatcher.h/cc`     | 条件事件分发器（观察者 + 解释器模式） |
+| `bitmap.h/cc`         | 位图                                  |
+| `roaring_bitmap.h/cc` | Roaring Bitmap（压缩位图）            |
 
 ---
 
 ## EventBus — 事件总线
 
-线程安全的事件注册分发器。事件 key 支持字符串或整型（`EventKey = std::variant<std::string, int64_t>`），事件数据为 `std::any`。
+线程安全的事件注册分发器。事件 key 支持字符串或整型（`EventKey = std::variant<std::string, int64_t>`），事件数据为
+`std::any`。
 
 ### 使用
 
@@ -49,14 +50,14 @@ bus->off("user.created", id);
 
 ### API
 
-| 方法 | 说明 |
-|------|------|
-| `on(EventKey, cb) -> id` | 注册回调 |
-| `off(EventKey, id)` | 取消注册 |
-| `emit<T>(EventKey, data)` | 同步触发，data 任意类型 |
+| 方法                        | 说明                                |
+|-----------------------------|-------------------------------------|
+| `on(EventKey, cb) -> id`    | 注册回调                            |
+| `off(EventKey, id)`         | 取消注册                            |
+| `emit<T>(EventKey, data)`   | 同步触发，data 任意类型             |
 | `emitAsync(EventKey, data)` | 异步触发；无 IOManager 时打日志丢弃 |
-| `clear(EventKey)` | 清空某事件 |
-| `clearAll()` | 清空全部 |
+| `clear(EventKey)`           | 清空某事件                          |
+| `clearAll()`                | 清空全部                            |
 
 ### 关键点
 
@@ -91,12 +92,12 @@ dp->emit((int64_t)Event::ArticleStateChanged, Json::Value{{"state", 2}});  // �
 
 ### FieldEquals 内置条件
 
-| 构造 | 条件 |
-|------|------|
-| `FieldEquals("f", (int64_t)N)` | `data["f"]` 整数值 == N |
-| `FieldEquals("f", "val")` | `data["f"]` 字符串 == "val" |
-| `FieldEquals("f", true)` | `data["f"]` 布尔 == true |
-| `FieldEquals("f", 3.14)` | `data["f"]` 浮点 == 3.14 |
+| 构造                           | 条件                        |
+|--------------------------------|-----------------------------|
+| `FieldEquals("f", (int64_t)N)` | `data["f"]` 整数值 == N     |
+| `FieldEquals("f", "val")`      | `data["f"]` 字符串 == "val" |
+| `FieldEquals("f", true)`       | `data["f"]` 布尔 == true    |
+| `FieldEquals("f", 3.14)`       | `data["f"]` 浮点 == 3.14    |
 
 ### 自定义解释器
 
@@ -111,20 +112,20 @@ class StateTransition : public ICondition {
 
 ### API
 
-| 方法 | 说明 |
-|------|------|
-| `on(EventKey, cb)` | 无条件订阅 |
-| `on(EventKey, cb, cond)` | 条件订阅 |
-| `off(EventKey, id)` | 取消 |
-| `emit<T>(EventKey, data)` | 同步触发，校验后执行 |
-| `emitAsync(EventKey, data)` | 异步触发 |
-| `clear(EventKey)` / `clearAll()` | 清空 |
+| 方法                             | 说明                 |
+|----------------------------------|----------------------|
+| `on(EventKey, cb)`               | 无条件订阅           |
+| `on(EventKey, cb, cond)`         | 条件订阅             |
+| `off(EventKey, id)`              | 取消                 |
+| `emit<T>(EventKey, data)`        | 同步触发，校验后执行 |
+| `emitAsync(EventKey, data)`      | 异步触发             |
+| `clear(EventKey)` / `clearAll()` | 清空                 |
 
 ### 与 EventBus 区别
 
-| | EventBus | EventDispatcher |
-|------|----------|-----------------|
-| 订阅 | 无条件 | 可选绑定 ICondition |
+|      | EventBus     | EventDispatcher      |
+|------|--------------|----------------------|
+| 订阅 | 无条件       | 可选绑定 ICondition  |
 | 触发 | 全部回调执行 | 解释器校验通过才执行 |
 
 ---

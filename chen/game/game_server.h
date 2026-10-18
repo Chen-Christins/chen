@@ -1,8 +1,9 @@
 /**
- * @file game_protocol.h
+ * @file game_server.h
  * @brief 通用游戏应用层协议框架
  * @author Claude
  * @date 2026-02-13
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -59,7 +60,7 @@ public:
      * @param headerSize 包头大小
      * @param magic 魔数（可选）
      */
-    CustomPackageParser(size_t headerSize, uint32_t magic = 0) : headerSize_(headerSize), magic_(magic) {}
+    CustomPackageParser(size_t headerSize, uint32_t magic = 0);
 
 protected:
     size_t headerSize_;
@@ -106,10 +107,14 @@ public:
     typedef std::shared_ptr<MessageHandlerWrapper> ptr;
     typedef std::function<bool(uint32_t, const MessageType&)> HandlerFunc;
 
-    MessageHandlerWrapper(HandlerFunc func, const std::string& name) 
-        : handler_(func), name_(name) {}
+    MessageHandlerWrapper(HandlerFunc func, const std::string& name)
+        : handler_(func)
+        , name_(name)
+    {
+    }
 
-    bool handle(uint32_t connId, uint32_t cmdId, const std::vector<uint8_t>& header, const std::vector<uint8_t>& body) override {
+    bool handle(uint32_t connId, uint32_t cmdId, const std::vector<uint8_t>& header, const std::vector<uint8_t>& body) override
+    {
         MessageType msg;
         if (!deserialize(body, msg)) {
             return false;
@@ -229,10 +234,11 @@ public:
      * @param io_worker IO工作线程池
      * @param accept_worker 接收连接线程池
      */
-    GenericProtocolServer(IPackageParser::ptr parser,
-                          IOManager* worker = IOManager::GetThis(),
-                          IOManager* io_worker = IOManager::GetThis(), 
-                          IOManager* accept_worker = IOManager::GetThis());
+    GenericProtocolServer(
+        IPackageParser::ptr parser,
+        IOManager* worker = IOManager::GetThis(),
+        IOManager* io_worker = IOManager::GetThis(),
+        IOManager* accept_worker = IOManager::GetThis());
 
     /**
      * @brief 析构函数
@@ -285,7 +291,8 @@ public:
      * @return bool 是否成功
      */
     template <typename MessageType>
-    bool registerHandler(uint32_t cmdId, std::function<bool(uint32_t, const MessageType&)> handler, const std::string& name = "") {
+    bool registerHandler(uint32_t cmdId, std::function<bool(uint32_t, const MessageType&)> handler, const std::string& name = "")
+    {
         // 注意：ProtobufHandler需要用户继承实现
         // 这里提供一个示例注释
         // auto wrapper = std::make_shared<ProtobufHandler<MessageType>>(handler, name);
@@ -313,7 +320,8 @@ public:
      * @return bool 是否成功
      */
     template <typename MessageType>
-    bool sendMessage(uint32_t connId, uint32_t cmdId, uint32_t seq, const MessageType& message) {
+    bool sendMessage(uint32_t connId, uint32_t cmdId, uint32_t seq, const MessageType& message)
+    {
         // 这里需要序列化消息，具体实现取决于序列化方式
         std::vector<uint8_t> data;
         // 序列化代码...
@@ -380,10 +388,13 @@ public:
     typedef std::shared_ptr<ProtobufHandler> ptr;
 
     ProtobufHandler(typename MessageHandlerWrapper<MessageType>::HandlerFunc func, const std::string& name)
-        : MessageHandlerWrapper<MessageType>(func, name) {}
+        : MessageHandlerWrapper<MessageType>(func, name)
+    {
+    }
 
 private:
-    bool deserialize(const std::vector<uint8_t>& data, MessageType& msg) override {
+    bool deserialize(const std::vector<uint8_t>& data, MessageType& msg) override
+    {
         // 这里需要实现protobuf反序列化
         // 具体实现取决于protobuf版本和消息类型
         return true; // 暂时返回true

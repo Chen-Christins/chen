@@ -3,10 +3,10 @@
  * @brief 字符串工具函数
  * @author Christins
  * @date 2026-06-26
+ * @copyright GPL-3.0
  */
 #pragma once
 
-#include <cstdarg>
 #include <string>
 #include <vector>
 
@@ -93,7 +93,7 @@ public:
      * @param replaceWith 替换的字符
      * @return 替换后的字符串
      */
-    static std::string Replace(const std::string &str, char find, char replaceWith);
+    static std::string Replace(const std::string& str, char find, char replaceWith);
 
     /**
      * @brief 将字符串中的指定字符替换为字符串
@@ -102,7 +102,7 @@ public:
      * @param replaceWith 替换的字符串
      * @return 替换后的字符串
      */
-    static std::string Replace(const std::string &str, char find, const std::string &replaceWith);
+    static std::string Replace(const std::string& str, char find, const std::string& replaceWith);
 
     /**
      * @brief 将字符串中的指定子串替换为另一个字符串
@@ -111,7 +111,7 @@ public:
      * @param replaceWith 替换的字符串
      * @return 替换后的字符串
      */
-    static std::string Replace(const std::string &str, const std::string &find, const std::string &replaceWith);
+    static std::string Replace(const std::string& str, const std::string& find, const std::string& replaceWith);
 
     /**
      * @brief 将字符串全部转换为大写
@@ -177,7 +177,7 @@ public:
      * @return Base64编码后的字符串
      */
     static std::string Base64Encode(const std::string& str);
-    
+
     /**
      * @brief Base64解码
      * @param str Base64编码的字符串

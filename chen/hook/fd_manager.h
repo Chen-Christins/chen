@@ -4,6 +4,7 @@
  *        判断socket传入是否是一个句柄
  * @author Christins
  * @date 2024-11-17
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -35,7 +36,7 @@ public:
      * @brief 初始化操作
      * @details 主要是判断文件描述符所对应的信息，他是否是socket系列的句柄
      *          是否是在hook模块设置的非阻塞
-     * @return bool 
+     * @return bool
      */
     bool init();
 
@@ -104,17 +105,18 @@ public:
      * @return uint64_t 时间戳
      */
     uint64_t getTimeout(int type);
+
 private:
     /// 是否初始化，这里的这个 :1 是位域的意思，一个
-    bool m_isInit: 1;
+    bool m_isInit : 1;
     /// 是不是socket系列的fd
-    bool m_isSocket: 1;
+    bool m_isSocket : 1;
     /// 是否hook非阻塞
-    bool m_sysNonblock: 1;
+    bool m_sysNonblock : 1;
     /// 是否用户主动设置非阻塞
-    bool m_userNonblock: 1;
+    bool m_userNonblock : 1;
     /// 是否关闭
-    bool m_isClosed: 1;
+    bool m_isClosed : 1;
     /// 文件描述符
     int m_fd;
     /// 读超时时间
@@ -128,15 +130,15 @@ private:
 class FdManager {
 public:
     /**
-    * @brief 构造函数
-    */
+     * @brief 构造函数
+     */
     FdManager();
-    
+
     /**
-    * @brief 获取一个FdCtx
-    * @param fd 文件描述符
-    * @param auto_create 如果不存在是否创建一个
-    */
+     * @brief 获取一个FdCtx
+     * @param fd 文件描述符
+     * @param auto_create 如果不存在是否创建一个
+     */
     FdCtx::ptr get(int fd, bool auto_create = false);
 
     /**
@@ -144,6 +146,7 @@ public:
      * @param fd 文件描述符
      */
     void del(int fd);
+
 private:
     /// 写锁
     std::shared_mutex m_mutex;
@@ -153,4 +156,4 @@ private:
 
 typedef Singleton<FdManager> FdMgr;
 
-}
+} // namespace chen

@@ -8,8 +8,11 @@ namespace chen {
 
 static const size_t kChunkSize = 16384;
 
-std::string CompressUtil::GzipCompress(const std::string& data) {
-    if (data.empty()) { return ""; }
+std::string CompressUtil::GzipCompress(const std::string& data)
+{
+    if (data.empty()) {
+        return "";
+    }
 
     z_stream strm;
     memset(&strm, 0, sizeof(strm));
@@ -40,8 +43,11 @@ std::string CompressUtil::GzipCompress(const std::string& data) {
     return result;
 }
 
-std::string CompressUtil::GzipUncompress(const std::string& data) {
-    if (data.empty()) { return ""; }
+std::string CompressUtil::GzipUncompress(const std::string& data)
+{
+    if (data.empty()) {
+        return "";
+    }
 
     z_stream strm;
     memset(&strm, 0, sizeof(strm));
@@ -70,8 +76,11 @@ std::string CompressUtil::GzipUncompress(const std::string& data) {
     return result;
 }
 
-std::string CompressUtil::ZlibCompress(const std::string& data) {
-    if (data.empty()) { return ""; }
+std::string CompressUtil::ZlibCompress(const std::string& data)
+{
+    if (data.empty()) {
+        return "";
+    }
 
     z_stream strm;
     memset(&strm, 0, sizeof(strm));
@@ -102,8 +111,11 @@ std::string CompressUtil::ZlibCompress(const std::string& data) {
     return result;
 }
 
-std::string CompressUtil::ZlibUncompress(const std::string& data) {
-    if (data.empty()) { return ""; }
+std::string CompressUtil::ZlibUncompress(const std::string& data)
+{
+    if (data.empty()) {
+        return "";
+    }
 
     z_stream strm;
     memset(&strm, 0, sizeof(strm));

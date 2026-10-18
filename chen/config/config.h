@@ -3,6 +3,7 @@
  * @brief 配置模块
  * @author Christins
  * @date 2024-11-06
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -38,16 +39,12 @@ public:
      * @param name 参数名称[0-9a~z_.]
      * @param description 配置的描述
      */
-    ConfigVarBase(const std::string& name, const std::string& description = "")
-        :m_name(name)
-        ,m_description(description) {
-        std::transform(m_name.begin(), m_name.end(), m_name.begin(), ::tolower);
-    }
+    ConfigVarBase(const std::string& name, const std::string& description = "");
 
     /**
      * @brief 析构函数
      */
-    virtual ~ConfigVarBase() {}
+    virtual ~ConfigVarBase();
 
     /**
      * @brief 获取配置名称name.xxxx点来区分层级
@@ -74,6 +71,7 @@ public:
      * @brief 返回类型名称，用于调试
      */
     virtual std::string getTypeName() const = 0;
+
 private:
     /// 配置的名称
     std::string m_name;
@@ -95,16 +93,15 @@ public:
      * @return T将源F类型的v, 转换为目标类型T
      * @exception 类型转换失败，错误抛出异常
      */
-    T operator()(const F& v) {
-        return boost::lexical_cast<T>(v);
-    }
+    T operator()(const F& v) { return boost::lexical_cast<T>(v); }
 };
 
 // string 到 string 的特化，直接返回
 template <>
 class LexicalCast<std::string, std::string> {
 public:
-    std::string operator()(const std::string& v) {
+    std::string operator()(const std::string& v)
+    {
         // 如果字符串以*开头，需要加引号避免被当作YAML别名
         if (!v.empty() && v[0] == '*') {
             return "\"" + v + "\"";
@@ -117,7 +114,8 @@ public:
 template <>
 class LexicalCast<std::string, bool> {
 public:
-    bool operator()(const std::string& v) {
+    bool operator()(const std::string& v)
+    {
         if (v == "true" || v == "1" || v == "True" || v == "TRUE") {
             return true;
         }
@@ -132,9 +130,7 @@ public:
 template <>
 class LexicalCast<bool, std::string> {
 public:
-    std::string operator()(const bool& v) {
-        return v ? "true" : "false";
-    }
+    std::string operator()(const bool& v) { return v ? "true" : "false"; }
 };
 
 /**
@@ -144,7 +140,8 @@ public:
 template <class T>
 class LexicalCast<std::string, std::vector<T>> {
 public:
-    std::vector<T> operator()(const std::string& v) {
+    std::vector<T> operator()(const std::string& v)
+    {
         YAML::Node node = YAML::Load(v);
         typename std::vector<T> vec;
         std::stringstream ss;
@@ -164,7 +161,8 @@ public:
 template <class T>
 class LexicalCast<std::vector<T>, std::string> {
 public:
-    std::string operator()(const std::vector<T>& v) {
+    std::string operator()(const std::vector<T>& v)
+    {
         YAML::Node node;
         for (auto& i : v) {
             std::string str = LexicalCast<T, std::string>()(i);
@@ -184,7 +182,8 @@ public:
 template <class T>
 class LexicalCast<std::string, std::list<T>> {
 public:
-    std::list<T> operator()(const std::string& v) {
+    std::list<T> operator()(const std::string& v)
+    {
         YAML::Node node = YAML::Load(v);
         typename std::list<T> vec;
         std::stringstream ss;
@@ -204,7 +203,8 @@ public:
 template <class T>
 class LexicalCast<std::list<T>, std::string> {
 public:
-    std::string operator()(const std::list<T>& v) {
+    std::string operator()(const std::list<T>& v)
+    {
         YAML::Node node;
         for (auto& i : v) {
             node.push_back(YAML::Load(LexicalCast<T, std::string>()(i)));
@@ -222,7 +222,8 @@ public:
 template <class T>
 class LexicalCast<std::string, std::set<T>> {
 public:
-    std::set<T> operator()(const std::string& v) {
+    std::set<T> operator()(const std::string& v)
+    {
         YAML::Node node = YAML::Load(v);
         typename std::set<T> vec;
         std::stringstream ss;
@@ -242,7 +243,8 @@ public:
 template <class T>
 class LexicalCast<std::set<T>, std::string> {
 public:
-    std::string operator()(const std::set<T>& v) {
+    std::string operator()(const std::set<T>& v)
+    {
         YAML::Node node;
         for (auto& i : v) {
             node.push_back(YAML::Load(LexicalCast<T, std::string>()(i)));
@@ -260,7 +262,8 @@ public:
 template <class T>
 class LexicalCast<std::string, std::unordered_set<T>> {
 public:
-    std::unordered_set<T> operator()(const std::string& v) {
+    std::unordered_set<T> operator()(const std::string& v)
+    {
         YAML::Node node = YAML::Load(v);
         typename std::unordered_set<T> vec;
         std::stringstream ss;
@@ -280,7 +283,8 @@ public:
 template <class T>
 class LexicalCast<std::unordered_set<T>, std::string> {
 public:
-    std::string operator()(const std::unordered_set<T>& v) {
+    std::string operator()(const std::unordered_set<T>& v)
+    {
         YAML::Node node;
         for (auto& i : v) {
             node.push_back(YAML::Load(LexicalCast<T, std::string>()(i)));
@@ -298,7 +302,8 @@ public:
 template <class T>
 class LexicalCast<std::string, std::map<std::string, T>> {
 public:
-    std::map<std::string, T> operator()(const std::string& v) {
+    std::map<std::string, T> operator()(const std::string& v)
+    {
         YAML::Node node = YAML::Load(v);
         typename std::map<std::string, T> vec;
         std::stringstream ss;
@@ -318,7 +323,8 @@ public:
 template <class T>
 class LexicalCast<std::map<std::string, T>, std::string> {
 public:
-    std::string operator()(const std::map<std::string, T>& v) {
+    std::string operator()(const std::map<std::string, T>& v)
+    {
         YAML::Node node;
         for (auto& [x, y] : v) {
             node[x] = YAML::Load(LexicalCast<T, std::string>()(y));
@@ -337,7 +343,8 @@ public:
 template <class T>
 class LexicalCast<std::string, std::unordered_map<std::string, T>> {
 public:
-    std::unordered_map<std::string, T> operator()(const std::string& v) {
+    std::unordered_map<std::string, T> operator()(const std::string& v)
+    {
         YAML::Node node = YAML::Load(v);
         typename std::unordered_map<std::string, T> vec;
         std::stringstream ss;
@@ -358,7 +365,8 @@ public:
 template <class T>
 class LexicalCast<std::unordered_map<std::string, T>, std::string> {
 public:
-    std::string operator()(const std::unordered_map<std::string, T>& v) {
+    std::string operator()(const std::unordered_map<std::string, T>& v)
+    {
         YAML::Node node;
         for (auto& [x, y] : v) {
             node[x] = YAML::Load(LexicalCast<T, std::string>()(y));
@@ -375,8 +383,7 @@ public:
  * @tparam FromStr 从std::string转换为T类型的仿函数
  * @tparam ToStr 从T转换为std::string类型的仿函数
  */
-template <class T, class FromStr = LexicalCast<std::string, T>
-    ,class ToStr = LexicalCast<T, std::string>>
+template <class T, class FromStr = LexicalCast<std::string, T>, class ToStr = LexicalCast<T, std::string>>
 class ConfigVar : public ConfigVarBase {
 public:
     typedef std::shared_ptr<ConfigVar> ptr;
@@ -388,16 +395,17 @@ public:
      * @param default_value 默认参数值
      * @param description 参数的描述
      */
-    ConfigVar(const std::string& name, const T& default_value
-            ,const std::string& description = "")
-        :ConfigVarBase(name, description)
-        ,m_val(default_value) {
+    ConfigVar(const std::string& name, const T& default_value, const std::string& description = "")
+        : ConfigVarBase(name, description)
+        , m_val(default_value)
+    {
     }
 
     /**
      * @brief 获取T类型的值
      */
-    const T getValue() {
+    const T getValue()
+    {
         std::shared_lock lock(m_mutex);
         return m_val;
     }
@@ -406,11 +414,12 @@ public:
      * @brief 设置当前参数的值
      * @details 如果参数的值有发生变化,则通知对应的注册回调函数
      */
-    void setValue(const T& v) {
+    void setValue(const T& v)
+    {
         {
             std::shared_lock lock(m_mutex);
             if (v == m_val) {
-                return ;
+                return;
             }
             for (auto& [idx, task] : m_cbs) {
                 task(m_val, v);
@@ -424,14 +433,14 @@ public:
      * @brief 将参数值转换为Yaml string
      * @exception 转换失败抛出异常
      */
-    std::string toString() override {
+    std::string toString() override
+    {
         try {
             std::unique_lock lock(m_mutex);
             return ToStr()(m_val);
         } catch (std::exception& e) {
-            ERROR(LOG_NAME("system")) << "ConfigVar::toString exception" << e.what()
-                << " convert: string to " << typeid(m_val).name()
-                << " to string";
+            ERROR(LOG_NAME("system")) << "ConfigVar::toString exception" << e.what() << " convert: string to " << typeid(m_val).name()
+                                      << " to string";
         }
         return "";
     }
@@ -440,12 +449,13 @@ public:
      * @brief 将Yaml string转换为当前参数值类型
      * @exception 转换失败抛出异常
      */
-    bool fromString(const std::string& val) override {
+    bool fromString(const std::string& val) override
+    {
         try {
             setValue(FromStr()(val));
         } catch (std::exception& e) {
-            ERROR(LOG_NAME("system")) << "ConfigVar::fromString exception" << e.what()
-                << " convert: string to " << typeid(m_val).name() << " - " << val;
+            ERROR(LOG_NAME("system")) << "ConfigVar::fromString exception" << e.what() << " convert: string to " << typeid(m_val).name() << " - "
+                                      << val;
         }
         return false;
     }
@@ -460,7 +470,8 @@ public:
      * @param cb 回调函数
      * @return uint64_t 返回回调函数对应的唯一id，用于删除回调
      */
-    uint64_t addListener(on_change_cb cb) {
+    uint64_t addListener(on_change_cb cb)
+    {
         static uint64_t s_fun_id = 0;
         std::unique_lock lock(m_mutex);
         ++s_fun_id;
@@ -472,7 +483,8 @@ public:
      * @brief 删除id为key的回调函数
      * @param key 回调函数列表中存储的编号
      */
-    void delListener(uint64_t key) {
+    void delListener(uint64_t key)
+    {
         std::unique_lock lock(m_mutex);
         m_cbs.erase(key);
     }
@@ -482,7 +494,8 @@ public:
      * @param key 回调函数组的编号
      * @return on_change_cb 回调函数，否则返回nullptr
      */
-    on_change_cb getListener(uint64_t key) {
+    on_change_cb getListener(uint64_t key)
+    {
         std::shared_lock lock(m_mutex);
         auto it = m_cbs.find(key);
         return it == m_cbs.end() ? nullptr : it->second;
@@ -491,7 +504,8 @@ public:
     /**
      * @brief 清空所有变更回调函数
      */
-    void clearListener() {
+    void clearListener()
+    {
         std::unique_lock lock(m_mutex);
         m_cbs.clear();
     }
@@ -523,8 +537,8 @@ public:
      * @exception 如果参数名包含非法字符[^0-9a-z_.] 抛出异常 std::invalid_argument
      */
     template <class T>
-    static typename ConfigVar<T>::ptr Lookup(const std::string& name
-            ,const T& default_value, const std::string& description = "") {
+    static typename ConfigVar<T>::ptr Lookup(const std::string& name, const T& default_value, const std::string& description = "")
+    {
         std::unique_lock lock(GetMutex());
         auto it = GetDatas().find(name);
         if (it != GetDatas().end()) {
@@ -536,15 +550,13 @@ public:
                 return tmp;
             } else {
                 /* 类型不对，也就是向下转换的时候，抛出异常 */
-                ERROR(LOG_NAME("system")) << "Lookup name=" << name << " exists but type not "
-                    << typeid(T).name() << " real_type=" << it->second->getTypeName()
-                    << " " << it->second->toString();
+                ERROR(LOG_NAME("system")) << "Lookup name=" << name << " exists but type not " << typeid(T).name()
+                                          << " real_type=" << it->second->getTypeName() << " " << it->second->toString();
                 return nullptr;
             }
         }
 
-        if (name.find_first_not_of("abcdefghijklmnopqrstuvwxyz._0123456789")
-                != std::string::npos) {
+        if (name.find_first_not_of("abcdefghijklmnopqrstuvwxyz._0123456789") != std::string::npos) {
             ERROR(LOG_NAME("system")) << "Lookup name invalid " << name;
             throw std::invalid_argument(name);
         }
@@ -561,7 +573,8 @@ public:
      * @return ConfigVar<T>::ptr 返回配置参数名为name的配置参数
      */
     template <class T>
-    static typename ConfigVar<T>::ptr Lookup(const std::string& name) {
+    static typename ConfigVar<T>::ptr Lookup(const std::string& name)
+    {
         std::shared_lock lock(GetMutex());
         auto it = GetDatas().find(name);
         if (it == GetDatas().end()) {
@@ -602,22 +615,17 @@ public:
      */
     static ConfigVarBase::ptr LookupBase(const std::string& name);
 
-	static void Visit(std::function<void(ConfigVarBase::ptr)> callback);
+    static void Visit(std::function<void(ConfigVarBase::ptr)> callback);
+
 private:
     /**
-    * @brief 返回所有配置项
-    */
-    static ConfigVarMap& GetDatas() {
-        static ConfigVarMap s_datas;
-        return s_datas;
-    }
+     * @brief 返回所有配置项
+     */
+    static ConfigVarMap& GetDatas();
     /**
      * @brief 创建静态读写锁
      */
-    static std::shared_mutex& GetMutex() {
-        static std::shared_mutex s_mutex;
-        return s_mutex;
-    }
+    static std::shared_mutex& GetMutex();
 };
 
-}
+} // namespace chen

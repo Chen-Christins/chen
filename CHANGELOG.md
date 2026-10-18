@@ -2,6 +2,59 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.6.0 (2026-10-18)
+
+### 指标系统（新增）
+
+- **新增** `chen/metrics/` 指标注册表：`Counter` / `Gauge` / `GaugeFunc` / `Histogram`，支持标签（按 key 排序）、同一 `name + labels` 复用、类型冲突返回 `nullptr`
+- **新增** `Registry` 进程级单例 `RegistryMgr`，线程安全注册/查找；`Counter` / `Histogram` 采用每线程分片，热路径避免跨核 cacheline 争用
+- **新增** Prometheus 文本渲染 `RenderPrometheus()`：稳定分组、非法指标名/标签名替换、标签值与 HELP 转义
+- **新增** OpenMetrics / JSON 渲染：`Render(RenderFormat)`、`RenderOpenMetrics()`（追加 `# EOF`）、`RenderJson()`；补充 `Histogram::Snapshot`、`GaugeFunc::value()`
+- **新增** `chen/http/metrics_servlet.h`：`RegisterMetricsServlet(server, path, format)`，自动设置 Content-Type，业务模块可在 `onServerReady()` 中挂载采集接口
+- **新增** `tests/test_metrics.cc`、`tests/test_metrics_bench.cc`、`chen/metrics/README.md`
+
+### 热重载 / 进程模型（重构）
+
+- **重构** 热重载改为 **master/worker 多进程模型**：master 持有监听 socket 与 pidfile，fork worker 加载模块；`SIGHUP` fork 新 worker，新 worker ready 后旧 worker 停止 accept、限时 drain、`onDeactivate()` → `onUnload()` 后退出
+- **变更** 进程内不再 `dlclose` 模块，每个 worker 只加载一个模块版本，避免旧 `.so` 函数指针/静态对象悬空；worker 非预期崩溃由 master 自动重启（带 backoff）
+- **新增** 配置项 `server.worker_ready_timeout_ms`（默认 30000）、`server.worker_restart_interval_ms`（默认 2000）
+- **新增** `TcpServer::setWorkers()`：master 以空 worker 创建/绑定 server，worker fork 后注入真实线程池再 `start()`
+- **变更** 模块生命周期统一为 `onLoad → onServerReady → onServerUp → onTick → onDeactivate → onUnload`；重载时旧 worker 也会调用 `onUnload()`
+- **移除** `Module::onActivate()`、`ModuleManager::retire()` / `reloadModule()`、`TcpServer::prepareDispatch()` / `commitDispatch()`，以及 daemon 内部 fork/重启循环（改由 master 监督 worker）
+- **新增** `LeakySingleton`，`ModuleManager` 改为泄漏单例，避免进程退出时 `dlclose` 模块代码
+- **新增** `Logger::flush()` / `LoggerManager::flushAll()`，fork 前刷新日志缓冲，避免子进程重复输出 pre-fork 日志
+- **优化** 日志初始化默认 root 级别为 WARN，配置加载后覆盖；日志配置变更日志降为 DEBUG
+- **优化** YAML/XML 配置文件解析统一为 `ParseFileToYaml()`，共用同一加载路径
+
+### 稳定性修复
+
+- **修复** accept 线程阻塞：`Socket::newSock()` 创建 fd 后立即注册到 `FdManager`，保证 worker 继承的监听 fd 走 hook 非阻塞路径
+- **修复** Redis 成员未初始化：显式初始化 `IRedis` 类型/日志开关、`Redis` 端口/连接超时、`m_lastActiveTime`、`FoxRedis::Ctx::fctx` 等，并修复锁变量遮蔽
+- **修复** ORM 生成代码改用 `chen::TimeUtil::Time2Str` / `Str2Time`，不再依赖旧的全局快捷函数
+- **修复** ORM 工具启动时初始化 INFO 级 stdout 日志，生成过程可见
+
+### ORM
+
+- **新增** `datetime` 类型映射 MySQL `DATETIME`（支持 1970 前及 2038 之后），空默认值为 `'1970-01-01 00:00:00'`；`timestamp` 仍映射 `TIMESTAMP`
+- **变更** MySQL DDL 默认值改用 `getMySQLDefault()`；生成迁移 SQL 时补充 `ON UPDATE` 子句
+- **文档** 更新 `chen/orm/README.md` 的类型映射说明
+
+### 代码质量 / 构建
+
+- **重构** 头文件中的非模板函数实现迁移到源文件，新增 `chen/db/db.cc`、`chen/ds/cache_status.cc`、`chen/rpc/serializer.cc`、`chen/rpc/rpc_future.cc`；头文件仅保留模板、显式特化与简单 getter/setter
+- **变更** 移除 `CHEN_LITTLE_ENDIAN` / `CHEN_BIG_ENDIAN` / `CHEN_BYTE_ORDER` 宏，改用 C++20 `std::endian`；`endian.h` 的字节读写工具保持 inline
+- **变更** `JsonUtil::ToNormalString()` 合并为 `JsonUtil::ToString(json, is_styled)`，参数改为 `const Json::Value&`
+- **变更** 统一补充头文件 Doxygen 头注释（`@file` / `@brief` / `@author` / `@date` / `@copyright`）
+- **变更** 调整 `.clang-format` 并全量格式化；删除 `.claude/skills/cpp-code-style/SKILL.md`、`template/cmake/utils.cmake`
+- **文档** 新增 `docs/v1.6.0-plan.md`，更新 `docs/roadmap.md`、`CLAUDE.md` 及模块热重载/开发文档
+
+### 升级注意事项
+
+- 热重载现在会重启 worker 进程，堆内状态（内存缓存、session 等）会重置；需要跨重载保留的数据请落 Redis/MySQL，或在 `onDeactivate()` 中 flush
+- 替换模块 `.so` 必须使用原子替换（`mv` / `install`），不要用 `cp` 原地覆盖，否则旧 worker 在 drain 期间可能映射到半截代码页
+- `onActivate()` 已移除；旧模块生命周期为 `onDeactivate() → onUnload()`
+- 仍使用 `CHEN_*_ENDIAN` 宏或 `JsonUtil::ToNormalString()` 的下游代码需迁移
+
 ## v1.5.5 (2026-10-12)
 
 ### 依赖管理（新增）

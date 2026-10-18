@@ -3,6 +3,7 @@
  * @brief RPC 异步结果类型与 Future 句柄：支持并发发起、之后在协程内等待结果
  * @author chen
  * @date 2026-09-17
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -35,16 +36,7 @@ enum class RpcStatus : int32_t {
 /**
  * @brief 传输层状态码转可读字符串
  */
-inline const char* StatusToString(RpcStatus status) {
-    switch (status) {
-        case RpcStatus::OK:                return "ok";
-        case RpcStatus::TIMEOUT:           return "request timeout";
-        case RpcStatus::SEND_FAILED:       return "send request failed";
-        case RpcStatus::CONNECTION_CLOSED: return "connection closed";
-        case RpcStatus::DECODE_ERROR:      return "decode response failed";
-    }
-    return "unknown error";
-}
+const char* StatusToString(RpcStatus status);
 
 /**
  * @brief 异步调用结果
@@ -98,7 +90,8 @@ struct RpcFutureState {
      * @brief 填充结果并唤醒所有等待的协程（由完成回调调用）
      * @param result 调用结果
      */
-    void complete(RpcResult<R> result) {
+    void complete(RpcResult<R> result)
+    {
         std::lock_guard lock(m_mutex);
         m_result = std::move(result);
         m_ready = true;
@@ -111,7 +104,8 @@ struct RpcFutureState {
     /**
      * @brief 非阻塞查询结果是否就绪
      */
-    bool ready() const {
+    bool ready() const
+    {
         std::lock_guard lock(m_mutex);
         return m_ready;
     }
@@ -121,7 +115,8 @@ struct RpcFutureState {
      * @return RpcResult<R> 调用结果
      * @details 必须在 fiber/调度器上下文调用；结果就绪时立即返回，可多次调用。
      */
-    RpcResult<R> get() {
+    RpcResult<R> get()
+    {
         std::unique_lock lock(m_mutex);
         if (!m_ready) {
             m_waiters.emplace_back(Scheduler::GetThis(), Fiber::GetThis());
@@ -132,10 +127,10 @@ struct RpcFutureState {
         return m_result;
     }
 
-    mutable std::mutex m_mutex;                                 ///< 保护状态与等待队列
-    bool m_ready = false;                                       ///< 结果是否就绪
-    RpcResult<R> m_result;                                      ///< 调用结果
-    std::vector<std::pair<Scheduler*, Fiber::ptr>> m_waiters;   ///< 等待中的协程
+    mutable std::mutex m_mutex;                               ///< 保护状态与等待队列
+    bool m_ready = false;                                     ///< 结果是否就绪
+    RpcResult<R> m_result;                                    ///< 调用结果
+    std::vector<std::pair<Scheduler*, Fiber::ptr>> m_waiters; ///< 等待中的协程
 };
 
 /**
@@ -158,7 +153,9 @@ public:
      * @param state 共享状态
      */
     explicit RpcFuture(std::shared_ptr<RpcFutureState<R>> state)
-        : m_state(std::move(state)) {}
+        : m_state(std::move(state))
+    {
+    }
 
     /**
      * @brief 等待并返回调用结果（挂起当前协程）
@@ -175,11 +172,11 @@ public:
      * @return R 业务返回值（R=void 时无返回）
      * @throw std::runtime_error 传输层失败或服务端返回非 0 错误码
      */
-    R getValue() {
+    R getValue()
+    {
         RpcResult<R> result = m_state->get();
         if (!result.ok()) {
-            throw std::runtime_error(result.error.empty()
-                ? StatusToString(result.status) : result.error);
+            throw std::runtime_error(result.error.empty() ? StatusToString(result.status) : result.error);
         }
         if constexpr (!std::is_void_v<R>) {
             return result.value;

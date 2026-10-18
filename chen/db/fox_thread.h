@@ -1,13 +1,15 @@
 /**
  * @file fox_thread.h
  * @brief Fox 线程池
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 
 #include <functional>
 #include <list>
 #include <map>
-#include <mutex>
 #include <shared_mutex>
 #include <string>
 #include <thread>
@@ -27,7 +29,7 @@ public:
     typedef std::shared_ptr<IFoxThread> ptr;
     typedef std::function<void()> callback;
 
-    virtual ~IFoxThread(){};
+    virtual ~IFoxThread();
     virtual bool dispatch(callback cb) = 0;
     virtual bool dispatch(uint32_t id, callback cb) = 0;
     virtual bool batchDispatch(const std::vector<callback>& cbs) = 0;
@@ -44,7 +46,7 @@ class FoxThread : public IFoxThread {
 public:
     typedef std::shared_ptr<FoxThread> ptr;
     typedef IFoxThread::callback callback;
-    typedef std::function<void (FoxThread*)> init_cb;
+    typedef std::function<void(FoxThread*)> init_cb;
     FoxThread(const std::string& name = "", struct event_base* base = NULL);
     ~FoxThread();
 
@@ -64,25 +66,28 @@ public:
 
     void join();
     void stop();
-    bool isStart() const { return m_start;}
+    bool isStart() const { return m_start; }
 
-    struct event_base* getBase() { return m_base;}
+    struct event_base* getBase() { return m_base; }
     std::thread::id getId() const;
 
     void* getData(const std::string& name);
-    template<class T>
-    T* getData(const std::string& name) {
+    template <class T>
+    T* getData(const std::string& name)
+    {
         return (T*)getData(name);
     }
     void setData(const std::string& name, void* v);
 
-    void setInitCb(init_cb v) { m_initCb = v;}
+    void setInitCb(init_cb v) { m_initCb = v; }
 
     void dump(std::ostream& os);
-    virtual uint64_t getTotal() { return m_total;}
+    virtual uint64_t getTotal() { return m_total; }
+
 private:
     void thread_cb();
     static void read_cb(evutil_socket_t sock, short which, void* args);
+
 private:
     evutil_socket_t m_read;
     evutil_socket_t m_write;
@@ -114,24 +119,26 @@ public:
     void stop();
     void join();
 
-    //随机线程执行
+    // 随机线程执行
     bool dispatch(callback cb);
     bool batchDispatch(const std::vector<callback>& cb);
-    //指定线程执行
+    // 指定线程执行
     bool dispatch(uint32_t id, callback cb);
 
     FoxThread* getRandFoxThread();
-    void setInitCb(FoxThread::init_cb v) { m_initCb = v;}
+    void setInitCb(FoxThread::init_cb v) { m_initCb = v; }
 
     void dump(std::ostream& os);
 
     void broadcast(callback cb);
-    virtual uint64_t getTotal() { return m_total;}
+    virtual uint64_t getTotal() { return m_total; }
+
 private:
     void releaseFoxThread(FoxThread* t);
     void check();
 
     void wrapcb(std::shared_ptr<FoxThread>, callback cb);
+
 private:
     uint32_t m_size;
     uint32_t m_cur;
@@ -162,6 +169,7 @@ public:
 
     IFoxThread::ptr get(const std::string& name);
     void add(const std::string& name, IFoxThread::ptr thr);
+
 private:
     /// 线程池集合
     std::map<std::string, IFoxThread::ptr> m_threads;
@@ -175,4 +183,4 @@ private:
 
 typedef Singleton<FoxThreadManager> FoxThreadMgr;
 
-}
+} // namespace chen

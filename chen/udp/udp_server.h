@@ -1,6 +1,12 @@
+/**
+ * @file udp_server.h
+ * @brief UDP服务器封装
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
+ */
 #pragma once
 
-#include <cstddef>
 #include <functional>
 #include <map>
 #include <memory>
@@ -28,27 +34,16 @@ struct UdpServerConf {
     uint64_t recv_buf_size = 64 * 1024;
     std::map<std::string, std::string> args;
 
-    bool isValid() const {
-        return !address.empty();
-    }
+    bool isValid() const { return !address.empty(); }
 
-    bool operator==(const UdpServerConf& oth) const {
-        return address == oth.address
-            && timeout == oth.timeout
-            && id == oth.id
-            && type == oth.type
-            && name == oth.name
-            && io_worker == oth.io_worker
-            && process_worker == oth.process_worker
-            && recv_buf_size == oth.recv_buf_size
-            && args == oth.args;
-    }
+    bool operator==(const UdpServerConf& oth) const;
 };
 
 template <>
 class LexicalCast<std::string, UdpServerConf> {
 public:
-    UdpServerConf operator()(const std::string& v) {
+    UdpServerConf operator()(const std::string& v)
+    {
         YAML::Node node = YAML::Load(v);
         UdpServerConf conf;
         conf.id = node["id"].as<std::string>(conf.id);
@@ -71,7 +66,8 @@ public:
 template <>
 class LexicalCast<UdpServerConf, std::string> {
 public:
-    std::string operator()(const UdpServerConf& conf) {
+    std::string operator()(const UdpServerConf& conf)
+    {
         YAML::Node node;
         node["id"] = conf.id;
         node["type"] = conf.type;
@@ -104,7 +100,7 @@ public:
     virtual bool start();
     virtual void stop();
 
-    virtual void clearRegistrations() {}
+    virtual void clearRegistrations();
 
     virtual void handleRecv(Socket::ptr sock, const char* data, size_t len, Address::ptr from);
 
@@ -151,4 +147,4 @@ public:
     static std::vector<std::string> ListTypes();
 };
 
-}
+} // namespace chen

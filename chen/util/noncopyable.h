@@ -3,6 +3,7 @@
  * @brief 禁用拷贝
  * @author Christins
  * @date 2024-11-03
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -16,22 +17,22 @@ protected:
     /**
      * @brief 默认构造函数
      */
-    Noncopyable() = default;    
-    
+    Noncopyable() = default;
+
     /**
      * @brief 默认析构函数
      */
-    virtual ~Noncopyable() = default;    
-    
+    virtual ~Noncopyable() = default;
+
     /**
      * @brief 拷贝构造函数禁用
      */
     Noncopyable(const Noncopyable&) = delete;
-    
+
     /**
      * @brief 赋值函数禁用
      */
     Noncopyable& operator=(const Noncopyable&) = delete;
 };
 
-}
+} // namespace chen

@@ -71,7 +71,7 @@ private:
 class LoadBalanceItem {
 public:
     typedef std::shared_ptr<LoadBalanceItem> ptr;
-    virtual ~LoadBalanceItem() {}
+    virtual ~LoadBalanceItem();
 
     SocketStream::ptr getStream() const { return m_stream; }
     void setStream(SocketStream::ptr v) { m_stream = v; }
@@ -82,7 +82,8 @@ public:
     HolderStats& get(const uint32_t& now = time(0));
 
     template <class T>
-    std::shared_ptr<T> getStreamAs() {
+    std::shared_ptr<T> getStreamAs()
+    {
         return std::dynamic_pointer_cast<T>(m_stream);
     }
 
@@ -114,7 +115,7 @@ public:
         NO_CONNECTION = -102,
     };
     typedef std::shared_ptr<ILoadBalance> ptr;
-    virtual ~ILoadBalance() {}
+    virtual ~ILoadBalance();
     virtual LoadBalanceItem::ptr get(uint64_t v = -1) = 0;
 };
 
@@ -126,8 +127,7 @@ public:
     void set(const std::vector<LoadBalanceItem::ptr>& vs);
 
     LoadBalanceItem::ptr getById(uint64_t id);
-    void update(const std::unordered_map<uint64_t, LoadBalanceItem::ptr>& adds,
-                std::unordered_map<uint64_t, LoadBalanceItem::ptr>& dels);
+    void update(const std::unordered_map<uint64_t, LoadBalanceItem::ptr>& adds, std::unordered_map<uint64_t, LoadBalanceItem::ptr>& dels);
     void init();
 
     std::string statusString(const std::string& prefix);
@@ -206,7 +206,7 @@ public:
     typedef std::function<SocketStream::ptr(ServiceItemInfo::ptr)> stream_callback;
 
     SDLoadBalance(IServiceDiscovery::ptr sd);
-    virtual ~SDLoadBalance() {}
+    virtual ~SDLoadBalance();
 
     virtual void start();
     virtual void stop();
@@ -221,9 +221,11 @@ public:
     std::string statusString();
 
 private:
-    void onServiceChange(const std::string& domain, const std::string& service,
-                         const std::unordered_map<uint64_t, ServiceItemInfo::ptr>& old_value,
-                         const std::unordered_map<uint64_t, ServiceItemInfo::ptr>& new_value);
+    void onServiceChange(
+        const std::string& domain,
+        const std::string& service,
+        const std::unordered_map<uint64_t, ServiceItemInfo::ptr>& old_value,
+        const std::unordered_map<uint64_t, ServiceItemInfo::ptr>& new_value);
 
     ILoadBalance::Type getType(const std::string& domain, const std::string& service);
     LoadBalance::ptr createLoadBalance(ILoadBalance::Type type);

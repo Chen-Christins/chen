@@ -12,7 +12,6 @@
 #include <mutex>
 #include <unordered_map>
 
-#include "../fiber/fiber.h"
 #include "../tcp/tcp_server.h"
 #include "../timer/timer.h"
 #include "../util/mutex.h"
@@ -44,8 +43,7 @@ public:
      * @param io_worker IO 网络事件调度线程（默认当前 IOManager）
      * @param accept_worker accept 线程（默认当前 IOManager）
      */
-    RpcServer(IOManager* worker = IOManager::GetThis(), IOManager* io_worker = IOManager::GetThis(),
-              IOManager* accept_worker = IOManager::GetThis());
+    RpcServer(IOManager* worker = IOManager::GetThis(), IOManager* io_worker = IOManager::GetThis(), IOManager* accept_worker = IOManager::GetThis());
 
     /**
      * @brief 注册 RPC 方法
@@ -60,7 +58,8 @@ public:
      * - 响应协议头的 `sequence` 从请求头原样回填，便于客户端按序匹配。
      */
     template <typename Func>
-    void registerMethod(const std::string& name, Func func) {
+    void registerMethod(const std::string& name, Func func)
+    {
         m_handlers[HandlerKey{name}] = MakeRpcHandler(func);
     }
 
@@ -72,7 +71,8 @@ public:
      * @details 与按方法名注册共用同一张分发表，variant key 保证互不冲突。
      */
     template <typename Func>
-    void registerMethod(uint32_t cmd, Func func) {
+    void registerMethod(uint32_t cmd, Func func)
+    {
         m_handlers[HandlerKey{cmd}] = MakeRpcHandler(func);
     }
 
@@ -80,13 +80,13 @@ public:
      * @brief 注销 RPC 方法（热重载时避免旧 .so 的 lambda 残留导致 SEGV）
      * @param name 方法名
      */
-    void unregisterMethod(const std::string& name) { m_handlers.erase(HandlerKey{name}); }
+    void unregisterMethod(const std::string& name);
 
     /**
      * @brief 按 CmdID 注销 RPC 方法
      * @param cmd 命令 ID
      */
-    void unregisterMethod(uint32_t cmd) { m_handlers.erase(HandlerKey{cmd}); }
+    void unregisterMethod(uint32_t cmd);
 
     /**
      * @brief 开启中心转发（relay）模式
@@ -94,12 +94,7 @@ public:
      *          之后带路由字段的请求会被转发到目标连接并中继回包。
      * @param v 是否开启
      */
-    void setRelay(bool v) {
-        m_relay = v;
-        if (v && !m_registry) {
-            m_registry = std::make_shared<RpcHubRegistry>();
-        }
-    }
+    void setRelay(bool v);
 
     bool isRelay() const { return m_relay; }
 

@@ -12,14 +12,16 @@ namespace http {
 
 static Logger::ptr logger = LOG_NAME("system");
 
-H2Connection::~H2Connection() {
+H2Connection::~H2Connection()
+{
     if (m_session) {
         nghttp2_session_del(m_session);
         m_session = nullptr;
     }
 }
 
-bool H2Connection::connect(const std::string& host, int port, uint64_t timeout_ms) {
+bool H2Connection::connect(const std::string& host, int port, uint64_t timeout_ms)
+{
     // Resolve and connect
     auto addr = Address::LookupAnyIPAddress(host);
     if (!addr) {
@@ -52,11 +54,9 @@ bool H2Connection::connect(const std::string& host, int port, uint64_t timeout_m
     nghttp2_session_callbacks_set_on_data_chunk_recv_callback(callbacks, on_data_chunk_recv);
     nghttp2_session_callbacks_set_on_stream_close_callback(callbacks, on_stream_close);
     nghttp2_session_callbacks_set_on_begin_headers_callback(callbacks, on_begin_headers);
-    nghttp2_session_callbacks_set_error_callback2(callbacks,
-        [](nghttp2_session* session, int lib_error_code, const char* msg,
-           size_t len, void* user_data) -> int {
-            ERROR(LOG_NAME("system")) << "nghttp2 client error: "
-                << std::string(msg, len) << " (code=" << lib_error_code << ")";
+    nghttp2_session_callbacks_set_error_callback2(
+        callbacks, [](nghttp2_session* session, int lib_error_code, const char* msg, size_t len, void* user_data) -> int {
+            ERROR(LOG_NAME("system")) << "nghttp2 client error: " << std::string(msg, len) << " (code=" << lib_error_code << ")";
             return 0;
         });
 
@@ -100,17 +100,17 @@ bool H2Connection::connect(const std::string& host, int port, uint64_t timeout_m
     return true;
 }
 
-HttpResult::ptr H2Connection::doRequest(HttpRequest::ptr req, uint64_t timeout_ms) {
+HttpResult::ptr H2Connection::doRequest(HttpRequest::ptr req, uint64_t timeout_ms)
+{
     if (!m_connected) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::CONNECT_FAIL,
-                                             nullptr, "Not connected");
+        return std::make_shared<HttpResult>((int)HttpResult::Error::CONNECT_FAIL, nullptr, "Not connected");
     }
 
     // Build nghttp2_nv from the request.
     // We must keep all string data alive until nghttp2_submit_request() completes.
     // Use std::list to avoid reallocation-invalidation of c_str() pointers.
     std::vector<nghttp2_nv> nva;
-    std::list<std::string> strs;  // keeps temporary strings alive (no pointer invalidation)
+    std::list<std::string> strs; // keeps temporary strings alive (no pointer invalidation)
 
     // :method
     strs.push_back(HttpMethodToString(req->getMethod()));
@@ -133,19 +133,19 @@ HttpResult::ptr H2Connection::doRequest(HttpRequest::ptr req, uint64_t timeout_m
 
     // Regular headers
     for (auto& h : req->getHeaders()) {
-        if (strcasecmp(h.first.c_str(), "host") == 0) continue;
-        if (is_http1_specific_header(h.first)) continue;
+        if (strcasecmp(h.first.c_str(), "host") == 0)
+            continue;
+        if (is_http1_specific_header(h.first))
+            continue;
         strs.push_back(to_lower(h.first));
         nva.push_back(make_nv(strs.back(), h.second));
     }
 
     // Submit request
-    int32_t stream_id = nghttp2_submit_request(m_session, nullptr, nva.data(), nva.size(),
-                                                nullptr, nullptr);
+    int32_t stream_id = nghttp2_submit_request(m_session, nullptr, nva.data(), nva.size(), nullptr, nullptr);
     if (stream_id < 0) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_SOCKET_ERROR,
-                                             nullptr, std::string("nghttp2_submit_request: ")
-                                             + nghttp2_strerror(stream_id));
+        return std::make_shared<HttpResult>(
+            (int)HttpResult::Error::SEND_SOCKET_ERROR, nullptr, std::string("nghttp2_submit_request: ") + nghttp2_strerror(stream_id));
     }
 
     // Send request frames
@@ -160,8 +160,7 @@ HttpResult::ptr H2Connection::doRequest(HttpRequest::ptr req, uint64_t timeout_m
             auto it = m_responses.find(stream_id);
             if (it != m_responses.end() && it->second.complete) {
                 if (!it->second.success) {
-                    return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_CLOSE_BY_PEER,
-                                                         nullptr, "Stream closed with error");
+                    return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_CLOSE_BY_PEER, nullptr, "Stream closed with error");
                 }
                 auto rsp = it->second.response;
                 if (!it->second.body.empty()) {
@@ -179,12 +178,10 @@ HttpResult::ptr H2Connection::doRequest(HttpRequest::ptr req, uint64_t timeout_m
                 doSend();
                 continue;
             }
-            return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_SOCKET_ERROR,
-                                                 nullptr, std::string("Recv error: ") + strerror(errno));
+            return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_SOCKET_ERROR, nullptr, std::string("Recv error: ") + strerror(errno));
         }
         if (len == 0) {
-            return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_CLOSE_BY_PEER,
-                                                 nullptr, "Connection closed by peer");
+            return std::make_shared<HttpResult>((int)HttpResult::Error::SEND_CLOSE_BY_PEER, nullptr, "Connection closed by peer");
         }
         nghttp2_session_mem_recv(m_session, buf.data(), len);
 
@@ -194,26 +191,34 @@ HttpResult::ptr H2Connection::doRequest(HttpRequest::ptr req, uint64_t timeout_m
 }
 
 // Static convenience methods using H2Connection for HTTP/2
-HttpResult::ptr H2Connection::DoGet(const std::string& url, uint64_t timeout_ms,
+HttpResult::ptr H2Connection::DoGet(
+    const std::string& url,
+    uint64_t timeout_ms,
     const std::map<std::string, std::string>& headers,
-    const std::string& body) {
+    const std::string& body)
+{
     return DoRequest(HttpMethod::GET, url, timeout_ms, headers, body);
 }
 
-HttpResult::ptr H2Connection::DoPost(const std::string& url, uint64_t timeout_ms,
+HttpResult::ptr H2Connection::DoPost(
+    const std::string& url,
+    uint64_t timeout_ms,
     const std::map<std::string, std::string>& headers,
-    const std::string& body) {
+    const std::string& body)
+{
     return DoRequest(HttpMethod::POST, url, timeout_ms, headers, body);
 }
 
-HttpResult::ptr H2Connection::DoRequest(HttpMethod method, const std::string& url,
+HttpResult::ptr H2Connection::DoRequest(
+    HttpMethod method,
+    const std::string& url,
     uint64_t timeout_ms,
     const std::map<std::string, std::string>& headers,
-    const std::string& body) {
+    const std::string& body)
+{
     Uri::ptr uri = Uri::Create(url);
     if (!uri) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL,
-                                             nullptr, "Invalid URL: " + url);
+        return std::make_shared<HttpResult>((int)HttpResult::Error::INVALID_URL, nullptr, "Invalid URL: " + url);
     }
 
     auto conn = std::make_shared<H2Connection>();
@@ -223,8 +228,7 @@ HttpResult::ptr H2Connection::DoRequest(HttpMethod method, const std::string& ur
     }
 
     if (!conn->connect(uri->getHost(), port, timeout_ms)) {
-        return std::make_shared<HttpResult>((int)HttpResult::Error::CONNECT_FAIL,
-                                             nullptr, "Failed to connect");
+        return std::make_shared<HttpResult>((int)HttpResult::Error::CONNECT_FAIL, nullptr, "Failed to connect");
     }
 
     auto req = std::make_shared<HttpRequest>(HttpRequest::HTTP2_VERSION, false);
@@ -243,10 +247,12 @@ HttpResult::ptr H2Connection::DoRequest(HttpMethod method, const std::string& ur
     return conn->doRequest(req, timeout_ms);
 }
 
-int H2Connection::on_begin_headers(nghttp2_session* session, const nghttp2_frame* frame,
-                                    void* user_data) {
+int H2Connection::on_begin_headers(nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
+{
     auto* conn = static_cast<H2Connection*>(user_data);
-    if (frame->hd.type != NGHTTP2_HEADERS) return 0;
+    if (frame->hd.type != NGHTTP2_HEADERS) {
+        return 0;
+    }
     if (frame->headers.cat == NGHTTP2_HCAT_RESPONSE) {
         std::unique_lock lock(conn->m_respMutex);
         auto& resp = conn->m_responses[frame->hd.stream_id];
@@ -257,22 +263,34 @@ int H2Connection::on_begin_headers(nghttp2_session* session, const nghttp2_frame
     return 0;
 }
 
-int H2Connection::on_header(nghttp2_session* session, const nghttp2_frame* frame,
-                             nghttp2_rcbuf* name, nghttp2_rcbuf* value,
-                             uint8_t flags, void* user_data) {
+int H2Connection::on_header(
+    nghttp2_session* session,
+    const nghttp2_frame* frame,
+    nghttp2_rcbuf* name,
+    nghttp2_rcbuf* value,
+    uint8_t flags,
+    void* user_data)
+{
     auto* conn = static_cast<H2Connection*>(user_data);
-    if (frame->headers.cat != NGHTTP2_HCAT_RESPONSE) return 0;
+    if (frame->headers.cat != NGHTTP2_HCAT_RESPONSE) {
+        return 0;
+    }
 
     std::shared_lock lock(conn->m_respMutex);
     auto it = conn->m_responses.find(frame->hd.stream_id);
-    if (it == conn->m_responses.end()) return 0;
+    if (it == conn->m_responses.end()) {
+        return 0;
+    }
 
     auto name_str = rcbuf_to_string(name);
     auto value_str = rcbuf_to_string(value);
 
     if (name_str == ":status") {
         int code = 0;
-        try { code = std::stoi(value_str); } catch (...) {}
+        try {
+            code = std::stoi(value_str);
+        } catch (...) {
+        }
         it->second.response->setStatus((HttpStatus)code);
     } else if (name_str[0] != ':') {
         it->second.response->setHeader(name_str, value_str);
@@ -280,11 +298,10 @@ int H2Connection::on_header(nghttp2_session* session, const nghttp2_frame* frame
     return 0;
 }
 
-int H2Connection::on_frame_recv(nghttp2_session* session, const nghttp2_frame* frame,
-                                 void* user_data) {
+int H2Connection::on_frame_recv(nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
+{
     auto* conn = static_cast<H2Connection*>(user_data);
-    if (frame->hd.type == NGHTTP2_HEADERS &&
-        frame->headers.cat == NGHTTP2_HCAT_RESPONSE) {
+    if (frame->hd.type == NGHTTP2_HEADERS && frame->headers.cat == NGHTTP2_HCAT_RESPONSE) {
         if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
             std::shared_lock lock(conn->m_respMutex);
             auto it = conn->m_responses.find(frame->hd.stream_id);
@@ -296,9 +313,8 @@ int H2Connection::on_frame_recv(nghttp2_session* session, const nghttp2_frame* f
     return 0;
 }
 
-int H2Connection::on_data_chunk_recv(nghttp2_session* session, uint8_t flags,
-                                      int32_t stream_id, const uint8_t* data,
-                                      size_t len, void* user_data) {
+int H2Connection::on_data_chunk_recv(nghttp2_session* session, uint8_t flags, int32_t stream_id, const uint8_t* data, size_t len, void* user_data)
+{
     auto* conn = static_cast<H2Connection*>(user_data);
     std::shared_lock lock(conn->m_respMutex);
     auto it = conn->m_responses.find(stream_id);
@@ -311,12 +327,11 @@ int H2Connection::on_data_chunk_recv(nghttp2_session* session, uint8_t flags,
     return 0;
 }
 
-int H2Connection::on_stream_close(nghttp2_session* session, int32_t stream_id,
-                                   uint32_t error_code, void* user_data) {
+int H2Connection::on_stream_close(nghttp2_session* session, int32_t stream_id, uint32_t error_code, void* user_data)
+{
     auto* conn = static_cast<H2Connection*>(user_data);
     if (error_code != 0) {
-        WARN(logger) << "H2 client stream " << stream_id << " closed with error: "
-                     << nghttp2_http2_strerror(error_code);
+        WARN(logger) << "H2 client stream " << stream_id << " closed with error: " << nghttp2_http2_strerror(error_code);
         std::unique_lock lock(conn->m_respMutex);
         auto it = conn->m_responses.find(stream_id);
         if (it != conn->m_responses.end()) {
@@ -327,16 +342,18 @@ int H2Connection::on_stream_close(nghttp2_session* session, int32_t stream_id,
     return 0;
 }
 
-void H2Connection::doSend() {
+void H2Connection::doSend()
+{
     for (;;) {
         const uint8_t* data = nullptr;
         ssize_t rv = nghttp2_session_mem_send(m_session, &data);
         if (rv < 0) {
-            ERROR(logger) << "nghttp2_session_mem_send error: "
-                         << nghttp2_strerror((int)rv);
+            ERROR(logger) << "nghttp2_session_mem_send error: " << nghttp2_strerror((int)rv);
             break;
         }
-        if (rv == 0) break;
+        if (rv == 0) {
+            break;
+        }
         m_socket->send(data, rv);
     }
 }

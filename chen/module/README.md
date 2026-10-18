@@ -4,12 +4,12 @@
 
 ## 核心类
 
-| 类 | 说明 |
-|------|------|
-| `Module` | 模块基类，定义生命周期接口 |
-| `RockModule` | Rock 协议模块特化，继承 Module |
+| 类              | 说明                                                        |
+|-----------------|-------------------------------------------------------------|
+| `Module`        | 模块基类，定义生命周期接口                                  |
+| `RockModule`    | Rock 协议模块特化，继承 Module                              |
 | `ModuleManager` | 模块管理器（`ModuleMgr` 单例），扫描 `bin/module/` 目录加载 |
-| `Library` | dlopen/dlclose 封装 |
+| `Library`       | dlopen/dlclose 封装                                         |
 
 ## 模块生命周期
 
@@ -24,14 +24,14 @@
 
 ### 方法说明
 
-| 方法 | 何时调用 | 典型操作 |
-|------|----------|----------|
-| `onLoad()` | dlopen 后 | 初始化内部状态 |
-| `onServerReady()` | server 创建后 | clearAll + 注册 servlet/handler/EventBus |
-| `onServerUp()` | server 开始 accept | 启动后台任务 |
-| `onTick()` | 每 N 毫秒 | 定时任务 |
-| `onDeactivate()` | 旧模块被替换 / 关机 | stop 定时器, flush 数据 |
-| `onUnload()` | 仅关机 | clearAll EventBus, 释放资源 |
+| 方法              | 何时调用            | 典型操作                                 |
+|-------------------|---------------------|------------------------------------------|
+| `onLoad()`        | dlopen 后           | 初始化内部状态                           |
+| `onServerReady()` | server 创建后       | clearAll + 注册 servlet/handler/EventBus |
+| `onServerUp()`    | server 开始 accept  | 启动后台任务                             |
+| `onTick()`        | 每 N 毫秒           | 定时任务                                 |
+| `onDeactivate()`  | 旧模块被替换 / 关机 | stop 定时器, flush 数据                  |
+| `onUnload()`      | 仅关机              | clearAll EventBus, 释放资源              |
 
 ## 使用
 
@@ -79,9 +79,10 @@ kill -HUP <master_pid>
 采用 master/worker 多进程模型：master 持有监听端口，收到 SIGHUP 后 fork 出一个新
 worker 进程加载磁盘上的新模块；新 worker 就绪后，master 通知旧 worker 停止 accept，
 旧 worker 限时 drain 完遗留连接后退出。每个进程只加载一个版本的 `.so`，退出时由内核
-回收地址空间，**不做进程内 `dlclose`**。
+回收地址空间， **不做进程内 `dlclose`**。
 
 框架流程：
+
 1. master fork 新 worker，新 worker `CreateModule()` → `onLoad()` → `onServerReady()` → `onServerUp()`
 2. 新 worker 就绪后开始 accept
 3. 旧 worker 停止 accept → 限时 drain → `onDeactivate()` → `onUnload()` → 进程退出
@@ -89,6 +90,7 @@ worker 进程加载磁盘上的新模块；新 worker 就绪后，master 通知�
 ### 优雅关闭
 
 框架流程：
+
 1. 停止 accept, drain 连接
 2. 取消 tick 定时器
 3. `onDeactivate()` — flush 数据

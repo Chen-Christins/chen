@@ -3,6 +3,7 @@
  * @brief HTTP 连接类和连接池类的声明
  * @author Christins
  * @date 2025-01-19
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -40,10 +41,7 @@ struct HttpResult {
         POOL_INVALID_CONNECTION = 9,
     };
 
-    HttpResult(int _result, HttpResponse::ptr _response, const std::string& _error)
-        :result(_result)
-        ,response(_response)
-        ,error(_error) {}
+    HttpResult(int _result, HttpResponse::ptr _response, const std::string& _error);
 
     int result;
     HttpResponse::ptr response;
@@ -60,110 +58,123 @@ class HttpConnection : public SocketStream {
 public:
     typedef std::shared_ptr<HttpConnection> ptr;
 
-    static HttpResult::ptr DoGet(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
-    
-    static HttpResult::ptr DoGet(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoGet(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoPost(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoGet(
+        Uri::ptr uri,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoPost(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoPost(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoPut(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoPost(
+        Uri::ptr uri,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoPut(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoPut(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoPatch(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoPut(
+        Uri::ptr uri,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoPatch(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoPatch(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoDelete(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoPatch(
+        Uri::ptr uri,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoDelete(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoDelete(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoHead(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoDelete(
+        Uri::ptr uri,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoHead(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoHead(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoOptions(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoHead(
+        Uri::ptr uri,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoOptions(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoOptions(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoRequest(HttpMethod method
-                ,const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoOptions(
+        Uri::ptr uri,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoRequest(HttpMethod method
-                ,Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
-    
-    static HttpResult::ptr DoRequest(HttpRequest::ptr req
-                ,Uri::ptr uri
-                ,uint64_t timeout_ms);
+    static HttpResult::ptr DoRequest(
+        HttpMethod method,
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoRequestStreaming(HttpMethod method
-                ,const std::string& url
-                ,uint64_t timeout_ms
-                ,HttpStreamCallback callback
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoRequest(
+        HttpMethod method,
+        Uri::ptr uri,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoRequestStreaming(HttpMethod method
-                ,Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,HttpStreamCallback callback
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    static HttpResult::ptr DoRequest(HttpRequest::ptr req, Uri::ptr uri, uint64_t timeout_ms);
 
-    static HttpResult::ptr DoRequestStreaming(HttpRequest::ptr req
-                ,Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,HttpStreamCallback callback);
+    static HttpResult::ptr DoRequestStreaming(
+        HttpMethod method,
+        const std::string& url,
+        uint64_t timeout_ms,
+        HttpStreamCallback callback,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
+
+    static HttpResult::ptr DoRequestStreaming(
+        HttpMethod method,
+        Uri::ptr uri,
+        uint64_t timeout_ms,
+        HttpStreamCallback callback,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
+
+    static HttpResult::ptr DoRequestStreaming(HttpRequest::ptr req, Uri::ptr uri, uint64_t timeout_ms, HttpStreamCallback callback);
 
     HttpConnection(Socket::ptr sock, bool owner = true);
     ~HttpConnection();
@@ -190,96 +201,90 @@ class HttpConnectionPool {
 public:
     typedef std::shared_ptr<HttpConnectionPool> ptr;
 
-    HttpConnectionPool(const std::string& host, const std::string& vhost
-                    ,int32_t port
-                    ,uint32_t max_size
-                    ,uint32_t max_alive_time
-                    ,uint32_t max_request);
+    HttpConnectionPool(
+        const std::string& host,
+        const std::string& vhost,
+        int32_t port,
+        uint32_t max_size,
+        uint32_t max_alive_time,
+        uint32_t max_request);
 
     HttpConnection::ptr getConnection();
 
-    HttpResult::ptr doGet(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
-    
-    HttpResult::ptr doGet(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doGet(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    HttpResult::ptr doPost(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doGet(Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers = {}, const std::string& body = "");
 
-    HttpResult::ptr doPost(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doPost(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    HttpResult::ptr doPut(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doPost(Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers = {}, const std::string& body = "");
 
-    HttpResult::ptr doPut(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doPut(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    HttpResult::ptr doPatch(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doPut(Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers = {}, const std::string& body = "");
 
-    HttpResult::ptr doPatch(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doPatch(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    HttpResult::ptr doDelete(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doPatch(Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers = {}, const std::string& body = "");
 
-    HttpResult::ptr doDelete(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doDelete(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    HttpResult::ptr doHead(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doDelete(Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers = {}, const std::string& body = "");
 
-    HttpResult::ptr doHead(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doHead(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    HttpResult::ptr doOptions(const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doHead(Uri::ptr uri, uint64_t timeout_ms, const std::map<std::string, std::string>& headers = {}, const std::string& body = "");
 
-    HttpResult::ptr doOptions(Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doOptions(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    HttpResult::ptr doRequest(HttpMethod method
-                ,const std::string& url
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
+    HttpResult::ptr doOptions(
+        Uri::ptr uri,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    HttpResult::ptr doRequest(HttpMethod method
-                ,Uri::ptr uri
-                ,uint64_t timeout_ms
-                ,const std::map<std::string, std::string>& headers = {}
-                ,const std::string& body = "");
-    
+    HttpResult::ptr doRequest(
+        HttpMethod method,
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
+
+    HttpResult::ptr doRequest(
+        HttpMethod method,
+        Uri::ptr uri,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
+
     HttpResult::ptr doRequest(HttpRequest::ptr req, uint64_t timeout_ms);
 
 private:

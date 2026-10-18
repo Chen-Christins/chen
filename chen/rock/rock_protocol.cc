@@ -7,43 +7,56 @@ namespace chen {
 
 static Logger::ptr g_logger = LOG_NAME("system");
 
+RockBody::~RockBody()
+{
+}
+
 static ConfigVar<uint32_t>::ptr g_rock_protocol_max_length =
     Config::Lookup("rock.protocol.max_length", (uint32_t)(1024 * 1024 * 64), "rock protocol max length");
 
 static ConfigVar<uint32_t>::ptr g_rock_protocol_gzip_min_length =
     Config::Lookup("rock.protocol.gzip_min_length", (uint32_t)(1024 * 4), "rock protocol gizp min length");
 
-bool RockBody::serializeToByteArray(ByteArray::ptr bytearray) {
+bool RockBody::serializeToByteArray(ByteArray::ptr bytearray)
+{
     bytearray->writeStringVint(m_body);
     return true;
 }
 
-bool RockBody::parseFromByteArray(ByteArray::ptr bytearray) {
+bool RockBody::parseFromByteArray(ByteArray::ptr bytearray)
+{
     m_body = bytearray->readStringVint();
     return true;
 }
 
-std::shared_ptr<RockResponse> RockRequest::createResponse() {
+std::shared_ptr<RockResponse> RockRequest::createResponse()
+{
     RockResponse::ptr rt(new RockResponse);
     rt->setSn(m_sn);
     rt->setCmd(m_cmd);
     return rt;
 }
 
-std::string RockRequest::toString() const {
+std::string RockRequest::toString() const
+{
     std::stringstream ss;
     ss << "[RockRequest sn=" << m_sn << " cmd=" << m_cmd << " body.length=" << m_body.size() << "]";
     return ss.str();
 }
 
-const std::string& RockRequest::getName() const {
+const std::string& RockRequest::getName() const
+{
     static const std::string& s_name = "RockRequest";
     return s_name;
 }
 
-int32_t RockRequest::getType() const { return Message::REQUEST; }
+int32_t RockRequest::getType() const
+{
+    return Message::REQUEST;
+}
 
-bool RockRequest::serializeToByteArray(ByteArray::ptr bytearray) {
+bool RockRequest::serializeToByteArray(ByteArray::ptr bytearray)
+{
     try {
         bool v = true;
         v &= Request::serializeToByteArray(bytearray);
@@ -55,7 +68,8 @@ bool RockRequest::serializeToByteArray(ByteArray::ptr bytearray) {
     return false;
 }
 
-bool RockRequest::parseFromByteArray(ByteArray::ptr bytearray) {
+bool RockRequest::parseFromByteArray(ByteArray::ptr bytearray)
+{
     try {
         bool v = true;
         v &= Request::parseFromByteArray(bytearray);
@@ -67,21 +81,27 @@ bool RockRequest::parseFromByteArray(ByteArray::ptr bytearray) {
     return false;
 }
 
-std::string RockResponse::toString() const {
+std::string RockResponse::toString() const
+{
     std::stringstream ss;
     ss << "[RockResponse sn=" << m_sn << " cmd=" << m_cmd << " result=" << m_result << " result_msg=" << m_resultStr
        << " body.length=" << m_body.size() << "]";
     return ss.str();
 }
 
-const std::string& RockResponse::getName() const {
+const std::string& RockResponse::getName() const
+{
     static const std::string& s_name = "RockResponse";
     return s_name;
 }
 
-int32_t RockResponse::getType() const { return Message::RESPONSE; }
+int32_t RockResponse::getType() const
+{
+    return Message::RESPONSE;
+}
 
-bool RockResponse::serializeToByteArray(ByteArray::ptr bytearray) {
+bool RockResponse::serializeToByteArray(ByteArray::ptr bytearray)
+{
     try {
         bool v = true;
         v &= Response::serializeToByteArray(bytearray);
@@ -93,7 +113,8 @@ bool RockResponse::serializeToByteArray(ByteArray::ptr bytearray) {
     return false;
 }
 
-bool RockResponse::parseFromByteArray(ByteArray::ptr bytearray) {
+bool RockResponse::parseFromByteArray(ByteArray::ptr bytearray)
+{
     try {
         bool v = true;
         v &= Response::parseFromByteArray(bytearray);
@@ -105,20 +126,26 @@ bool RockResponse::parseFromByteArray(ByteArray::ptr bytearray) {
     return false;
 }
 
-std::string RockNotify::toString() const {
+std::string RockNotify::toString() const
+{
     std::stringstream ss;
     ss << "[RockNotify notify=" << m_notify << " body.length=" << m_body.size() << "]";
     return ss.str();
 }
 
-const std::string& RockNotify::getName() const {
+const std::string& RockNotify::getName() const
+{
     static const std::string& s_name = "RockNotify";
     return s_name;
 }
 
-int32_t RockNotify::getType() const { return Message::NOTIFY; }
+int32_t RockNotify::getType() const
+{
+    return Message::NOTIFY;
+}
 
-bool RockNotify::serializeToByteArray(ByteArray::ptr bytearray) {
+bool RockNotify::serializeToByteArray(ByteArray::ptr bytearray)
+{
     try {
         bool v = true;
         v &= Notify::serializeToByteArray(bytearray);
@@ -130,7 +157,8 @@ bool RockNotify::serializeToByteArray(ByteArray::ptr bytearray) {
     return false;
 }
 
-bool RockNotify::parseFromByteArray(ByteArray::ptr bytearray) {
+bool RockNotify::parseFromByteArray(ByteArray::ptr bytearray)
+{
     try {
         bool v = true;
         v &= Notify::parseFromByteArray(bytearray);
@@ -144,9 +172,16 @@ bool RockNotify::parseFromByteArray(ByteArray::ptr bytearray) {
 
 static const uint8_t s_rock_magic[2] = {0xab, 0xcd};
 
-RockMsgHeader::RockMsgHeader() : magic{0xab, 0xcd}, version(1), flag(0), length(0) {}
+RockMsgHeader::RockMsgHeader()
+    : magic{0xab, 0xcd}
+    , version(1)
+    , flag(0)
+    , length(0)
+{
+}
 
-Message::ptr RockMessageDecoder::parseFrom(Stream::ptr stream) {
+Message::ptr RockMessageDecoder::parseFrom(Stream::ptr stream)
+{
     try {
         RockMsgHeader header;
         if (stream->readFixSize(&header, sizeof(header)) <= 0) {
@@ -166,8 +201,7 @@ Message::ptr RockMessageDecoder::parseFrom(Stream::ptr stream) {
 
         header.length = byteswapOnLittleEndian(header.length);
         if ((uint32_t)header.length >= g_rock_protocol_max_length->getValue()) {
-            ERROR(g_logger) << "RockMessageDecoder head.length(" << header.length
-                               << ") >=" << g_rock_protocol_max_length->getValue();
+            ERROR(g_logger) << "RockMessageDecoder head.length(" << header.length << ") >=" << g_rock_protocol_max_length->getValue();
             return nullptr;
         }
         ByteArray::ptr ba(new ByteArray);
@@ -219,7 +253,8 @@ Message::ptr RockMessageDecoder::parseFrom(Stream::ptr stream) {
     return nullptr;
 }
 
-int32_t RockMessageDecoder::serializeTo(Stream::ptr stream, Message::ptr msg) {
+int32_t RockMessageDecoder::serializeTo(Stream::ptr stream, Message::ptr msg)
+{
     RockMsgHeader header;
     auto ba = msg->toByteArray();
     ba->setPosition(0);

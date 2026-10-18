@@ -3,6 +3,7 @@
  * @brief inotify 文件变更监听器
  * @author Christins
  * @date 2026-09-21
+ * @copyright GPL-3.0
  */
 #pragma once
 

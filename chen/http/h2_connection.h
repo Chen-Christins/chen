@@ -1,6 +1,9 @@
 /**
  * @file h2_connection.h
  * @brief HTTP/2 连接管理
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -36,32 +39,44 @@ public:
     HttpResult::ptr doRequest(HttpRequest::ptr req, uint64_t timeout_ms);
 
     // Static convenience methods
-    static HttpResult::ptr DoGet(const std::string& url, uint64_t timeout_ms, const std::map<std::string, std::string>& headers = {},
-                                 const std::string& body = "");
+    static HttpResult::ptr DoGet(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoPost(const std::string& url, uint64_t timeout_ms, const std::map<std::string, std::string>& headers = {},
-                                  const std::string& body = "");
+    static HttpResult::ptr DoPost(
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
-    static HttpResult::ptr DoRequest(HttpMethod method, const std::string& url, uint64_t timeout_ms,
-                                     const std::map<std::string, std::string>& headers = {}, const std::string& body = "");
+    static HttpResult::ptr DoRequest(
+        HttpMethod method,
+        const std::string& url,
+        uint64_t timeout_ms,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "");
 
 private:
     // nghttp2 callbacks for client side
     static int on_frame_recv(nghttp2_session* session, const nghttp2_frame* frame, void* user_data);
 
-    static int on_header(nghttp2_session* session, const nghttp2_frame* frame, nghttp2_rcbuf* name, nghttp2_rcbuf* value,
-                         uint8_t flags, void* user_data);
-    
-    static int on_data_chunk_recv(nghttp2_session* session, uint8_t flags, int32_t stream_id, const uint8_t* data, size_t len,
-                                  void* user_data);
-    
+    static int on_header(
+        nghttp2_session* session,
+        const nghttp2_frame* frame,
+        nghttp2_rcbuf* name,
+        nghttp2_rcbuf* value,
+        uint8_t flags,
+        void* user_data);
+
+    static int on_data_chunk_recv(nghttp2_session* session, uint8_t flags, int32_t stream_id, const uint8_t* data, size_t len, void* user_data);
+
     static int on_stream_close(nghttp2_session* session, int32_t stream_id, uint32_t error_code, void* user_data);
-    
+
     static int on_begin_headers(nghttp2_session* session, const nghttp2_frame* frame, void* user_data);
 
     void doSend();
-    
-    bool runRequest(int32_t stream_id, uint64_t timeout_ms);
 
 private:
     Socket::ptr m_socket;

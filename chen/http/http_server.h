@@ -3,6 +3,7 @@
  * @brief HttpServer模块
  * @author Christins
  * @date 2024-12-15
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -14,10 +15,11 @@ namespace chen::http {
 class HttpServer : public TcpServer {
 public:
     typedef std::shared_ptr<HttpServer> ptr;
-    HttpServer(bool keepalive = false
-              ,IOManager* worker = IOManager::GetThis()
-              ,IOManager* io_worker = IOManager::GetThis()
-              ,IOManager* accept_worker = IOManager::GetThis());
+    HttpServer(
+        bool keepalive = false,
+        IOManager* worker = IOManager::GetThis(),
+        IOManager* io_worker = IOManager::GetThis(),
+        IOManager* accept_worker = IOManager::GetThis());
     virtual void setName(const std::string& v) override;
     ServletDispatch::ptr getServletDispatch() const { return m_dispatch; }
     void setDispatch(ServletDispatch::ptr v) { m_dispatch = v; }

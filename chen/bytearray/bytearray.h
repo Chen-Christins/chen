@@ -3,10 +3,11 @@
  * @brief 二进制数组(序列化/反序列化)
  * @author Christins
  * @date 2024-11-22
+ * @copyright GPL-3.0
  */
 #pragma once
 
-#include <cstdint>
+#include <bit>
 #include <memory>
 #include <vector>
 
@@ -31,7 +32,7 @@ public:
         /// 内存块大小
         size_t size;
     };
-    
+
     /**
      * @brief 构造函数
      * @param base_size 初始的数据块内存大小
@@ -42,7 +43,7 @@ public:
      * @brief 析构函数
      */
     ~ByteArray();
-    
+
     /**
      * @brief 写入固定长度int8_t类型的数据
      * @post m_position += sizeof(value)
@@ -241,11 +242,11 @@ public:
     uint64_t readFuint64();
 
     /**
-    * @brief 读取有符号Varint32类型的数据
-    * @pre getReadSize() >= 有符号Varint32实际占用内存
-    * @post m_position += 有符号Varint32实际占用内存
-    * @exception 如果getReadSize() < 有符号Varint32实际占用内存 抛出 std::out_of_range
-    */
+     * @brief 读取有符号Varint32类型的数据
+     * @pre getReadSize() >= 有符号Varint32实际占用内存
+     * @post m_position += 有符号Varint32实际占用内存
+     * @exception 如果getReadSize() < 有符号Varint32实际占用内存 抛出 std::out_of_range
+     */
     int32_t readInt32();
 
     /**
@@ -436,6 +437,7 @@ public:
      * @return 返回实际数据的长度
      */
     uint64_t getReadBuffers(std::vector<iovec>& buffers, uint64_t len, uint64_t position) const;
+
 private:
     /**
      * @brief 获取当前的可写入容量
@@ -447,6 +449,7 @@ private:
      * @param size 扩容的大小
      */
     void addCapacity(size_t size);
+
 private:
     /// 内存块的大小
     size_t m_baseSize;
@@ -457,7 +460,7 @@ private:
     /// 当前数据的大小
     size_t m_size;
     /// 字节序，默认大端，压缩是小端
-    int8_t m_endian;
+    std::endian m_endian;
     /// 第一个内存块指针
     Node* m_root;
     /// 当前操作的内存块指针

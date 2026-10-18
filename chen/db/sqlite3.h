@@ -1,6 +1,9 @@
 /**
  * @file sqlite3.h
  * @brief SQLite3 封装
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -257,13 +260,15 @@ typedef Singleton<SQLite3Manager> SQLite3Mgr;
 
 namespace {
 template <typename... Args>
-int bindX(SQLite3Stmt::ptr stmt, const Args&... args) {
+int bindX(SQLite3Stmt::ptr stmt, const Args&... args)
+{
     return SQLite3Binder<1, Args...>::Bind(stmt, args...);
 }
 } // namespace
 
 template <typename... Args>
-int SQLite3::execStmt(const char* stmt, Args&&... args) {
+int SQLite3::execStmt(const char* stmt, Args&&... args)
+{
     auto st = SQLite3Stmt::Create(shared_from_this(), stmt);
     if (!st) {
         return -1;
@@ -276,7 +281,8 @@ int SQLite3::execStmt(const char* stmt, Args&&... args) {
 }
 
 template <class... Args>
-ISQLData::ptr SQLite3::queryStmt(const char* stmt, const Args&... args) {
+ISQLData::ptr SQLite3::queryStmt(const char* stmt, const Args&... args)
+{
     auto st = SQLite3Stmt::Create(shared_from_this(), stmt);
     if (!st) {
         return nullptr;
@@ -292,23 +298,25 @@ namespace {
 
 template <size_t N, typename Head, typename... Tail>
 struct SQLite3Binder<N, Head, Tail...> {
-    static int Bind(SQLite3Stmt::ptr stmt, const Head&, const Tail&...) {
+    static int Bind(SQLite3Stmt::ptr stmt, const Head&, const Tail&...)
+    {
         // static_assert(false, "invalid type");
         static_assert(sizeof...(Tail) < 0, "invalid type");
         return SQLITE_OK;
     }
 };
 
-#define XX(type, type2)                                                                   \
-    template <size_t N, typename... Tail>                                                 \
-    struct SQLite3Binder<N, type, Tail...> {                                              \
-        static int Bind(SQLite3Stmt::ptr stmt, const type2& value, const Tail&... tail) { \
-            int rt = stmt->bind(N, value);                                                \
-            if (rt != SQLITE_OK) {                                                        \
-                return rt;                                                                \
-            }                                                                             \
-            return SQLite3Binder<N + 1, Tail...>::Bind(stmt, tail...);                    \
-        }                                                                                 \
+#define XX(type, type2)                                                                 \
+    template <size_t N, typename... Tail>                                               \
+    struct SQLite3Binder<N, type, Tail...> {                                            \
+        static int Bind(SQLite3Stmt::ptr stmt, const type2& value, const Tail&... tail) \
+        {                                                                               \
+            int rt = stmt->bind(N, value);                                              \
+            if (rt != SQLITE_OK) {                                                      \
+                return rt;                                                              \
+            }                                                                           \
+            return SQLite3Binder<N + 1, Tail...>::Bind(stmt, tail...);                  \
+        }                                                                               \
     };
 
 XX(char*, char* const);

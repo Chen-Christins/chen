@@ -7,8 +7,13 @@ namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
 
+Stream::~Stream()
+{
+}
+
 /// 读取固定长度到内存
-int Stream::readFixSize(void* buffer, size_t length) {
+int Stream::readFixSize(void* buffer, size_t length)
+{
     // 偏移量
     size_t offset = 0;
     // 剩余字节数
@@ -28,7 +33,8 @@ int Stream::readFixSize(void* buffer, size_t length) {
     return length;
 }
 
-int Stream::readFixSize(ByteArray::ptr ba, size_t length) {
+int Stream::readFixSize(ByteArray::ptr ba, size_t length)
+{
     int64_t left = length;
     while (left > 0) {
         int64_t len = read(ba, left);
@@ -40,7 +46,8 @@ int Stream::readFixSize(ByteArray::ptr ba, size_t length) {
     return length;
 }
 
-int Stream::writeFixSize(const void* buffer, size_t length) {
+int Stream::writeFixSize(const void* buffer, size_t length)
+{
     size_t offset = 0;
     int64_t left = length;
     while (left > 0) {
@@ -54,7 +61,8 @@ int Stream::writeFixSize(const void* buffer, size_t length) {
     return length;
 }
 
-int Stream::writeFixSize(ByteArray::ptr ba, size_t length) {
+int Stream::writeFixSize(ByteArray::ptr ba, size_t length)
+{
     int64_t left = length;
     while (left > 0) {
         int64_t len = write(ba, left);
@@ -66,25 +74,29 @@ int Stream::writeFixSize(ByteArray::ptr ba, size_t length) {
     return length;
 }
 
-SocketStream::SocketStream(Socket::ptr sock, bool owner) 
+SocketStream::SocketStream(Socket::ptr sock, bool owner)
     : m_socket(sock)
-    , m_owner(owner) {
+    , m_owner(owner)
+{
 }
 
-SocketStream::~SocketStream() {
+SocketStream::~SocketStream()
+{
     if (m_owner && m_socket) {
         m_socket->close();
     }
 }
 
-int SocketStream::read(void* buffer, size_t length) {
+int SocketStream::read(void* buffer, size_t length)
+{
     if (!isConnected()) {
         return -1;
     }
     return m_socket->recv(buffer, length);
 }
 
-int SocketStream::read(ByteArray::ptr ba, size_t length) {
+int SocketStream::read(ByteArray::ptr ba, size_t length)
+{
     if (!isConnected()) {
         return -1;
     }
@@ -101,14 +113,16 @@ int SocketStream::read(ByteArray::ptr ba, size_t length) {
     return rt;
 }
 
-int SocketStream::write(const void* buffer, size_t length) {
+int SocketStream::write(const void* buffer, size_t length)
+{
     if (!isConnected()) {
         return -1;
     }
     return m_socket->send(buffer, length);
 }
 
-int SocketStream::write(ByteArray::ptr ba, size_t length) {
+int SocketStream::write(ByteArray::ptr ba, size_t length)
+{
     if (!isConnected()) {
         return -1;
     }
@@ -125,31 +139,36 @@ int SocketStream::write(ByteArray::ptr ba, size_t length) {
     return rt;
 }
 
-void SocketStream::close() {
+void SocketStream::close()
+{
     if (m_socket) {
         m_socket->close();
     }
 }
 
-bool SocketStream::isConnected() const {
+bool SocketStream::isConnected() const
+{
     return m_socket && m_socket->isConnected();
 }
 
-Address::ptr SocketStream::getRemoteAddress() {
+Address::ptr SocketStream::getRemoteAddress()
+{
     if (m_socket) {
         return m_socket->getRemoteAddress();
     }
     return nullptr;
 }
 
-Address::ptr SocketStream::getLocalAddress() {
+Address::ptr SocketStream::getLocalAddress()
+{
     if (m_socket) {
         return m_socket->getLocalAddress();
     }
     return nullptr;
 }
 
-std::string SocketStream::getRemoteAddressString() {
+std::string SocketStream::getRemoteAddressString()
+{
     auto addr = getRemoteAddress();
     if (addr) {
         return addr->toString();
@@ -157,7 +176,8 @@ std::string SocketStream::getRemoteAddressString() {
     return "";
 }
 
-std::string SocketStream::getLocalAddressString() {
+std::string SocketStream::getLocalAddressString()
+{
     auto addr = getLocalAddress();
     if (addr) {
         return addr->toString();
@@ -165,12 +185,17 @@ std::string SocketStream::getLocalAddressString() {
     return "";
 }
 
-AsyncSocketStream::Ctx::Ctx() 
+AsyncSocketStream::SendCtx::~SendCtx()
+{
+}
+
+AsyncSocketStream::Ctx::Ctx()
     : sn(0)
     , timeout(0)
     , result(0)
     , timed(false)
-    , scheduler(nullptr) {
+    , scheduler(nullptr)
+{
 }
 
 AsyncSocketStream::AsyncSocketStream(Socket::ptr sock, bool owner)
@@ -179,10 +204,12 @@ AsyncSocketStream::AsyncSocketStream(Socket::ptr sock, bool owner)
     , m_sn(0)
     , m_autoConnect(false)
     , m_iomanager(nullptr)
-    , m_worker(nullptr) {
+    , m_worker(nullptr)
+{
 }
 
-bool AsyncSocketStream::start() {
+bool AsyncSocketStream::start()
+{
     if (!m_iomanager) {
         m_iomanager = IOManager::GetThis();
     }
@@ -233,7 +260,8 @@ bool AsyncSocketStream::start() {
     return false;
 }
 
-void AsyncSocketStream::close() {
+void AsyncSocketStream::close()
+{
     m_autoConnect = false;
     SchedulerSwitcher ss(m_iomanager);
     if (m_timer) {
@@ -242,7 +270,8 @@ void AsyncSocketStream::close() {
     SocketStream::close();
 }
 
-void AsyncSocketStream::Ctx::doRsp() {
+void AsyncSocketStream::Ctx::doRsp()
+{
     Scheduler* sc = scheduler;
     if (!Atomic::compareAndSwapBool(scheduler, sc, (Scheduler*)nullptr)) {
         return;
@@ -261,7 +290,8 @@ void AsyncSocketStream::Ctx::doRsp() {
     sc->schedule(&fiber);
 }
 
-void AsyncSocketStream::doRead() {
+void AsyncSocketStream::doRead()
+{
     try {
         while (isConnected()) {
             auto ctx = doRecv();
@@ -281,7 +311,8 @@ void AsyncSocketStream::doRead() {
     }
 }
 
-void AsyncSocketStream::doWrite() {
+void AsyncSocketStream::doWrite()
+{
     try {
         while (isConnected()) {
             m_sem.wait();
@@ -309,15 +340,18 @@ void AsyncSocketStream::doWrite() {
     m_waitSem.notify();
 }
 
-void AsyncSocketStream::startRead() {
+void AsyncSocketStream::startRead()
+{
     m_iomanager->schedule(std::bind(&AsyncSocketStream::doRead, shared_from_this()));
 }
 
-void AsyncSocketStream::startWrite() {
+void AsyncSocketStream::startWrite()
+{
     m_iomanager->schedule(std::bind(&AsyncSocketStream::doWrite, shared_from_this()));
 }
 
-void AsyncSocketStream::onTimeOut(Ctx::ptr ctx) {
+void AsyncSocketStream::onTimeOut(Ctx::ptr ctx)
+{
     {
         std::unique_lock lock(m_mtx);
         m_ctxs.erase(ctx->sn);
@@ -326,13 +360,15 @@ void AsyncSocketStream::onTimeOut(Ctx::ptr ctx) {
     ctx->doRsp();
 }
 
-AsyncSocketStream::Ctx::ptr AsyncSocketStream::getCtx(uint32_t sn) {
+AsyncSocketStream::Ctx::ptr AsyncSocketStream::getCtx(uint32_t sn)
+{
     std::shared_lock lock(m_mtx);
     auto it = m_ctxs.find(sn);
     return it == m_ctxs.end() ? nullptr : it->second;
 }
 
-AsyncSocketStream::Ctx::ptr AsyncSocketStream::getAndDelCtx(uint32_t sn) {
+AsyncSocketStream::Ctx::ptr AsyncSocketStream::getAndDelCtx(uint32_t sn)
+{
     Ctx::ptr ctx;
     std::unique_lock lock(m_mtx);
     auto it = m_ctxs.find(sn);
@@ -343,13 +379,15 @@ AsyncSocketStream::Ctx::ptr AsyncSocketStream::getAndDelCtx(uint32_t sn) {
     return ctx;
 }
 
-bool AsyncSocketStream::addCtx(Ctx::ptr ctx) {
+bool AsyncSocketStream::addCtx(Ctx::ptr ctx)
+{
     std::unique_lock lock(m_mtx);
     m_ctxs.emplace(ctx->sn, ctx);
     return true;
 }
 
-bool AsyncSocketStream::enqueue(SendCtx::ptr ctx) {
+bool AsyncSocketStream::enqueue(SendCtx::ptr ctx)
+{
     ASSERT(ctx);
     std::unique_lock lock(m_queueMtx);
     bool empty = m_queue.empty();
@@ -361,7 +399,8 @@ bool AsyncSocketStream::enqueue(SendCtx::ptr ctx) {
     return empty;
 }
 
-bool AsyncSocketStream::innerClose() {
+bool AsyncSocketStream::innerClose()
+{
     ASSERT(m_iomanager == IOManager::GetThis());
     if (isConnected() && m_disconnectCb) {
         m_disconnectCb(shared_from_this());
@@ -384,18 +423,29 @@ bool AsyncSocketStream::innerClose() {
     return true;
 }
 
-bool AsyncSocketStream::waitFiber() {
+bool AsyncSocketStream::waitFiber()
+{
     m_waitSem.wait();
     m_waitSem.wait();
     return true;
 }
 
-AsyncSocketStreamManager::AsyncSocketStreamManager()
-    : m_idx(0)
-    , m_size(0) {
+AsyncSocketStream::Ctx::~Ctx()
+{
 }
 
-void AsyncSocketStreamManager::add(AsyncSocketStream::ptr stream) {
+AsyncSocketStreamManager::~AsyncSocketStreamManager()
+{
+}
+
+AsyncSocketStreamManager::AsyncSocketStreamManager()
+    : m_idx(0)
+    , m_size(0)
+{
+}
+
+void AsyncSocketStreamManager::add(AsyncSocketStream::ptr stream)
+{
     std::unique_lock lock(m_mtx);
     m_datas.emplace_back(stream);
     ++m_size;
@@ -403,13 +453,14 @@ void AsyncSocketStreamManager::add(AsyncSocketStream::ptr stream) {
     if (m_connectCb) {
         stream->setConnectCb(m_connectCb);
     }
-    
+
     if (m_disconnectCb) {
         stream->setDisConnectCb(m_disconnectCb);
     }
 }
 
-void AsyncSocketStreamManager::clear() {
+void AsyncSocketStreamManager::clear()
+{
     std::unique_lock lock(m_mtx);
     for (auto& i : m_datas) {
         i->close();
@@ -418,7 +469,8 @@ void AsyncSocketStreamManager::clear() {
     m_size = 0;
 }
 
-void AsyncSocketStreamManager::setConnection(const std::vector<AsyncSocketStream::ptr>& streams) {
+void AsyncSocketStreamManager::setConnection(const std::vector<AsyncSocketStream::ptr>& streams)
+{
     auto cs = streams;
     std::unique_lock lock(m_mtx);
     cs.swap(m_datas);
@@ -440,7 +492,8 @@ void AsyncSocketStreamManager::setConnection(const std::vector<AsyncSocketStream
     }
 }
 
-AsyncSocketStream::ptr AsyncSocketStreamManager::get() {
+AsyncSocketStream::ptr AsyncSocketStreamManager::get()
+{
     std::shared_lock lock(m_mtx);
     for (uint32_t i = 0; i < m_size; ++i) {
         auto idx = Atomic::addFetch(m_idx, 1);
@@ -451,7 +504,8 @@ AsyncSocketStream::ptr AsyncSocketStreamManager::get() {
     return nullptr;
 }
 
-void AsyncSocketStreamManager::setConnectCb(connect_callback v) {
+void AsyncSocketStreamManager::setConnectCb(connect_callback v)
+{
     m_connectCb = v;
     std::unique_lock lock(m_mtx);
     for (auto& i : m_datas) {
@@ -459,7 +513,8 @@ void AsyncSocketStreamManager::setConnectCb(connect_callback v) {
     }
 }
 
-void AsyncSocketStreamManager::setDisConnectCb(disconnect_callback v) {
+void AsyncSocketStreamManager::setDisConnectCb(disconnect_callback v)
+{
     m_disconnectCb = v;
     std::unique_lock lock(m_mtx);
     for (auto& i : m_datas) {

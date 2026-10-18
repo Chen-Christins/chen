@@ -16,19 +16,22 @@ static const char H2_PREFACE[] = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 static const size_t H2_PREFACE_LEN = 24;
 
 HttpServer::HttpServer(bool keepalive, IOManager* worker, IOManager* io_worker, IOManager* accept_worker)
-        : TcpServer(worker, io_worker, accept_worker)
-        , m_isKeepAlive(keepalive) {
+    : TcpServer(worker, io_worker, accept_worker)
+    , m_isKeepAlive(keepalive)
+{
     m_dispatch.reset(new ServletDispatch);
 
     m_type = "http";
 }
 
-void HttpServer::setName(const std::string& v) {
+void HttpServer::setName(const std::string& v)
+{
     TcpServer::setName(v);
     m_dispatch->setDefault(std::make_shared<NotFoundServlet>(v));
 }
 
-static bool detectH2Preface(Socket::ptr client) {
+static bool detectH2Preface(Socket::ptr client)
+{
     uint8_t buf[H2_PREFACE_LEN];
     int len = client->recv(buf, H2_PREFACE_LEN, MSG_PEEK);
     if (len != (int)H2_PREFACE_LEN) {
@@ -37,7 +40,8 @@ static bool detectH2Preface(Socket::ptr client) {
     return memcmp(buf, H2_PREFACE, H2_PREFACE_LEN) == 0;
 }
 
-void HttpServer::handleClient(Socket::ptr client) {
+void HttpServer::handleClient(Socket::ptr client)
+{
     DEBUG(logger) << "handleClient " << *client;
 
     // If this is a dedicated HTTP/2 server (type="http2"), always use HTTP/2.
@@ -69,11 +73,10 @@ void HttpServer::handleClient(Socket::ptr client) {
             // 可能泄漏至此。这不是真正的错误，降级为 DEBUG 避免日志噪声。
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 DEBUG(logger) << "recv request EAGAIN (normal for non-blocking socket)"
-                    << " client:" << *client << " keep-alive=" << m_isKeepAlive;
+                              << " client:" << *client << " keep-alive=" << m_isKeepAlive;
             } else {
-                WARN(logger) << "recv http request fail, errno="
-                    << errno << " errstr=" << strerror(errno)
-                    << " client:" << *client << " keep-alive=" << m_isKeepAlive;
+                WARN(logger) << "recv http request fail, errno=" << errno << " errstr=" << strerror(errno) << " client:" << *client
+                             << " keep-alive=" << m_isKeepAlive;
             }
             break;
         }
@@ -96,7 +99,7 @@ void HttpServer::handleClient(Socket::ptr client) {
         } else {
             if (session->readBodyInto(req, leftover) < 0) {
                 WARN(logger) << "read http request body fail"
-                    << " client:" << *client;
+                             << " client:" << *client;
                 break;
             }
             slt->handle(req, rsp, session);

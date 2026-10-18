@@ -1,6 +1,9 @@
 /**
  * @file mysql.h
  * @brief MySQL 客户端封装
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -33,7 +36,7 @@ class MySQLStmt;
 // };
 
 struct MySQLTime {
-    MySQLTime(time_t t) : ts(t) {}
+    MySQLTime(time_t t);
     time_t ts;
 };
 
@@ -51,7 +54,7 @@ public:
     int getErrno() const override { return m_errno; }
     const std::string& getErrStr() const override { return m_errstr; }
 
-    bool foreach (data_cb cb);
+    bool foreach(data_cb cb);
 
     int getDataCount() override;
     int getColumnCount() override;
@@ -364,13 +367,15 @@ struct MySQLBinder {
 };
 
 template <typename... Args>
-int bindX(MySQLStmt::ptr stmt, Args&... args) {
+int bindX(MySQLStmt::ptr stmt, Args&... args)
+{
     return MySQLBinder<1, Args...>::Bind(stmt, args...);
 }
 } // namespace
 
 template <typename... Args>
-int MySQL::execStmt(const char* stmt, Args&&... args) {
+int MySQL::execStmt(const char* stmt, Args&&... args)
+{
     auto st = MySQLStmt::Create(shared_from_this(), stmt);
     if (!st) {
         return -1;
@@ -383,7 +388,8 @@ int MySQL::execStmt(const char* stmt, Args&&... args) {
 }
 
 template <class... Args>
-ISQLData::ptr MySQL::queryStmt(const char* stmt, Args&&... args) {
+ISQLData::ptr MySQL::queryStmt(const char* stmt, Args&&... args)
+{
     auto st = MySQLStmt::Create(shared_from_this(), stmt);
     if (!st) {
         return nullptr;
@@ -399,23 +405,25 @@ namespace {
 
 template <size_t N, typename Head, typename... Tail>
 struct MySQLBinder<N, Head, Tail...> {
-    static int Bind(MySQLStmt::ptr stmt, const Head&, Tail&...) {
+    static int Bind(MySQLStmt::ptr stmt, const Head&, Tail&...)
+    {
         // static_assert(false, "invalid type");
         static_assert(sizeof...(Tail) < 0, "invalid type");
         return 0;
     }
 };
 
-#define XX(type, type2)                                                    \
-    template <size_t N, typename... Tail>                                  \
-    struct MySQLBinder<N, type, Tail...> {                                 \
-        static int Bind(MySQLStmt::ptr stmt, type2 value, Tail&... tail) { \
-            int rt = stmt->bind(N, value);                                 \
-            if (rt != 0) {                                                 \
-                return rt;                                                 \
-            }                                                              \
-            return MySQLBinder<N + 1, Tail...>::Bind(stmt, tail...);       \
-        }                                                                  \
+#define XX(type, type2)                                                  \
+    template <size_t N, typename... Tail>                                \
+    struct MySQLBinder<N, type, Tail...> {                               \
+        static int Bind(MySQLStmt::ptr stmt, type2 value, Tail&... tail) \
+        {                                                                \
+            int rt = stmt->bind(N, value);                               \
+            if (rt != 0) {                                               \
+                return rt;                                               \
+            }                                                            \
+            return MySQLBinder<N + 1, Tail...>::Bind(stmt, tail...);     \
+        }                                                                \
     };
 
 // template<size_t N, typename... Tail>

@@ -9,11 +9,40 @@ namespace chen::rpc {
 
 static Logger::ptr logger = LOG_NAME("system");
 
-RpcClient::RpcClient(bool auto_heartbeat) : m_auto_heartbeat(auto_heartbeat) {}
+void RpcClient::unregisterMethod(const std::string& name)
+{
+    std::lock_guard lock(m_mutex);
+    m_requestHandlers.erase(HandlerKey{name});
+}
 
-RpcClient::~RpcClient() { close(); }
+void RpcClient::unregisterMethod(uint32_t cmd)
+{
+    std::lock_guard lock(m_mutex);
+    m_requestHandlers.erase(HandlerKey{cmd});
+}
 
-bool RpcClient::connect(Address::ptr address, uint64_t timeout_ms) {
+void RpcClient::applyRouting(Protocol::ptr req, const RpcRouting& routing)
+{
+    req->routing = static_cast<uint8_t>(routing.method);
+    req->dst_peer_id = routing.dst_peer_id;
+    req->func_id = routing.func_id;
+    req->group_id = routing.group_id;
+    req->bind_id = routing.bind_id;
+    req->real_random = routing.real_random ? 1 : 0;
+}
+
+RpcClient::RpcClient(bool auto_heartbeat)
+    : m_auto_heartbeat(auto_heartbeat)
+{
+}
+
+RpcClient::~RpcClient()
+{
+    close();
+}
+
+bool RpcClient::connect(Address::ptr address, uint64_t timeout_ms)
+{
     m_sock = Socket::CreateTCP(address);
     if (!m_sock) {
         return false;
@@ -24,8 +53,7 @@ bool RpcClient::connect(Address::ptr address, uint64_t timeout_ms) {
     m_session.reset(new RpcConnection(m_sock));
 
     // 启动接收协程
-    IOManager::GetThis()->schedule(
-        std::bind(&RpcClient::recvLoop, std::weak_ptr<RpcClient>(shared_from_this()), m_session));
+    IOManager::GetThis()->schedule(std::bind(&RpcClient::recvLoop, std::weak_ptr<RpcClient>(shared_from_this()), m_session));
 
     // 启动心跳
     m_hbMissed = 0;
@@ -33,43 +61,46 @@ bool RpcClient::connect(Address::ptr address, uint64_t timeout_ms) {
         std::lock_guard lock(m_mutex);
         if (!m_hb_timer) {
             std::weak_ptr<RpcClient> weak_this = shared_from_this();
-            m_hb_timer = IOManager::GetThis()->addTimer(m_heartbeat_ms, [weak_this]() {
-                auto self = weak_this.lock();
-                if (!self) {
-                    DEBUG(logger) << "heartbeat timer exit";
-                    return;
-                }
-                RpcConnection::ptr session;
-                bool should_close = false;
-                {
-                    std::lock_guard lock(self->m_mutex);
-                    session = self->m_session;
-                    if (++self->m_hbMissed > self->MAX_HB_MISSED) {
-                        WARN(logger) << "heartbeat timeout (" << self->m_hbMissed
-                            << " missed), closing connection";
-                        should_close = true;
+            m_hb_timer = IOManager::GetThis()->addTimer(
+                m_heartbeat_ms,
+                [weak_this]() {
+                    auto self = weak_this.lock();
+                    if (!self) {
+                        DEBUG(logger) << "heartbeat timer exit";
+                        return;
                     }
-                }
-                if (should_close) {
-                    self->close();
-                    return;
-                }
-                if (!session || !session->isConnected()) {
-                    DEBUG(logger) << "heartbeat session is closed";
-                    return;
-                }
-                Protocol::ptr hb(new Protocol);
-                hb->type = MessageType::HEARTBEAT;
-                hb->sequence = 0;
-                hb->body = "";
-                self->sendProtocol(hb);
-            }, true);
+                    RpcConnection::ptr session;
+                    bool should_close = false;
+                    {
+                        std::lock_guard lock(self->m_mutex);
+                        session = self->m_session;
+                        if (++self->m_hbMissed > self->MAX_HB_MISSED) {
+                            WARN(logger) << "heartbeat timeout (" << self->m_hbMissed << " missed), closing connection";
+                            should_close = true;
+                        }
+                    }
+                    if (should_close) {
+                        self->close();
+                        return;
+                    }
+                    if (!session || !session->isConnected()) {
+                        DEBUG(logger) << "heartbeat session is closed";
+                        return;
+                    }
+                    Protocol::ptr hb(new Protocol);
+                    hb->type = MessageType::HEARTBEAT;
+                    hb->sequence = 0;
+                    hb->body = "";
+                    self->sendProtocol(hb);
+                },
+                true);
         }
     }
     return true;
 }
 
-void RpcClient::close() {
+void RpcClient::close()
+{
     std::lock_guard lock(m_mutex);
     // 先取消 socket 上的 pending 事件（特别是 recvLoop 在等的事件）
     // 确保 recvLoop fiber 被唤醒，否则它会永远卡在 epoll 里
@@ -87,27 +118,28 @@ void RpcClient::close() {
     }
 }
 
-bool RpcClient::registerService(uint32_t peer_id, uint32_t func_id, uint32_t instance_id
-        ,const std::vector<uint32_t>& bind_ids) {
+bool RpcClient::registerService(uint32_t peer_id, uint32_t func_id, uint32_t instance_id, const std::vector<uint32_t>& bind_ids)
+{
     try {
         call<void>("@register", peer_id, func_id, instance_id, bind_ids);
         return true;
     } catch (std::exception& e) {
-        ERROR(logger) << "registerService failed, peer_id=" << peer_id
-            << " func_id=" << func_id << " instance_id=" << instance_id
-            << " err=" << e.what();
+        ERROR(logger) << "registerService failed, peer_id=" << peer_id << " func_id=" << func_id << " instance_id=" << instance_id
+                      << " err=" << e.what();
         return false;
     }
 }
 
-bool RpcClient::sendProtocol(Protocol::ptr pkt) {
+bool RpcClient::sendProtocol(Protocol::ptr pkt)
+{
     m_writeSem.wait();
     bool ok = m_session && m_session->sendProtocol(pkt) > 0;
     m_writeSem.notify();
     return ok;
 }
 
-Protocol::ptr RpcClient::callInternal(Protocol::ptr req, uint64_t timeout_ms) {
+Protocol::ptr RpcClient::callInternal(Protocol::ptr req, uint64_t timeout_ms)
+{
     ResponseContext::ptr ctx(new ResponseContext);
     ctx->fiber = Fiber::GetThis();
     ctx->scheduler = Scheduler::GetThis();
@@ -124,16 +156,19 @@ Protocol::ptr RpcClient::callInternal(Protocol::ptr req, uint64_t timeout_ms) {
     if (timeout_ms > 0) {
         std::weak_ptr<RpcClient> weak_this = shared_from_this();
         uint32_t seq = req->sequence;
-        timer = IOManager::GetThis()->addTimer(timeout_ms, [weak_this, seq]() {
-            auto self = weak_this.lock();
-            if (!self) {
-                return;
-            }
-            auto ctx = self->takePending(seq);
-            if (ctx) {
-                self->completeRequest(ctx, RpcStatus::TIMEOUT, nullptr);
-            }
-        }, false);
+        timer = IOManager::GetThis()->addTimer(
+            timeout_ms,
+            [weak_this, seq]() {
+                auto self = weak_this.lock();
+                if (!self) {
+                    return;
+                }
+                auto ctx = self->takePending(seq);
+                if (ctx) {
+                    self->completeRequest(ctx, RpcStatus::TIMEOUT, nullptr);
+                }
+            },
+            false);
     }
 
     if (!sendProtocol(req)) {
@@ -158,7 +193,8 @@ Protocol::ptr RpcClient::callInternal(Protocol::ptr req, uint64_t timeout_ms) {
     throw std::runtime_error("request timeout");
 }
 
-void RpcClient::callInternalAsync(Protocol::ptr req, uint64_t timeout_ms, std::function<void(RpcStatus, Protocol::ptr)> callback) {
+void RpcClient::callInternalAsync(Protocol::ptr req, uint64_t timeout_ms, std::function<void(RpcStatus, Protocol::ptr)> callback)
+{
     ResponseContext::ptr ctx(new ResponseContext);
     ctx->scheduler = Scheduler::GetThis();
     if (!ctx->scheduler) {
@@ -184,16 +220,19 @@ void RpcClient::callInternalAsync(Protocol::ptr req, uint64_t timeout_ms, std::f
     if (timeout_ms > 0) {
         std::weak_ptr<RpcClient> weak_this = shared_from_this();
         uint32_t seq = req->sequence;
-        timer = IOManager::GetThis()->addTimer(timeout_ms, [weak_this, seq]() {
-            auto self = weak_this.lock();
-            if (!self) {
-                return;
-            }
-            auto ctx = self->takePending(seq);
-            if (ctx) {
-                self->completeRequest(ctx, RpcStatus::TIMEOUT, nullptr);
-            }
-        }, false);
+        timer = IOManager::GetThis()->addTimer(
+            timeout_ms,
+            [weak_this, seq]() {
+                auto self = weak_this.lock();
+                if (!self) {
+                    return;
+                }
+                auto ctx = self->takePending(seq);
+                if (ctx) {
+                    self->completeRequest(ctx, RpcStatus::TIMEOUT, nullptr);
+                }
+            },
+            false);
         std::lock_guard lock(m_mutex);
         ctx->timer = timer;
     }
@@ -209,7 +248,8 @@ void RpcClient::callInternalAsync(Protocol::ptr req, uint64_t timeout_ms, std::f
     }
 }
 
-RpcClient::ResponseContext::ptr RpcClient::takePending(uint32_t sequence) {
+RpcClient::ResponseContext::ptr RpcClient::takePending(uint32_t sequence)
+{
     std::lock_guard lock(m_mutex);
     auto it = m_pending_requests.find(sequence);
     if (it == m_pending_requests.end()) {
@@ -220,7 +260,8 @@ RpcClient::ResponseContext::ptr RpcClient::takePending(uint32_t sequence) {
     return ctx;
 }
 
-void RpcClient::completeRequest(ResponseContext::ptr ctx, RpcStatus status, Protocol::ptr rsp) {
+void RpcClient::completeRequest(ResponseContext::ptr ctx, RpcStatus status, Protocol::ptr rsp)
+{
     // 取消超时定时器（由定时器自身触发时取消失败，无副作用）
     Timer::ptr timer;
     {
@@ -251,7 +292,8 @@ void RpcClient::completeRequest(ResponseContext::ptr ctx, RpcStatus status, Prot
     }
 }
 
-void RpcClient::recvLoop(std::weak_ptr<RpcClient> weak_this, RpcConnection::ptr session) {
+void RpcClient::recvLoop(std::weak_ptr<RpcClient> weak_this, RpcConnection::ptr session)
+{
     while (true) {
         if (!session || !session->isConnected()) {
             break;
@@ -298,13 +340,11 @@ void RpcClient::recvLoop(std::weak_ptr<RpcClient> weak_this, RpcConnection::ptr 
                 body_ba->writeStringWithoutLength(resp->body);
                 body_ba->setPosition(0);
                 if (resp->cmd == 0) {
-                    body_ba->readStringVint();  // skip method name
+                    body_ba->readStringVint(); // skip method name
                 }
                 rsp = handler(body_ba, resp->sequence);
             } else if (need_rsp) {
-                std::string err_msg = resp->cmd != 0
-                    ? "Cmd not found: " + std::to_string(resp->cmd)
-                    : "Method not found: " + method;
+                std::string err_msg = resp->cmd != 0 ? "Cmd not found: " + std::to_string(resp->cmd) : "Method not found: " + method;
                 ByteArray::ptr rba(new ByteArray);
                 rba->writeFint32(404);
                 rba->writeStringVint(err_msg);
@@ -329,8 +369,7 @@ void RpcClient::recvLoop(std::weak_ptr<RpcClient> weak_this, RpcConnection::ptr 
         if (ctx) {
             self->completeRequest(ctx, RpcStatus::OK, resp);
         } else {
-            DEBUG(logger) << "recvLoop: response for sequence " << resp->sequence
-                << " dropped (already timed out)";
+            DEBUG(logger) << "recvLoop: response for sequence " << resp->sequence << " dropped (already timed out)";
         }
     }
 

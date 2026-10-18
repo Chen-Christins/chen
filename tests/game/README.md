@@ -4,10 +4,10 @@
 
 ## 文件
 
-| 文件 | 说明 |
-|------|------|
-| `game_module.h/cc` | 模块定义，实现 `onLoad`/`onUnload`/`onServerReady`/`onServerUp` |
-| `game_rpc_service.h/cc` | GameRpcService：游戏业务逻辑 + RPC 方法注册/注销 |
+| 文件                    | 说明                                                            |
+|-------------------------|-----------------------------------------------------------------|
+| `game_module.h/cc`      | 模块定义，实现 `onLoad`/`onUnload`/`onServerReady`/`onServerUp` |
+| `game_rpc_service.h/cc` | GameRpcService：游戏业务逻辑 + RPC 方法注册/注销                |
 
 ## 生命周期
 
@@ -20,14 +20,14 @@ onUnload:        注销 RPC 方法, 释放 GameRpcService
 
 ## RPC 方法
 
-| 方法名 | 功能 |
-|--------|------|
-| `getPlayerInfo` | 查询玩家信息 |
-| `updatePlayerLevel` | 更新玩家等级 |
-| `addPlayerExp` | 增加玩家经验 |
-| `getAllPlayers` | 获取所有玩家 |
-| `syncPlayerData` | 跨服同步玩家数据 |
-| `broadcastMessage` | 跨服广播消息 |
+| 方法名              | 功能             |
+|---------------------|------------------|
+| `getPlayerInfo`     | 查询玩家信息     |
+| `updatePlayerLevel` | 更新玩家等级     |
+| `addPlayerExp`      | 增加玩家经验     |
+| `getAllPlayers`     | 获取所有玩家     |
+| `syncPlayerData`    | 跨服同步玩家数据 |
+| `broadcastMessage`  | 跨服广播消息     |
 
 ## 编译
 

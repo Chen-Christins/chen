@@ -3,6 +3,7 @@
  * @brief 封装socket相关的函数
  * @author Christins
  * @date 2024-11-25
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -27,8 +28,8 @@ public:
     /**
      * @brief 析构函数
      */
-    virtual ~Stream() {}
-    
+    virtual ~Stream();
+
     /**
      * @brief 将数据读入缓冲区
      * @param buffer 缓冲区
@@ -163,7 +164,7 @@ public:
      * @return bool 成功 true|失败 false
      */
     bool isConnected() const;
-    
+
     /**
      * @brief 获取远端地址信息
      */
@@ -178,11 +179,12 @@ public:
      * @brief 获取远端地址字符串
      */
     std::string getRemoteAddressString();
-    
+
     /**
      * @brief 获取本地地址字符串
      */
     std::string getLocalAddressString();
+
 protected:
     /// socket信息
     Socket::ptr m_socket;
@@ -190,30 +192,30 @@ protected:
     bool m_owner;
 };
 
-class AsyncSocketStream : public SocketStream
-						, public std::enable_shared_from_this<AsyncSocketStream> {
+class AsyncSocketStream : public SocketStream, public std::enable_shared_from_this<AsyncSocketStream> {
 public:
-	typedef std::shared_ptr<AsyncSocketStream> ptr;
-	typedef std::function<bool(AsyncSocketStream::ptr)> connect_callback;
-	typedef std::function<void(AsyncSocketStream::ptr)> disconnect_callback;
+    typedef std::shared_ptr<AsyncSocketStream> ptr;
+    typedef std::function<bool(AsyncSocketStream::ptr)> connect_callback;
+    typedef std::function<void(AsyncSocketStream::ptr)> disconnect_callback;
 
     /**
      * @brief 构造函数
      * @param sock socket实例
      * @param owner 是否自己控制socket
      */
-	AsyncSocketStream(Socket::ptr sock, bool owner = true);
+    AsyncSocketStream(Socket::ptr sock, bool owner = true);
 
     /**
      * @brief 启动异步socket流
-     * @return bool 
+     * @return bool
      */
-	virtual bool start();
+    virtual bool start();
 
     /**
      * @brief 关闭异步socket流
      */
-	virtual void close() override;
+    virtual void close() override;
+
 public:
     /**
      * @brief 错误类型
@@ -224,177 +226,187 @@ public:
         IO_ERROR = -2,
         NOT_CONNECT = -3,
     };
+
 public:
     /**
      * @brief 发送上下文
      */
-	struct SendCtx {
-		typedef std::shared_ptr<SendCtx> ptr;
+    struct SendCtx {
+        typedef std::shared_ptr<SendCtx> ptr;
         /// 析构函数
-		virtual ~SendCtx() {};
-		virtual bool doSend(AsyncSocketStream::ptr stream) = 0;
-	};
+        virtual ~SendCtx();
+        virtual bool doSend(AsyncSocketStream::ptr stream) = 0;
+    };
     /**
      * @brief 上下文信息
      */
-	struct Ctx : public SendCtx {
-		typedef std::shared_ptr<Ctx> ptr;
+    struct Ctx : public SendCtx {
+        typedef std::shared_ptr<Ctx> ptr;
 
-		Ctx();
-		virtual ~Ctx() {}
+        Ctx();
+        virtual ~Ctx();
 
         /// 序列号
-		uint32_t sn;
+        uint32_t sn;
         /// 超时时间
-		uint32_t timeout;
+        uint32_t timeout;
         /// 结果
-		uint32_t result;
+        uint32_t result;
         /// 是否超时
-		bool timed;
+        bool timed;
         /// 调度器
-		Scheduler* scheduler;
+        Scheduler* scheduler;
         /// 协程
-		Fiber::ptr fiber;
+        Fiber::ptr fiber;
         /// 定时器
-		Timer::ptr timer;
+        Timer::ptr timer;
 
         /// 处理响应
-		virtual void doRsp();
-	};
+        virtual void doRsp();
+    };
+
 public:
     /**
      * @brief 设置工作线程
      * @param v 工作线程
      */
-	void setWorker(IOManager* v) { m_worker = v; }
-	IOManager* getWorker() const { return m_worker; }
+    void setWorker(IOManager* v) { m_worker = v; }
+    IOManager* getWorker() const { return m_worker; }
 
     /**
      * @brief 设置IO线程
      * @param v IO线程
      */
-	void setIOManager(IOManager* v) { m_iomanager = v; }
-	IOManager* getIOManager() const { return m_iomanager; }
+    void setIOManager(IOManager* v) { m_iomanager = v; }
+    IOManager* getIOManager() const { return m_iomanager; }
 
     /**
      * @brief 设置自动连接
      * @param v 是否自动连接
      */
-	void setAutoConnect(bool v) { m_autoConnect = v; }
-	bool isAutoConnect() const { return m_autoConnect; }
+    void setAutoConnect(bool v) { m_autoConnect = v; }
+    bool isAutoConnect() const { return m_autoConnect; }
 
     /**
      * @brief 设置连接回调
      * @param cb 连接回调函数
      */
-	void setConnectCb(connect_callback cb) { m_connectCb = cb; }
-	connect_callback getConnectCb() const { return m_connectCb; }
+    void setConnectCb(connect_callback cb) { m_connectCb = cb; }
+    connect_callback getConnectCb() const { return m_connectCb; }
 
     /**
      * @brief 设置断开连接回调
      * @param cb 断开连接回调函数
      */
-	void setDisConnectCb(disconnect_callback cb) { m_disconnectCb = cb; }
-	disconnect_callback getDisConnectCb() const { return m_disconnectCb; }
+    void setDisConnectCb(disconnect_callback cb) { m_disconnectCb = cb; }
+    disconnect_callback getDisConnectCb() const { return m_disconnectCb; }
 
     /**
      * @brief 设置数据
      * @param v 数据
      */
-	template <class T>
-	void setData(const T& v) { m_data = v; }
+    template <class T>
+    void setData(const T& v)
+    {
+        m_data = v;
+    }
 
     /**
      * @brief 获取数据
      */
-	template <class T>
-	T getData() const {
-		try {
-			return boost::any_cast<T>(m_data);
-		} catch (...) {
-		}
-		return T();
-	}
+    template <class T>
+    T getData() const
+    {
+        try {
+            return boost::any_cast<T>(m_data);
+        } catch (...) {
+        }
+        return T();
+    }
+
 protected:
     /// 读取数据
-	virtual void doRead();
+    virtual void doRead();
     /// 写入数据
-	virtual void doWrite();
+    virtual void doWrite();
     /// 开始读取
-	virtual void startRead();
+    virtual void startRead();
     /// 开始写入
-	virtual void startWrite();
+    virtual void startWrite();
     /// 超时处理
-	virtual void onTimeOut(Ctx::ptr ctx);
-	virtual Ctx::ptr doRecv() = 0;
+    virtual void onTimeOut(Ctx::ptr ctx);
+    virtual Ctx::ptr doRecv() = 0;
     /// 获取上下文
-	Ctx::ptr getCtx(uint32_t sn);
+    Ctx::ptr getCtx(uint32_t sn);
     /// 获取并删除上下文
-	Ctx::ptr getAndDelCtx(uint32_t sn);
-
-	template <class T>
-	std::shared_ptr<T> getCtxAs(uint32_t sn) {
-		auto ctx = getAndDelCtx(sn);
-		if (ctx) {
-			return std::dynamic_pointer_cast<T>(ctx);
-		}
-		return nullptr;
-	}
+    Ctx::ptr getAndDelCtx(uint32_t sn);
 
     template <class T>
-    std::shared_ptr<T> getAndDelCtxAs(uint32_t sn) {
+    std::shared_ptr<T> getCtxAs(uint32_t sn)
+    {
         auto ctx = getAndDelCtx(sn);
-        if(ctx) {
+        if (ctx) {
+            return std::dynamic_pointer_cast<T>(ctx);
+        }
+        return nullptr;
+    }
+
+    template <class T>
+    std::shared_ptr<T> getAndDelCtxAs(uint32_t sn)
+    {
+        auto ctx = getAndDelCtx(sn);
+        if (ctx) {
             return std::dynamic_pointer_cast<T>(ctx);
         }
         return nullptr;
     }
     /// 添加上下文
-	bool addCtx(Ctx::ptr ctx);
+    bool addCtx(Ctx::ptr ctx);
     /// 入队列
-	bool enqueue(SendCtx::ptr ctx);
+    bool enqueue(SendCtx::ptr ctx);
     /// 内部关闭
-	bool innerClose();
+    bool innerClose();
     /// 等待协程
-	bool waitFiber();
+    bool waitFiber();
+
 protected:
-	FiberSemaphore m_sem;
-	FiberSemaphore m_waitSem;
-	/// 消费队列的读写锁和对象的读写锁
-	std::list<SendCtx::ptr> m_queue;
-	/// 上下文信息
-	std::unordered_map<uint32_t, Ctx::ptr> m_ctxs;
+    FiberSemaphore m_sem;
+    FiberSemaphore m_waitSem;
+    /// 消费队列的读写锁和对象的读写锁
+    std::list<SendCtx::ptr> m_queue;
+    /// 上下文信息
+    std::unordered_map<uint32_t, Ctx::ptr> m_ctxs;
     /// 序列号
-	uint32_t m_sn;
-	/// 是否自动连接
-	bool m_autoConnect;
-	/// 定时器
-	Timer::ptr m_timer;
-	/// io线程
-	IOManager* m_iomanager;
-	/// work线程
-	IOManager* m_worker;
-	/// 连接时的回调
-	connect_callback m_connectCb;
-	/// 断开连接时的回调
-	disconnect_callback m_disconnectCb;
+    uint32_t m_sn;
+    /// 是否自动连接
+    bool m_autoConnect;
+    /// 定时器
+    Timer::ptr m_timer;
+    /// io线程
+    IOManager* m_iomanager;
+    /// work线程
+    IOManager* m_worker;
+    /// 连接时的回调
+    connect_callback m_connectCb;
+    /// 断开连接时的回调
+    disconnect_callback m_disconnectCb;
     /// 数据
-	boost::any m_data;
-	/// 消费队列的读写锁和对象的读写锁
-	std::shared_mutex m_queueMtx, m_mtx;
+    boost::any m_data;
+    /// 消费队列的读写锁和对象的读写锁
+    std::shared_mutex m_queueMtx, m_mtx;
 };
 
 class AsyncSocketStreamManager {
 public:
     typedef std::shared_ptr<AsyncSocketStreamManager> ptr;
     typedef std::function<bool(AsyncSocketStream::ptr)> connect_callback;
-	typedef std::function<void(AsyncSocketStream::ptr)> disconnect_callback;
+    typedef std::function<void(AsyncSocketStream::ptr)> disconnect_callback;
 
     /**
      * @brief 构造函数/析构函数
      */
     AsyncSocketStreamManager();
-    virtual ~AsyncSocketStreamManager() {}
+    virtual ~AsyncSocketStreamManager();
 
     /**
      * @brief 添加异步socket流
@@ -406,7 +418,7 @@ public:
      * @brief 清除所有异步socket流
      */
     void clear();
-    
+
     /**
      * @brief 设置异步socket流
      * @param streams 异步socket流列表
@@ -414,13 +426,14 @@ public:
     void setConnection(const std::vector<AsyncSocketStream::ptr>& streams);
 
     /**
-    * @brief 获取异步socket流
-    * @return AsyncSocketStream::ptr 异步socket流
-    */
+     * @brief 获取异步socket流
+     * @return AsyncSocketStream::ptr 异步socket流
+     */
     AsyncSocketStream::ptr get();
 
     template <class T>
-    std::shared_ptr<T> getAs() {
+    std::shared_ptr<T> getAs()
+    {
         auto rt = get();
         if (rt) {
             return std::dynamic_pointer_cast<T>(rt);
@@ -434,7 +447,7 @@ public:
      */
     void setConnectCb(connect_callback v);
     connect_callback getConnectCb() const { return m_connectCb; }
-    
+
     /**
      * @brief 设置断开连接回调
      * @param v 断开连接回调函数
@@ -457,4 +470,4 @@ private:
     std::shared_mutex m_mtx;
 };
 
-}
+} // namespace chen

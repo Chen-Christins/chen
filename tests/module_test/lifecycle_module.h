@@ -1,3 +1,10 @@
+/**
+ * @file lifecycle_module.h
+ * @brief 生命周期测试模块
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
+ */
 #pragma once
 
 #include "chen/module/module.h"

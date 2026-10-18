@@ -3,6 +3,7 @@
  * @brief 工具函数
  * @author Christins
  * @date 2024-11-03
+ * @copyright GPL-3.0
  */
 #pragma once
 
@@ -11,20 +12,20 @@
 #include <vector>
 
 #include <sched.h>
-#include <unistd.h>
 #include <sys/syscall.h>
+#include <unistd.h>
 
 #include <boost/lexical_cast.hpp>
 
-#include "compress_util.h" // IWYU pragma: keep
+#include "compress_util.h"  // IWYU pragma: keep
 #include "encryptor_util.h" // IWYU pragma: keep
 #include "endian.h"
-#include "fs_util.h" // IWYU pragma: keep
-#include "json_util.h" // IWYU pragma: keep
+#include "fs_util.h"     // IWYU pragma: keep
+#include "json_util.h"   // IWYU pragma: keep
 #include "random_util.h" // IWYU pragma: keep
 #include "string_util.h" // IWYU pragma: keep
-#include "time_util.h" // IWYU pragma: keep
-#include "type_util.h" // IWYU pragma: keep
+#include "time_util.h"   // IWYU pragma: keep
+#include "type_util.h"   // IWYU pragma: keep
 
 namespace chen {
 /**
@@ -41,17 +42,17 @@ uint32_t GetFiberId();
 /**
  * @brief 打印堆栈信息
  * @param bt 打印的堆栈信息
- * @param size 
- * @param skip 
+ * @param size
+ * @param skip
  */
 void Backtrace(std::vector<std::string>& bt, int size = 64, int skip = 1);
 
 /**
  * @brief 将堆栈信息转换为字符串
- * @param size 
- * @param skip 
- * @param prefix 
- * @return std::string 
+ * @param size
+ * @param skip
+ * @param prefix
+ * @return std::string
  */
 std::string BacktraceToString(int size = 64, int skip = 1, const std::string& prefix = "    ");
 
@@ -61,13 +62,9 @@ std::string BacktraceToString(int size = 64, int skip = 1, const std::string& pr
  */
 int32_t GetCPUCount();
 
-inline uint64_t htonll(uint64_t host_64bits) {
-    return byteswapOnLittleEndian(host_64bits);
-}
+uint64_t htonll(uint64_t host_64bits);
 
-inline uint64_t ntohll(uint64_t net_64bits) {
-    return byteswapOnLittleEndian(net_64bits);
-}
+uint64_t ntohll(uint64_t net_64bits);
 
 /**
  * @brief 获取列表中是否存在值K，不存在则返回def值
@@ -80,7 +77,8 @@ inline uint64_t ntohll(uint64_t net_64bits) {
  * @return V 返回类型的值
  */
 template <class V, class Map, class K>
-V GetParamValue(const Map& m, const K& k, const V& def = V()) {
+V GetParamValue(const Map& m, const K& k, const V& def = V())
+{
     auto it = m.find(k);
     if (it == m.end()) {
         return def;
@@ -103,7 +101,8 @@ V GetParamValue(const Map& m, const K& k, const V& def = V()) {
  * @return V 返回 true|false
  */
 template <class V, class Map, class K>
-bool CheckGetParamValue(const Map& m, const K& k, V& v) {
+bool CheckGetParamValue(const Map& m, const K& k, V& v)
+{
     auto it = m.find(k);
     if (it == m.end()) {
         return false;
@@ -118,78 +117,94 @@ bool CheckGetParamValue(const Map& m, const K& k, V& v) {
 
 class Atomic {
 public:
-    template<class T, class S = T>
-    static T addFetch(volatile T& t, S v = 1) {
+    template <class T, class S = T>
+    static T addFetch(volatile T& t, S v = 1)
+    {
         return __sync_add_and_fetch(&t, (T)v);
     }
 
-    template<class T, class S = T>
-    static T subFetch(volatile T& t, S v = 1) {
+    template <class T, class S = T>
+    static T subFetch(volatile T& t, S v = 1)
+    {
         return __sync_sub_and_fetch(&t, (T)v);
     }
 
-    template<class T, class S>
-    static T orFetch(volatile T& t, S v) {
+    template <class T, class S>
+    static T orFetch(volatile T& t, S v)
+    {
         return __sync_or_and_fetch(&t, (T)v);
     }
 
-    template<class T, class S>
-    static T andFetch(volatile T& t, S v) {
+    template <class T, class S>
+    static T andFetch(volatile T& t, S v)
+    {
         return __sync_and_and_fetch(&t, (T)v);
     }
 
-    template<class T, class S>
-    static T xorFetch(volatile T& t, S v) {
+    template <class T, class S>
+    static T xorFetch(volatile T& t, S v)
+    {
         return __sync_xor_and_fetch(&t, (T)v);
     }
 
-    template<class T, class S>
-    static T nandFetch(volatile T& t, S v) {
+    template <class T, class S>
+    static T nandFetch(volatile T& t, S v)
+    {
         return __sync_nand_and_fetch(&t, (T)v);
     }
 
-    template<class T, class S>
-    static T fetchAdd(volatile T& t, S v = 1) {
+    template <class T, class S>
+    static T fetchAdd(volatile T& t, S v = 1)
+    {
         return __sync_fetch_and_add(&t, (T)v);
     }
 
-    template<class T, class S>
-    static T fetchSub(volatile T& t, S v = 1) {
+    template <class T, class S>
+    static T fetchSub(volatile T& t, S v = 1)
+    {
         return __sync_fetch_and_sub(&t, (T)v);
     }
 
-    template<class T, class S>
-    static T fetchOr(volatile T& t, S v) {
+    template <class T, class S>
+    static T fetchOr(volatile T& t, S v)
+    {
         return __sync_fetch_and_or(&t, (T)v);
     }
 
-    template<class T, class S>
-    static T fetchAnd(volatile T& t, S v) {
+    template <class T, class S>
+    static T fetchAnd(volatile T& t, S v)
+    {
         return __sync_fetch_and_and(&t, (T)v);
     }
 
-    template<class T, class S>
-    static T fetchXor(volatile T& t, S v) {
+    template <class T, class S>
+    static T fetchXor(volatile T& t, S v)
+    {
         return __sync_fetch_and_xor(&t, (T)v);
     }
 
-    template<class T, class S>
-    static T fetchNand(volatile T& t, S v) {
+    template <class T, class S>
+    static T fetchNand(volatile T& t, S v)
+    {
         return __sync_fetch_and_nand(&t, (T)v);
     }
 
-    template<class T, class S>
-    static T compareAndSwap(volatile T& t, S old_val, S new_val) {
+    template <class T, class S>
+    static T compareAndSwap(volatile T& t, S old_val, S new_val)
+    {
         return __sync_val_compare_and_swap(&t, (T)old_val, (T)new_val);
     }
 
-    template<class T, class S>
-    static bool compareAndSwapBool(volatile T& t, S old_val, S new_val) {
+    template <class T, class S>
+    static bool compareAndSwapBool(volatile T& t, S old_val, S new_val)
+    {
         return __sync_bool_compare_and_swap(&t, (T)old_val, (T)new_val);
     }
 };
 
-template<class T>
-void nop(T*) {}
-
+template <class T>
+void nop(T*)
+{
 }
+
+} // namespace chen

@@ -5,11 +5,13 @@
 namespace chen {
 
 ConnLimiter::ConnLimiter(double qps, uint64_t burst, uint32_t max_conn)
-    :m_rateLimiter(qps, burst)
-    ,m_maxConn(max_conn) {
+    : m_rateLimiter(qps, burst)
+    , m_maxConn(max_conn)
+{
 }
 
-ConnLimiter::ptr ConnLimiter::CreateFromArgs(const std::map<std::string, std::string>& args) {
+ConnLimiter::ptr ConnLimiter::CreateFromArgs(const std::map<std::string, std::string>& args)
+{
     double qps = 0;
     uint64_t burst = 0;
     uint32_t max_conn = 0;
@@ -32,7 +34,8 @@ ConnLimiter::ptr ConnLimiter::CreateFromArgs(const std::map<std::string, std::st
     return std::make_shared<ConnLimiter>(qps, burst, max_conn);
 }
 
-bool ConnLimiter::tryAcquire() {
+bool ConnLimiter::tryAcquire()
+{
     if (!m_rateLimiter.tryAcquire()) {
         std::lock_guard lock(m_mutex);
         ++m_rejected;
@@ -47,30 +50,35 @@ bool ConnLimiter::tryAcquire() {
     return true;
 }
 
-void ConnLimiter::release() {
+void ConnLimiter::release()
+{
     std::lock_guard lock(m_mutex);
     if (m_current > 0) {
         --m_current;
     }
 }
 
-uint32_t ConnLimiter::current() const {
+uint32_t ConnLimiter::current() const
+{
     std::lock_guard lock(m_mutex);
     return m_current;
 }
 
-uint64_t ConnLimiter::getRejectedCount() const {
+uint64_t ConnLimiter::getRejectedCount() const
+{
     std::lock_guard lock(m_mutex);
     return m_rejected;
 }
 
-uint32_t ConnLimiter::getMaxConn() const {
+uint32_t ConnLimiter::getMaxConn() const
+{
     return m_maxConn;
 }
 
-bool ConnLimiter::isLimited() const {
+bool ConnLimiter::isLimited() const
+{
     std::lock_guard lock(m_mutex);
     return m_rateLimiter.isLimited() || m_maxConn > 0;
 }
 
-}
+} // namespace chen
