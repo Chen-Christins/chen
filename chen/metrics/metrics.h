@@ -1,6 +1,6 @@
 /**
  * @file metrics.h
- * @brief 指标注册表与 Prometheus 文本渲染
+ * @brief 指标注册表与多格式渲染
  * @author Christins
  * @date 2026-10-17
  * @copyright GPL-3.0
@@ -22,6 +22,15 @@ namespace chen::metrics {
 
 /// 指标标签集合（key-value），注册时按 key 排序
 using Labels = std::vector<std::pair<std::string, std::string>>;
+
+/**
+ * @brief 指标渲染格式
+ */
+enum class RenderFormat {
+    PROMETHEUS,  ///< Prometheus 文本格式
+    OPENMETRICS, ///< OpenMetrics 文本格式
+    JSON         ///< JSON 格式
+};
 
 /**
  * @brief 指标基类
@@ -123,6 +132,9 @@ public:
 
     GaugeFunc(const std::string& name, const std::string& help, const Labels& labels, Callback cb);
 
+    /// 执行回调并返回当前值
+    int64_t value() const;
+
     const char* getType() const override { return "gauge"; }
 
     std::string render() const override;
@@ -144,6 +156,20 @@ public:
     const char* getType() const override { return "histogram"; }
 
     std::string render() const override;
+
+    /**
+     * @brief 直方图快照（bucket 为累计计数）
+     */
+    struct Snapshot {
+        /// <桶上界, 累计计数>
+        std::vector<std::pair<double, uint64_t>> buckets;
+        /// 样本总数
+        uint64_t count = 0;
+        /// 样本值总和
+        double sum = 0.0;
+    };
+
+    Snapshot snapshot() const;
 
     static const std::vector<double>& DefaultBuckets();
 
@@ -171,7 +197,17 @@ public:
 
     Histogram* getHistogram(const std::string& name, const std::string& help, const Labels& labels = {}, const std::vector<double>& buckets = {});
 
+    /// 按指定格式渲染
+    std::string Render(RenderFormat format);
+
+    /// 渲染为 Prometheus 文本格式
     std::string RenderPrometheus();
+
+    /// 渲染为 OpenMetrics 文本格式
+    std::string RenderOpenMetrics();
+
+    /// 渲染为 JSON 格式
+    std::string RenderJson();
 
 private:
     std::string makeKey(const std::string& name, const Labels& labels) const;

@@ -1,11 +1,14 @@
 #include "metrics.h"
 
+#include <json/json.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <new>
 #include <thread>
 
+#include "../util/json_util.h"
 #include "../util/type_util.h"
 
 namespace chen::metrics {
@@ -267,9 +270,14 @@ GaugeFunc::GaugeFunc(const std::string& name, const std::string& help, const Lab
 {
 }
 
+int64_t GaugeFunc::value() const
+{
+    return m_cb ? m_cb() : 0;
+}
+
 std::string GaugeFunc::render() const
 {
-    int64_t value = m_cb ? m_cb() : 0;
+    int64_t value = this->value();
     return m_sanitizedName + formatLabels() + " " + TypeUtil::ToString(value) + "\n";
 }
 
@@ -325,11 +333,10 @@ void Histogram::observe(double v)
     shard[count_index + 1].fetch_add(static_cast<uint64_t>(v * 1e9), std::memory_order_relaxed);
 }
 
-std::string Histogram::render() const
+Histogram::Snapshot Histogram::snapshot() const
 {
-    const std::string& name = m_sanitizedName;
-    std::string out;
-    out.reserve((m_buckets.size() + 3) * 80);
+    Snapshot snap;
+    snap.buckets.reserve(m_buckets.size());
 
     size_t shard_count = ShardCount();
     size_t count_index = m_buckets.size();
@@ -342,37 +349,50 @@ std::string Histogram::render() const
             bucket_total += shard[i].load(std::memory_order_relaxed);
         }
         cumulative += bucket_total;
+        snap.buckets.emplace_back(m_buckets[i], cumulative);
+    }
+
+    uint64_t sum_ns = 0;
+    for (size_t s = 0; s < shard_count; ++s) {
+        const auto* shard = m_shardData + s * m_stride;
+        snap.count += shard[count_index].load(std::memory_order_relaxed);
+        sum_ns += shard[count_index + 1].load(std::memory_order_relaxed);
+    }
+    snap.sum = static_cast<double>(sum_ns) / 1e9;
+    return snap;
+}
+
+std::string Histogram::render() const
+{
+    Snapshot snap = snapshot();
+    const std::string& name = m_sanitizedName;
+    std::string out;
+    out.reserve((snap.buckets.size() + 3) * 80);
+
+    for (auto& [upper, cumulative] : snap.buckets) {
         out += name + "_bucket";
-        out += formatLabels("le", TypeUtil::ToString(m_buckets[i]));
+        out += formatLabels("le", TypeUtil::ToString(upper));
         out += " ";
         out += TypeUtil::ToString(cumulative);
         out += "\n";
     }
 
-    uint64_t total = 0;
-    uint64_t sum_ns = 0;
-    for (size_t s = 0; s < shard_count; ++s) {
-        const auto* shard = m_shardData + s * m_stride;
-        total += shard[count_index].load(std::memory_order_relaxed);
-        sum_ns += shard[count_index + 1].load(std::memory_order_relaxed);
-    }
-
     out += name + "_bucket";
     out += formatLabels("le", "+Inf");
     out += " ";
-    out += TypeUtil::ToString(total);
+    out += TypeUtil::ToString(snap.count);
     out += "\n";
 
     out += name + "_sum";
     out += formatLabels();
     out += " ";
-    out += TypeUtil::ToString(static_cast<double>(sum_ns) / 1e9);
+    out += TypeUtil::ToString(snap.sum);
     out += "\n";
 
     out += name + "_count";
     out += formatLabels();
     out += " ";
-    out += TypeUtil::ToString(total);
+    out += TypeUtil::ToString(snap.count);
     out += "\n";
 
     return out;
@@ -495,6 +515,78 @@ std::string Registry::RenderPrometheus()
         }
     }
     return out;
+}
+
+std::string Registry::RenderOpenMetrics()
+{
+    std::string out = RenderPrometheus();
+    out += "# EOF\n";
+    return out;
+}
+
+std::string Registry::RenderJson()
+{
+    std::vector<Metric*> metrics;
+    {
+        std::lock_guard lock(m_mutex);
+        metrics.reserve(m_metrics.size());
+        for (auto& [key, metric] : m_metrics) {
+            metrics.push_back(metric.get());
+        }
+    }
+
+    Json::Value root;
+    root["metrics"] = Json::arrayValue;
+
+    for (auto* metric : metrics) {
+        Json::Value item;
+        item["name"] = metric->getName();
+        item["help"] = metric->getHelp();
+        item["type"] = metric->getType();
+
+        Json::Value labels(Json::objectValue);
+        for (auto& [key, value] : metric->getLabels()) {
+            labels[key] = value;
+        }
+        item["labels"] = std::move(labels);
+
+        if (auto* counter = dynamic_cast<Counter*>(metric)) {
+            item["value"] = Json::UInt64(counter->value());
+        } else if (auto* gauge = dynamic_cast<Gauge*>(metric)) {
+            item["value"] = Json::Int64(gauge->value());
+        } else if (auto* gauge_func = dynamic_cast<GaugeFunc*>(metric)) {
+            item["value"] = Json::Int64(gauge_func->value());
+        } else if (auto* histogram = dynamic_cast<Histogram*>(metric)) {
+            auto snap = histogram->snapshot();
+            Json::Value buckets(Json::arrayValue);
+            for (auto& [upper, cumulative] : snap.buckets) {
+                Json::Value bucket;
+                bucket["le"] = upper;
+                bucket["cumulative"] = Json::UInt64(cumulative);
+                buckets.append(std::move(bucket));
+            }
+            item["buckets"] = std::move(buckets);
+            item["count"] = Json::UInt64(snap.count);
+            item["sum"] = snap.sum;
+        }
+
+        root["metrics"].append(std::move(item));
+    }
+
+    return JsonUtil::ToString(root);
+}
+
+std::string Registry::Render(RenderFormat format)
+{
+    switch (format) {
+    case RenderFormat::OPENMETRICS:
+        return RenderOpenMetrics();
+    case RenderFormat::JSON:
+        return RenderJson();
+    case RenderFormat::PROMETHEUS:
+    default:
+        return RenderPrometheus();
+    }
 }
 
 } // namespace chen::metrics

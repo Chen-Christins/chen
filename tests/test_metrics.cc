@@ -13,6 +13,8 @@
 #include <thread>
 #include <vector>
 
+#include <json/json.h>
+
 using namespace chen::metrics;
 
 namespace {
@@ -190,6 +192,48 @@ void TestTypeMismatch()
     std::cout << "PASS" << std::endl;
 }
 
+void TestRenderFormats()
+{
+    std::cout << "=== TestRenderFormats ===" << std::endl;
+    auto* registry = RegistryMgr::GetInstance();
+
+    std::string openmetrics = registry->RenderOpenMetrics();
+    assert(Contains(openmetrics, "# TYPE test_metrics_counter_total counter"));
+    assert(openmetrics.size() >= 6);
+    assert(openmetrics.compare(openmetrics.size() - 6, 6, "# EOF\n") == 0);
+
+    std::string json_text = registry->RenderJson();
+    Json::Value root;
+    Json::Reader reader;
+    assert(reader.parse(json_text, root));
+    assert(root.isObject());
+    assert(root["metrics"].isArray());
+
+    bool found_counter = false;
+    bool found_histogram = false;
+    for (auto& item : root["metrics"]) {
+        const std::string name = item["name"].asString();
+        if (name == "test_metrics_counter_total") {
+            found_counter = true;
+            assert(item["type"].asString() == "counter");
+            assert(item["labels"].isObject());
+        } else if (name == "test_metrics_latency_seconds") {
+            found_histogram = true;
+            assert(item["type"].asString() == "histogram");
+            assert(item["buckets"].isArray());
+            assert(item["count"].asUInt64() == 3);
+            assert(item["sum"].asDouble() > 10.0);
+        }
+    }
+    assert(found_counter);
+    assert(found_histogram);
+
+    assert(registry->Render(RenderFormat::PROMETHEUS) == registry->RenderPrometheus());
+    assert(registry->Render(RenderFormat::OPENMETRICS) == openmetrics);
+    assert(registry->Render(RenderFormat::JSON) == json_text);
+    std::cout << "PASS" << std::endl;
+}
+
 } // namespace
 
 int main()
@@ -202,6 +246,7 @@ int main()
     TestConcurrentCounter();
     TestConcurrentHistogram();
     TestTypeMismatch();
+    TestRenderFormats();
     std::cout << "All metrics tests passed" << std::endl;
     return 0;
 }
