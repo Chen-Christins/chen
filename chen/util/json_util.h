@@ -24,9 +24,10 @@ public:
     /**
      * @brief 将Json -> std::string
      * @param json 源json数据
-     * @return std::string 返回转换后的字符串
+     * @param is_styled 是否格式化为带缩进/换行的字符串
+     * @return std::string 转换后的字符串
      */
-    static std::string ToString(const Json::Value& json);
+    static std::string ToString(const Json::Value& json, bool is_styled = false);
 };
 
 } // namespace chen
