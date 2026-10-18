@@ -1,9 +1,3 @@
-/**
- * @file serializer.cc
- * @brief RPC序列化与反序列化实现
- * @author chen
- * @date 2024-06-10
- */
 #include "serializer.h"
 
 namespace chen::rpc {

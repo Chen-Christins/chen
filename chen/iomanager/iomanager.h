@@ -3,6 +3,7 @@
  * @brief IO协程调度
  * @author Christins
  * @date 2024-11-14
+ * @copyright GPL-3.0
  */
 #pragma once
 

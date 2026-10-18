@@ -434,6 +434,10 @@ AsyncSocketStream::Ctx::~Ctx()
 {
 }
 
+AsyncSocketStreamManager::~AsyncSocketStreamManager()
+{
+}
+
 AsyncSocketStreamManager::AsyncSocketStreamManager()
     : m_idx(0)
     , m_size(0)

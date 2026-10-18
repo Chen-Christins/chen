@@ -3,6 +3,7 @@
  * @brief hook模块
  * @author Christins
  * @date 2024-11-16
+ * @copyright GPL-3.0
  */
 #pragma once
 

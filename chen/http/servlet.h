@@ -3,6 +3,7 @@
  * @brief 仿照java的那种，处理Http的uri
  * @author Christins
  * @date 2025-01-17
+ * @copyright GPL-3.0
  */
 #pragma once
 

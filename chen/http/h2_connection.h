@@ -1,6 +1,9 @@
 /**
  * @file h2_connection.h
  * @brief HTTP/2 连接管理
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

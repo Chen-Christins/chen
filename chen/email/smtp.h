@@ -1,6 +1,9 @@
 /**
  * @file smtp.h
  * @brief SMTP 邮件发送
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

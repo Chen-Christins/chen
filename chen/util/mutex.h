@@ -3,6 +3,7 @@
  * @brief 锁和信号量的封装
  * @author Christins
  * @date 2024-11-03
+ * @copyright GPL-3.0
  */
 #pragma once
 

@@ -3,6 +3,7 @@
  * @brief HTTP 连接类和连接池类的声明
  * @author Christins
  * @date 2025-01-19
+ * @copyright GPL-3.0
  */
 #pragma once
 

@@ -1,6 +1,9 @@
 /**
- * @file chen/ds/lru_cache.h
+ * @file lru_cache.h
  * @brief LRU 缓存模板
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  *
  * 提供两个主要模板：
  * - LruCache<K,V>：线程安全的最近最少使用（LRU）缓存，使用双向链表维护访问顺序，

@@ -5,84 +5,60 @@
  *          这个模块提供了大端序和小端序的转换
  * @author Christins
  * @date 2024-11-20
+ * @copyright GPL-3.0
  */
 #pragma once
 
+#include <bit>
 #include <byteswap.h>
 #include <stdint.h>
 #include <type_traits>
 
-#define CHEN_LITTLE_ENDIAN 1
-#define CHEN_BIG_ENDIAN    2
-
 namespace chen {
 
 template <class T>
-typename std::enable_if<sizeof(T) == sizeof(uint64_t), T>::type byteswap(T value)
+std::enable_if<sizeof(T) == sizeof(uint64_t), T>::type byteswap(T value)
 {
     return (T)bswap_64((uint64_t)value);
 }
 
 template <class T>
-typename std::enable_if<sizeof(T) == sizeof(uint32_t), T>::type byteswap(T value)
+std::enable_if<sizeof(T) == sizeof(uint32_t), T>::type byteswap(T value)
 {
     return (T)bswap_32((uint32_t)value);
 }
 
 template <class T>
-typename std::enable_if<sizeof(T) == sizeof(uint16_t), T>::type byteswap(T value)
+std::enable_if<sizeof(T) == sizeof(uint16_t), T>::type byteswap(T value)
 {
     return (T)bswap_16((uint16_t)value);
 }
 
-#if BYTE_ORDER == BIG_ENDIAN
-#define CHEN_BYTE_ORDER CHEN_BIG_ENDIAN
-#else
-#define CHEN_BYTE_ORDER CHEN_LITTLE_ENDIAN
-#endif
-
-// 如果机器是大端序
-#if CHEN_BYTE_ORDER == CHEN_BIG_ENDIAN
-
 /**
- * @brief 如果本机是小端序，那么直接返回就行
+ * @brief 在小端机器上执行字节交换，大端机器直接返回
  */
 template <class T>
 T byteswapOnLittleEndian(T t)
 {
-    return t;
+    if constexpr (std::endian::native == std::endian::little) {
+        return byteswap(t);
+    } else {
+        return t;
+    }
 }
 
 /**
- * @brief 如果本机是大端序，那么转换成小段序返回
+ * @brief 在大端机器上执行字节交换，小端机器直接返回
  */
 template <class T>
 T byteswapOnBigEndian(T t)
 {
-    return byteswap(t);
+    if constexpr (std::endian::native == std::endian::big) {
+        return byteswap(t);
+    } else {
+        return t;
+    }
 }
-
-#else
-
-/**
- * @brief 如果本机是小端序，那么转换为大端序返回
- */
-template <class T>
-T byteswapOnLittleEndian(T t)
-{
-    return byteswap(t);
-}
-
-/**
- * @brief 如果本机是大端序，那么直接返回就行
- */
-template <class T>
-T byteswapOnBigEndian(T t)
-{
-    return t;
-}
-
-#endif
 
 /**
  * @brief 从字节流按大端序读取 uint8_t，pos 前进 1 字节

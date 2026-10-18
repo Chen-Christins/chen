@@ -3,6 +3,7 @@
  * @brief 
  * @author Christins
  * @date 2025-01-19
+ * @copyright GPL-3.0
  */
 #pragma once
 

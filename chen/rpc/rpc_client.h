@@ -1,6 +1,9 @@
 /**
  * @file rpc_client.h
  * @brief 简单 RPC 客户端封装：连接、同步/异步调用、超时控制与接收循环
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

@@ -3,9 +3,9 @@
  * @brief 游戏模块 - 启动游戏RPC服务
  * @author Christins
  * @date 2025-01-21
+ * @copyright GPL-3.0
  */
-#ifndef __GAME_MODULE_H__
-#define __GAME_MODULE_H__
+#pragma once
 
 #include "chen/module/module.h"
 #include "chen/rpc/rpc_server.h"
@@ -54,5 +54,3 @@ private:
 
 } // namespace game
 } // namespace chen
-
-#endif // __GAME_MODULE_H__

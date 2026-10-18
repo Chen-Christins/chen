@@ -3,6 +3,7 @@
  * @brief 封装socketAPI
  * @author Christins
  * @date 2024-11-21
+ * @copyright GPL-3.0
  */
 #pragma once
 

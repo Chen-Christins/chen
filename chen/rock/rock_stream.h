@@ -1,6 +1,9 @@
 /**
  * @file rock_stream.h
  * @brief Rock 协议流定义
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

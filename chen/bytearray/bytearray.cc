@@ -37,7 +37,7 @@ ByteArray::ByteArray(size_t base_size)
     , m_position(0)
     , m_capacity(base_size)
     , m_size(0)
-    , m_endian(CHEN_BIG_ENDIAN)
+    , m_endian(std::endian::big)
     , m_root(new Node(base_size))
     , m_cur(m_root)
 {
@@ -93,7 +93,7 @@ void ByteArray::writeFuint8(uint8_t value)
 
 void ByteArray::writeFint16(int16_t value)
 {
-    if (m_endian != CHEN_BYTE_ORDER) {
+    if (m_endian != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -101,7 +101,7 @@ void ByteArray::writeFint16(int16_t value)
 
 void ByteArray::writeFuint16(uint16_t value)
 {
-    if (m_endian != CHEN_BYTE_ORDER) {
+    if (m_endian != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -109,7 +109,7 @@ void ByteArray::writeFuint16(uint16_t value)
 
 void ByteArray::writeFint32(int32_t value)
 {
-    if (m_endian != CHEN_BYTE_ORDER) {
+    if (m_endian != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -117,7 +117,7 @@ void ByteArray::writeFint32(int32_t value)
 
 void ByteArray::writeFuint32(uint32_t value)
 {
-    if (m_endian != CHEN_BYTE_ORDER) {
+    if (m_endian != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -125,7 +125,7 @@ void ByteArray::writeFuint32(uint32_t value)
 
 void ByteArray::writeFint64(int64_t value)
 {
-    if (m_endian != CHEN_BYTE_ORDER) {
+    if (m_endian != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -133,7 +133,7 @@ void ByteArray::writeFint64(int64_t value)
 
 void ByteArray::writeFuint64(uint64_t value)
 {
-    if (m_endian != CHEN_BYTE_ORDER) {
+    if (m_endian != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -231,13 +231,13 @@ uint8_t ByteArray::readFuint8()
     return v;
 }
 
-#define XX(type)                       \
-    type v;                            \
-    read(&v, sizeof(v));               \
-    if (m_endian == CHEN_BYTE_ORDER) { \
-        return v;                      \
-    } else {                           \
-        return byteswap(v);            \
+#define XX(type)                               \
+    type v;                                    \
+    read(&v, sizeof(v));                       \
+    if (m_endian == std::endian::native) {     \
+        return v;                              \
+    } else {                                   \
+        return byteswap(v);                    \
     }
 
 int16_t ByteArray::readFint16()
@@ -572,15 +572,15 @@ bool ByteArray::readFromFile(const std::string& name)
 
 bool ByteArray::isLittleEndian() const
 {
-    return m_endian == CHEN_LITTLE_ENDIAN;
+    return m_endian == std::endian::little;
 }
 
 void ByteArray::setIsLittleEndian(bool val)
 {
     if (val) {
-        m_endian = CHEN_LITTLE_ENDIAN;
+        m_endian = std::endian::little;
     } else {
-        m_endian = CHEN_BIG_ENDIAN;
+        m_endian = std::endian::big;
     }
 }
 

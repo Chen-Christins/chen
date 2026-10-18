@@ -3,6 +3,7 @@
  * @brief HttpServer模块
  * @author Christins
  * @date 2024-12-15
+ * @copyright GPL-3.0
  */
 #pragma once
 

@@ -1,6 +1,9 @@
 /**
  * @file fox_thread.h
  * @brief Fox 线程池
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

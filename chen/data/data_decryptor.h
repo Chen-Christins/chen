@@ -4,6 +4,7 @@
  * @details 支持解密Python端的多种加密方案
  * @author Christins
  * @date 2024-11-06
+ * @copyright GPL-3.0
  */
 #pragma once
 

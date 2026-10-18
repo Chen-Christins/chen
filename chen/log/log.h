@@ -3,6 +3,7 @@
  * @brief 日志模块封装
  * @author Christins
  * @date 2024-11-02
+ * @copyright GPL-3.0
  */
 #pragma once
 

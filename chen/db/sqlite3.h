@@ -1,6 +1,9 @@
 /**
  * @file sqlite3.h
  * @brief SQLite3 封装
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

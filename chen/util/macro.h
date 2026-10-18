@@ -3,6 +3,7 @@
  * @brief 宏定义工具
  * @author Christins
  * @date 2024-11-09
+ * @copyright GPL-3.0
  */
 #pragma once
 

@@ -1,6 +1,9 @@
 /**
  * @file service_discovery.h
  * @brief 服务发现接口
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

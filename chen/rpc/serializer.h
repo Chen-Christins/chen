@@ -3,6 +3,7 @@
  * @brief RPC序列化与反序列化
  * @author chen
  * @date 2024-06-10
+ * @copyright GPL-3.0
  */
 #pragma once
 

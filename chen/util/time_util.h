@@ -3,6 +3,7 @@
  * @brief 时间工具函数（互联网和游戏常用）
  * @author Christins
  * @date 2026-06-26
+ * @copyright GPL-3.0
  */
 #pragma once
 

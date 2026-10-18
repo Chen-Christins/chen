@@ -3,9 +3,11 @@
  * @brief 二进制数组(序列化/反序列化)
  * @author Christins
  * @date 2024-11-22
+ * @copyright GPL-3.0
  */
 #pragma once
 
+#include <bit>
 #include <memory>
 #include <vector>
 
@@ -458,7 +460,7 @@ private:
     /// 当前数据的大小
     size_t m_size;
     /// 字节序，默认大端，压缩是小端
-    int8_t m_endian;
+    std::endian m_endian;
     /// 第一个内存块指针
     Node* m_root;
     /// 当前操作的内存块指针

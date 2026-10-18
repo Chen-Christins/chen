@@ -1,6 +1,9 @@
 /**
  * @file roaring_bitmap.h
  * @brief RoaringBitmap 封装
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

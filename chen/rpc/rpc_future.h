@@ -3,6 +3,7 @@
  * @brief RPC 异步结果类型与 Future 句柄：支持并发发起、之后在协程内等待结果
  * @author chen
  * @date 2026-09-17
+ * @copyright GPL-3.0
  */
 #pragma once
 

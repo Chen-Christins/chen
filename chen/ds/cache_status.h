@@ -1,6 +1,9 @@
 /**
  * @file cache_status.h
  * @brief 缓存状态统计
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

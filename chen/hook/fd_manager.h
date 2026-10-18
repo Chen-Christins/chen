@@ -4,6 +4,7 @@
  *        判断socket传入是否是一个句柄
  * @author Christins
  * @date 2024-11-17
+ * @copyright GPL-3.0
  */
 #pragma once
 

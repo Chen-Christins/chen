@@ -3,6 +3,7 @@
  * @brief 守护进程
  * @author Christins
  * @date 2025-02-12
+ * @copyright GPL-3.0
  */
 #pragma once
 

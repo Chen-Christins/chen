@@ -1,6 +1,9 @@
 /**
  * @file http11_common.h
  * @brief HTTP/1.1 Ragel 解析通用定义
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

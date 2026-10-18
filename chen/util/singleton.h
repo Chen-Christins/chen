@@ -3,6 +3,7 @@
  * @brief 单例模式模板
  * @author Christins
  * @date 2024-11-03
+ * @copyright GPL-3.0
  */
 #pragma once
 

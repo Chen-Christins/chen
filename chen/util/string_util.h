@@ -3,6 +3,7 @@
  * @brief 字符串工具函数
  * @author Christins
  * @date 2026-06-26
+ * @copyright GPL-3.0
  */
 #pragma once
 

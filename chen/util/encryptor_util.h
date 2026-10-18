@@ -3,6 +3,7 @@
  * @brief 加密/哈希/摘要工具类
  * @author Christins
  * @date 2026-06-26
+ * @copyright GPL-3.0
  */
 #pragma once
 

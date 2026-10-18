@@ -3,6 +3,7 @@
  * @brief 线程模块
  * @author Christins
  * @date 2024-11-03
+ * @copyright GPL-3.0
  */
 #pragma once
 

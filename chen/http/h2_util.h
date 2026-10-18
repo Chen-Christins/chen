@@ -1,6 +1,9 @@
 /**
  * @file h2_util.h
  * @brief HTTP/2 工具函数
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

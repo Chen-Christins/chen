@@ -1,7 +1,3 @@
-/**
- * @file rpc_future.cc
- * @brief RPC 异步结果类型实现
- */
 #include "rpc_future.h"
 
 namespace chen::rpc {

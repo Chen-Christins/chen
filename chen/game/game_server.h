@@ -1,8 +1,9 @@
 /**
- * @file game_protocol.h
+ * @file game_server.h
  * @brief 通用游戏应用层协议框架
  * @author Claude
  * @date 2026-02-13
+ * @copyright GPL-3.0
  */
 #pragma once
 

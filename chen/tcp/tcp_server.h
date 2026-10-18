@@ -3,6 +3,7 @@
  * @brief 封装了一个TCP服务器
  * @author Christins
  * @date 2024-11-24
+ * @copyright GPL-3.0
  */
 #pragma once
 

@@ -3,6 +3,7 @@
  * @brief 配置模块
  * @author Christins
  * @date 2024-11-06
+ * @copyright GPL-3.0
  */
 #pragma once
 

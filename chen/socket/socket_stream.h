@@ -3,6 +3,7 @@
  * @brief 封装socket相关的函数
  * @author Christins
  * @date 2024-11-25
+ * @copyright GPL-3.0
  */
 #pragma once
 

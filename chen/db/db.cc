@@ -1,7 +1,3 @@
-/**
- * @file db.cc
- * @brief 数据库封装基类实现
- */
 #include "db.h"
 
 namespace chen {

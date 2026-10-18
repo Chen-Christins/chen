@@ -4,6 +4,7 @@
  * @details 读取加密的bin格式策划表文件
  * @author Christins
  * @date 2024-11-06
+ * @copyright GPL-3.0
  */
 #pragma once
 

@@ -3,6 +3,7 @@
  * @brief 参数解析
  * @author Christins
  * @date 2025-03-01
+ * @copyright GPL-3.0
  */
 #pragma once
 

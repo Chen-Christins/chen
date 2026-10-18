@@ -1,7 +1,3 @@
-/**
- * @file cache_status.cc
- * @brief 缓存状态统计实现
- */
 #include "cache_status.h"
 
 namespace chen {

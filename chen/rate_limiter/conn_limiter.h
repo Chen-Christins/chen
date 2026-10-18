@@ -3,6 +3,7 @@
  * @brief 连接准入限流器
  * @author Christins
  * @date 2026-08-24
+ * @copyright GPL-3.0
  */
 #pragma once
 
