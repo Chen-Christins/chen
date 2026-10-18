@@ -8,6 +8,11 @@ namespace orm {
 
 static Logger::ptr logger = LOG_NAME("orm");
 
+std::string Column::getDTypeString()
+{
+    return TypeToString(m_dtype);
+}
+
 std::string Column::getDefaultValueString()
 {
     if (m_default.empty()) {

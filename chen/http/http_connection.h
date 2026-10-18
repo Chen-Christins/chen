@@ -40,12 +40,7 @@ struct HttpResult {
         POOL_INVALID_CONNECTION = 9,
     };
 
-    HttpResult(int _result, HttpResponse::ptr _response, const std::string& _error)
-        : result(_result)
-        , response(_response)
-        , error(_error)
-    {
-    }
+    HttpResult(int _result, HttpResponse::ptr _response, const std::string& _error);
 
     int result;
     HttpResponse::ptr response;

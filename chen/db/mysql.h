@@ -33,10 +33,7 @@ class MySQLStmt;
 // };
 
 struct MySQLTime {
-    MySQLTime(time_t t)
-        : ts(t)
-    {
-    }
+    MySQLTime(time_t t);
     time_t ts;
 };
 

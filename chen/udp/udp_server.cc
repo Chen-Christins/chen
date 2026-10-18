@@ -10,6 +10,19 @@
 
 namespace chen {
 
+bool UdpServerConf::operator==(const UdpServerConf& oth) const
+{
+    return address == oth.address
+        && timeout == oth.timeout
+        && id == oth.id
+        && type == oth.type
+        && name == oth.name
+        && io_worker == oth.io_worker
+        && process_worker == oth.process_worker
+        && recv_buf_size == oth.recv_buf_size
+        && args == oth.args;
+}
+
 namespace {
 
 struct UdpServerFactoryRegistry {
@@ -44,6 +57,10 @@ UdpServer::~UdpServer()
         i->close();
     }
     m_socks.clear();
+}
+
+void UdpServer::clearRegistrations()
+{
 }
 
 bool UdpServer::bind(Address::ptr addr)

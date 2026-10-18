@@ -338,10 +338,7 @@ public:
      * @brief 构造函数
      * @param event 日志事件
      */
-    LogEventWrap(LogEvent::ptr event)
-        : m_event(event)
-    {
-    }
+    LogEventWrap(LogEvent::ptr event);
 
     template <typename T>
     LogEventWrap& operator<<(const T& val)
@@ -352,13 +349,7 @@ public:
         return *this;
     }
 
-    LogEventWrap& operator<<(StreamManipulator manip)
-    {
-        if (m_event) {
-            manip(m_event->getSS());
-        }
-        return *this;
-    }
+    LogEventWrap& operator<<(StreamManipulator manip);
 
     /**
      * @brief 析构函数
@@ -418,7 +409,7 @@ public:
         /**
          * @brief 析构函数
          */
-        virtual ~FormatItem() {}
+        virtual ~FormatItem();
         /**
          * @brief 格式化日志到流中，这是一个接口函数
          * @param os 日志输出流
@@ -466,7 +457,7 @@ public:
     /**
      * @brief 析构函数
      */
-    virtual ~LogAppender() {}
+    virtual ~LogAppender();
 
     /**
      * @brief 它为子类提供写日志的接口
@@ -480,7 +471,7 @@ public:
      * @brief 刷新输出缓冲（默认空实现，子类按需覆写）
      * @details 多进程模型下 master 在 fork 前调用，避免子进程继承未刷新的缓冲
      */
-    virtual void flush() {}
+    virtual void flush();
 
     /**
      * @brief 获取日志格式器
@@ -748,15 +739,9 @@ private:
  */
 typedef Singleton<LoggerManager> LoggerMgr;
 
-inline std::string NormalizeFormatArg(const char* val)
-{
-    return val ? std::string(val) : std::string("(null)");
-}
+std::string NormalizeFormatArg(const char* val);
 
-inline std::string NormalizeFormatArg(char* val)
-{
-    return val ? std::string(val) : std::string("(null)");
-}
+std::string NormalizeFormatArg(char* val);
 
 template <typename T>
 decltype(auto) NormalizeFormatArg(T&& val)
@@ -793,17 +778,7 @@ inline void LogByFormatWithLogger(
     logger->log(level, event);
 }
 
-inline LogEventWrap LogDispatch(LogLevel::Level level, const char* file, int32_t line, Logger::ptr logger)
-{
-    if (!logger || logger->getLevel() > level) {
-        return LogEventWrap(nullptr);
-    }
-
-    LogEvent::ptr event(
-        new LogEvent(logger, level, file, line, 0, chen::GetThreadId(), chen::GetFiberId(), TimeUtil::GetCurrentUs(), chen::Thread::GetName()));
-
-    return LogEventWrap(event);
-}
+LogEventWrap LogDispatch(LogLevel::Level level, const char* file, int32_t line, Logger::ptr logger);
 
 template <typename... Args>
 inline void LogDispatch(LogLevel::Level level, const char* file, int32_t line, const std::string& pattern, Args&&... args)

@@ -32,7 +32,7 @@ public:
     };
     typedef std::shared_ptr<IRedis> ptr;
     IRedis();
-    virtual ~IRedis() {}
+    virtual ~IRedis();
 
     virtual ReplyPtr cmd(const char* fmt, ...) = 0;
     virtual ReplyPtr cmd(const char* fmt, va_list ap) = 0;
@@ -56,7 +56,7 @@ protected:
 class ISyncRedis : public IRedis {
 public:
     typedef std::shared_ptr<ISyncRedis> ptr;
-    virtual ~ISyncRedis() {}
+    virtual ~ISyncRedis();
 
     virtual bool reconnect() = 0;
     virtual bool connect(const std::string& ip, int port, uint64_t ms = 0) = 0;

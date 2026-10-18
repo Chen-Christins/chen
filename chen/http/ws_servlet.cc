@@ -2,6 +2,21 @@
 
 namespace chen::http {
 
+WSServlet::WSServlet(const std::string& name)
+    : Servlet(name)
+    , m_name(name)
+{
+}
+
+WSServlet::~WSServlet()
+{
+}
+
+int32_t WSServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)
+{
+    return 0;
+}
+
 FunctionWSServlet::FunctionWSServlet(callback cb, on_connect_cb connect_cb, on_close_cb close_cb)
     : WSServlet("FunctionWSServlet")
     , m_callback(cb)

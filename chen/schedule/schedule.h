@@ -164,47 +164,23 @@ private:
         /// 线程id
         int threadId;
         // 确定协程在哪一个线程上面执行
-        FiberAndThread(Fiber::ptr f, int thr)
-            : fiber(f)
-            , threadId(thr)
-        {
-        }
+        FiberAndThread(Fiber::ptr f, int thr);
         /* 传入的智能指针swap，这样传入的智能指针就是空指针，
             引用计数就会减一，防止出现引用释放的问题，引用数量并没有全部释放掉，
             没有真实的释放 */
-        FiberAndThread(Fiber::ptr* f, int thr)
-            : threadId(thr)
-        {
-            fiber.swap(*f);
-        }
+        FiberAndThread(Fiber::ptr* f, int thr);
         // 确定回调函数在哪一个线程上面执行
-        FiberAndThread(std::function<void()> f, int thr)
-            : cb(f)
-            , threadId(thr)
-        {
-        }
+        FiberAndThread(std::function<void()> f, int thr);
         /* 传入的智能指针swap，这样传入的智能指针就是空指针，
             引用计数就会减一，防止出现引用释放的问题，引用数量并没有全部释放掉，
             没有真实的释放 */
-        FiberAndThread(std::function<void()>* f, int thr)
-            : threadId(thr)
-        {
-            cb.swap(*f);
-        }
+        FiberAndThread(std::function<void()>* f, int thr);
         // 默认构造
-        FiberAndThread()
-            : threadId(-1)
-        {
-        }
+        FiberAndThread();
         /**
          * @brief 将任务信息置为空
          */
-        void reset()
-        {
-            fiber = nullptr;
-            cb = nullptr;
-            threadId = -1;
-        }
+        void reset();
     };
 
 private:

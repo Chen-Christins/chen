@@ -2,6 +2,14 @@
 
 namespace chen {
 
+Message::~Message()
+{
+}
+
+MessageDecoder::~MessageDecoder()
+{
+}
+
 ByteArray::ptr Message::toByteArray()
 {
     ByteArray::ptr ba(new ByteArray);

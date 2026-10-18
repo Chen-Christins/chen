@@ -29,6 +29,10 @@ Module::Module(const std::string& name, const std::string& version, const std::s
 {
 }
 
+Module::~Module()
+{
+}
+
 void Module::onBeforeArgsParse(int argc, char** argv)
 {
 }

@@ -416,6 +416,10 @@ void LogFormatter::init()
     }
 }
 
+LogFormatter::FormatItem::~FormatItem()
+{
+}
+
 std::string LogFormatter::format(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event)
 {
     std::stringstream ss;
@@ -434,6 +438,14 @@ std::ostream& LogFormatter::format(std::ostream& ofs, Logger::ptr logger, LogLev
 }
 
 // LogAppender
+LogAppender::~LogAppender()
+{
+}
+
+void LogAppender::flush()
+{
+}
+
 LogFormatter::ptr LogAppender::getFormatter()
 {
     MutexType::Lock lock(m_mutex);
@@ -911,6 +923,19 @@ void FileLogAppender::cleanOldFiles()
 }
 
 // LogEventWrap
+LogEventWrap::LogEventWrap(LogEvent::ptr event)
+    : m_event(event)
+{
+}
+
+LogEventWrap& LogEventWrap::operator<<(StreamManipulator manip)
+{
+    if (m_event) {
+        manip(m_event->getSS());
+    }
+    return *this;
+}
+
 LogEventWrap::~LogEventWrap()
 {
     if (m_event) {
@@ -1187,6 +1212,28 @@ struct LogIniter {
         });
     }
 };
+
+std::string NormalizeFormatArg(const char* val)
+{
+    return val ? std::string(val) : std::string("(null)");
+}
+
+std::string NormalizeFormatArg(char* val)
+{
+    return val ? std::string(val) : std::string("(null)");
+}
+
+LogEventWrap LogDispatch(LogLevel::Level level, const char* file, int32_t line, Logger::ptr logger)
+{
+    if (!logger || logger->getLevel() > level) {
+        return LogEventWrap(nullptr);
+    }
+
+    LogEvent::ptr event(
+        new LogEvent(logger, level, file, line, 0, chen::GetThreadId(), chen::GetFiberId(), TimeUtil::GetCurrentUs(), chen::Thread::GetName()));
+
+    return LogEventWrap(event);
+}
 
 static LogIniter __log_init;
 

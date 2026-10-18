@@ -1,12 +1,49 @@
 #include "iomanager.h"
 
 #include <fcntl.h>
+#include <stdexcept>
 
 #include "../hook/fd_manager.h"
 
 namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
+
+IOManager::FdContext::EventContext& IOManager::FdContext::getContext(Event event)
+{
+    switch (event) {
+    case IOManager::READ:
+        return read;
+    case IOManager::WRITE:
+        return write;
+    default:
+        ASSERT_MSG(false, "getContext");
+    }
+    throw std::invalid_argument("getContext invalid event");
+}
+
+void IOManager::FdContext::resetContext(EventContext& ctx)
+{
+    ctx.scheduler = nullptr;
+    ctx.fiber.reset();
+    ctx.cb = nullptr;
+}
+
+void IOManager::FdContext::triggerEvent(Event event)
+{
+    ASSERT(events & event);
+    // 触发事件就从注册事件中删除
+    events = (Event)(events & ~event);
+    EventContext& ctx = getContext(event);
+    if (ctx.cb) {
+        /* 使用地址传入，会将cb的引用计数-1 */
+        ctx.scheduler->schedule(&ctx.cb);
+    } else {
+        /* 使用地址传入，会将fiber的引用计数-1 */
+        ctx.scheduler->schedule(&ctx.fiber);
+    }
+    ctx.scheduler = nullptr;
+}
 
 IOManager::IOManager(size_t threadCount, bool use_caller, const std::string& name)
     : Scheduler(threadCount, use_caller, name)

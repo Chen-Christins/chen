@@ -45,7 +45,7 @@ public:
         const std::unordered_map<uint64_t, ServiceItemInfo::ptr>& new_value)>
         service_callback;
 
-    virtual ~IServiceDiscovery() {}
+    virtual ~IServiceDiscovery();
 
     void registerServer(const std::string& domain, const std::string& service, const std::string& addr, const std::string& data);
 

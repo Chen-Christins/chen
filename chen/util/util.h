@@ -61,15 +61,9 @@ std::string BacktraceToString(int size = 64, int skip = 1, const std::string& pr
  */
 int32_t GetCPUCount();
 
-inline uint64_t htonll(uint64_t host_64bits)
-{
-    return byteswapOnLittleEndian(host_64bits);
-}
+uint64_t htonll(uint64_t host_64bits);
 
-inline uint64_t ntohll(uint64_t net_64bits)
-{
-    return byteswapOnLittleEndian(net_64bits);
-}
+uint64_t ntohll(uint64_t net_64bits);
 
 /**
  * @brief 获取列表中是否存在值K，不存在则返回def值

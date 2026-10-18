@@ -8,6 +8,24 @@
 
 namespace chen {
 
+bool TcpServerConf::operator==(const TcpServerConf& oth) const
+{
+    return address == oth.address
+        && keepalive == oth.keepalive
+        && timeout == oth.timeout
+        && ssl == oth.ssl
+        && id == oth.id
+        && type == oth.type
+        && name == oth.name
+        && cert_file == oth.cert_file
+        && key_file == oth.key_file
+        && accept_worker == oth.accept_worker
+        && io_worker == oth.io_worker
+        && process_worker == oth.process_worker
+        && negotiateH2 == oth.negotiateH2
+        && args == oth.args;
+}
+
 namespace {
 
 struct TcpServerFactoryRegistry {

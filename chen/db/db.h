@@ -12,7 +12,7 @@ namespace chen {
 class ISQLData {
 public:
     typedef std::shared_ptr<ISQLData> ptr;
-    virtual ~ISQLData() {}
+    virtual ~ISQLData();
 
     virtual int getErrno() const = 0;
     virtual const std::string& getErrStr() const = 0;
@@ -43,25 +43,17 @@ public:
      * @brief 按列名查找列索引
      * @return 列索引，-1 表示未找到
      */
-    int findColumn(const std::string& name)
-    {
-        for (int i = 0; i < getColumnCount(); ++i) {
-            if (getColumnName(i) == name) {
-                return i;
-            }
-        }
-        return -1;
-    }
+    int findColumn(const std::string& name);
 
-    int32_t getInt32(const std::string& col) { return getInt32(findColumn(col)); }
-    int64_t getInt64(const std::string& col) { return getInt64(findColumn(col)); }
-    std::string getString(const std::string& col) { return getString(findColumn(col)); }
-    time_t getTime(const std::string& col) { return getTime(findColumn(col)); }
+    int32_t getInt32(const std::string& col);
+    int64_t getInt64(const std::string& col);
+    std::string getString(const std::string& col);
+    time_t getTime(const std::string& col);
 };
 
 class ISQLUpdate {
 public:
-    virtual ~ISQLUpdate() {}
+    virtual ~ISQLUpdate();
     virtual int execute(const char* format, ...) = 0;
     virtual int execute(const std::string& sql) = 0;
     virtual int64_t getLastInsertId() = 0;
@@ -69,7 +61,7 @@ public:
 
 class ISQLQuery {
 public:
-    virtual ~ISQLQuery() {}
+    virtual ~ISQLQuery();
     virtual ISQLData::ptr query(const char* format, ...) = 0;
     virtual ISQLData::ptr query(const std::string& sql) = 0;
 };
@@ -77,7 +69,7 @@ public:
 class IStmt {
 public:
     typedef std::shared_ptr<IStmt> ptr;
-    virtual ~IStmt() {}
+    virtual ~IStmt();
     virtual int bindInt8(int idx, const int8_t& value) = 0;
     virtual int bindUint8(int idx, const uint8_t& value) = 0;
     virtual int bindInt16(int idx, const int16_t& value) = 0;
@@ -106,7 +98,7 @@ public:
 class ITransaction : public ISQLUpdate {
 public:
     typedef std::shared_ptr<ITransaction> ptr;
-    virtual ~ITransaction() {};
+    virtual ~ITransaction();
     virtual bool begin() = 0;
     virtual bool commit() = 0;
     virtual bool rollback() = 0;
@@ -115,7 +107,7 @@ public:
 class IDB : public ISQLUpdate, public ISQLQuery {
 public:
     typedef std::shared_ptr<IDB> ptr;
-    virtual ~IDB() {}
+    virtual ~IDB();
 
     virtual IStmt::ptr prepare(const std::string& stmt) = 0;
     virtual int getErrno() = 0;

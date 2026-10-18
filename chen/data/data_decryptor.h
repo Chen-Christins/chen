@@ -35,10 +35,7 @@ struct DecryptionMetadata {
     EncryptionType type;
     std::map<std::string, std::string> data; // 存储字符串形式的元数据
 
-    DecryptionMetadata()
-        : type(EncryptionType::NONE)
-    {
-    }
+    DecryptionMetadata();
 };
 
 /**

@@ -69,13 +69,7 @@ public:
      * @param row_index 行索引（从0开始）
      * @return 行数据指针，如果索引无效返回nullptr
      */
-    const RowData* getRow(size_t row_index) const
-    {
-        if (row_index >= m_rows.size()) {
-            return nullptr;
-        }
-        return &m_rows[row_index];
-    }
+    const RowData* getRow(size_t row_index) const;
 
     /**
      * @brief 获取指定单元格的值
@@ -115,12 +109,7 @@ public:
      * @brief 遍历所有行
      * @param callback 回调函数，参数为行索引和行数据
      */
-    void forEachRow(std::function<void(size_t, const RowData&)> callback) const
-    {
-        for (size_t i = 0; i < m_rows.size(); ++i) {
-            callback(i, m_rows[i]);
-        }
-    }
+    void forEachRow(std::function<void(size_t, const RowData&)> callback) const;
 
 private:
     friend class DataReader;
@@ -236,11 +225,7 @@ private:
  */
 class FieldAccessor {
 public:
-    FieldAccessor(const RowData* row, const std::string& field_name)
-        : m_row(row)
-        , m_field_name(field_name)
-    {
-    }
+    FieldAccessor(const RowData* row, const std::string& field_name);
 
     /**
      * @brief 获取值，支持隐式转换
@@ -276,17 +261,7 @@ public:
     /**
      * @brief 检查字段是否为空
      */
-    bool isNull() const
-    {
-        if (!m_row)
-            return true;
-
-        auto it = m_row->find(m_field_name);
-        if (it == m_row->end())
-            return true;
-
-        return std::holds_alternative<std::nullptr_t>(it->second);
-    }
+    bool isNull() const;
 
 private:
     const RowData* m_row;
@@ -299,20 +274,12 @@ private:
  */
 class RowAccessor {
 public:
-    RowAccessor(const TableData* table, size_t row_index)
-        : m_table(table)
-        , m_row_index(row_index)
-    {
-    }
+    RowAccessor(const TableData* table, size_t row_index);
 
     /**
      * @brief 获取字段访问器
      */
-    FieldAccessor operator[](const std::string& field_name) const
-    {
-        const RowData* row = m_table ? m_table->getRow(m_row_index) : nullptr;
-        return FieldAccessor(row, field_name);
-    }
+    FieldAccessor operator[](const std::string& field_name) const;
 
     /**
      * @brief 获取原始行数据

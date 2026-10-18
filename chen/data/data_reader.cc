@@ -415,4 +415,49 @@ FieldValue DataReader::_readFieldValue(const uint8_t*& ptr, const uint8_t* end)
     }
 }
 
+const RowData* TableData::getRow(size_t row_index) const
+{
+    if (row_index >= m_rows.size()) {
+        return nullptr;
+    }
+    return &m_rows[row_index];
+}
+
+void TableData::forEachRow(std::function<void(size_t, const RowData&)> callback) const
+{
+    for (size_t i = 0; i < m_rows.size(); ++i) {
+        callback(i, m_rows[i]);
+    }
+}
+
+FieldAccessor::FieldAccessor(const RowData* row, const std::string& field_name)
+    : m_row(row)
+    , m_field_name(field_name)
+{
+}
+
+bool FieldAccessor::isNull() const
+{
+    if (!m_row)
+        return true;
+
+    auto it = m_row->find(m_field_name);
+    if (it == m_row->end())
+        return true;
+
+    return std::holds_alternative<std::nullptr_t>(it->second);
+}
+
+RowAccessor::RowAccessor(const TableData* table, size_t row_index)
+    : m_table(table)
+    , m_row_index(row_index)
+{
+}
+
+FieldAccessor RowAccessor::operator[](const std::string& field_name) const
+{
+    const RowData* row = m_table ? m_table->getRow(m_row_index) : nullptr;
+    return FieldAccessor(row, field_name);
+}
+
 } // namespace chen::data

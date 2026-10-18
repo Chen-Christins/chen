@@ -7,6 +7,24 @@ namespace chen::rpc {
 
 static Logger::ptr logger = LOG_NAME("system");
 
+void RpcServer::unregisterMethod(const std::string& name)
+{
+    m_handlers.erase(HandlerKey{name});
+}
+
+void RpcServer::unregisterMethod(uint32_t cmd)
+{
+    m_handlers.erase(HandlerKey{cmd});
+}
+
+void RpcServer::setRelay(bool v)
+{
+    m_relay = v;
+    if (v && !m_registry) {
+        m_registry = std::make_shared<RpcHubRegistry>();
+    }
+}
+
 RpcServer::RpcServer(IOManager* worker, IOManager* io_worker, IOManager* accept_worker)
     : TcpServer(worker, io_worker, accept_worker)
 {

@@ -15,6 +15,16 @@ namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
 
+uint64_t htonll(uint64_t host_64bits)
+{
+    return byteswapOnLittleEndian(host_64bits);
+}
+
+uint64_t ntohll(uint64_t net_64bits)
+{
+    return byteswapOnLittleEndian(net_64bits);
+}
+
 /* SYS_gettid线程号，SYS_getpid是进程号 */
 pid_t GetThreadId()
 {

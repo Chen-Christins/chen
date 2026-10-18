@@ -11,6 +11,10 @@
 
 namespace chen {
 
+IServiceDiscovery::~IServiceDiscovery()
+{
+}
+
 ServiceItemInfo::ptr ServiceItemInfo::Create(const std::string& addr, const std::string& data)
 {
     std::size_t pos = addr.find(":");

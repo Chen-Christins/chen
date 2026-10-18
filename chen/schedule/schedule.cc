@@ -13,6 +13,42 @@ static thread_local Scheduler* t_scheduler = nullptr;
 // 当前线程的主协程
 static thread_local Fiber* t_schedule_fiber = nullptr;
 
+Scheduler::FiberAndThread::FiberAndThread(Fiber::ptr f, int thr)
+    : fiber(f)
+    , threadId(thr)
+{
+}
+
+Scheduler::FiberAndThread::FiberAndThread(Fiber::ptr* f, int thr)
+    : threadId(thr)
+{
+    fiber.swap(*f);
+}
+
+Scheduler::FiberAndThread::FiberAndThread(std::function<void()> f, int thr)
+    : cb(f)
+    , threadId(thr)
+{
+}
+
+Scheduler::FiberAndThread::FiberAndThread(std::function<void()>* f, int thr)
+    : threadId(thr)
+{
+    cb.swap(*f);
+}
+
+Scheduler::FiberAndThread::FiberAndThread()
+    : threadId(-1)
+{
+}
+
+void Scheduler::FiberAndThread::reset()
+{
+    fiber = nullptr;
+    cb = nullptr;
+    threadId = -1;
+}
+
 Scheduler::Scheduler(size_t threadCount, bool use_caller, const std::string& name)
     : m_name(name)
 {

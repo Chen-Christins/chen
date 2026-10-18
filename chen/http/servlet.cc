@@ -6,6 +6,20 @@
 
 namespace chen::http {
 
+Servlet::Servlet(const std::string& name)
+    : m_name(name)
+{
+}
+
+Servlet::~Servlet()
+{
+}
+
+bool Servlet::isStreamingBody() const
+{
+    return false;
+}
+
 FunctionServlet::FunctionServlet(callback cb, bool streamingBody)
     : Servlet("FunctionServlet")
     , m_cb(cb)

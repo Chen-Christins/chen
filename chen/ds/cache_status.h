@@ -155,27 +155,13 @@ public:
      * @brief 合并另一个 CacheStatus 到当前对象中（累加每个计数）
      * @param oth 要合并的另一个 CacheStatus 实例
      */
-    void merge(const CacheStatus& oth)
-    {
-        m_get += oth.m_get;
-        m_set += oth.m_set;
-        m_del += oth.m_del;
-        m_timeout += oth.m_timeout;
-        m_prune += oth.m_prune;
-        m_hit += oth.m_hit;
-    }
+    void merge(const CacheStatus& oth);
 
     /**
      * @brief 将当前统计信息格式化为可打印字符串
      * @return 格式化后的统计字符串（包含各计数与命中率）
      */
-    std::string toString() const
-    {
-        std::stringstream ss;
-        ss << "get=" << m_get << " set=" << m_set << " del=" << m_del << " prune=" << m_prune << " timeout=" << m_timeout << " hit=" << m_hit
-           << " hit_rate" << (getHitRate() * 100.0) << "%";
-        return ss.str();
-    }
+    std::string toString() const;
 
 private:
     /// 请求计数
@@ -192,11 +178,7 @@ private:
     int64_t m_hit = 0;
 };
 
-inline std::ostream& operator<<(std::ostream& os, const CacheStatus& status)
-{
-    os << status.toString();
-    return os;
-}
+std::ostream& operator<<(std::ostream& os, const CacheStatus& status);
 
 } // namespace ds
 } // namespace chen

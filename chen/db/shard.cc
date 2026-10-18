@@ -8,6 +8,30 @@ namespace chen {
 
 static Logger::ptr g_logger = LOG_NAME("system");
 
+ShardKey ShardKey::Int64(int64_t v)
+{
+    ShardKey k;
+    k.m_type = INT64;
+    k.m_intVal = v;
+    return k;
+}
+
+ShardKey ShardKey::String(const std::string& v)
+{
+    ShardKey k;
+    k.m_type = STRING;
+    k.m_strVal = v;
+    return k;
+}
+
+ShardKey ShardKey::Time(time_t v)
+{
+    ShardKey k;
+    k.m_type = TIME;
+    k.m_timeVal = v;
+    return k;
+}
+
 // ============================================================================
 // HashShardStrategy
 // ============================================================================

@@ -13,13 +13,7 @@ namespace chen {
 struct RockResult {
     typedef std::shared_ptr<RockResult> ptr;
 
-    RockResult(int32_t _result, int32_t _used, RockResponse::ptr rsp, RockRequest::ptr req)
-        : result(_result)
-        , used(_used)
-        , response(rsp)
-        , request(req)
-    {
-    }
+    RockResult(int32_t _result, int32_t _used, RockResponse::ptr rsp, RockRequest::ptr req);
 
     int32_t result;
     int32_t used;

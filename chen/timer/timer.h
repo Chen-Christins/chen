@@ -87,7 +87,7 @@ public:
     /**
      * @brief 析构函数
      */
-    virtual ~TimerManager() {}
+    virtual ~TimerManager();
 
     /**
      * @brief 添加定时器

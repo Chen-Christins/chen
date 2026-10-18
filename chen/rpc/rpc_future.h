@@ -35,22 +35,7 @@ enum class RpcStatus : int32_t {
 /**
  * @brief 传输层状态码转可读字符串
  */
-inline const char* StatusToString(RpcStatus status)
-{
-    switch (status) {
-    case RpcStatus::OK:
-        return "ok";
-    case RpcStatus::TIMEOUT:
-        return "request timeout";
-    case RpcStatus::SEND_FAILED:
-        return "send request failed";
-    case RpcStatus::CONNECTION_CLOSED:
-        return "connection closed";
-    case RpcStatus::DECODE_ERROR:
-        return "decode response failed";
-    }
-    return "unknown error";
-}
+const char* StatusToString(RpcStatus status);
 
 /**
  * @brief 异步调用结果

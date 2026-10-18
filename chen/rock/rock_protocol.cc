@@ -7,6 +7,10 @@ namespace chen {
 
 static Logger::ptr g_logger = LOG_NAME("system");
 
+RockBody::~RockBody()
+{
+}
+
 static ConfigVar<uint32_t>::ptr g_rock_protocol_max_length =
     Config::Lookup("rock.protocol.max_length", (uint32_t)(1024 * 1024 * 64), "rock protocol max length");
 

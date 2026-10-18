@@ -95,7 +95,7 @@ public:
         typedef std::shared_ptr<iterator_base> ptr;
 
         iterator_base();
-        virtual ~iterator_base() {}
+        virtual ~iterator_base();
 
         bool operator!();
         int32_t operator*();
@@ -111,14 +111,14 @@ public:
 
     class iterator : public iterator_base {
     public:
-        iterator() {}
+        iterator();
         iterator(Bitmap* b);
         void next();
     };
 
     class iterator_reverse : public iterator_base {
     public:
-        iterator_reverse() {}
+        iterator_reverse();
         iterator_reverse(Bitmap* b);
         void next();
     };

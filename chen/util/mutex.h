@@ -22,27 +22,12 @@ namespace chen {
  */
 class Semaphore : Noncopyable {
 public:
-    Semaphore(uint32_t count = 0)
-    {
-        if (sem_init(&m_semaphore, 0, count)) {
-            throw std::logic_error("sem_init error");
-        }
-    }
-    ~Semaphore() { sem_destroy(&m_semaphore); }
+    Semaphore(uint32_t count = 0);
+    ~Semaphore();
 
-    void wait()
-    {
-        if (sem_wait(&m_semaphore)) {
-            throw std::logic_error("sem_wait error");
-        }
-    }
+    void wait();
 
-    void notify()
-    {
-        if (sem_post(&m_semaphore)) {
-            throw std::logic_error("sem_post error");
-        }
-    }
+    void notify();
 
 private:
     /// 信号量
@@ -92,9 +77,8 @@ class SpinLock : public Noncopyable {
 public:
     typedef ScopedLockImpl<SpinLock> Lock;
 
-    SpinLock() { pthread_spin_init(&m_mutex, 0); }
-
-    ~SpinLock() { pthread_spin_destroy(&m_mutex); }
+    SpinLock();
+    ~SpinLock();
 
     void lock() { pthread_spin_lock(&m_mutex); }
 

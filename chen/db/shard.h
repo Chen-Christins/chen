@@ -30,27 +30,9 @@ public:
         TIME
     };
 
-    static ShardKey Int64(int64_t v)
-    {
-        ShardKey k;
-        k.m_type = INT64;
-        k.m_intVal = v;
-        return k;
-    }
-    static ShardKey String(const std::string& v)
-    {
-        ShardKey k;
-        k.m_type = STRING;
-        k.m_strVal = v;
-        return k;
-    }
-    static ShardKey Time(time_t v)
-    {
-        ShardKey k;
-        k.m_type = TIME;
-        k.m_timeVal = v;
-        return k;
-    }
+    static ShardKey Int64(int64_t v);
+    static ShardKey String(const std::string& v);
+    static ShardKey Time(time_t v);
 
     Type getType() const { return m_type; }
     int64_t getInt64() const { return m_intVal; }

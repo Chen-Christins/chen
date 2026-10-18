@@ -38,17 +38,12 @@ public:
      * @param name 参数名称[0-9a~z_.]
      * @param description 配置的描述
      */
-    ConfigVarBase(const std::string& name, const std::string& description = "")
-        : m_name(name)
-        , m_description(description)
-    {
-        std::transform(m_name.begin(), m_name.end(), m_name.begin(), ::tolower);
-    }
+    ConfigVarBase(const std::string& name, const std::string& description = "");
 
     /**
      * @brief 析构函数
      */
-    virtual ~ConfigVarBase() {}
+    virtual ~ConfigVarBase();
 
     /**
      * @brief 获取配置名称name.xxxx点来区分层级
@@ -625,19 +620,11 @@ private:
     /**
      * @brief 返回所有配置项
      */
-    static ConfigVarMap& GetDatas()
-    {
-        static ConfigVarMap s_datas;
-        return s_datas;
-    }
+    static ConfigVarMap& GetDatas();
     /**
      * @brief 创建静态读写锁
      */
-    static std::shared_mutex& GetMutex()
-    {
-        static std::shared_mutex s_mutex;
-        return s_mutex;
-    }
+    static std::shared_mutex& GetMutex();
 };
 
 } // namespace chen

@@ -27,7 +27,7 @@ public:
     /**
      * @brief 析构函数
      */
-    virtual ~Stream() {}
+    virtual ~Stream();
 
     /**
      * @brief 将数据读入缓冲区
@@ -233,7 +233,7 @@ public:
     struct SendCtx {
         typedef std::shared_ptr<SendCtx> ptr;
         /// 析构函数
-        virtual ~SendCtx() {};
+        virtual ~SendCtx();
         virtual bool doSend(AsyncSocketStream::ptr stream) = 0;
     };
     /**
@@ -243,7 +243,7 @@ public:
         typedef std::shared_ptr<Ctx> ptr;
 
         Ctx();
-        virtual ~Ctx() {}
+        virtual ~Ctx();
 
         /// 序列号
         uint32_t sn;
@@ -405,7 +405,7 @@ public:
      * @brief 构造函数/析构函数
      */
     AsyncSocketStreamManager();
-    virtual ~AsyncSocketStreamManager() {}
+    virtual ~AsyncSocketStreamManager();
 
     /**
      * @brief 添加异步socket流

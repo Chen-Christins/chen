@@ -29,11 +29,7 @@ struct UdpServerConf {
 
     bool isValid() const { return !address.empty(); }
 
-    bool operator==(const UdpServerConf& oth) const
-    {
-        return address == oth.address && timeout == oth.timeout && id == oth.id && type == oth.type && name == oth.name && io_worker == oth.io_worker
-            && process_worker == oth.process_worker && recv_buf_size == oth.recv_buf_size && args == oth.args;
-    }
+    bool operator==(const UdpServerConf& oth) const;
 };
 
 template <>
@@ -97,7 +93,7 @@ public:
     virtual bool start();
     virtual void stop();
 
-    virtual void clearRegistrations() {}
+    virtual void clearRegistrations();
 
     virtual void handleRecv(Socket::ptr sock, const char* data, size_t len, Address::ptr from);
 

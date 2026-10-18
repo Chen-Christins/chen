@@ -11,6 +11,14 @@ static Logger::ptr logger = LOG_NAME("system");
 static ConfigVar<std::map<std::string, std::map<std::string, std::string>>>::ptr g_redis =
     Config::Lookup("redis.config", std::map<std::string, std::map<std::string, std::string>>(), "redis config");
 
+IRedis::~IRedis()
+{
+}
+
+ISyncRedis::~ISyncRedis()
+{
+}
+
 static std::string get_value(const std::map<std::string, std::string>& m, const std::string& key, const std::string& def = "")
 {
     auto it = m.find(key);

@@ -15,14 +15,10 @@ namespace chen::http {
 class WSServlet : public Servlet {
 public:
     typedef std::shared_ptr<WSServlet> ptr;
-    WSServlet(const std::string& name)
-        : Servlet(name)
-        , m_name(name)
-    {
-    }
-    virtual ~WSServlet() {}
+    WSServlet(const std::string& name);
+    virtual ~WSServlet();
 
-    virtual int32_t handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session) override { return 0; }
+    virtual int32_t handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session) override;
     virtual int32_t onConnect(HttpRequest::ptr header, WSSession::ptr session) = 0;
     virtual int32_t onClose(HttpRequest::ptr header, WSSession::ptr session) = 0;
     virtual int32_t handle(HttpRequest::ptr header, WSFrameMessage::ptr msg, WSSession::ptr session) = 0;

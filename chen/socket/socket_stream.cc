@@ -7,6 +7,10 @@ namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
 
+Stream::~Stream()
+{
+}
+
 /// 读取固定长度到内存
 int Stream::readFixSize(void* buffer, size_t length)
 {
@@ -179,6 +183,10 @@ std::string SocketStream::getLocalAddressString()
         return addr->toString();
     }
     return "";
+}
+
+AsyncSocketStream::SendCtx::~SendCtx()
+{
 }
 
 AsyncSocketStream::Ctx::Ctx()
@@ -420,6 +428,10 @@ bool AsyncSocketStream::waitFiber()
     m_waitSem.wait();
     m_waitSem.wait();
     return true;
+}
+
+AsyncSocketStream::Ctx::~Ctx()
+{
 }
 
 AsyncSocketStreamManager::AsyncSocketStreamManager()

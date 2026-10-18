@@ -10,6 +10,10 @@
 
 namespace chen::metrics {
 
+Metric::~Metric()
+{
+}
+
 namespace {
 
 /**

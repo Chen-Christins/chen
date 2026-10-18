@@ -114,6 +114,10 @@ TimerManager::TimerManager()
     m_previouseTime = TimeUtil::GetCurrentMs();
 }
 
+TimerManager::~TimerManager()
+{
+}
+
 Timer::ptr TimerManager::addTimer(uint64_t ms, std::function<void()> cb, bool recurring)
 {
     Timer::ptr timer(new Timer(ms, cb, recurring, this));

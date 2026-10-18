@@ -9,6 +9,12 @@ namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
 
+SmtpResult::SmtpResult(int r, const std::string& m)
+    : result(r)
+    , msg(m)
+{
+}
+
 SmtpClient::SmtpClient(Socket::ptr sock)
     : SocketStream(sock)
 {

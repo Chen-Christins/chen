@@ -6,6 +6,12 @@
 
 namespace chen::game {
 
+CustomPackageParser::CustomPackageParser(size_t headerSize, uint32_t magic)
+    : headerSize_(headerSize)
+    , magic_(magic)
+{
+}
+
 namespace {
 
 constexpr size_t kMaxBodySize = 64 * 1024 * 1024; // 64MB upper bound to avoid OOM

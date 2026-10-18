@@ -59,11 +59,7 @@ public:
      * @param headerSize 包头大小
      * @param magic 魔数（可选）
      */
-    CustomPackageParser(size_t headerSize, uint32_t magic = 0)
-        : headerSize_(headerSize)
-        , magic_(magic)
-    {
-    }
+    CustomPackageParser(size_t headerSize, uint32_t magic = 0);
 
 protected:
     size_t headerSize_;

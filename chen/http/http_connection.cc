@@ -10,6 +10,13 @@ namespace chen::http {
 
 static Logger::ptr logger = LOG_NAME("system");
 
+HttpResult::HttpResult(int _result, HttpResponse::ptr _response, const std::string& _error)
+    : result(_result)
+    , response(_response)
+    , error(_error)
+{
+}
+
 std::string HttpResult::toString() const
 {
     std::stringstream ss;

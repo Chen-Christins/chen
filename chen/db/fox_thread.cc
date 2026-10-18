@@ -19,6 +19,10 @@ static std::map<uint64_t, std::string> s_thread_names;
 
 thread_local FoxThread* s_thread = nullptr;
 
+IFoxThread::~IFoxThread()
+{
+}
+
 void FoxThread::read_cb(evutil_socket_t sock, short which, void* args)
 {
     FoxThread* thread = static_cast<FoxThread*>(args);

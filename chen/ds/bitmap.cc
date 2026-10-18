@@ -733,6 +733,10 @@ Bitmap::iterator_base::iterator_base()
 {
 }
 
+Bitmap::iterator_base::~iterator_base()
+{
+}
+
 bool Bitmap::iterator_base::operator!()
 {
     if (m_pos >= m_size || m_pos < 0) {
@@ -744,6 +748,10 @@ bool Bitmap::iterator_base::operator!()
 int32_t Bitmap::iterator_base::operator*()
 {
     return m_pos;
+}
+
+Bitmap::iterator::iterator()
+{
 }
 
 Bitmap::iterator::iterator(Bitmap* b)
@@ -784,6 +792,10 @@ void Bitmap::iterator::next()
             }
         }
     }
+}
+
+Bitmap::iterator_reverse::iterator_reverse()
+{
 }
 
 Bitmap::iterator_reverse::iterator_reverse(Bitmap* b)

@@ -61,7 +61,7 @@ public:
     static Type ParseType(const std::string& v);
     static std::string TypeToString(Type type);
 
-    std::string getDTypeString() { return TypeToString(m_dtype); }
+    std::string getDTypeString();
     std::string getSQLite3TypeString();
     std::string getMySQLTypeString();
 

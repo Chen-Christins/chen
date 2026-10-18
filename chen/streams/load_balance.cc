@@ -7,6 +7,18 @@ namespace chen {
 
 static chen::Logger::ptr logger = LOG_NAME("system");
 
+LoadBalanceItem::~LoadBalanceItem()
+{
+}
+
+ILoadBalance::~ILoadBalance()
+{
+}
+
+SDLoadBalance::~SDLoadBalance()
+{
+}
+
 HolderStats HolderStatsSet::getTotal()
 {
     HolderStats rt;

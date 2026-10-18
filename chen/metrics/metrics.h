@@ -32,7 +32,7 @@ public:
 
     Metric(const std::string& name, const std::string& help, const Labels& labels);
 
-    virtual ~Metric() {}
+    virtual ~Metric();
 
     const std::string& getName() const { return m_name; }
 

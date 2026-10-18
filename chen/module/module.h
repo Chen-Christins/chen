@@ -42,7 +42,7 @@ public:
     /**
      * @brief 析构函数
      */
-    virtual ~Module() {}
+    virtual ~Module();
 
     /**
      * @brief 在参数解析之前调用

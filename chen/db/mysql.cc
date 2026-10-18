@@ -10,6 +10,11 @@ static chen::Logger::ptr g_logger = LOG_NAME("system");
 static chen::ConfigVar<std::map<std::string, std::map<std::string, std::string>>>::ptr g_mysql_dbs =
     chen::Config::Lookup("mysql.dbs", std::map<std::string, std::map<std::string, std::string>>(), "mysql dbs");
 
+MySQLTime::MySQLTime(time_t t)
+    : ts(t)
+{
+}
+
 bool mysql_time_to_time_t(const MYSQL_TIME& mt, time_t& ts)
 {
     struct tm tm;

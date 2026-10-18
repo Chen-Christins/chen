@@ -12,6 +12,10 @@ SSEServlet::SSEServlet(const std::string& name)
 {
 }
 
+SSEServlet::~SSEServlet()
+{
+}
+
 int32_t SSEServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)
 {
     response->setStreaming(true);

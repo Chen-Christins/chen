@@ -10,6 +10,29 @@ namespace chen {
 
 static Logger::ptr logger = LOG_NAME("system");
 
+ConfigVarBase::ConfigVarBase(const std::string& name, const std::string& description)
+    : m_name(name)
+    , m_description(description)
+{
+    std::transform(m_name.begin(), m_name.end(), m_name.begin(), ::tolower);
+}
+
+ConfigVarBase::~ConfigVarBase()
+{
+}
+
+Config::ConfigVarMap& Config::GetDatas()
+{
+    static ConfigVarMap s_datas;
+    return s_datas;
+}
+
+std::shared_mutex& Config::GetMutex()
+{
+    static std::shared_mutex s_mutex;
+    return s_mutex;
+}
+
 ConfigVarBase::ptr Config::LookupBase(const std::string& name)
 {
     auto it = GetDatas().find(name);

@@ -44,46 +44,15 @@ private:
         /**
          * @brief 获取对应事件上下文
          */
-        EventContext& getContext(Event event)
-        {
-            switch (event) {
-            case IOManager::READ:
-                return read;
-            case IOManager::WRITE:
-                return write;
-            default:
-                ASSERT_MSG(false, "getContext");
-            }
-            throw std::invalid_argument("getContext invalid event");
-        }
+        EventContext& getContext(Event event);
         /**
          * @brief 重置事件上下文
          */
-        void resetContext(EventContext& ctx)
-        {
-            ctx.scheduler = nullptr;
-            ctx.fiber.reset();
-            ctx.cb = nullptr;
-        }
+        void resetContext(EventContext& ctx);
         /**
          * @brief 触发事件
          */
-        void triggerEvent(Event event)
-        {
-            ASSERT(events & event);
-            // 触发事件就从注册事件中删除
-            events = (Event)(events & ~event);
-            EventContext& ctx = getContext(event);
-            if (ctx.cb) {
-                /* 使用地址传入，会将cb的引用计数-1 */
-                ctx.scheduler->schedule(&ctx.cb);
-            } else {
-                /* 使用地址传入，会将fiber的引用计数-1 */
-                ctx.scheduler->schedule(&ctx.fiber);
-            }
-            ctx.scheduler = nullptr;
-            return;
-        }
+        void triggerEvent(Event event);
         /// 事件文件描述符
         int fd = 0;
         /// 读事件

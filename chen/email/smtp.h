@@ -18,11 +18,7 @@ struct SmtpResult {
         IO_ERROR = -1
     };
 
-    SmtpResult(int r, const std::string& m)
-        : result(r)
-        , msg(m)
-    {
-    }
+    SmtpResult(int r, const std::string& m);
 
     int result;
     std::string msg;

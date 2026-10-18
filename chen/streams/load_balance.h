@@ -71,7 +71,7 @@ private:
 class LoadBalanceItem {
 public:
     typedef std::shared_ptr<LoadBalanceItem> ptr;
-    virtual ~LoadBalanceItem() {}
+    virtual ~LoadBalanceItem();
 
     SocketStream::ptr getStream() const { return m_stream; }
     void setStream(SocketStream::ptr v) { m_stream = v; }
@@ -115,7 +115,7 @@ public:
         NO_CONNECTION = -102,
     };
     typedef std::shared_ptr<ILoadBalance> ptr;
-    virtual ~ILoadBalance() {}
+    virtual ~ILoadBalance();
     virtual LoadBalanceItem::ptr get(uint64_t v = -1) = 0;
 };
 
@@ -206,7 +206,7 @@ public:
     typedef std::function<SocketStream::ptr(ServiceItemInfo::ptr)> stream_callback;
 
     SDLoadBalance(IServiceDiscovery::ptr sd);
-    virtual ~SDLoadBalance() {}
+    virtual ~SDLoadBalance();
 
     virtual void start();
     virtual void stop();

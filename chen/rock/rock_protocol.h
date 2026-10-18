@@ -15,7 +15,7 @@ namespace chen {
 class RockBody {
 public:
     typedef std::shared_ptr<RockBody> ptr;
-    virtual ~RockBody() {}
+    virtual ~RockBody();
 
     void setBody(const std::string& v) { m_body = v; }
     const std::string& getBody() const { return m_body; }

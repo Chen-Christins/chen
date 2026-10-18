@@ -80,13 +80,13 @@ public:
      * @brief 注销 RPC 方法（热重载时避免旧 .so 的 lambda 残留导致 SEGV）
      * @param name 方法名
      */
-    void unregisterMethod(const std::string& name) { m_handlers.erase(HandlerKey{name}); }
+    void unregisterMethod(const std::string& name);
 
     /**
      * @brief 按 CmdID 注销 RPC 方法
      * @param cmd 命令 ID
      */
-    void unregisterMethod(uint32_t cmd) { m_handlers.erase(HandlerKey{cmd}); }
+    void unregisterMethod(uint32_t cmd);
 
     /**
      * @brief 开启中心转发（relay）模式
@@ -94,13 +94,7 @@ public:
      *          之后带路由字段的请求会被转发到目标连接并中继回包。
      * @param v 是否开启
      */
-    void setRelay(bool v)
-    {
-        m_relay = v;
-        if (v && !m_registry) {
-            m_registry = std::make_shared<RpcHubRegistry>();
-        }
-    }
+    void setRelay(bool v);
 
     bool isRelay() const { return m_relay; }
 

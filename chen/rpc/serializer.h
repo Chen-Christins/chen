@@ -74,25 +74,14 @@ public:
      * @param msg protobuf消息对象
      * @param ba 字节数组对象
      */
-    static void SerializeToByteArray(const google::protobuf::Message& msg, ByteArray::ptr ba)
-    {
-        std::string data;
-        if (msg.SerializeToString(&data)) {
-            ba->writeStringWithoutLength(data);
-        }
-    }
+    static void SerializeToByteArray(const google::protobuf::Message& msg, ByteArray::ptr ba);
 
     /**
      * @brief 从protobuf消息对象序列化为字符串
      * @param msg protobuf消息对象
      * @return std::string
      */
-    static std::string SerializeToString(const google::protobuf::Message& msg)
-    {
-        std::string data;
-        msg.SerializeToString(&data);
-        return data;
-    }
+    static std::string SerializeToString(const google::protobuf::Message& msg);
 
     /**
      * @brief 从字节数组反序列化
@@ -101,13 +90,7 @@ public:
      * @param length 数据长度
      * @return bool
      */
-    static bool DeserializeFromByteArray(google::protobuf::Message& msg, ByteArray::ptr ba, size_t length)
-    {
-        std::string data;
-        data.resize(length);
-        ba->read(&data[0], length);
-        return msg.ParseFromString(data);
-    }
+    static bool DeserializeFromByteArray(google::protobuf::Message& msg, ByteArray::ptr ba, size_t length);
 
     /**
      * @brief 从字符串反序列化
@@ -115,7 +98,7 @@ public:
      * @param data 字符串数据
      * @return bool
      */
-    static bool DeserializeFromString(google::protobuf::Message& msg, const std::string& data) { return msg.ParseFromString(data); }
+    static bool DeserializeFromString(google::protobuf::Message& msg, const std::string& data);
 
     /**
      * @brief 序列化任意类型参数到 string（用于赋值给 RpcRequest.args）
@@ -191,13 +174,7 @@ public:
      * @param body request body
      * @return std::string 方法名
      */
-    static std::string DecodeMethod(const std::string& body)
-    {
-        ByteArray::ptr ba(new ByteArray);
-        ba->writeStringWithoutLength(body);
-        ba->setPosition(0);
-        return ba->readStringVint();
-    }
+    static std::string DecodeMethod(const std::string& body);
 
     /**
      * @brief 从 ByteArray（position 已在 method 之后）反序列化 args 到元组
@@ -250,13 +227,7 @@ public:
     }
 
     /// void 返回值专用（仅写入 code）
-    static std::string EncodeResponse(int32_t code = 0)
-    {
-        ByteArray::ptr ba(new ByteArray);
-        ba->writeFint32(code);
-        ba->setPosition(0);
-        return ba->toString();
-    }
+    static std::string EncodeResponse(int32_t code = 0);
 
     /**
      * @brief 解析响应头部（code + message）
@@ -265,17 +236,7 @@ public:
      * @param[out] msg 错误信息
      * @return true 解析成功
      */
-    static bool ParseResponse(const std::string& body, int32_t& code, std::string& msg)
-    {
-        ByteArray::ptr ba(new ByteArray);
-        ba->writeStringWithoutLength(body);
-        ba->setPosition(0);
-        code = ba->readFint32();
-        if (code != 0) {
-            msg = ba->readStringVint();
-        }
-        return true;
-    }
+    static bool ParseResponse(const std::string& body, int32_t& code, std::string& msg);
 
     /**
      * @brief 从 response body 反序列化返回值（跳过前 4 字节 code）
@@ -295,7 +256,7 @@ public:
 
 private:
     // 递归序列化辅助函数（终止条件，无操作）
-    static void serializeArgsToByteArray(ByteArray::ptr ba) {}
+    static void serializeArgsToByteArray(ByteArray::ptr ba);
 
     /**
      * @brief 递归序列化辅助函数：写入首参并递归处理余参
@@ -313,7 +274,7 @@ private:
     }
 
     // 递归反序列化辅助函数（终止条件，无操作）
-    static void deserializeArgsFromByteArray(ByteArray::ptr ba) {}
+    static void deserializeArgsFromByteArray(ByteArray::ptr ba);
 
     /**
      * @brief 递归反序列化辅助函数：读取首参并递归处理余参
@@ -331,19 +292,19 @@ private:
     }
 
     // 针对不同类型的 write 重载
-    static void write(ByteArray::ptr ba, int8_t v) { ba->writeFint8(v); }
-    static void write(ByteArray::ptr ba, uint8_t v) { ba->writeFuint8(v); }
-    static void write(ByteArray::ptr ba, int16_t v) { ba->writeFint16(v); }
-    static void write(ByteArray::ptr ba, uint16_t v) { ba->writeFuint16(v); }
-    static void write(ByteArray::ptr ba, int32_t v) { ba->writeFint32(v); }
-    static void write(ByteArray::ptr ba, uint32_t v) { ba->writeFuint32(v); }
-    static void write(ByteArray::ptr ba, int64_t v) { ba->writeFint64(v); }
-    static void write(ByteArray::ptr ba, uint64_t v) { ba->writeFuint64(v); }
-    static void write(ByteArray::ptr ba, float v) { ba->writeFloat(v); }
-    static void write(ByteArray::ptr ba, double v) { ba->writeDouble(v); }
-    static void write(ByteArray::ptr ba, bool v) { ba->writeFint8(v ? 1 : 0); }
-    static void write(ByteArray::ptr ba, const std::string& v) { ba->writeStringVint(v); }
-    static void write(ByteArray::ptr ba, const char* v) { ba->writeStringVint(std::string(v)); }
+    static void write(ByteArray::ptr ba, int8_t v);
+    static void write(ByteArray::ptr ba, uint8_t v);
+    static void write(ByteArray::ptr ba, int16_t v);
+    static void write(ByteArray::ptr ba, uint16_t v);
+    static void write(ByteArray::ptr ba, int32_t v);
+    static void write(ByteArray::ptr ba, uint32_t v);
+    static void write(ByteArray::ptr ba, int64_t v);
+    static void write(ByteArray::ptr ba, uint64_t v);
+    static void write(ByteArray::ptr ba, float v);
+    static void write(ByteArray::ptr ba, double v);
+    static void write(ByteArray::ptr ba, bool v);
+    static void write(ByteArray::ptr ba, const std::string& v);
+    static void write(ByteArray::ptr ba, const char* v);
 
     // 针对 std::vector 的序列化
     template <typename T>
@@ -418,18 +379,18 @@ private:
     }
 
     // 针对不同类型的 read 重载
-    static void read(ByteArray::ptr ba, int8_t& v) { v = ba->readFint8(); }
-    static void read(ByteArray::ptr ba, uint8_t& v) { v = ba->readFuint8(); }
-    static void read(ByteArray::ptr ba, int16_t& v) { v = ba->readFint16(); }
-    static void read(ByteArray::ptr ba, uint16_t& v) { v = ba->readFuint16(); }
-    static void read(ByteArray::ptr ba, int32_t& v) { v = ba->readFint32(); }
-    static void read(ByteArray::ptr ba, uint32_t& v) { v = ba->readFuint32(); }
-    static void read(ByteArray::ptr ba, int64_t& v) { v = ba->readFint64(); }
-    static void read(ByteArray::ptr ba, uint64_t& v) { v = ba->readFuint64(); }
-    static void read(ByteArray::ptr ba, float& v) { v = ba->readFloat(); }
-    static void read(ByteArray::ptr ba, double& v) { v = ba->readDouble(); }
-    static void read(ByteArray::ptr ba, bool& v) { v = ba->readFint8() != 0; }
-    static void read(ByteArray::ptr ba, std::string& v) { v = ba->readStringVint(); }
+    static void read(ByteArray::ptr ba, int8_t& v);
+    static void read(ByteArray::ptr ba, uint8_t& v);
+    static void read(ByteArray::ptr ba, int16_t& v);
+    static void read(ByteArray::ptr ba, uint16_t& v);
+    static void read(ByteArray::ptr ba, int32_t& v);
+    static void read(ByteArray::ptr ba, uint32_t& v);
+    static void read(ByteArray::ptr ba, int64_t& v);
+    static void read(ByteArray::ptr ba, uint64_t& v);
+    static void read(ByteArray::ptr ba, float& v);
+    static void read(ByteArray::ptr ba, double& v);
+    static void read(ByteArray::ptr ba, bool& v);
+    static void read(ByteArray::ptr ba, std::string& v);
 
     // 针对 std::vector 的反序列化
     template <typename T>

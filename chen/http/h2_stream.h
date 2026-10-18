@@ -21,7 +21,7 @@ public:
 
     // Override HttpSession
     int sendResponse(HttpResponse::ptr rsp) override;
-    HttpRequest::ptr recvRequest() override { return nullptr; }
+    HttpRequest::ptr recvRequest() override;
 
     // Write data to this stream (for streaming responses)
     int sendData(const std::string& data, bool end_stream = false);

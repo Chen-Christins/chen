@@ -577,21 +577,13 @@ public:
      * @brief 注销本地方法处理器（热重载时避免旧 .so 的 lambda 残留）
      * @param name 方法名
      */
-    void unregisterMethod(const std::string& name)
-    {
-        std::lock_guard lock(m_mutex);
-        m_requestHandlers.erase(HandlerKey{name});
-    }
+    void unregisterMethod(const std::string& name);
 
     /**
      * @brief 按 CmdID 注销本地方法处理器
      * @param cmd 命令 ID
      */
-    void unregisterMethod(uint32_t cmd)
-    {
-        std::lock_guard lock(m_mutex);
-        m_requestHandlers.erase(HandlerKey{cmd});
-    }
+    void unregisterMethod(uint32_t cmd);
 
     /**
      * @brief 线程安全发送协议帧（按连接串行化写，防止不同 fiber 并发写同一 socket）
@@ -659,15 +651,7 @@ private:
     /**
      * @brief 将路由描述应用到请求帧头
      */
-    static void applyRouting(Protocol::ptr req, const RpcRouting& routing)
-    {
-        req->routing = static_cast<uint8_t>(routing.method);
-        req->dst_peer_id = routing.dst_peer_id;
-        req->func_id = routing.func_id;
-        req->group_id = routing.group_id;
-        req->bind_id = routing.bind_id;
-        req->real_random = routing.real_random ? 1 : 0;
-    }
+    static void applyRouting(Protocol::ptr req, const RpcRouting& routing);
 
     /**
      * @brief 解析响应帧，返回业务结果或抛出错误

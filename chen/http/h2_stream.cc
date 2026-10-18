@@ -17,6 +17,11 @@ H2Stream::~H2Stream()
 {
 }
 
+HttpRequest::ptr H2Stream::recvRequest()
+{
+    return nullptr;
+}
+
 int H2Stream::sendResponse(HttpResponse::ptr rsp)
 {
     H2Session::Command cmd;

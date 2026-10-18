@@ -13,6 +13,11 @@
 
 namespace chen::data {
 
+DecryptionMetadata::DecryptionMetadata()
+    : type(EncryptionType::NONE)
+{
+}
+
 DataDecryptor::DataDecryptor(EncryptionType type, const std::string& password)
     : m_type(type)
     , m_password(password)

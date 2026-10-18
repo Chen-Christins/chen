@@ -17,6 +17,14 @@ static ConfigVar<std::unordered_map<std::string, std::unordered_map<std::string,
 //     Config::Lookup("rock_services", std::unordered_map<std::string
 //     ,std::unordered_map<std::string, std::string> >(), "rock_services");
 
+RockResult::RockResult(int32_t _result, int32_t _used, RockResponse::ptr rsp, RockRequest::ptr req)
+    : result(_result)
+    , used(_used)
+    , response(rsp)
+    , request(req)
+{
+}
+
 std::string RockResult::toString() const
 {
     std::stringstream ss;

@@ -9,6 +9,28 @@ namespace chen::rpc {
 
 static Logger::ptr logger = LOG_NAME("system");
 
+void RpcClient::unregisterMethod(const std::string& name)
+{
+    std::lock_guard lock(m_mutex);
+    m_requestHandlers.erase(HandlerKey{name});
+}
+
+void RpcClient::unregisterMethod(uint32_t cmd)
+{
+    std::lock_guard lock(m_mutex);
+    m_requestHandlers.erase(HandlerKey{cmd});
+}
+
+void RpcClient::applyRouting(Protocol::ptr req, const RpcRouting& routing)
+{
+    req->routing = static_cast<uint8_t>(routing.method);
+    req->dst_peer_id = routing.dst_peer_id;
+    req->func_id = routing.func_id;
+    req->group_id = routing.group_id;
+    req->bind_id = routing.bind_id;
+    req->real_random = routing.real_random ? 1 : 0;
+}
+
 RpcClient::RpcClient(bool auto_heartbeat)
     : m_auto_heartbeat(auto_heartbeat)
 {
