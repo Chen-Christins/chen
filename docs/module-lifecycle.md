@@ -5,7 +5,7 @@
 
 热重载采用 **master/worker 多进程模型**：master 进程持有监听端口并监督 worker，
 每个 worker 进程只加载一个版本的模块 `.so`。重载时新 worker 加载新模块，旧 worker
-停止 accept、限时 drain 完遗留连接后退出。进程退出时由内核回收地址空间，**不做进程内
+停止 accept、限时 drain 完遗留连接后退出。进程退出时由内核回收地址空间， **不做进程内
 `dlclose`**，因此不存在旧 `.so` 函数指针悬空的问题。
 
 ## 进程模型
@@ -13,16 +13,16 @@
 ```
                  ┌──────────────────────────────┐
                  │            master            │
-                 │  绑定监听 socket（持有 fd）     │
-                 │  写 pidfile / 处理信号         │
+                 │  绑定监听 socket（持有 fd）  │
+                 │  写 pidfile / 处理信号       │
                  └───────────────┬──────────────┘
                                  │ fork() 继承监听 fd
                  ┌───────────────┴───────────────┐
                  │                               │
           ┌──────▼───────┐               ┌───────▼──────┐
           │  worker v1   │   SIGHUP →    │  worker v2   │
-          │  加载 v1 .so  │  旧 worker    │  加载 v2 .so  │
-          │  处理连接     │  drain 后退出  │  接管新连接    │
+          │  加载 v1 .so │  旧 worker    │  加载 v2 .so │
+          │  处理连接    │  drain 后退出 │  接管新连接  │
           └──────────────┘               └──────────────┘
 ```
 
@@ -36,12 +36,12 @@
 
 ### 相关配置（`server:` 段）
 
-| 配置项 | 默认 | 说明 |
-|--------|------|------|
-| `drain_timeout_ms` | 3000 | 旧 worker 停止 accept 后等待遗留连接的毫秒数，超时强制关闭 |
-| `worker_ready_timeout_ms` | 30000 | master 等待新 worker 就绪的超时毫秒数 |
-| `worker_restart_interval_ms` | 2000 | worker 崩溃后 master 重启前的等待毫秒数 |
-| `housekeeping_interval_ms` | 500 | worker 检查关闭信号的定时器间隔 |
+| 配置项                       | 默认  | 说明                                                       |
+|------------------------------|-------|------------------------------------------------------------|
+| `drain_timeout_ms`           | 3000  | 旧 worker 停止 accept 后等待遗留连接的毫秒数，超时强制关闭 |
+| `worker_ready_timeout_ms`    | 30000 | master 等待新 worker 就绪的超时毫秒数                      |
+| `worker_restart_interval_ms` | 2000  | worker 崩溃后 master 重启前的等待毫秒数                    |
+| `housekeeping_interval_ms`   | 500   | worker 检查关闭信号的定时器间隔                            |
 
 ---
 
@@ -71,7 +71,7 @@
 ```
 
 **关键**: 步骤 4 之后新请求即由新进程处理；旧进程的 in-flight 请求在步骤 7 之前自然完成。
-整个过程中**不存在 404 窗口**，master 的监听 fd 在整个过程中保持打开。
+整个过程中 **不存在 404 窗口**，master 的监听 fd 在整个过程中保持打开。
 
 ### 内存态说明
 
@@ -82,17 +82,17 @@
 
 ## 模块 `.so` 替换部署
 
-「替换模块 `.so` 再 reload」在机制上是支持的，但**必须原子替换**。
+「替换模块 `.so` 再 reload」在机制上是支持的，但 **必须原子替换**。
 
 ### 必须用 rename（原子替换）
 
 - ✅ 安全：`mv new.so libblog.so` / `install new.so libblog.so`（`rename` 换 inode）。
   旧 worker 持有旧 inode 的映射，新 worker 打开新 inode，二者互不影响。
-- ❌ 不安全：`cp new.so libblog.so` 这类**原地覆盖**（truncate + 重写同一 inode）。
+- ❌ 不安全：`cp new.so libblog.so` 这类 **原地覆盖**（truncate + 重写同一 inode）。
   旧 worker 在 drain 窗口内仍然存活，而它的 `.so` 是 mmap 的可执行代码页；原地重写会让
   这些页变成半截/不一致，可能导致旧 worker `SIGBUS`/`SIGSEGV` 崩溃。
 
-> 结论：用 `install`/`mv` 覆盖，**不要**用 `cp`；文件名不需要带版本号，同名替换即可。
+> 结论：用 `install`/`mv` 覆盖， **不要**用 `cp`；文件名不需要带版本号，同名替换即可。
 
 ### 触发方式
 
@@ -102,17 +102,17 @@
 bin/server -s reload
 ```
 
-`FileWatcher` 只监听配置目录的 `.yml`/`.xml`，**不监听模块目录**，换 so 不会自动 reload。
+`FileWatcher` 只监听配置目录的 `.yml`/`.xml`， **不监听模块目录**，换 so 不会自动 reload。
 
 ### 临时文件命名
 
-`ModuleManager::init()` 会跳过点号开头的隐藏文件，但**不跳过** `.so` 结尾的文件。因此
+`ModuleManager::init()` 会跳过点号开头的隐藏文件，但 **不跳过** `.so` 结尾的文件。因此
 临时文件不要以 `.so` 结尾（如 `libblog.tmp.so` 会被当作模块加载），应放在模块目录之外，
 或使用点号前缀（如 `.libblog.so.tmp`）并确保最终以 rename 就位。
 
 ### 与 libchen 的 ABI
 
-模块链接 `libchen.so`。**只替换模块、libchen 不变**时没有问题；若同时改动了 `libchen`
+模块链接 `libchen.so`。 **只替换模块、libchen 不变**时没有问题；若同时改动了 `libchen`
 的对外接口，需要连同 `libchen` 一起升级，因为各 worker 使用其加载时刻的库映射。
 
 ---
@@ -152,7 +152,7 @@ bin/server -s reload
   2. 连接数据库
   3. 注册 HTTP servlet / WS servlet / RPC handler
   4. 初始化 EventBus listener
-- 注意: 注册的 handler/servlet 必须是**本进程加载的 `.so` 中的代码**
+- 注意: 注册的 handler/servlet 必须是 **本进程加载的 `.so` 中的代码**
 
 ### `bool onServerUp()`
 
@@ -188,16 +188,16 @@ bin/server -s reload
 
 ## EventBus 生命周期
 
-EventBus 是**进程内单例**，listener 中的 `std::function` 存储指向模块 `.so` 中代码的
+EventBus 是 **进程内单例**，listener 中的 `std::function` 存储指向模块 `.so` 中代码的
 函数指针。多进程模型下，每个 worker 拥有独立的 EventBus 实例，随进程退出（地址空间
 回收）一并销毁，因此不存在跨版本的重载悬空指针问题。
 
 仍建议：
 
-| 时机 | 调用 `clearAll()` | 说明 |
-|------|-------------------|------|
-| `onServerReady()` 开头 | 建议 | 保证本进程 EventBus 干净 |
-| `onUnload()` | 建议 | 进程退出前清理资源 |
+| 时机                   | 调用 `clearAll()` | 说明                     |
+|------------------------|-------------------|--------------------------|
+| `onServerReady()` 开头 | 建议              | 保证本进程 EventBus 干净 |
+| `onUnload()`           | 建议              | 进程退出前清理资源       |
 
 ---
 
@@ -252,7 +252,7 @@ void ArticleMgr::stop() {
 
 ### Q: 热重载时会丢数据吗？
 
-A: 不会丢 DB/Redis 中的数据。但**新 worker 是全新进程，堆内存状态会重置**。需要保留
+A: 不会丢 DB/Redis 中的数据。但 **新 worker 是全新进程，堆内存状态会重置**。需要保留
 的数据要么放到 Redis，要么在旧 worker 的 `onDeactivate` 中 flush 到 DB。
 
 ### Q: 热重载后旧连接会立即断开吗？

@@ -1,6 +1,6 @@
 # DB / Redis 配置指南（业务侧）
 
-框架只提供数据库/缓存的**接口与实现库**，不再主动初始化或释放任何连接。
+框架只提供数据库/缓存的 **接口与实现库**，不再主动初始化或释放任何连接。
 是否使用 Redis / MySQL / SQLite3、用几个库、何时建连与释放，全部由业务 module 决定。
 
 本文说明如何在 `bin/conf/system.yml`（或业务自己的 `.yml`）中配置，以及模块里如何取用。
@@ -16,12 +16,12 @@
 
 ## 配置键总览
 
-| 配置键 | 类型 | 说明 |
-|--------|------|------|
-| `redis.config` | `map<name, map<string,string>>` | Redis 连接池，`name` 为逻辑名 |
-| `fox_thread` | `map<name, {num, advance}>` | FoxThread 线程池，异步 Redis 依赖 |
-| `mysql.dbs` | `map<name, map<string,string>>` | MySQL 连接池 |
-| `sqlite3.dbs` | `map<name, map<string,string>>` | SQLite3 连接池（每个 `name` 一个文件） |
+| 配置键         | 类型                            | 说明                                   |
+|----------------|---------------------------------|----------------------------------------|
+| `redis.config` | `map<name, map<string,string>>` | Redis 连接池，`name` 为逻辑名          |
+| `fox_thread`   | `map<name, {num, advance}>`     | FoxThread 线程池，异步 Redis 依赖      |
+| `mysql.dbs`    | `map<name, map<string,string>>` | MySQL 连接池                           |
+| `sqlite3.dbs`  | `map<name, map<string,string>>` | SQLite3 连接池（每个 `name` 一个文件） |
 
 ---
 
@@ -50,23 +50,23 @@ redis:
 
 ### 字段说明
 
-| 字段 | 必填 | 说明 |
-|------|------|------|
-| `host` | 是 | 单机/异步单机：`ip:port`；集群：节点种子串（如 `10.0.0.1:7000,10.0.0.2:7000,...`） |
-| `type` | 是 | 客户端类型，见下表 |
-| `pool` | 是 | 该逻辑名预建的连接数 |
-| `timeout` / `timeout_com` | 否 | 命令超时，单位**毫秒**；两者同时存在时 `timeout_com` 优先 |
-| `passwd` | 否 | 认证密码 |
-| `log_enable` | 否 | 是否打印命令日志，默认 `1` |
+| 字段                      | 必填 | 说明                                                                               |
+|---------------------------|------|------------------------------------------------------------------------------------|
+| `host`                    | 是   | 单机/异步单机：`ip:port`；集群：节点种子串（如 `10.0.0.1:7000,10.0.0.2:7000,...`） |
+| `type`                    | 是   | 客户端类型，见下表                                                                 |
+| `pool`                    | 是   | 该逻辑名预建的连接数                                                               |
+| `timeout` / `timeout_com` | 否   | 命令超时，单位**毫秒**；两者同时存在时 `timeout_com` 优先                          |
+| `passwd`                  | 否   | 认证密码                                                                           |
+| `log_enable`              | 否   | 是否打印命令日志，默认 `1`                                                         |
 
 ### 客户端类型
 
-| `type` | 类 | 特点 |
-|--------|-----|------|
-| `redis` | `Redis` | 同步单机 |
-| `redis_cluster` | `RedisCluster` | 同步集群 |
-| `fox_redis` | `FoxRedis` | **异步单机**，基于 `FoxThread`，不阻塞协程 |
-| `fox_redis_cluster` | `FoxRedisCluster` | 异步集群 |
+| `type`              | 类                | 特点                                       |
+|---------------------|-------------------|--------------------------------------------|
+| `redis`             | `Redis`           | 同步单机                                   |
+| `redis_cluster`     | `RedisCluster`    | 同步集群                                   |
+| `fox_redis`         | `FoxRedis`        | **异步单机**，基于 `FoxThread`，不阻塞协程 |
+| `fox_redis_cluster` | `FoxRedisCluster` | 异步集群                                   |
 
 生产推荐 `fox_redis` / `fox_redis_cluster`：命令投递到独立线程执行，epoll 事件循环不被阻塞。
 
@@ -143,12 +143,12 @@ mysql:
       dbname: user
 ```
 
-| 字段 | 说明 |
-|------|------|
-| `host` / `port` | 实例地址与端口 |
-| `user` / `passwd` | 账号密码 |
-| `dbname` | 默认库名 |
-| `pool` | 可选，连接池大小 |
+| 字段              | 说明             |
+|-------------------|------------------|
+| `host` / `port`   | 实例地址与端口   |
+| `user` / `passwd` | 账号密码         |
+| `dbname`          | 默认库名         |
+| `pool`            | 可选，连接池大小 |
 
 ### 使用
 
@@ -187,10 +187,10 @@ sqlite3:
       path: /data/cache.db
 ```
 
-| 字段 | 说明 |
-|------|------|
+| 字段   | 说明                                                            |
+|--------|-----------------------------------------------------------------|
 | `path` | 数据库文件路径；不含 `:` 时按 `server.work_path` 解析为绝对路径 |
-| `sql` | 可选，连接建立后执行的初始化语句（如 PRAGMA） |
+| `sql`  | 可选，连接建立后执行的初始化语句（如 PRAGMA）                   |
 
 ### 使用
 
@@ -233,9 +233,9 @@ chen::SQLite3Mgr::GetInstance()->registerSQLite3("tmp", {{"path", "/data/tmp.db"
 
 ## 配置变更注意
 
-- MySQL / SQLite3 的参数在**每次 `get()` 时读取配置**，新增名字立即生效；
+- MySQL / SQLite3 的参数在 **每次 `get()` 时读取配置**，新增名字立即生效；
   已建连的旧名字仍用旧参数，需业务层重建连接或重启。
-- Redis 在 `RedisManager` 构造时**快照 `redis.config`**，改配置后需重新初始化
+- Redis 在 `RedisManager` 构造时 **快照 `redis.config`**，改配置后需重新初始化
   （释放 `freeAll()` 后重新 `GetInstance()`，或重启/热重载模块）才生效。
 
 ## 相关文档

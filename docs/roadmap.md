@@ -1,45 +1,42 @@
 # 版本路线图
 
-本文档规划框架后续版本的演进方向与范围。当前版本为 v1.5.5。
+本文档规划框架后续版本的演进方向与范围。当前版本为 v1.6.0。
 
 ## 总览
 
-| 版本 | 主题 | 核心内容 |
-|------|------|---------|
-| **v1.6.0** | 可观测性与稳定性 | 异步日志、Metrics/Admin、访问日志、真正优雅 draining、测试/CI 基线 |
-| v1.7.0 | HTTPS 与 HTTP 完整化 | TLS 校验/SNI/ALPN/mTLS/证书热加载、H2 over TLS、静态文件/Range/CORS/gzip/中间件、H2 streaming |
-| v1.8.0 | 动态配置与协议扩展 | `servers` 动态增删/重绑、UDP 接入 Application、异步 DNS、WS 心跳/deflate/Origin、RPC 重试/熔断/TLS/压缩 |
-| v1.9.0 | 弹性与生态 | 细粒度限流/鉴权、OpenTelemetry tracing、Admin UI/配置校验、压测与容量模型 |
+| 版本               | 主题                 | 核心内容                                                                                                |
+|--------------------|----------------------|---------------------------------------------------------------------------------------------------------|
+| **v1.6.0**（当前） | 指标与进程模型       | Metrics、master/worker 热重载与优雅 draining                                                            |
+| v1.7.0             | HTTPS 与 HTTP 完整化 | TLS 校验/SNI/ALPN/mTLS/证书热加载、H2 over TLS、静态文件/Range/CORS/gzip/中间件、H2 streaming           |
+| v1.8.0             | 动态配置与协议扩展   | `servers` 动态增删/重绑、UDP 接入 Application、异步 DNS、WS 心跳/deflate/Origin、RPC 重试/熔断/TLS/压缩 |
+| v1.9.0             | 弹性与生态           | 细粒度限流/鉴权、OpenTelemetry tracing、Admin UI/配置校验、压测与容量模型                               |
+| v2.0.0             | 分布式与多活         | 服务发现/注册中心、弹性扩缩容、Hub 高可用、跨区多活、K8s/LB 集成                                        |
 
 ---
 
-## v1.6.0 — 可观测性与稳定性
+## v1.6.0 — 指标与进程模型（当前版本）
 
-本版本聚焦生产可用性：让服务跑起来后「看得见、停得稳、查得到问题」。
+v1.6.0 已发布（2026-10-18），交付内容是 Metrics 采集能力和 master/worker 多进程热重载 + 优雅 draining。
 
-详细实施计划见 [`v1.6.0-plan.md`](v1.6.0-plan.md)。
+### Metrics
 
-已确认的设计决策：
+- `chen/metrics/`：`Counter` / `Gauge` / `GaugeFunc` / `Histogram`，支持标签、同名同标签复用、类型冲突检测
+- `RegistryMgr` 进程级注册表，线程安全；Counter / Histogram 每线程分片
+- Prometheus / OpenMetrics / JSON 渲染
+- `chen/http/metrics_servlet.h`：业务模块在 `onServerReady()` 里挂采集接口
 
-| 决策项 | 结论 |
-|--------|------|
-| Admin 服务形态 | 独立 `type: admin` server，独立端口 |
-| 长连接 draining | HTTP/2 发 GOAWAY、WS 发 CLOSE 1001、SSE/流式直接关闭，deadline 后强断 |
-| 访问日志格式 | 单行 JSON |
-| Readiness 范围 | 仅全局 `ServiceState`，v1.6.0 不做业务探针 |
+### 热重载与优雅 draining
 
-核心内容：
+- master 持有监听 socket 与 pidfile，`SIGHUP` fork 新 worker
+- 新 worker ready 后，旧 worker 停止 accept、`closeAllClients()`、限时 drain（`server.drain_timeout_ms`，默认 3000ms），再
+  `onDeactivate()` → `onUnload()` 退出
+- worker 非预期崩溃由 master 自动重启（带 backoff）
+- 配置：`server.worker_ready_timeout_ms`、`server.worker_restart_interval_ms`
 
-- **异步日志**：有界队列 + 独立日志线程、溢出策略、fork/reload 安全、日志指标
-- **Metrics**：Counter/Gauge/Histogram 注册表、Prometheus `/metrics`、内置运行时/网络/RPC 指标
-- **Admin/Health**：独立 `admin` server、`/healthz`、`/readyz`、`/debug/servers`、`/debug/version`
-- **访问日志**：HTTP/1.1 + HTTP/2 单行 JSON、采样、请求 ID
-- **优雅 draining**：停止 accept → 等在途完成 → deadline 强断，覆盖 HTTP/WS/RPC/Game/H2
-- **测试/CI**：ctest 接入、新功能测试、GitHub Actions 构建 + 测试 + ASAN
+### 业务侧职责
 
-### 明确不做（留给后续版本）
-
-TLS/HTTPS/H2 over TLS、静态文件与中间件、动态监听管理、UDP 接入、异步 DNS、RPC 韧性、业务 readiness 探针。
+- 异步日志：框架日志为同步实现，业务按需自行封装
+- Admin / Health：业务按需自行实现
 
 ---
 
@@ -89,9 +86,53 @@ TLS/HTTPS/H2 over TLS、静态文件与中间件、动态监听管理、UDP 接�
 
 ---
 
+## v2.0.0 — 分布式与多活
+
+当前（v1.x）的分布式形态是「多进程部署 + RPC Hub 中心转发」：
+
+- 业务进程作为 `RpcClient` 连到 Hub，通过 `registerService(peer_id, func_id, instance_id, bind_ids)` 注册
+- Hub 是单点 relay（`RpcServer` + `relay: "1"`），只做转发，不持久化、不重放
+- `peer_id` / `func_id` / `instance_id` 全部由配置分配，没有服务发现
+- 部署形态为 master + 单个 active worker，热重载够用，但不支持多活 / 弹性扩缩容
+- 传输帧里的 `region` 字段是预留，跨区路由尚未实现
+
+v2.0.0 计划补齐下面这些能力；如果短期不做，则明确走「外部注册中心 + 外部负载均衡」的集成方案。
+
+### 服务发现与注册中心
+
+- 实例自动注册 / 注销、健康检查、元数据，替代配置分配 `peer_id` / `instance_id`
+- 对接 Nacos / Consul / K8s Service，或提供内置轻量注册中心
+- Hub 地址发现与故障切换，客户端不再硬编码 hub 地址
+
+### 弹性扩缩容
+
+- 新实例注册后自动进入 GROUPID 动态拓扑；缩容时先摘流，等在途请求完成再下线
+- 与 draining / readiness 打通，扩缩容过程不丢请求
+- 负载均衡策略：加权、最少连接、一致性哈希（当前只有取模）
+
+### 多活与高可用
+
+- Hub 多实例、注册表同步 / 主备切换，消除 relay 单点
+- 落地 `region`：同城 / 异地多活、就近接入、跨区路由
+- 跨区数据同步的冲突解决与最终一致性约定
+
+### 与外部基础设施集成
+
+- Kubernetes：Service / Endpoint、Headless Service、Pod readiness 与实例注册联动
+- 外部 L4/L7 负载均衡：框架只暴露健康检查与指标，不重复造轮子
+- 可选：服务网格 / Sidecar 模式下的地址与协议兼容
+
+### 边界
+
+- 分布式事务、跨分片查询 / JOIN 不在框架范围内
+- 数据一致性仍由业务定义（幂等、版本号、补偿）
+
+---
+
 ## 已确认决策
 
-- v1.6.0 按「可观测性优先」推进，TLS/HTTPS 放到 v1.7.0。
+- v1.6.0 聚焦 Metrics 与 master/worker 热重载、优雅 draining；TLS/HTTPS 放到 v1.7.0。
 - 部署形态为 master + 单个 active worker；Metrics 无需跨进程聚合。
-- 异步日志 v1.6.0 默认关闭，示例配置开启；v1.7.0 再评估默认开启。
-- v1.6.0 的 Admin、draining、访问日志与 readiness 方案见 [`v1.6.0-plan.md`](v1.6.0-plan.md)。
+- `docs/v1.6.0-plan.md` 为规划稿，其中异步日志、Admin/Health、访问日志未纳入 v1.6.0；实际交付以 CHANGELOG 为准。
+- v1.x 的分布式形态为「多进程 + RPC Hub 中心转发」：Hub 单点、无服务发现、无弹性扩缩容，这些能力列入
+  v2.0.0；短期可选择外部注册中心 + 外部负载均衡。
