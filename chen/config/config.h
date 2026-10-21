@@ -447,12 +447,14 @@ public:
 
     /**
      * @brief 将Yaml string转换为当前参数值类型
-     * @exception 转换失败抛出异常
+     * @details 转换失败时打错误日志并保留原值（不抛异常）
+     * @return bool 转换成功返回 true，失败返回 false
      */
     bool fromString(const std::string& val) override
     {
         try {
             setValue(FromStr()(val));
+            return true;
         } catch (std::exception& e) {
             ERROR(LOG_NAME("system")) << "ConfigVar::fromString exception" << e.what() << " convert: string to " << typeid(m_val).name() << " - "
                                       << val;

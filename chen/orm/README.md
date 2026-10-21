@@ -2,6 +2,9 @@
 
 自研轻量 ORM 代码生成器，从 XML 表定义生成业务结构体（`*Info`）和 DAO 类（`*Dao`），支持 SQLite 和 MySQL，参数化查询。
 
+> 本文只讲表定义、代码生成和 DAO。参数化 SQL 构建器（`chen/db/query_builder.h`）和
+> 分库分表（`chen/db/shard.h`）属于 db 模块，完整说明见 [`chen/db/README.md`](../db/README.md)。
+
 ## 快速开始
 
 ### 1. 编写 XML 表定义
@@ -99,6 +102,7 @@ CategoryInfoDao::QueryAll(list, conn);
 ### 自定义查询（QueryBuilder）
 
 通过 `Dao::newQuery()` 获取预配置好表名的 QueryBuilder，无需硬编码表名。需要表别名时可以传入别名参数。
+QueryBuilder 本身位于 `chen/db/query_builder.h`，完整 API 见 [`chen/db/README.md`](../db/README.md#querybuilder)。
 
 ```cpp
 #include <chen/db/query_builder.h>
@@ -185,56 +189,8 @@ Insert / InsertOrUpdate 成功后也会自动清除标记，新创建的对象�
 
 ## QueryBuilder 参考
 
-### 流式 API
-
-```cpp
-auto qb = QueryBuilder::Create("table_name")
-    ->select("col1, col2")           // SELECT 列（DAO 方法会自动覆盖）
-    ->where("col", "=", 123)         // col = ?
-    ->where("name", "LIKE", "%x%")   // name LIKE ?
-    ->orWhere("status", "=", 0)      // OR status = ?
-    ->whereIn("id", {1, 2, 3})       // id IN (?, ?, ?)
-    ->whereNotIn("id", {4, 5})       // id NOT IN (?, ?)
-    ->whereNull("deleted_at")        // deleted_at IS NULL
-    ->whereNotNull("email")          // email IS NOT NULL
-    ->whereBetween("age", 18, 65)    // age BETWEEN ? AND ?
-    ->whereLike("title", "关键词")    // title LIKE '%关键词%'
-    ->whereLeftLike("title", "前缀")  // title LIKE '前缀%'
-    ->whereIf(cond, "x", ">", 10)    // 仅 cond 为 true 时生效
-    ->join("LEFT", "t2", "t1.id = t2.ref_id")
-    ->groupBy("type")                // GROUP BY type
-    ->having("count", ">", 5)        // HAVING count > ?
-    ->orderBy("id", "DESC")          // ORDER BY id DESC
-    ->limit(20)
-    ->offset(0);
-```
-
-全部 `where*` 方法均有对应的 `orWhere*`（OR 连接）和 `*If(cond, ...)`（条件生效）变体。
-
-### 子查询
-
-```cpp
-auto sub = QueryBuilder::Create("comment")
-    ->select("article_id")
-    ->where("status", "=", 1);
-
-auto qb = QueryBuilder::Create("article")
-    ->whereIn("id", sub);
-// → WHERE id IN (SELECT article_id FROM comment WHERE status = ?)
-```
-
-子查询的参数自动合并到父查询，参数绑定顺序正确。LIMIT/OFFSET 在子查询中会被忽略（`IN` 子句不应分页）。
-
-### 直接执行（不需要 DAO）
-
-```cpp
-auto data = qb->executeQuery(conn);        // SELECT 原始结果集
-qb->executeCount(total, conn);             // COUNT
-qb->set("status", 1)->executeUpdate(conn); // UPDATE
-qb->executeDelete(conn);                   // DELETE
-qb->insert("name", "hello")               // INSERT
-  ->executeInsert(conn, newId);
-```
+QueryBuilder 是 db 模块的组件（`chen/db/query_builder.h`），流式条件、JOIN、聚合、子查询、
+INSERT / UPDATE / DELETE 与直接执行的完整说明见 [`chen/db/README.md`](../db/README.md#querybuilder)。
 
 ---
 
@@ -279,68 +235,5 @@ CategoryInfoDao::MigrateTableMySQL(conn);
 
 ## 分库分表
 
-框架在 `chen/db/shard.h` 提供独立的分片路由层，与 ORM 解耦，可用于任何数据库操作。
-
-### 核心概念
-
-| 类                  | 说明                                                                |
-|---------------------|---------------------------------------------------------------------|
-| `ShardKey`          | 分片键，支持 `Int64`（hash 取模）、`String`（租户）、`Time`（日期） |
-| `ShardTarget`       | 路由结果：逻辑库名 + 物理表名                                       |
-| `IShardStrategy`    | 可插拔策略接口，实现 `route(logicalTable, key)` 即可自定义          |
-| `HashShardStrategy` | Hash/取模 分库，可选分表                                            |
-| `DateShardStrategy` | 按时间分表（strftime 格式化表名）                                   |
-| `ShardRouter`       | Singleton 路由入口，管理规则和连接池                                |
-
-### 初始化
-
-```cpp
-#include <chen/db/shard.h>
-
-auto router = chen::ShardRouterMgr::GetInstance();
-
-// 注册分片规则
-router->addRule("notification",
-    std::make_shared<chen::DateShardStrategy>("notification_%Y%m"));        // 按月分表
-router->addRule("access_log",
-    std::make_shared<chen::DateShardStrategy>("access_log_%Y%m%d"));        // 按日分表
-router->addRule("user",
-    std::make_shared<chen::HashShardStrategy>("user_shard_{shard}", 4));   // hash 分 4 库
-
-// 注册分库连接
-for (int i = 0; i < 4; i++) {
-    router->addDB(fmt::format("user_shard_{}", i), mysqlConn);
-}
-```
-
-### 使用
-
-```cpp
-// 按月分表：通知查询
-auto [db, table] = ShardRouterMgr::GetInstance()->resolve(
-    "notification", ShardKey::Time(notif.getCreateTime()));
-auto qb = QueryBuilder::Create(table)->where(...);
-NotificationInfoDao::QueryByBuilder(results, qb, db);
-
-// Hash 分库：用户查询
-auto [db2, _] = ShardRouterMgr::GetInstance()->resolve(
-    "user", ShardKey::Int64(userId));
-UserInfoDao::Query(userId, db2);
-```
-
-### 自定义策略
-
-```cpp
-class TenantShardStrategy : public IShardStrategy {
-    ShardTarget route(const std::string& table, const ShardKey& key) override {
-        // 按租户 ID 路由到不同库
-        return ShardTarget{
-            .dbName = "tenant_" + key.getString(),
-            .tableName = ""           // 不分表
-        };
-    }
-};
-router->addRule("order", std::make_shared<TenantShardStrategy>());
-```
-
-> **边界**：跨分片查询、动态增删分片、分布式事务不在框架范围内，属于分布式中间件范畴。
+分片路由是 db 模块的组件（`chen/db/shard.h`），与 ORM 解耦，核心概念、初始化、
+路由用法与自定义策略见 [`chen/db/README.md`](../db/README.md#分库分表)。

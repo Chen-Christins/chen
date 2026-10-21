@@ -7,13 +7,8 @@
  */
 #pragma once
 
-#include <cstdint>
 #include <string>
 #include <vector>
-
-#include <sched.h>
-#include <sys/syscall.h>
-#include <unistd.h>
 
 #include <boost/lexical_cast.hpp>
 
