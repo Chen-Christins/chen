@@ -84,6 +84,7 @@ mkdir -p "${DIST_DIR}/${PROTOCOL_DIR}"
 mkdir -p "${DIST_DIR}/${TOOLS_DIR}/bin"
 mkdir -p "${DIST_DIR}/${TOOLS_DIR}/scripts"
 mkdir -p "${DIST_DIR}/${TOOLS_DIR}/xlsx"
+mkdir -p "${DIST_DIR}/docs"
 mkdir -p "${BUILD_DIR}"
 
 # 构建项目
@@ -96,6 +97,9 @@ cd ..
 # 复制资源文件
 echo "复制资源文件..."
 cp apply.sh "${DIST_DIR}/"
+cp .clang-format "${DIST_DIR}/"
+cp docs/framework-first.md "${DIST_DIR}/docs/"
+cp docs/sdk-agents.md "${DIST_DIR}/AGENTS.md"
 cp -r "${PROTOCOL_DIR}"/* "${DIST_DIR}/${PROTOCOL_DIR}/"
 cp "${TOOLS_DIR}/scripts"/*.py "${DIST_DIR}/${TOOLS_DIR}/scripts/"
 cp "${TOOLS_DIR}/scripts"/*.sh "${DIST_DIR}/${TOOLS_DIR}/scripts/"
@@ -163,15 +167,6 @@ find "./bin" -type f \( -name "orm" -o -name "server" \) | while read exec_file;
     cp "$exec_file" "${DIST_DIR}/${BIN_DIR}/"
     echo "复制可执行文件: $(basename "$exec_file")"
 done
-
-# 复制模板文件
-echo "复制模板文件..."
-if [ -d "./template" ]; then
-    cp -r "./template" "${DIST_DIR}/"template
-    echo "复制模板目录"
-else
-    echo "警告: 未找到 template 目录，跳过复制模板文件。"
-fi
 
 # 创建 CMake 配置文件
 echo "创建 CMake 配置文件..."

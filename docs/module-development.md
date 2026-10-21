@@ -8,28 +8,28 @@
 
 没有纯虚函数。但要处理请求，至少要实现这一个：
 
-| 方法 | 做什么 |
-|------|--------|
+| 方法              | 做什么                                                     |
+|-------------------|------------------------------------------------------------|
 | `onServerReady()` | 注册 servlet/handler/EventBus。不注册 = 模块不处理任何请求 |
 
 ### 强烈建议
 
-| 方法 | 不实现的后果 |
-|------|-------------|
+| 方法         | 不实现的后果                                                   |
+|--------------|----------------------------------------------------------------|
 | `onUnload()` | 关闭时 EventBus listener 悬空（segfault 风险）、脏数据不 flush |
-| `onLoad()` | 大部分模块需要初始化内部状态，默认只返回 true |
+| `onLoad()`   | 大部分模块需要初始化内部状态，默认只返回 true                  |
 
 ### 按需继承
 
-| 方法 | 什么时候需要 |
-|------|-------------|
+| 方法                               | 什么时候需要                              |
+|------------------------------------|-------------------------------------------|
 | `onTick()` + `getTickIntervalMs()` | 定时任务（定时发布文章、定期 flush 缓存） |
-| `onDeactivate()` | 热重载时有定时器要停、脏数据要 flush |
-| `onServerUp()` | 需要感知 server 开始 accept 的时刻 |
-| `onConnect(stream)` | 基于 Rock 协议的连接就绪回调 |
-| `onDisconnect(stream)` | 基于 Rock 协议的连接断开回调 |
-| `onBeforeArgsParse(argc, argv)` | 需要在参数解析前介入命令行参数 |
-| `onAfterArgsParse(argc, argv)` | 需要在参数解析后介入命令行参数 |
+| `onDeactivate()`                   | 热重载时有定时器要停、脏数据要 flush      |
+| `onServerUp()`                     | 需要感知 server 开始 accept 的时刻        |
+| `onConnect(stream)`                | 基于 Rock 协议的连接就绪回调              |
+| `onDisconnect(stream)`             | 基于 Rock 协议的连接断开回调              |
+| `onBeforeArgsParse(argc, argv)`    | 需要在参数解析前介入命令行参数            |
+| `onAfterArgsParse(argc, argv)`     | 需要在参数解析后介入命令行参数            |
 
 ---
 
@@ -202,7 +202,7 @@ WorkerMgr 只是额外创建另一组 IOManager 池，和 io/accept 互不干扰
 
 ### 在同一个池里调度：`IOManager::GetThis()->schedule(cb)`
 
-任务加入**当前线程所属的** IOManager 池，和其他 HTTP/WS 请求的协程在同一个 N:M 池里跑。
+任务加入 **当前线程所属的** IOManager 池，和其他 HTTP/WS 请求的协程在同一个 N:M 池里跑。
 
 ```cpp
 // 在 servlet 里，属于 io pool
@@ -216,7 +216,7 @@ chen::IOManager::GetThis()->schedule([data]() {
 
 ### 在另一个池里调度：`WorkerMgr::getAsIOManager("name")->schedule(cb)`
 
-任务加入**另一个独立**的 IOManager 池，和 io/accept 的协程互不争抢线程。
+任务加入 **另一个独立**的 IOManager 池，和 io/accept 的协程互不争抢线程。
 
 ```cpp
 auto worker = chen::WorkerMgr::GetInstance()->getAsIOManager("process");
@@ -231,21 +231,21 @@ if (worker) {
 
 ### 对比
 
-| | 同一个池 | 另一个池 |
-|---|---|---|
-| API | `IOManager::GetThis()->schedule(cb)` | `WorkerMgr::getAsIOManager("name")->schedule(cb)` |
-| 在哪跑 | 当前线程所属的 N:M 协程池 | 独立的 N:M 协程池 |
-| 和谁共享线程 | HTTP/WS handler 的协程 | 只有你投进去的协程 |
-| 典型场景 | webhook、日志、DB 写入 | 图片处理、AI 推理 |
+|              | 同一个池                             | 另一个池                                          |
+|--------------|--------------------------------------|---------------------------------------------------|
+| API          | `IOManager::GetThis()->schedule(cb)` | `WorkerMgr::getAsIOManager("name")->schedule(cb)` |
+| 在哪跑       | 当前线程所属的 N:M 协程池            | 独立的 N:M 协程池                                 |
+| 和谁共享线程 | HTTP/WS handler 的协程               | 只有你投进去的协程                                |
+| 典型场景     | webhook、日志、DB 写入               | 图片处理、AI 推理                                 |
 
 ### 选哪个？
 
-| 场景 | 用什么 |
-|------|--------|
-| 发 webhook、写日志、更新计数 | 同一个池 |
-| 等数据库返回、调外部 API | 同一个池（IO 密集，hook 自动 yield） |
-| 图片压缩、AI 推理、批量计算 | 另一个池（CPU 密集，需要隔离） |
-| 定时任务 | 框架的 `onTick()` |
+| 场景                         | 用什么                               |
+|------------------------------|--------------------------------------|
+| 发 webhook、写日志、更新计数 | 同一个池                             |
+| 等数据库返回、调外部 API     | 同一个池（IO 密集，hook 自动 yield） |
+| 图片压缩、AI 推理、批量计算  | 另一个池（CPU 密集，需要隔离）       |
+| 定时任务                     | 框架的 `onTick()`                    |
 
 ### 批量并发等待：WorkerGroup
 
@@ -267,12 +267,12 @@ group->waitAll();  // 阻塞直到 100 个任务全部完成
 
 **对比三种调度方式：**
 
-| | schedule(cb) | WorkerGroup | WorkerMgr |
-|---|---|---|---|
-| 用途 | 单个异步任务 | 批量任务，等全部完成 | 隔离到另一个池 |
-| 等待完成 | 自行协调 | `waitAll()` 阻塞等待 | 自行协调 |
-| 并发控制 | 无 | batch_size 信号量 | 池的线程数 |
-| 典型场景 | webhook、日志 | 批量查询、并发爬取 | CPU 密集隔离 |
+|          | schedule(cb)  | WorkerGroup          | WorkerMgr      |
+|----------|---------------|----------------------|----------------|
+| 用途     | 单个异步任务  | 批量任务，等全部完成 | 隔离到另一个池 |
+| 等待完成 | 自行协调      | `waitAll()` 阻塞等待 | 自行协调       |
+| 并发控制 | 无            | batch_size 信号量    | 池的线程数     |
+| 典型场景 | webhook、日志 | 批量查询、并发爬取   | CPU 密集隔离   |
 
 ### 注意事项
 
