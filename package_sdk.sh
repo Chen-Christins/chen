@@ -218,12 +218,10 @@ find_library(SQLITE3 sqlite3 REQUIRED)
 find_library(EVENT event REQUIRED)
 find_library(HIREDIS_VIP hiredis_vip REQUIRED)
 find_library(MySQLClient mysqlclient REQUIRED)
-find_library(YAML_CPP yaml-cpp REQUIRED)
 find_library(Protobuf_LIBRARIES protobuf REQUIRED)
 find_library(nghttp2 nghttp2 REQUIRED)
 
 find_package(OpenSSL REQUIRED)
-# find_package(yaml-cpp REQUIRED)
 find_package(Protobuf REQUIRED)
 find_package(Boost REQUIRED COMPONENTS context)
 
@@ -232,8 +230,6 @@ set(CHEN_SDK_DEP_LIBS
     ${JSONCPP}
     ${TINYXML2}
     ${SQLITE3}
-    # ${YAML_CPP_LIBRARIES}
-    /usr/local/lib/libyaml-cpp.so
     ${OPENSSL_LIBRARIES}
     ${EVENT}
     ${HIREDIS_VIP}
@@ -268,16 +264,9 @@ set(CHEN_SDK_DEP_LIBS ${CHEN_SDK_DEP_LIBS} PARENT_SCOPE)
 
 EOF
 
-# 创建使用说明
+# 创建使用说明（模板见 docs/sdk-readme.md，@VERSION@ 会被替换成实际版本号）
 echo "创建使用说明..."
-cat > "${DIST_DIR}/README.md" << 'EOF'
-# Chen SDK
-
-这是一个打包的 Chen 框架 SDK。
-
-## 目录结构
-
-EOF
+sed "s|@VERSION@|${VERSION}|g" docs/sdk-readme.md > "${DIST_DIR}/README.md"
 
 # 打包压缩
 echo "创建压缩包..."
