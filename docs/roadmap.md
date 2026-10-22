@@ -42,6 +42,8 @@ v1.6.0 已发布（2026-10-18），交付内容是 Metrics 采集能力和 maste
 
 ## v1.7.0 — HTTPS 与 HTTP 完整化
 
+> 实施计划：[`docs/v1.7.0-plan.md`](v1.7.0-plan.md)
+
 ### TLS / HTTPS
 
 - 修复客户端证书校验缺失：`SSL_connect` 增加 verify、SNI
@@ -134,5 +136,7 @@ v2.0.0 计划补齐下面这些能力；如果短期不做，则明确走「外�
 - v1.6.0 聚焦 Metrics 与 master/worker 热重载、优雅 draining；TLS/HTTPS 放到 v1.7.0。
 - 部署形态为 master + 单个 active worker；Metrics 无需跨进程聚合。
 - `docs/v1.6.0-plan.md` 为规划稿，其中异步日志、Admin/Health、访问日志未纳入 v1.6.0；实际交付以 CHANGELOG 为准。
+- v1.7.0 按 `docs/v1.7.0-plan.md` 全量交付；客户端 TLS 默认校验服务端证书与主机名，可用 `verify_peer: 0` 关闭；
+  HTTP 中间件采用 `ServletDispatch` 前置 Filter 链。
 - v1.x 的分布式形态为「多进程 + RPC Hub 中心转发」：Hub 单点、无服务发现、无弹性扩缩容，这些能力列入
   v2.0.0；短期可选择外部注册中心 + 外部负载均衡。
