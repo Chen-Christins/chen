@@ -10,13 +10,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 设置构建类型及编译选项
-if(NOT CMAKE_BUILD_TYPE)
+if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
-endif()
+endif ()
 
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(TEST ON)
-endif()
+endif ()
 
 set(CMAKE_C_FLAGS_DEBUG "-O0 -ggdb")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb")
@@ -25,24 +25,24 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 # AddressSanitizer 选项
 option(ENABLE_ASAN "Enable AddressSanitizer for memory error detection" OFF)
-if(ENABLE_ASAN)
+if (ENABLE_ASAN)
     set(ASAN_FLAGS "-fsanitize=address -fno-omit-frame-pointer -g")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${ASAN_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ASAN_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=address")
     message(STATUS "AddressSanitizer: ENABLED")
-endif()
+endif ()
 
 # 全局编译选项 - 对所有目标生效
 add_compile_options(
-    -rdynamic
-    -Wall
-    -fPIC
+        -rdynamic
+        -Wall
+        -fPIC
         -Wdeprecated-declarations
-    # -Werror
-    -Wnonnull
-    -Wno-unused-function
-    -Wno-builtin-macro-redefined
-    -Wno-use-after-free
+        # -Werror
+        -Wnonnull
+        -Wno-unused-function
+        -Wno-builtin-macro-redefined
+        -Wno-use-after-free
 )
