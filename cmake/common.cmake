@@ -39,11 +39,10 @@ add_compile_options(
     -rdynamic
     -Wall
     -fPIC
-    -Wno-deprecated
+        -Wdeprecated-declarations
     # -Werror
     -Wnonnull
     -Wno-unused-function
     -Wno-builtin-macro-redefined
-    -Wno-deprecated-declarations
     -Wno-use-after-free
 )

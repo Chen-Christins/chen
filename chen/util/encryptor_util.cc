@@ -1,22 +1,22 @@
 #include "encryptor_util.h"
 
+#include <array>
 #include <cstring>
 #include <endian.h>
 #include <fstream>
 #include <istream>
+#include <memory>
 #include <stdexcept>
 #include <vector>
 
 #include <crypt.h>
 
 #include <openssl/bio.h>
-#include <openssl/err.h>
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
-#include <openssl/md5.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
-#include <openssl/sha.h>
 
 namespace chen {
 
@@ -58,6 +58,33 @@ static std::string evp_digest(const void* data, size_t len, const EVP_MD* md)
     unsigned int digest_len = 0;
     EVP_DigestFinal_ex(ctx, digest, &digest_len);
     EVP_MD_CTX_free(ctx);
+    return std::string((const char*)digest, digest_len);
+}
+
+// ============================================================================
+// 通用 EVP 流式 digest 辅助函数
+// ============================================================================
+static std::string evp_digest_stream(std::istream& stream, const EVP_MD* md)
+{
+    std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> ctx(EVP_MD_CTX_new(), EVP_MD_CTX_free);
+    if (!ctx || EVP_DigestInit_ex(ctx.get(), md, nullptr) != 1) {
+        return "";
+    }
+
+    char buf[8192];
+    while (stream) {
+        stream.read(buf, sizeof(buf));
+        std::streamsize count = stream.gcount();
+        if (count > 0 && EVP_DigestUpdate(ctx.get(), buf, static_cast<size_t>(count)) != 1) {
+            return "";
+        }
+    }
+
+    unsigned char digest[EVP_MAX_MD_SIZE];
+    unsigned int digest_len = 0;
+    if (EVP_DigestFinal_ex(ctx.get(), digest, &digest_len) != 1) {
+        return "";
+    }
     return std::string((const char*)digest, digest_len);
 }
 
@@ -478,6 +505,16 @@ RSAKeyPairResult EncryptorUtil::GenerateRSAKeyPair(unsigned bits)
 // ============================================================================
 // SHA-1 — 兼容旧系统
 // ============================================================================
+std::string EncryptorUtil::SHA1Raw(const std::string& data)
+{
+    return SHA1Raw(data.c_str(), data.size());
+}
+
+std::string EncryptorUtil::SHA1Raw(const void* data, size_t len)
+{
+    return evp_digest(data, len, EVP_sha1());
+}
+
 std::string EncryptorUtil::SHA1(const std::string& data)
 {
     return SHA1(data.c_str(), data.size());
@@ -485,17 +522,23 @@ std::string EncryptorUtil::SHA1(const std::string& data)
 
 std::string EncryptorUtil::SHA1(const void* data, size_t len)
 {
-    SHA_CTX ctx;
-    SHA1_Init(&ctx);
-    SHA1_Update(&ctx, data, len);
-    unsigned char digest[SHA_DIGEST_LENGTH];
-    SHA1_Final(digest, &ctx);
-    return HexString(digest, SHA_DIGEST_LENGTH);
+    std::string raw = SHA1Raw(data, len);
+    return HexString(raw.c_str(), raw.size());
 }
 
 // ============================================================================
 // MD5
 // ============================================================================
+std::string EncryptorUtil::MD5Raw(const std::string& data)
+{
+    return MD5Raw(data.c_str(), data.size());
+}
+
+std::string EncryptorUtil::MD5Raw(const void* data, size_t len)
+{
+    return evp_digest(data, len, EVP_md5());
+}
+
 std::string EncryptorUtil::MD5(const std::string& data)
 {
     return MD5(data.c_str(), data.size());
@@ -503,26 +546,14 @@ std::string EncryptorUtil::MD5(const std::string& data)
 
 std::string EncryptorUtil::MD5(const void* data, size_t len)
 {
-    MD5_CTX ctx;
-    MD5_Init(&ctx);
-    MD5_Update(&ctx, data, len);
-    unsigned char digest[MD5_DIGEST_LENGTH];
-    MD5_Final(digest, &ctx);
-    return HexString(digest, MD5_DIGEST_LENGTH);
+    std::string raw = MD5Raw(data, len);
+    return HexString(raw.c_str(), raw.size());
 }
 
 std::string EncryptorUtil::MD5(std::istream& stream)
 {
-    MD5_CTX ctx;
-    MD5_Init(&ctx);
-    char buf[8192];
-    while (stream) {
-        stream.read(buf, sizeof(buf));
-        MD5_Update(&ctx, buf, static_cast<size_t>(stream.gcount()));
-    }
-    unsigned char digest[MD5_DIGEST_LENGTH];
-    MD5_Final(digest, &ctx);
-    return HexString(digest, MD5_DIGEST_LENGTH);
+    std::string raw = evp_digest_stream(stream, EVP_md5());
+    return HexString(raw.c_str(), raw.size());
 }
 
 std::string EncryptorUtil::MD5File(const std::string& path)
@@ -537,6 +568,16 @@ std::string EncryptorUtil::MD5File(const std::string& path)
 // ============================================================================
 // SHA-256
 // ============================================================================
+std::string EncryptorUtil::SHA256Raw(const std::string& data)
+{
+    return SHA256Raw(data.c_str(), data.size());
+}
+
+std::string EncryptorUtil::SHA256Raw(const void* data, size_t len)
+{
+    return evp_digest(data, len, EVP_sha256());
+}
+
 std::string EncryptorUtil::SHA256(const std::string& data)
 {
     return SHA256(data.c_str(), data.size());
@@ -544,7 +585,7 @@ std::string EncryptorUtil::SHA256(const std::string& data)
 
 std::string EncryptorUtil::SHA256(const void* data, size_t len)
 {
-    std::string raw = evp_digest(data, len, EVP_sha256());
+    std::string raw = SHA256Raw(data, len);
     return HexString(raw.c_str(), raw.size());
 }
 
@@ -554,26 +595,23 @@ std::string EncryptorUtil::SHA256File(const std::string& path)
     if (!ifs) {
         return "";
     }
-    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-    if (!ctx) {
-        return "";
-    }
-    EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr);
-    char buf[8192];
-    while (ifs) {
-        ifs.read(buf, sizeof(buf));
-        EVP_DigestUpdate(ctx, buf, static_cast<size_t>(ifs.gcount()));
-    }
-    unsigned char digest[EVP_MAX_MD_SIZE];
-    unsigned int digest_len = 0;
-    EVP_DigestFinal_ex(ctx, digest, &digest_len);
-    EVP_MD_CTX_free(ctx);
-    return HexString(digest, digest_len);
+    std::string raw = evp_digest_stream(ifs, EVP_sha256());
+    return HexString(raw.c_str(), raw.size());
 }
 
 // ============================================================================
 // SHA-512
 // ============================================================================
+std::string EncryptorUtil::SHA512Raw(const std::string& data)
+{
+    return SHA512Raw(data.c_str(), data.size());
+}
+
+std::string EncryptorUtil::SHA512Raw(const void* data, size_t len)
+{
+    return evp_digest(data, len, EVP_sha512());
+}
+
 std::string EncryptorUtil::SHA512(const std::string& data)
 {
     return SHA512(data.c_str(), data.size());
@@ -581,13 +619,23 @@ std::string EncryptorUtil::SHA512(const std::string& data)
 
 std::string EncryptorUtil::SHA512(const void* data, size_t len)
 {
-    std::string raw = evp_digest(data, len, EVP_sha512());
+    std::string raw = SHA512Raw(data, len);
     return HexString(raw.c_str(), raw.size());
 }
 
 // ============================================================================
 // SHA3-256
 // ============================================================================
+std::string EncryptorUtil::SHA3_256Raw(const std::string& data)
+{
+    return SHA3_256Raw(data.c_str(), data.size());
+}
+
+std::string EncryptorUtil::SHA3_256Raw(const void* data, size_t len)
+{
+    return evp_digest(data, len, EVP_sha3_256());
+}
+
 std::string EncryptorUtil::SHA3_256(const std::string& data)
 {
     return SHA3_256(data.c_str(), data.size());
@@ -595,13 +643,23 @@ std::string EncryptorUtil::SHA3_256(const std::string& data)
 
 std::string EncryptorUtil::SHA3_256(const void* data, size_t len)
 {
-    std::string raw = evp_digest(data, len, EVP_sha3_256());
+    std::string raw = SHA3_256Raw(data, len);
     return HexString(raw.c_str(), raw.size());
 }
 
 // ============================================================================
 // SHA3-512
 // ============================================================================
+std::string EncryptorUtil::SHA3_512Raw(const std::string& data)
+{
+    return SHA3_512Raw(data.c_str(), data.size());
+}
+
+std::string EncryptorUtil::SHA3_512Raw(const void* data, size_t len)
+{
+    return evp_digest(data, len, EVP_sha3_512());
+}
+
 std::string EncryptorUtil::SHA3_512(const std::string& data)
 {
     return SHA3_512(data.c_str(), data.size());
@@ -609,7 +667,7 @@ std::string EncryptorUtil::SHA3_512(const std::string& data)
 
 std::string EncryptorUtil::SHA3_512(const void* data, size_t len)
 {
-    std::string raw = evp_digest(data, len, EVP_sha3_512());
+    std::string raw = SHA3_512Raw(data, len);
     return HexString(raw.c_str(), raw.size());
 }
 
@@ -650,6 +708,46 @@ std::string EncryptorUtil::HMAC_SHA384(const std::string& data, const std::strin
 std::string EncryptorUtil::HMAC_SHA384(const void* data, size_t data_len, const void* key, size_t key_len)
 {
     return evp_hmac(data, data_len, key, key_len, EVP_sha384());
+}
+
+// ============================================================================
+// HMAC-SHA512 — 返回原始二进制数据
+// ============================================================================
+std::string EncryptorUtil::HMAC_SHA512(const std::string& data, const std::string& key)
+{
+    return HMAC_SHA512(data.c_str(), data.size(), key.c_str(), key.size());
+}
+
+std::string EncryptorUtil::HMAC_SHA512(const void* data, size_t data_len, const void* key, size_t key_len)
+{
+    return evp_hmac(data, data_len, key, key_len, EVP_sha512());
+}
+
+// ============================================================================
+// 安全工具
+// ============================================================================
+bool EncryptorUtil::SecureCompare(const std::string& a, const std::string& b)
+{
+    if (a.size() != b.size()) {
+        return false;
+    }
+    return CRYPTO_memcmp(a.data(), b.data(), a.size()) == 0;
+}
+
+std::string EncryptorUtil::PBKDF2_SHA256(const std::string& password, const std::string& salt, int iterations, size_t keyLen)
+{
+    if (iterations <= 0 || keyLen == 0) {
+        return "";
+    }
+
+    std::string key(keyLen, '\0');
+    int ret = PKCS5_PBKDF2_HMAC(
+        password.data(), static_cast<int>(password.size()), reinterpret_cast<const unsigned char*>(salt.data()), static_cast<int>(salt.size()),
+        iterations, EVP_sha256(), static_cast<int>(keyLen), reinterpret_cast<unsigned char*>(key.data()));
+    if (ret != 1) {
+        return "";
+    }
+    return key;
 }
 
 // ============================================================================
@@ -706,6 +804,8 @@ uint32_t EncryptorUtil::Murmur3_32(const void* data, uint32_t size, uint32_t see
         s = ROTL(s, 15);
         s *= seed2;
         h ^= s;
+    default:
+        break;
     };
 
     return fmix32(h ^ len);
@@ -749,6 +849,8 @@ uint32_t EncryptorUtil::Murmur3_32(const char* str, uint32_t seed)
         s = ROTL(s, 15);
         s *= seed2;
         h ^= s;
+    default:
+        break;
     };
 
     return fmix32(h ^ len);
@@ -801,24 +903,24 @@ static const uint64_t XXH_PRIME64_3 = 0x165667B19E3779F9ULL;
 static const uint64_t XXH_PRIME64_4 = 0x85EBCA77C2B2AE3DULL;
 static const uint64_t XXH_PRIME64_5 = 0x27D4EB2F165667C5ULL;
 
-static inline uint32_t XXH_rotl32(uint32_t x, int r)
+static uint32_t XXH_rotl32(uint32_t x, int r)
 {
     return (x << r) | (x >> (32 - r));
 }
 
-static inline uint64_t XXH_rotl64(uint64_t x, int r)
+static uint64_t XXH_rotl64(uint64_t x, int r)
 {
     return (x << r) | (x >> (64 - r));
 }
 
-static inline uint32_t XXH_readLE32(const void* ptr)
+static uint32_t XXH_readLE32(const void* ptr)
 {
     uint32_t val;
     memcpy(&val, ptr, sizeof(val));
     return val;
 }
 
-static inline uint64_t XXH_readLE64(const void* ptr)
+static uint64_t XXH_readLE64(const void* ptr)
 {
     uint64_t val;
     memcpy(&val, ptr, sizeof(val));
@@ -971,6 +1073,41 @@ uint64_t EncryptorUtil::XXHash64(const void* data, size_t len, uint64_t seed)
 }
 
 // ============================================================================
+// CRC32 (IEEE 802.3, 多项式 0xEDB88320)
+// ============================================================================
+static const uint32_t* CRC32Table()
+{
+    static const auto table = [] {
+        std::array<uint32_t, 256> t{};
+        for (uint32_t i = 0; i < 256; ++i) {
+            uint32_t crc = i;
+            for (int j = 0; j < 8; ++j) {
+                crc = (crc & 1u) ? (crc >> 1) ^ 0xEDB88320u : (crc >> 1);
+            }
+            t[i] = crc;
+        }
+        return t;
+    }();
+    return table.data();
+}
+
+uint32_t EncryptorUtil::CRC32(const void* data, size_t len)
+{
+    uint32_t crc = 0xFFFFFFFFu;
+    const uint8_t* p = static_cast<const uint8_t*>(data);
+    const uint32_t* table = CRC32Table();
+    for (size_t i = 0; i < len; ++i) {
+        crc = table[(crc ^ p[i]) & 0xFFu] ^ (crc >> 8);
+    }
+    return crc ^ 0xFFFFFFFFu;
+}
+
+uint32_t EncryptorUtil::CRC32(const std::string& data)
+{
+    return CRC32(data.data(), data.size());
+}
+
+// ============================================================================
 // bcrypt — 基于 Blowfish 的密码哈希
 // ============================================================================
 
@@ -1092,7 +1229,7 @@ static uint8_t bcrypt_b64_decode_char(char c)
     return 0;
 }
 
-static inline uint32_t BF_F(uint32_t x, const uint32_t S[4][256])
+static uint32_t BF_F(uint32_t x, const uint32_t S[4][256])
 {
     return ((S[0][(x >> 24) & 0xFF] + S[1][(x >> 16) & 0xFF]) ^ S[2][(x >> 8) & 0xFF]) + S[3][x & 0xFF];
 }

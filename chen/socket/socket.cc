@@ -527,9 +527,8 @@ namespace {
 struct _SSLInit {
     _SSLInit()
     {
-        SSL_library_init();
-        SSL_load_error_strings();
-        OpenSSL_add_ssl_algorithms();
+        // OpenSSL 1.1+ 使用统一的初始化入口，旧的 SSL_library_init / SSL_load_error_strings 已废弃
+        OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS | OPENSSL_INIT_LOAD_CRYPTO_STRINGS, nullptr);
     }
 };
 
@@ -590,7 +589,7 @@ bool SSLSocket::connect(const Address::ptr addr, uint64_t timeout_ms)
 {
     bool v = Socket::connect(addr, timeout_ms);
     if (v) {
-        m_ctx.reset(SSL_CTX_new(SSLv23_client_method()), SSL_CTX_free);
+        m_ctx.reset(SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
         m_ssl.reset(SSL_new(m_ctx.get()), SSL_free);
         SSL_set_fd(m_ssl.get(), m_sock);
         v = (SSL_connect(m_ssl.get()) == 1);
@@ -696,7 +695,7 @@ int SSLSocket::recvFrom(iovec* buffers, size_t length, Address::ptr from, int fl
 // 证书加载
 bool SSLSocket::loadCertificates(const std::string& cert_file, const std::string& key_file)
 {
-    m_ctx.reset(SSL_CTX_new(SSLv23_server_method()), SSL_CTX_free);
+    m_ctx.reset(SSL_CTX_new(TLS_server_method()), SSL_CTX_free);
     if (SSL_CTX_use_certificate_chain_file(m_ctx.get(), cert_file.c_str()) != 1) {
         ERROR(logger) << "SSL_CTX_use_certificate_chain_file(" << cert_file << ") error";
         return false;

@@ -5,6 +5,7 @@
  * @date 2026-06-30
  */
 #include "chen/util/encryptor_util.h"
+#include "chen/util/string_util.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -607,6 +608,54 @@ void test_sha1_deterministic()
     std::cout << "PASS" << std::endl;
 }
 
+void test_sha1_raw()
+{
+    std::cout << "=== test_sha1_raw ===" << std::endl;
+
+    std::string raw = EncryptorUtil::SHA1Raw("hello");
+    assert(raw.size() == 20);
+    assert(StringUtil::HexEncode(raw, false) == "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d");
+
+    // string 版本与指针版本一致
+    const char* data = "hello";
+    assert(EncryptorUtil::SHA1Raw(data, strlen(data)) == raw);
+
+    // Raw 转 hex 后与 SHA1 完全一致
+    assert(StringUtil::HexEncode(EncryptorUtil::SHA1Raw("world"), false) == EncryptorUtil::SHA1("world"));
+
+    std::cout << "  SHA1Raw(\"hello\") hex = " << StringUtil::HexEncode(raw, false) << std::endl;
+    std::cout << "PASS" << std::endl;
+}
+
+void test_hash_raw_variants()
+{
+    std::cout << "=== test_hash_raw_variants ===" << std::endl;
+
+    const std::string data = "hello";
+
+    assert(EncryptorUtil::MD5Raw(data).size() == 16);
+    assert(EncryptorUtil::SHA1Raw(data).size() == 20);
+    assert(EncryptorUtil::SHA256Raw(data).size() == 32);
+    assert(EncryptorUtil::SHA512Raw(data).size() == 64);
+    assert(EncryptorUtil::SHA3_256Raw(data).size() == 32);
+    assert(EncryptorUtil::SHA3_512Raw(data).size() == 64);
+
+    // Raw 转 hex 后必须与 hex 版本完全一致
+    assert(StringUtil::HexEncode(EncryptorUtil::MD5Raw(data), false) == EncryptorUtil::MD5(data));
+    assert(StringUtil::HexEncode(EncryptorUtil::SHA1Raw(data), false) == EncryptorUtil::SHA1(data));
+    assert(StringUtil::HexEncode(EncryptorUtil::SHA256Raw(data), false) == EncryptorUtil::SHA256(data));
+    assert(StringUtil::HexEncode(EncryptorUtil::SHA512Raw(data), false) == EncryptorUtil::SHA512(data));
+    assert(StringUtil::HexEncode(EncryptorUtil::SHA3_256Raw(data), false) == EncryptorUtil::SHA3_256(data));
+    assert(StringUtil::HexEncode(EncryptorUtil::SHA3_512Raw(data), false) == EncryptorUtil::SHA3_512(data));
+
+    // 二进制数据版本与 string 版本一致
+    const uint8_t bin[] = {0x00, 0x01, 0x02, 0xFF};
+    assert(EncryptorUtil::MD5Raw(bin, sizeof(bin)) == EncryptorUtil::MD5Raw(std::string(reinterpret_cast<const char*>(bin), sizeof(bin))));
+
+    std::cout << "  all raw digest lengths and hex equivalence OK" << std::endl;
+    std::cout << "PASS" << std::endl;
+}
+
 void test_sha256_deterministic()
 {
     std::cout << "=== test_sha256_deterministic ===" << std::endl;
@@ -755,6 +804,31 @@ void test_hmac_sha384_deterministic()
     std::cout << "PASS" << std::endl;
 }
 
+void test_hmac_sha512_deterministic()
+{
+    std::cout << "=== test_hmac_sha512_deterministic ===" << std::endl;
+
+    // RFC 4231 Test Case 1
+    std::string key(20, '\x0b');
+    std::string data = "Hi There";
+    std::string expected = "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cde"
+                           "daa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854";
+
+    std::string h1 = EncryptorUtil::HMAC_SHA512(data, key);
+    assert(h1.size() == 64);
+    assert(StringUtil::HexEncode(h1, false) == expected);
+
+    // 指针版本与 string 版本一致
+    assert(EncryptorUtil::HMAC_SHA512(data.data(), data.size(), key.data(), key.size()) == h1);
+
+    // 不同 key / data 产生不同结果
+    assert(h1 != EncryptorUtil::HMAC_SHA512(data, "different-key"));
+    assert(h1 != EncryptorUtil::HMAC_SHA512("different-message", key));
+
+    std::cout << "  HMAC-SHA512 deterministic, size=" << h1.size() << std::endl;
+    std::cout << "PASS" << std::endl;
+}
+
 void test_hmac_raw_data()
 {
     std::cout << "=== test_hmac_raw_data ===" << std::endl;
@@ -771,6 +845,57 @@ void test_hmac_raw_data()
     assert(h3 == h4);
 
     std::cout << "  raw data variants match string variants" << std::endl;
+    std::cout << "PASS" << std::endl;
+}
+
+// ========== 安全工具测试 ==========
+
+void test_secure_compare()
+{
+    std::cout << "=== test_secure_compare ===" << std::endl;
+
+    assert(EncryptorUtil::SecureCompare("abc", "abc"));
+    assert(EncryptorUtil::SecureCompare("", ""));
+    assert(!EncryptorUtil::SecureCompare("abc", "abd"));
+    assert(!EncryptorUtil::SecureCompare("abc", "ab"));
+    assert(!EncryptorUtil::SecureCompare("", "a"));
+    assert(!EncryptorUtil::SecureCompare("a", ""));
+
+    // 对二进制内容（含 \0）也要正确比较
+    std::string bin1("a\0b", 3);
+    std::string bin2("a\0c", 3);
+    assert(EncryptorUtil::SecureCompare(bin1, std::string("a\0b", 3)));
+    assert(!EncryptorUtil::SecureCompare(bin1, bin2));
+
+    std::cout << "  secure compare OK" << std::endl;
+    std::cout << "PASS" << std::endl;
+}
+
+void test_pbkdf2_sha256()
+{
+    std::cout << "=== test_pbkdf2_sha256 ===" << std::endl;
+
+    // RFC 7914: P="passwd", S="salt", c=1, dkLen=64
+    std::string key = EncryptorUtil::PBKDF2_SHA256("passwd", "salt", 1, 64);
+    assert(key.size() == 64);
+    assert(
+        StringUtil::HexEncode(key, false)
+        == "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc"
+           "49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783");
+
+    // 确定性 + 默认参数长度
+    assert(EncryptorUtil::PBKDF2_SHA256("passwd", "salt", 1, 64) == key);
+    assert(EncryptorUtil::PBKDF2_SHA256("password", "salt").size() == 32);
+
+    // 不同 salt / 迭代次数结果不同
+    assert(EncryptorUtil::PBKDF2_SHA256("passwd", "salt2", 1, 32) != EncryptorUtil::PBKDF2_SHA256("passwd", "salt", 1, 32));
+    assert(EncryptorUtil::PBKDF2_SHA256("passwd", "salt", 2, 32) != EncryptorUtil::PBKDF2_SHA256("passwd", "salt", 1, 32));
+
+    // 非法参数返回空串
+    assert(EncryptorUtil::PBKDF2_SHA256("p", "s", 0, 16).empty());
+    assert(EncryptorUtil::PBKDF2_SHA256("p", "s", 1, 0).empty());
+
+    std::cout << "  PBKDF2-SHA256 matches RFC 7914 vector" << std::endl;
     std::cout << "PASS" << std::endl;
 }
 
@@ -850,6 +975,30 @@ void test_xxhash_deterministic()
 
     std::cout << "  XXHash32(\"" << str << "\") = " << h32_1 << std::endl;
     std::cout << "  XXHash64(\"" << str << "\") = " << h64_1 << std::endl;
+    std::cout << "PASS" << std::endl;
+}
+
+void test_crc32()
+{
+    std::cout << "=== test_crc32 ===" << std::endl;
+
+    // 标准校验值
+    assert(EncryptorUtil::CRC32("123456789") == 0xCBF43926u);
+    assert(EncryptorUtil::CRC32("123456789", 9) == 0xCBF43926u);
+
+    // 空数据
+    assert(EncryptorUtil::CRC32(std::string()) == 0);
+    assert(EncryptorUtil::CRC32("", 0) == 0);
+
+    // 确定性 + 不同输入不同结果
+    assert(EncryptorUtil::CRC32("hello") == EncryptorUtil::CRC32(std::string("hello")));
+    assert(EncryptorUtil::CRC32("hello") != EncryptorUtil::CRC32("world"));
+
+    // 二进制数据
+    const uint8_t bin[] = {0x00, 0xFF, 0x10, 0x20};
+    assert(EncryptorUtil::CRC32(bin, sizeof(bin)) == EncryptorUtil::CRC32(std::string(reinterpret_cast<const char*>(bin), sizeof(bin))));
+
+    std::cout << "  CRC32(\"123456789\") = 0x" << std::hex << EncryptorUtil::CRC32("123456789") << std::dec << std::endl;
     std::cout << "PASS" << std::endl;
 }
 
@@ -1003,9 +1152,11 @@ int main()
     // 摘要/Hash 确定性
     test_md5_deterministic();
     test_sha1_deterministic();
+    test_sha1_raw();
     test_sha256_deterministic();
     test_sha512_deterministic();
     test_sha3_deterministic();
+    test_hash_raw_variants();
     test_hash_raw_data();
     test_hash_different_inputs_different_outputs();
 
@@ -1014,7 +1165,14 @@ int main()
     // HMAC 确定性
     test_hmac_sha256_deterministic();
     test_hmac_sha384_deterministic();
+    test_hmac_sha512_deterministic();
     test_hmac_raw_data();
+
+    std::cout << std::endl;
+
+    // 安全工具
+    test_secure_compare();
+    test_pbkdf2_sha256();
 
     std::cout << std::endl;
 
@@ -1022,6 +1180,7 @@ int main()
     test_murmur3_deterministic();
     test_quickhash_deterministic();
     test_xxhash_deterministic();
+    test_crc32();
 
     std::cout << std::endl;
 

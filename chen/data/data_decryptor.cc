@@ -22,31 +22,21 @@ DataDecryptor::DataDecryptor(EncryptionType type, const std::string& password)
     : m_type(type)
     , m_password(password)
 {
-    // 初始化OpenSSL
-    OpenSSL_add_all_algorithms();
-    ERR_load_crypto_strings();
+    // OpenSSL 1.1+ 会自动完成全局初始化，无需手动调用 OpenSSL_add_all_algorithms 等旧接口
 }
 
-DataDecryptor::~DataDecryptor()
-{
-    // 清理OpenSSL
-    EVP_cleanup();
-    ERR_free_strings();
-}
+DataDecryptor::~DataDecryptor() = default;
 
 std::vector<uint8_t> DataDecryptor::deriveKey(const std::string& password, const std::vector<uint8_t>& salt, size_t key_length, int iterations)
 {
-    std::vector<uint8_t> key(key_length);
+    std::string derived = EncryptorUtil::PBKDF2_SHA256(password, std::string(salt.begin(), salt.end()), iterations, key_length);
 
-    // 使用PKCS5_PBKDF2_HMAC进行密钥派生
-    int ret = PKCS5_PBKDF2_HMAC(password.c_str(), password.length(), salt.data(), salt.size(), iterations, EVP_sha256(), key_length, key.data());
-
-    if (!ret) {
+    if (derived.size() != key_length) {
         handleOpenSSLError("PBKDF2 key derivation failed");
         throw std::runtime_error("Failed to derive key");
     }
 
-    return key;
+    return std::vector<uint8_t>(derived.begin(), derived.end());
 }
 
 std::vector<uint8_t> DataDecryptor::decryptAES128GCM(const std::vector<uint8_t>& ciphertext, const std::vector<uint8_t>& key)
