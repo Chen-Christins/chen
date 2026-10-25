@@ -100,6 +100,10 @@ IOManager::~IOManager()
 
 int IOManager::addEvent(int fd, Event event, std::function<void()> cb)
 {
+    if (fd < 0) {
+        return -1;
+    }
+
     FdContext* fd_ctx = nullptr;
     // 加读锁
     std::shared_lock lock(m_mutex);
@@ -186,7 +190,8 @@ int IOManager::addEvent(int fd, Event event, std::function<void()> cb)
 bool IOManager::delEvent(int fd, Event event)
 {
     std::shared_lock lock(m_mutex);
-    if (fd >= (int)m_fdContexts.size()) {
+    // fd 为负（socket 已关闭）时必须拒绝，否则 m_fdContexts[-1] 越界
+    if (fd < 0 || fd >= (int)m_fdContexts.size()) {
         return false;
     }
     // 拿到fd对应的context
@@ -238,7 +243,8 @@ bool IOManager::delEvent(int fd, Event event)
 bool IOManager::cancelEvent(int fd, Event event)
 {
     std::shared_lock lock(m_mutex);
-    if (fd >= (int)m_fdContexts.size()) {
+    // fd 为负（socket 已关闭）时必须拒绝，否则 m_fdContexts[-1] 越界
+    if (fd < 0 || fd >= (int)m_fdContexts.size()) {
         return false;
     }
     // 拿到fd对应的context
@@ -284,7 +290,8 @@ bool IOManager::cancelEvent(int fd, Event event)
 bool IOManager::cancelAll(int fd)
 {
     std::shared_lock lock(m_mutex);
-    if (fd >= (int)m_fdContexts.size()) {
+    // fd 为负（socket 已关闭）时必须拒绝，否则 m_fdContexts[-1] 越界
+    if (fd < 0 || fd >= (int)m_fdContexts.size()) {
         return false;
     }
     // 拿到fd对应的context

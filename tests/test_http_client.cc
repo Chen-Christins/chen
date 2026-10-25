@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "chen/config/config.h"
 #include "chen/http/http_client.h"
 #include "chen/http/http_server.h"
 #include "chen/iomanager/iomanager.h"
@@ -20,7 +21,31 @@
 
 static chen::Logger::ptr logger = LOG_ROOT();
 static std::atomic<int> g_failed{0};
-static chen::http::HttpServer::ptr g_server;
+
+/**
+ * @brief 统计 accept 次数的 HttpServer（keep-alive 模式下用于验证连接复用）
+ */
+class CountingHttpServer : public chen::http::HttpServer {
+public:
+    CountingHttpServer()
+        : HttpServer(true)
+    {
+    }
+
+    /// 已接受的连接数
+    std::atomic<int> connections{0};
+
+protected:
+    void handleClient(chen::Socket::ptr client) override
+    {
+        ++connections;
+        chen::http::HttpServer::handleClient(std::move(client));
+    }
+};
+
+typedef std::shared_ptr<CountingHttpServer> CountingHttpServerPtr;
+
+static CountingHttpServerPtr g_server;
 
 #define CHECK(cond)                                                                \
     do {                                                                           \
@@ -38,14 +63,14 @@ static std::string base_url(uint16_t port)
 /**
  * @brief 在 18087~18100 中找一个可用端口启动测试服务
  */
-static chen::http::HttpServer::ptr start_server(uint16_t& port)
+static CountingHttpServerPtr start_server(uint16_t& port)
 {
     for (uint16_t p = 18087; p < 18100; ++p) {
         chen::Address::ptr addr = chen::Address::LookupAnyIPAddress("127.0.0.1:" + std::to_string(p));
         if (!addr) {
             continue;
         }
-        chen::http::HttpServer::ptr server(new chen::http::HttpServer);
+        CountingHttpServerPtr server(new CountingHttpServer);
         if (!server->bind(addr)) {
             WARN(logger) << "bind 127.0.0.1:" << p << " failed, try next port";
             continue;
@@ -157,12 +182,67 @@ void test_concurrent(uint16_t port)
     CHECK(elapsed < 1000);
 }
 
-void run_tests(uint16_t port)
+/**
+ * @brief 连接池复用：3 次顺序请求应只建立 1 条 TCP 连接
+ */
+void test_pool_reuse(CountingHttpServerPtr server, uint16_t port)
+{
+    INFO(logger) << "=== test_pool_reuse ===";
+    chen::http::HttpClient::clearPools();
+
+    const int before = server->connections.load();
+    const int n = 3;
+    int ok = 0;
+    for (int i = 0; i < n; ++i) {
+        chen::http::HttpResult::ptr result = chen::http::HttpClient::post(base_url(port) + "/echo", 3000, {}, "ping").get();
+        if (result && result->result == 0 && result->response && result->response->getBody() == "ping") {
+            ++ok;
+        }
+    }
+
+    const int used = server->connections.load() - before;
+    INFO(logger) << "pool reuse: requests=" << n << " ok=" << ok << " connections=" << used;
+    CHECK(ok == n);
+    CHECK(used == 1);
+}
+
+/**
+ * @brief 关闭连接池：每次请求都新建连接
+ */
+void test_pool_disabled(CountingHttpServerPtr server, uint16_t port)
+{
+    INFO(logger) << "=== test_pool_disabled ===";
+    auto poolEnable = chen::Config::Lookup<bool>("http.client.pool_enable", true, "HttpClient 是否复用连接池");
+    poolEnable->setValue(false);
+    chen::http::HttpClient::clearPools();
+
+    const int before = server->connections.load();
+    const int n = 3;
+    int ok = 0;
+    for (int i = 0; i < n; ++i) {
+        chen::http::HttpResult::ptr result = chen::http::HttpClient::post(base_url(port) + "/echo", 3000, {}, "ping").get();
+        if (result && result->result == 0 && result->response && result->response->getBody() == "ping") {
+            ++ok;
+        }
+    }
+
+    poolEnable->setValue(true);
+    chen::http::HttpClient::clearPools();
+
+    const int used = server->connections.load() - before;
+    INFO(logger) << "pool disabled: requests=" << n << " ok=" << ok << " connections=" << used;
+    CHECK(ok == n);
+    CHECK(used == n);
+}
+
+void run_tests(CountingHttpServerPtr server, uint16_t port)
 {
     test_post_echo(port);
     test_callback(port);
     test_connection_fail();
     test_concurrent(port);
+    test_pool_reuse(server, port);
+    test_pool_disabled(server, port);
 }
 
 int main(int argc, char** argv)
@@ -183,7 +263,7 @@ int main(int argc, char** argv)
         }
         INFO(logger) << "http server listening on 127.0.0.1:" << port;
 
-        run_tests(port);
+        run_tests(g_server, port);
 
         g_server->stop();
         g_server.reset();

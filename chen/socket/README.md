@@ -51,6 +51,23 @@ client->setRecvTimeout(5000);  // 5s 接收超时
 | `close()`                 | 关闭 Socket                             |
 | `cancelAll()`             | 取消该 fd 在 IOManager 上注册的所有事件 |
 
+> `cancel*` 在 fd 无效（`isValid() == false`）或当前线程没有 `IOManager` 时返回 `false`，不会阻塞或崩溃；
+> 负 fd 在 `IOManager` 侧也会被直接拒绝。
+
+## SSLSocket（TLS 客户端）
+
+```cpp
+SSLSocket::ptr sock = SSLSocket::CreateTCP(addr);   // addr 用域名解析出的 IP
+sock->setServerName("api.example.com");             // SNI + 证书主机名校验
+sock->setVerifyPeer(true);                          // 默认就是 true，自签名服务可关
+sock->connect(addr);
+```
+
+- 校验默认 **开启**：`SSL_CTX_set_default_verify_paths()` 加载系统 CA（可用 `SSL_CERT_FILE` / `SSL_CERT_DIR` 覆盖），
+  `SSL_set1_host()` 校验主机名；失败时日志会打印 `certificate verify failed: ...`
+- 没设置 `setServerName` 时只能校验证书链、无法校验主机名（会打 WARN），客户端建议始终设置
+- 握手与 `SSL_read/SSL_write` 的 `WANT_READ/WANT_WRITE` 都在 IOManager 上等待，协程挂起而不占线程，30s 超时
+
 ## SocketStream
 
 提供面向流的读写接口：

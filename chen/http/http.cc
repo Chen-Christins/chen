@@ -329,6 +329,18 @@ HttpResponse::HttpResponse(uint8_t version, bool close)
 {
 }
 
+void HttpResponse::init()
+{
+    std::string conn = getHeader("connection");
+    if (!conn.empty()) {
+        if (strcasecmp(conn.c_str(), "keep-alive") == 0) {
+            m_close = false;
+        } else {
+            m_close = true;
+        }
+    }
+}
+
 std::string HttpResponse::getHeader(const std::string& key, std::string def) const
 {
     auto it = m_headers.find(key);

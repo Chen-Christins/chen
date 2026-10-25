@@ -129,11 +129,11 @@ void Scheduler::stop()
     m_autoStop = true;
     // 使用use_caller，并且只有一个线程，而且主协程的状态为结束或者初始化
     if (m_rootFiber && m_threadCount == 0 && (m_rootFiber->getState() == Fiber::TERM || m_rootFiber->getState() == Fiber::INIT)) {
-        INFO(logger) << this << " scheduler stopped";
         m_stopping = true;
 
         // 如果达到停止条件直接停止
         if (stopping()) {
+            INFO(logger) << this << " scheduler stopped";
             return;
         }
     }

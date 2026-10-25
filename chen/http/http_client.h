@@ -27,7 +27,9 @@ namespace chen::http {
  *            提交后立即返回，不阻塞当前线程
  *          - 需要结果时用 Future 形式，get() 只挂起当前协程
  * @note DNS 解析（getaddrinfo）本身不在 hook 范围内，域名请求会在
- *       调度线程上短暂阻塞；高频场景建议使用 IP 或结合连接池。
+ *       调度线程上短暂阻塞。
+ * @note 默认按 `scheme://host:port` 复用连接，配置项见 `http.client.*`
+ *       （pool_enable / pool_size / max_alive_time / max_request）。
  */
 class HttpClient {
 public:
@@ -138,6 +140,13 @@ public:
         const std::map<std::string, std::string>& headers = {},
         const std::string& body = "",
         Scheduler* scheduler = nullptr);
+
+    /**
+     * @brief 清空所有缓存的连接池
+     * @attention 只能在没有在途请求时调用（在途连接的归还回调持有池指针）
+     * @details `http.client.*` 配置在连接池创建时读取，改配置后可调用本方法让下次请求重建
+     */
+    static void clearPools();
 };
 
 } // namespace chen::http

@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 #include "chen/iomanager/iomanager.h"
 #include "chen/log/log.h"
 #include "chen/rpc/rpc_client.h"
@@ -48,7 +50,13 @@ void run()
     chen::rpc::RpcClient::ptr client(new chen::rpc::RpcClient(false));
     // client->setHeartbeatInterval(1000); // 1s heartbeat
 
-    if (!client->connect(addr)) {
+    // 服务端可能还没 bind 完：重试几次（sleep 在 fiber 里由 hook 让出，不占线程）
+    bool connected = client->connect(addr);
+    for (int i = 0; !connected && i < 30; ++i) {
+        sleep(1);
+        connected = client->connect(addr);
+    }
+    if (!connected) {
         ERROR(logger) << "connect " << *addr << " fail";
         return;
     }
@@ -257,6 +265,7 @@ void run()
 
 int main(int argc, char** argv)
 {
+    logger->setLevel(chen::LogLevel::TRACE);
     chen::IOManager iom(1);
     iom.schedule(run);
     return 0;

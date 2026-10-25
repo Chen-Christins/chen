@@ -72,8 +72,26 @@ chen::http::HttpClient::submit(chen::http::HttpMethod::GET, url, 3000,
 - `submit()` 返回 `false` 表示当前线程没有可用调度器（`IOManager` → `Scheduler` 都取不到），任务未提交，调用方可降级为同步发送
 - `request()`/`get()` 等在无调度器时返回一个已完成、值为 `nullptr` 的 `Future`
 - 并发能力来自 fiber + hook：同一线程上多个请求会各自挂起，不会互相阻塞
-- **DNS 解析（`getaddrinfo`）不在 hook 范围内**，域名请求会在调度线程上短暂阻塞，高频场景建议用 IP 或加连接池
+- **DNS 解析（`getaddrinfo`）不在 hook 范围内**，域名请求会在调度线程上短暂阻塞
 - 便捷方法：`get/post/put/patch/del/head/options`，另有通用 `request(method, ...)`
+
+### 连接复用（连接池）
+
+`HttpClient` 默认按 `scheme://host:port` 复用连接，省掉每次请求的 TCP/TLS 握手：
+
+| 配置项                       | 默认值 | 说明                     |
+|------------------------------|--------|--------------------------|
+| `http.client.pool_enable`    | true   | 是否复用连接池           |
+| `http.client.pool_size`      | 8      | 每个 host 的空闲连接上限 |
+| `http.client.max_alive_time` | 30000  | 连接最长存活毫秒数       |
+| `http.client.max_request`    | 100    | 单条连接最大复用次数     |
+| `http.client.ssl_verify`     | true   | https 是否校验服务端证书 |
+
+- 复用连接时请求发送 `Connection: keep-alive`；服务端返回 `Connection: close` 时该连接不回池
+- 池中连接可能已被对端关闭（TCP 半关闭对 `isConnected()` 不可见），遇到 `SEND_CLOSE_BY_PEER` / `SEND_SOCKET_ERROR`
+  会自动换新连接重试一次
+- https 连接会带 SNI，并用 URL 里的 host 校验证书链与主机名（`http.client.ssl_verify` 可关闭，自签名服务用）
+- 想禁用复用可把 `http.client.pool_enable` 设为 false；改配置后调用 `HttpClient::clearPools()` 让下次请求重建连接池（需无在途请求）
 
 ## HTTP/2
 

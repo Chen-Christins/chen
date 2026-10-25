@@ -29,7 +29,20 @@ SmtpClient::ptr SmtpClient::Create(const std::string& host, uint32_t port, bool 
     }
     addr->setPort(port);
     Socket::ptr sock;
-    sock = ssl ? SSLSocket::CreateTCP(addr) : Socket::CreateTCP(addr);
+    if (ssl) {
+        SSLSocket::ptr sslSock = SSLSocket::CreateTCP(addr);
+        if (sslSock) {
+            // SNI + 证书主机名校验都要用域名，而不是解析后的 IP
+            sslSock->setServerName(host);
+        }
+        sock = sslSock;
+    } else {
+        sock = Socket::CreateTCP(addr);
+    }
+    if (!sock) {
+        ERROR(logger) << "create smtp socket fail: " << host << ":" << port << " ssl=" << ssl;
+        return nullptr;
+    }
     if (!sock->connect(addr)) {
         ERROR(logger) << "connect smtp server: " << host << ":" << port << " ssl=" << ssl << " fail";
         return nullptr;

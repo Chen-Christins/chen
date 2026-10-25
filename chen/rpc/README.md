@@ -121,6 +121,11 @@ auto f2 = client->callFuture<std::string>("echo", "hi future");
 
 // ... 中间可以做别的事 ...
 
+// waitFor(): 带超时等待就绪，false 表示超时（状态不变，之后仍可 get）
+if (!f2.waitFor(500)) {
+    WARN(logger) << "echo timeout";
+}
+
 // get(): 返回 RpcResult<R>，不抛异常
 auto r2 = f2.get();
 if (r2.ok()) {
@@ -131,10 +136,10 @@ if (r2.ok()) {
 int sum = f1.getValue();
 ```
 
-- `ready()` 可非阻塞查询结果是否就绪；`get()` 可多次调用（返回缓存结果）。
+- `ready()` 可非阻塞查询结果是否就绪；`waitFor(ms)` 带超时等待；`get()` 可多次调用（返回缓存结果）。
 - future 接口与异步一一对应：`callFuture` / `callFutureWithTimeout` /
   `callRoutedFuture` / `callRoutedFutureWithTimeout`，首参同样支持方法名或 CmdID 两种重载。
-- `get()`/`getValue()` 必须在 fiber/调度器上下文调用（与同步 `call` 相同）。
+- 等待逻辑复用 `chen/util/future.h` 的 `Promise/Future`：fiber 内挂起协程，普通线程内阻塞线程。
 - 超时/断连/业务错误统一通过 `RpcResult` 表达，`getValue()` 在失败时抛异常。
 
 ## 传输协议

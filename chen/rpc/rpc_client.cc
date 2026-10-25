@@ -105,7 +105,9 @@ void RpcClient::close()
     // 先取消 socket 上的 pending 事件（特别是 recvLoop 在等的事件）
     // 确保 recvLoop fiber 被唤醒，否则它会永远卡在 epoll 里
     if (m_sock) {
-        m_sock->cancelAll();
+        if (m_sock->isValid()) {
+            m_sock->cancelAll();
+        }
         m_sock = nullptr;
     }
     if (m_session) {
