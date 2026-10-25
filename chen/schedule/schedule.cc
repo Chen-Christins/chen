@@ -183,6 +183,12 @@ bool Scheduler::stopping()
     return m_autoStop && m_stopping && m_fibers.empty() && m_activeThreadCount == 0;
 }
 
+bool Scheduler::isStopping()
+{
+    std::lock_guard lock(m_mutex);
+    return m_stopping;
+}
+
 // 新创建的线程直接在run上面启动
 void Scheduler::run()
 {

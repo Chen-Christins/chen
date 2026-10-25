@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### 稳定性修复
+
+- **修复** `IOManager::idle()` 的 `epoll_wait` 保底超时（3000ms）在进程停止期间仍生效，导致 `stop()` 最多多等 3 秒才能 join
+  工作线程；现在停止期间（`Scheduler::isStopping()`）把轮询间隔压到 10ms
+- **新增** `Scheduler::isStopping()`：判断是否已调用过 `stop()`，不等价于 `stopping()` 的完整停止条件
+
+### 异步等待（新增）
+
+- **新增** `chen/util/future.h`：`Promise`/`Future` 异步结果句柄，fiber 内挂起当前协程（不占线程）、普通线程内退化为
+  `std::condition_variable` 阻塞；支持 `waitFor` 超时、异常传递、多等待者、`void` 特化
+- **新增** `chen/http/http_client.h`：`HttpClient::submit/request` 及 `get/post/put/patch/del/head/options` 便捷方法，把
+  `HttpConnection::DoRequest` 提交到调度器执行；无可用调度器时 `submit` 返回 `false`、Future 形式返回已完成空值
+- **新增** `chen::ResolveScheduler(preferred)`：统一解析可用调度器（`IOManager` → `Scheduler`）
+- **新增** `Fiber::CanYield()` 与 `Fiber::isMain()`：判断当前上下文能否安全让出执行权（线程主协程、调度器 root 协程不可
+  Yield）
+- **新增** `tests/test_future.cc`、`tests/test_http_client.cc`
+
 ## v1.6.0 (2026-10-18)
 
 ### 指标系统（新增）

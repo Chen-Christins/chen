@@ -40,12 +40,13 @@ Atomic::addFetch(val, 1);                                   // 线程安全自�
 
 ## 模块清单
 
-| 文件            | 用途                                                                        | 注意                                                            |
-|-----------------|-----------------------------------------------------------------------------|-----------------------------------------------------------------|
-| `util.h`        | 聚合头文件 + 线程/fiber ID + 堆栈回溯 + `Atomic`（`__sync_*` 旧版原子操作） | `Atomic` 使用 GCC `__sync_*` 而非 `std::atomic`，始终全序一致性 |
-| `noncopyable.h` | 不可拷贝基类                                                                | 析构函数是 `virtual` 的，会引入 vtable 开销                     |
-| `macro.h`       | `ASSERT`/`ASSERT_MSG` 断言 + `LIKELY`/`UNLIKELY` 分支预测                   | 拼写故意写错以避免宏名冲突                                      |
-| `endian.h`      | 字节序转换（`byteswap`、`byteswapOnLittleEndian`）                          | `byteswapOnLittleEndian` 在小端机上转成大端（网络字节序）       |
+| 文件            | 用途                                                                        | 注意                                                                 |
+|-----------------|-----------------------------------------------------------------------------|----------------------------------------------------------------------|
+| `util.h`        | 聚合头文件 + 线程/fiber ID + 堆栈回溯 + `Atomic`（`__sync_*` 旧版原子操作） | `Atomic` 使用 GCC `__sync_*` 而非 `std::atomic`，始终全序一致性      |
+| `noncopyable.h` | 不可拷贝基类                                                                | 析构函数是 `virtual` 的，会引入 vtable 开销                          |
+| `macro.h`       | `ASSERT`/`ASSERT_MSG` 断言 + `LIKELY`/`UNLIKELY` 分支预测                   | 拼写故意写错以避免宏名冲突                                           |
+| `endian.h`      | 字节序转换（`byteswap`、`byteswapOnLittleEndian`）                          | `byteswapOnLittleEndian` 在小端机上转成大端（网络字节序）            |
+| `future.h`      | `Promise`/`Future` 异步结果句柄，fiber 内挂起等待、线程内阻塞等待           | 依赖 `IOManager` 的定时器实现 `waitFor`，裸 `Scheduler` 下降级为阻塞 |
 
 ### 加密 / 哈希
 
@@ -83,6 +84,34 @@ Atomic::addFetch(val, 1);                                   // 线程安全自�
 | `mutex.h`         | 互斥锁封装                        | 从 `chen/mutex.h` 移入，框架基础设施         |
 | `singleton.h`     | 单例模板                          | 从 `chen/singleton.h` 移入                   |
 | `env.h`           | 命令行参数解析、环境变量          | 从 `chen/env.h` 移入                         |
+
+## 异步等待（Future）
+
+```cpp
+#include "chen/util/future.h"
+
+// 生产端：Promise 可拷贝，副本共享同一状态
+chen::Promise<chen::http::HttpResult::ptr> promise;
+chen::Future<chen::http::HttpResult::ptr> future = promise.getFuture();
+
+// 消费端：在 fiber 里挂起当前协程（不占线程），在普通线程里阻塞线程
+chen::http::HttpResult::ptr result = future.get();
+
+// 带超时：返回 false 表示超时，状态不变，后续仍可 get()
+if (!future.waitFor(3000)) {
+    // 超时处理
+}
+
+// 异常传递
+promise.setException(std::make_exception_ptr(std::runtime_error("boom")));
+```
+
+语义要点：
+
+- `Future`/`Promise` 可跨 fiber、跨线程传递，同一个状态可被多个等待者同时等待
+- `setValue` 只生效一次，重复完成会被忽略并打 WARN
+- `T` 需要可拷贝（`get()` 返回副本），`void` 有专门特化
+- 在调度器主协程或普通线程里 `get()` 会退化为条件变量阻塞，不要在单线程 `IOManager` 的主协程里等一个需要本线程推进的结果
 
 ## 常见坑
 

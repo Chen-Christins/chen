@@ -35,6 +35,7 @@ using StackAllocator = MallocStackAllocator;
 Fiber::Fiber()
 {
     m_state = EXEC;
+    m_isMain = true;
     SetThis(this);
     ++g_fiber_count;
     DEBUG(logger) << "Fiber::Fiber main";
@@ -249,6 +250,27 @@ uint64_t Fiber::GetFiberId()
         return t_fiber->getId();
     }
     return 0;
+}
+
+bool Fiber::CanYield()
+{
+    // 不在调度器线程里，没有可切换的目标
+    if (!Scheduler::GetThis()) {
+        return false;
+    }
+    Fiber* cur = t_fiber;
+    if (!cur) {
+        return false;
+    }
+    // 线程主协程：m_caller 为空，Yield 出去就回不来了
+    if (cur->m_isMain) {
+        return false;
+    }
+    // 调度器 root 协程（use_caller 时执行 run 循环的协程）同样不能 Yield
+    if (cur == Scheduler::GetMainFiber()) {
+        return false;
+    }
+    return true;
 }
 
 void Fiber::CleanupThread()

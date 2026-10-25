@@ -43,6 +43,38 @@ auto msg = conn->recvMessage();
 - Servlet 分发：路径匹配 → Handler 回调
 - 支持静态文件服务、Range 请求
 
+## 异步请求（HttpClient）
+
+`HttpClient` 把同步的 `HttpConnection::DoRequest` 提交到调度器执行，配合 hook 实现"写入即异步"：
+
+```cpp
+#include "chen/http/http_client.h"
+
+// 1) 只关心发出去、失败打日志（fire-and-forget）
+chen::http::HttpClient::submit(
+    chen::http::HttpMethod::POST, url, /*timeout_ms=*/3000, /*cb=*/nullptr,
+    {{"Content-Type", "application/json"}}, payload);
+
+// 2) 需要结果：提交后立刻返回，之后在 fiber 里 get() 只挂起协程
+auto future = chen::http::HttpClient::post(url, 3000, {{"Content-Type", "application/json"}}, payload);
+// ... 中间可以做别的事
+chen::http::HttpResult::ptr result = future.get();
+
+// 3) 回调形式
+chen::http::HttpClient::submit(chen::http::HttpMethod::GET, url, 3000,
+    [](chen::http::HttpResult::ptr r) {
+        if (!r || r->result != 0) { /* 失败处理 */ }
+    });
+```
+
+要点：
+
+- `submit()` 返回 `false` 表示当前线程没有可用调度器（`IOManager` → `Scheduler` 都取不到），任务未提交，调用方可降级为同步发送
+- `request()`/`get()` 等在无调度器时返回一个已完成、值为 `nullptr` 的 `Future`
+- 并发能力来自 fiber + hook：同一线程上多个请求会各自挂起，不会互相阻塞
+- **DNS 解析（`getaddrinfo`）不在 hook 范围内**，域名请求会在调度线程上短暂阻塞，高频场景建议用 IP 或加连接池
+- 便捷方法：`get/post/put/patch/del/head/options`，另有通用 `request(method, ...)`
+
 ## HTTP/2
 
 - 基于 nghttp2 库，`H2Session` 管理连接级别状态
