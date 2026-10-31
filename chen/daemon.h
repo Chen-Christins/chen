@@ -7,9 +7,7 @@
  */
 #pragma once
 
-#include <ctime>
 #include <functional>
-#include <unistd.h>
 
 #include "util/singleton.h"
 
