@@ -9,15 +9,12 @@
 
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
-#include "../fiber/fiber.h"
-#include "../schedule/schedule.h"
+#include "../util/future.h"
 
 namespace chen::rpc {
 
@@ -80,57 +77,45 @@ using RpcCallback = std::function<void(RpcResult<R>)>;
  * @brief Future 共享状态：保存结果并唤醒等待的协程
  * @tparam R 返回值类型
  * @details 由 RpcClient 的完成回调写入，由 RpcFuture::get() 读取。
- *          支持多个协程同时等待同一结果。
+ *          等待逻辑复用 chen::Promise/Future：fiber 内挂起协程，普通线程内阻塞线程。
  */
 template <typename R>
 struct RpcFutureState {
     typedef std::shared_ptr<RpcFutureState> ptr;
 
+    RpcFutureState()
+        : m_future(m_promise.getFuture())
+    {
+    }
+
     /**
      * @brief 填充结果并唤醒所有等待的协程（由完成回调调用）
      * @param result 调用结果
      */
-    void complete(RpcResult<R> result)
-    {
-        std::lock_guard lock(m_mutex);
-        m_result = std::move(result);
-        m_ready = true;
-        for (auto& waiter : m_waiters) {
-            waiter.first->schedule(waiter.second);
-        }
-        m_waiters.clear();
-    }
+    void complete(RpcResult<R> result) { m_promise.setValue(std::move(result)); }
 
     /**
      * @brief 非阻塞查询结果是否就绪
      */
-    bool ready() const
-    {
-        std::lock_guard lock(m_mutex);
-        return m_ready;
-    }
+    bool ready() const { return m_future.ready(); }
 
     /**
      * @brief 等待结果（挂起当前协程，不阻塞线程）
      * @return RpcResult<R> 调用结果
-     * @details 必须在 fiber/调度器上下文调用；结果就绪时立即返回，可多次调用。
      */
-    RpcResult<R> get()
-    {
-        std::unique_lock lock(m_mutex);
-        if (!m_ready) {
-            m_waiters.emplace_back(Scheduler::GetThis(), Fiber::GetThis());
-            lock.unlock();
-            Fiber::YieldToHold();
-            lock.lock();
-        }
-        return m_result;
-    }
+    RpcResult<R> get() const { return m_future.get(); }
 
-    mutable std::mutex m_mutex;                               ///< 保护状态与等待队列
-    bool m_ready = false;                                     ///< 结果是否就绪
-    RpcResult<R> m_result;                                    ///< 调用结果
-    std::vector<std::pair<Scheduler*, Fiber::ptr>> m_waiters; ///< 等待中的协程
+    /**
+     * @brief 等待结果，带超时
+     * @param timeout_ms 超时毫秒数
+     * @return bool true 已就绪 | false 超时（状态不变，后续仍可 get）
+     */
+    bool waitFor(uint64_t timeout_ms) const { return m_future.waitFor(timeout_ms); }
+
+    /// 结果生产端
+    Promise<RpcResult<R>> m_promise;
+    /// 结果消费端
+    Future<RpcResult<R>> m_future;
 };
 
 /**
@@ -141,7 +126,7 @@ struct RpcFutureState {
  * 用法：
  * - 通过 RpcClient::callFuture() 系列接口获得；
  * - get() 返回 RpcResult<R>（不抛异常）；getValue() 成功返回 value、失败抛异常；
- * - ready() 可非阻塞查询是否完成。
+ * - ready() 可非阻塞查询是否完成；waitFor() 可带超时等待。
  */
 template <typename R>
 class RpcFuture {
@@ -160,7 +145,14 @@ public:
     /**
      * @brief 等待并返回调用结果（挂起当前协程）
      */
-    RpcResult<R> get() { return m_state->get(); }
+    RpcResult<R> get() const { return m_state->get(); }
+
+    /**
+     * @brief 等待结果就绪，带超时
+     * @param timeout_ms 超时毫秒数
+     * @return bool true 已就绪 | false 超时（状态不变，后续仍可 get）
+     */
+    bool waitFor(uint64_t timeout_ms) const { return m_state->waitFor(timeout_ms); }
 
     /**
      * @brief 非阻塞查询结果是否就绪
@@ -172,7 +164,7 @@ public:
      * @return R 业务返回值（R=void 时无返回）
      * @throw std::runtime_error 传输层失败或服务端返回非 0 错误码
      */
-    R getValue()
+    R getValue() const
     {
         RpcResult<R> result = m_state->get();
         if (!result.ok()) {

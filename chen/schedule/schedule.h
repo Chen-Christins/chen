@@ -127,6 +127,12 @@ protected:
     virtual bool stopping();
 
     /**
+     * @brief 是否已经调用过 stop()（不等价于 stopping() 的完整条件）
+     * @details 供空闲循环判断"正在停止"，据此缩短 epoll 轮询间隔，避免睡满保底超时拖慢退出
+     */
+    bool isStopping();
+
+    /**
      * @brief 设置当前线程局部变量的调度器
      */
     void setThis();

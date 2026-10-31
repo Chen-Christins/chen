@@ -157,6 +157,21 @@ public:
     static uint64_t GetFiberId();
 
     /**
+     * @brief 当前上下文是否可以让出执行权
+     * @details 只有调度器真正派发的任务协程才能 Yield：
+     *          1. 没有调度器（普通线程）返回 false
+     *          2. 线程主协程（原生栈）返回 false
+     *          3. 调度器 root 协程（run 循环所在协程）返回 false
+     * @return bool true 表示可以安全调用 YieldToHold/YieldToReady
+     */
+    static bool CanYield();
+
+    /**
+     * @brief 是否为主协程（线程原生栈，不能 Yield）
+     */
+    bool isMain() const { return m_isMain; }
+
+    /**
      * @brief 清理当前线程的协程资源
      * @details 在 worker 线程退出前调用，重置 t_fiber 和 t_threadFiber，
      *          确保线程的主协程被正确释放，避免 ASan 报 indirect leak。
@@ -178,6 +193,8 @@ private:
     void* m_stack = nullptr;
     /// 协程运行函数
     std::function<void()> m_task;
+    /// 是否为主协程（线程原生栈）
+    bool m_isMain = false;
 };
 
 } // namespace chen

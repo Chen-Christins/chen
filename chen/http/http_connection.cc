@@ -2,13 +2,33 @@
 
 #include <sstream>
 
+#include "../config/config.h"
 #include "../log/log.h"
 #include "../streams/zlib_stream.h"
+#include "../util/time_util.h"
 #include "http_parser.h"
 
 namespace chen::http {
 
 static Logger::ptr logger = LOG_NAME("system");
+
+/// https 客户端是否校验服务端证书（证书链 + 主机名）
+static ConfigVar<bool>::ptr g_clientSslVerify = Config::Lookup<bool>("http.client.ssl_verify", true, "https 客户端是否校验服务端证书（含主机名）");
+
+namespace {
+
+/**
+ * @brief 解析完成的响应做一次收尾（补全 connection 状态）
+ */
+HttpResponse::ptr finishResponse(HttpResponse::ptr rsp)
+{
+    if (rsp) {
+        rsp->init();
+    }
+    return rsp;
+}
+
+} // namespace
 
 HttpResult::HttpResult(int _result, HttpResponse::ptr _response, const std::string& _error)
     : result(_result)
@@ -179,11 +199,24 @@ HttpResult::ptr HttpConnection::DoRequest(
     const std::map<std::string, std::string>& headers,
     const std::string& body)
 {
+    HttpRequest::ptr req = BuildRequest(method, uri, headers, body, true);
+    return DoRequest(req, uri, timeout_ms);
+}
+
+HttpRequest::ptr HttpConnection::BuildRequest(
+    HttpMethod method,
+    Uri::ptr uri,
+    const std::map<std::string, std::string>& headers,
+    const std::string& body,
+    bool close)
+{
     HttpRequest::ptr req = std::make_shared<HttpRequest>();
     req->setPath(uri->getPath());
     req->setQuery(uri->getQuery());
     req->setFragment(uri->getFragment());
     req->setMethod(method);
+    req->setClose(close);
+
     bool has_host = false;
     for (auto& i : headers) {
         if (strcasecmp(i.first.c_str(), "connection") == 0) {
@@ -203,7 +236,7 @@ HttpResult::ptr HttpConnection::DoRequest(
         req->setHeader("Host", uri->getHost());
     }
     req->setBody(body);
-    return DoRequest(req, uri, timeout_ms);
+    return req;
 }
 
 HttpResult::ptr HttpConnection::DoRequest(HttpRequest::ptr req, Uri::ptr uri, uint64_t timeout_ms)
@@ -214,7 +247,13 @@ HttpResult::ptr HttpConnection::DoRequest(HttpRequest::ptr req, Uri::ptr uri, ui
     }
     Socket::ptr sock;
     if (uri->getScheme() == "https") {
-        sock = SSLSocket::CreateTCP(addr);
+        SSLSocket::ptr sslSock = SSLSocket::CreateTCP(addr);
+        if (sslSock) {
+            // 虚拟主机 / CDN 需要 SNI，同时用 host 校验服务端证书
+            sslSock->setServerName(uri->getHost());
+            sslSock->setVerifyPeer(g_clientSslVerify->getValue());
+        }
+        sock = sslSock;
     } else {
         sock = Socket::CreateTCP(addr);
     }
@@ -303,7 +342,13 @@ HttpResult::ptr HttpConnection::DoRequestStreaming(HttpRequest::ptr req, Uri::pt
     }
     Socket::ptr sock;
     if (uri->getScheme() == "https") {
-        sock = SSLSocket::CreateTCP(addr);
+        SSLSocket::ptr sslSock = SSLSocket::CreateTCP(addr);
+        if (sslSock) {
+            // 虚拟主机 / CDN 需要 SNI，同时用 host 校验服务端证书
+            sslSock->setServerName(uri->getHost());
+            sslSock->setVerifyPeer(g_clientSslVerify->getValue());
+        }
+        sock = sslSock;
     } else {
         sock = Socket::CreateTCP(addr);
     }
@@ -337,6 +382,7 @@ HttpResult::ptr HttpConnection::DoRequestStreaming(HttpRequest::ptr req, Uri::pt
 HttpConnection::HttpConnection(Socket::ptr sock, bool owner)
     : SocketStream(sock, owner)
 {
+    m_createTime = TimeUtil::GetCurrentMs();
 }
 
 HttpConnection::~HttpConnection()
@@ -464,7 +510,7 @@ HttpResponse::ptr HttpConnection::recvResponse()
         }
         parser->getData()->setBody(body);
     }
-    return parser->getData();
+    return finishResponse(parser->getData());
 }
 
 HttpResponse::ptr HttpConnection::recvResponseStreaming(HttpStreamCallback callback)
@@ -543,7 +589,7 @@ HttpResponse::ptr HttpConnection::recvResponseStreaming(HttpStreamCallback callb
             int data_from_buf = std::min(use_from_buf, chunk_data_len);
             if (data_from_buf > 0 && callback) {
                 if (!callback(data, data_from_buf)) {
-                    return parser->getData();
+                    return finishResponse(parser->getData());
                 }
             }
             chunk_data_len -= data_from_buf;
@@ -567,7 +613,7 @@ HttpResponse::ptr HttpConnection::recvResponseStreaming(HttpStreamCallback callb
                 int data_bytes = std::min(rt, chunk_data_len);
                 if (data_bytes > 0 && callback) {
                     if (!callback(data, data_bytes)) {
-                        return parser->getData();
+                        return finishResponse(parser->getData());
                     }
                 }
                 chunk_data_len -= data_bytes;
@@ -580,12 +626,12 @@ HttpResponse::ptr HttpConnection::recvResponseStreaming(HttpStreamCallback callb
             if (length >= offset) {
                 if (offset > 0 && callback) {
                     if (!callback(data, offset)) {
-                        return parser->getData();
+                        return finishResponse(parser->getData());
                     }
                 }
             } else {
                 if (callback && !callback(data, length)) {
-                    return parser->getData();
+                    return finishResponse(parser->getData());
                 }
             }
             length -= offset;
@@ -598,7 +644,7 @@ HttpResponse::ptr HttpConnection::recvResponseStreaming(HttpStreamCallback callb
                         return nullptr;
                     }
                     if (callback && !callback(data, rt)) {
-                        return parser->getData();
+                        return finishResponse(parser->getData());
                     }
                     length -= rt;
                 }
@@ -606,7 +652,7 @@ HttpResponse::ptr HttpConnection::recvResponseStreaming(HttpStreamCallback callb
         }
     }
 
-    return parser->getData();
+    return finishResponse(parser->getData());
 }
 
 int HttpConnection::sendRequest(HttpRequest::ptr req)
@@ -623,14 +669,26 @@ HttpConnectionPool::HttpConnectionPool(
     int32_t port,
     uint32_t max_size,
     uint32_t max_alive_time,
-    uint32_t max_request)
+    uint32_t max_request,
+    bool ssl)
     : m_host(host)
     , m_vhost(vhost)
     , m_port(port)
     , m_maxSize(max_size)
     , m_maxAliveTime(max_alive_time)
     , m_maxRequest(max_request)
+    , m_ssl(ssl)
 {
+}
+
+HttpConnectionPool::~HttpConnectionPool()
+{
+    std::lock_guard lock(m_mutex);
+    for (auto conn : m_conns) {
+        delete conn;
+    }
+    m_conns.clear();
+    m_total = 0;
 }
 
 HttpConnection::ptr HttpConnectionPool::getConnection()
@@ -646,7 +704,7 @@ HttpConnection::ptr HttpConnectionPool::getConnection()
             invalid_conns.push_back(conn);
             continue;
         }
-        if ((conn->m_createTime + m_maxAliveTime) > now_ms) {
+        if ((conn->m_createTime + m_maxAliveTime) <= now_ms) {
             invalid_conns.push_back(conn);
             continue;
         }
@@ -666,7 +724,18 @@ HttpConnection::ptr HttpConnectionPool::getConnection()
             return nullptr;
         }
         addr->setPort(m_port);
-        Socket::ptr sock = Socket::CreateTCP(addr);
+        Socket::ptr sock;
+        if (m_ssl) {
+            SSLSocket::ptr sslSock = SSLSocket::CreateTCP(addr);
+            if (sslSock) {
+                // 虚拟主机需要 SNI，同时用 host 校验服务端证书
+                sslSock->setServerName(m_vhost.empty() ? m_host : m_vhost);
+                sslSock->setVerifyPeer(g_clientSslVerify->getValue());
+            }
+            sock = sslSock;
+        } else {
+            sock = Socket::CreateTCP(addr);
+        }
         if (!sock) {
             ERROR(logger) << "create sock fail: " << *addr;
             return nullptr;
@@ -900,18 +969,29 @@ HttpResult::ptr HttpConnectionPool::doRequest(HttpRequest::ptr req, uint64_t tim
             (int)HttpResult::Error::TIMEOUT, nullptr,
             "recv response timeout: " + sock->getRemoteAddress()->toString() + " timeout_ms:" + std::to_string(timeout_ms));
     }
+    // 服务端要求关闭连接：直接关掉，避免把半关闭的连接放回池里
+    if (rsp->isClose()) {
+        conn->close();
+    }
     return std::make_shared<HttpResult>((int)HttpResult::Error::OK, rsp, "ok");
 }
 
 void HttpConnectionPool::ReleasePtr(HttpConnection* ptr, HttpConnectionPool* pool)
 {
     ++ptr->m_request;
-    if (!ptr->isConnected() || ((ptr->m_createTime + pool->m_maxAliveTime) >= TimeUtil::GetCurrentMs()) || (ptr->m_request >= pool->m_maxRequest)) {
+    if (!ptr->isConnected() || ((ptr->m_createTime + pool->m_maxAliveTime) <= TimeUtil::GetCurrentMs()) || (ptr->m_request >= pool->m_maxRequest)) {
         delete ptr;
         --pool->m_total;
         return;
     }
     std::unique_lock lock(pool->m_mutex);
+    // 池已满，直接关闭多余连接
+    if (pool->m_conns.size() >= pool->m_maxSize) {
+        lock.unlock();
+        delete ptr;
+        --pool->m_total;
+        return;
+    }
     pool->m_conns.push_back(ptr);
 }
 

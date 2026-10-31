@@ -623,7 +623,7 @@ int MySQLStmt::bindTime(int idx, const time_t& value)
     // m_binds[idx].buffer = mt;
     // m_binds[idx].buffer_length = sizeof(MYSQL_TIME);
     // return 0;
-    return bindString(idx, TimeUtil::Time2Str(value));
+    return bindString(idx, TimeUtil::Time2StrSec(value));
 }
 
 int MySQLStmt::execute()

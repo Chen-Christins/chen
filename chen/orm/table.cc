@@ -304,7 +304,7 @@ std::string Table::genToStringSrc(const std::string& class_name)
         if ((*it)->getDType() == Column::TYPE_INT64 || (*it)->getDType() == Column::TYPE_UINT64) {
             ss << "std::to_string(" << GetAsMemberName((*it)->getName()) << ");" << std::endl;
         } else if ((*it)->getDType() == Column::TYPE_TIMESTAMP) {
-            ss << "chen::TimeUtil::Time2Str(" << GetAsMemberName((*it)->getName()) << ");" << std::endl;
+            ss << "chen::TimeUtil::Time2StrSec(" << GetAsMemberName((*it)->getName()) << ");" << std::endl;
         } else {
             ss << GetAsMemberName((*it)->getName()) << ";" << std::endl;
         }

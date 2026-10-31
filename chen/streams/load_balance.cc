@@ -146,7 +146,7 @@ std::string LoadBalance::statusString(const std::string& prefix)
     decltype(m_datas) datas = m_datas;
     lock.unlock();
     std::stringstream ss;
-    ss << prefix << "init_time: " << TimeUtil::Time2Str(m_lastInitTime / 1000) << std::endl;
+    ss << prefix << "init_time: " << TimeUtil::Time2StrMs(m_lastInitTime, "%Y-%m-%d %H:%M:%S") << std::endl;
     for (auto& i : datas) {
         ss << prefix << i.second->toString() << std::endl;
     }

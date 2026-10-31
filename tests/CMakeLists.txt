@@ -42,6 +42,8 @@ if (TEST)
     chen_add_executable(test_time_util "test_time_util.cc" "" "${LIBS}")
     chen_add_executable(test_encryptor_util "test_encryptor_util.cc" "" "${LIBS}")
     chen_add_executable(test_string_util "test_string_util.cc" "" "${LIBS}")
+    chen_add_executable(test_future "test_future.cc" "" "${LIBS}")
+    chen_add_executable(test_http_client "test_http_client.cc" "" "${LIBS}")
     chen_add_executable(test_log_size_rotate "test_log_size_rotate.cc" "" "${LIBS}")
 endif ()
 

@@ -1,8 +1,9 @@
 #include "data_reader.h"
 
 #include <fstream>
+#include <memory>
 
-#include <openssl/md5.h>
+#include <openssl/evp.h>
 
 namespace chen::data {
 
@@ -171,21 +172,24 @@ std::vector<uint8_t> DataReader::_decompressData(const uint8_t* data, size_t siz
 
 bool DataReader::_verifyChecksum(const uint8_t* data, size_t size, const uint8_t* expected_checksum)
 {
-    MD5_CTX ctx;
-    if (!MD5_Init(&ctx)) {
+    constexpr unsigned int kMd5DigestLength = 16;
+
+    std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> ctx(EVP_MD_CTX_new(), EVP_MD_CTX_free);
+    if (!ctx || EVP_DigestInit_ex(ctx.get(), EVP_md5(), nullptr) != 1) {
         return false;
     }
 
-    if (!MD5_Update(&ctx, data, size)) {
+    if (EVP_DigestUpdate(ctx.get(), data, size) != 1) {
         return false;
     }
 
-    unsigned char computed_checksum[MD5_DIGEST_LENGTH];
-    if (!MD5_Final(computed_checksum, &ctx)) {
+    unsigned char computed_checksum[EVP_MAX_MD_SIZE];
+    unsigned int computed_len = 0;
+    if (EVP_DigestFinal_ex(ctx.get(), computed_checksum, &computed_len) != 1) {
         return false;
     }
 
-    return memcmp(computed_checksum, expected_checksum, MD5_DIGEST_LENGTH) == 0;
+    return computed_len == kMd5DigestLength && memcmp(computed_checksum, expected_checksum, computed_len) == 0;
 }
 
 bool DataReader::_parseTableData(const uint8_t* data, size_t size)

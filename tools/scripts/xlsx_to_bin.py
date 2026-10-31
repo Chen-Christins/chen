@@ -17,6 +17,7 @@ from typing import Dict, List, Any, Tuple
 import zlib
 from encrypt import create_encryptor, EncryptionType
 
+
 class XlsxToBinConverter:
     """Xlsx到Bin的转换器"""
 
@@ -336,14 +337,15 @@ class XlsxToBinConverter:
         print(f"  -> 输出文件: {output_file}")
         print(f"  原始大小: {len(all_data)} 字节, 压缩后: {len(compressed_data)} 字节")
 
+
 def main():
     parser = argparse.ArgumentParser(description='Xlsx到加密Bin文件转换工具')
     parser.add_argument('input', nargs='+', help='输入的xlsx文件路径')
     parser.add_argument('-o', '--output', required=True, help='输出的bin文件路径')
     parser.add_argument('-v', '--verbose', action='store_true', help='显示详细信息')
     parser.add_argument('-e', '--encrypt', default='aes256_gcm',
-                       choices=['none', 'xor', 'aes256_gcm', 'chacha20_poly1305', 'custom'],
-                       help='加密方案 (默认: aes256_gcm)')
+                        choices=['none', 'xor', 'aes256_gcm', 'chacha20_poly1305', 'custom'],
+                        help='加密方案 (默认: aes256_gcm)')
     parser.add_argument('-p', '--password', help='加密密码 (默认使用默认密码)')
 
     args = parser.parse_args()
@@ -355,6 +357,7 @@ def main():
     except Exception as e:
         print(f"错误: {str(e)}")
         sys.exit(1)
+
 
 if __name__ == '__main__':
     main()

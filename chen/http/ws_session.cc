@@ -61,10 +61,9 @@ HttpRequest::ptr WSSession::handleShake()
             break;
         }
 
-        // SHA1 返回 hex 字符串（40 字符），需 HexDecode 为原始 20 字节再 Base64，
-        // 否则 Sec-WebSocket-Accept 算错，浏览器会立刻断开
+        // Sec-WebSocket-Accept 需要对原始 20 字节 SHA-1 摘要做 Base64
         std::string v = key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-        v = StringUtil::Base64Encode(StringUtil::HexDecode(EncryptorUtil::SHA1(v)));
+        v = StringUtil::Base64Encode(EncryptorUtil::SHA1Raw(v));
         req->setWebsocket(true);
 
         auto rsp = req->createResponse();

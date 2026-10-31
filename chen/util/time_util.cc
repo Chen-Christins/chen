@@ -78,10 +78,10 @@ int TimeUtil::GetTimezoneOffset()
     return static_cast<int>(local_tm.tm_gmtoff);
 }
 
-std::string TimeUtil::Time2Str(time_t ts, const std::string& format)
+std::string TimeUtil::Time2StrSec(time_t ts_sec, const std::string& format)
 {
     struct tm tm;
-    localtime_r(&ts, &tm);
+    localtime_r(&ts_sec, &tm);
     char buf[64];
     if (strftime(buf, sizeof(buf), format.c_str(), &tm) == 0) {
         buf[0] = '\0';
@@ -89,10 +89,10 @@ std::string TimeUtil::Time2Str(time_t ts, const std::string& format)
     return buf;
 }
 
-std::string TimeUtil::Time2Str(uint64_t ts, const std::string& format)
+std::string TimeUtil::Time2StrMs(uint64_t ts_ms, const std::string& format)
 {
-    time_t sec = static_cast<time_t>(ts / 1000);
-    uint64_t ms = ts % 1000;
+    time_t sec = static_cast<time_t>(ts_ms / 1000);
+    uint64_t ms = ts_ms % 1000;
     struct tm tm;
     localtime_r(&sec, &tm);
     char buf[64];
@@ -109,10 +109,10 @@ std::string TimeUtil::Time2Str(uint64_t ts, const std::string& format)
     return result;
 }
 
-std::string TimeUtil::Time2Str(time_t ts, const std::string& format, int tz_offset)
+std::string TimeUtil::Time2StrSec(time_t ts_sec, const std::string& format, int tz_offset)
 {
     struct tm tm;
-    gmtime_tz(&ts, &tm, tz_offset);
+    gmtime_tz(&ts_sec, &tm, tz_offset);
     char buf[64];
     if (strftime(buf, sizeof(buf), format.c_str(), &tm) == 0) {
         buf[0] = '\0';
@@ -120,10 +120,10 @@ std::string TimeUtil::Time2Str(time_t ts, const std::string& format, int tz_offs
     return buf;
 }
 
-std::string TimeUtil::Time2Str(uint64_t ts, const std::string& format, int tz_offset)
+std::string TimeUtil::Time2StrMs(uint64_t ts_ms, const std::string& format, int tz_offset)
 {
-    time_t sec = static_cast<time_t>(ts / 1000);
-    uint64_t ms = ts % 1000;
+    time_t sec = static_cast<time_t>(ts_ms / 1000);
+    uint64_t ms = ts_ms % 1000;
     struct tm tm;
     gmtime_tz(&sec, &tm, tz_offset);
     char buf[64];
@@ -351,58 +351,37 @@ time_t TimeUtil::Str2Time(const std::string& str)
     return 0;
 }
 
-std::string TimeUtil::GetRFC1123Time(time_t ts)
+std::string TimeUtil::GetRFC1123Time(time_t ts_sec)
 {
     struct tm tm;
-    gmtime_r(&ts, &tm);
+    gmtime_r(&ts_sec, &tm);
     char buf[64];
     // RFC 1123 format: "Thu, 01 Dec 2022 16:00:00 GMT"
     strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", &tm);
     return buf;
 }
 
-bool TimeUtil::IsZeroOfDay(uint64_t ts, uint64_t day_ms)
-{
-    return (ts % day_ms) < 1000;
-}
-
-bool TimeUtil::IsZeroOfWeek(uint64_t ts)
-{
-    time_t t = static_cast<time_t>(ts);
-    struct tm tm;
-    localtime_r(&t, &tm);
-    return tm.tm_wday == 1 && tm.tm_hour == 0 && tm.tm_min == 0 && tm.tm_sec < 1;
-}
-
-bool TimeUtil::IsZeroOfMonth(uint64_t ts)
-{
-    time_t t = static_cast<time_t>(ts);
-    struct tm tm;
-    localtime_r(&t, &tm);
-    return tm.tm_mday == 1 && tm.tm_hour == 0 && tm.tm_min == 0 && tm.tm_sec < 1;
-}
-
-bool TimeUtil::IsSameDay(time_t t1, time_t t2, int tz_offset)
+bool TimeUtil::IsSameDay(time_t t1_sec, time_t t2_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
     struct tm tm1, tm2;
-    gmtime_tz(&t1, &tm1, tz);
-    gmtime_tz(&t2, &tm2, tz);
+    gmtime_tz(&t1_sec, &tm1, tz);
+    gmtime_tz(&t2_sec, &tm2, tz);
     return tm1.tm_year == tm2.tm_year && tm1.tm_mon == tm2.tm_mon && tm1.tm_mday == tm2.tm_mday;
 }
 
-bool TimeUtil::IsSameWeek(time_t t1, time_t t2, int tz_offset)
+bool TimeUtil::IsSameWeek(time_t t1_sec, time_t t2_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
-    return GetWeekStart(t1, tz) == GetWeekStart(t2, tz);
+    return GetWeekStart(t1_sec, tz) == GetWeekStart(t2_sec, tz);
 }
 
-bool TimeUtil::IsSameMonth(time_t t1, time_t t2, int tz_offset)
+bool TimeUtil::IsSameMonth(time_t t1_sec, time_t t2_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
     struct tm tm1, tm2;
-    gmtime_tz(&t1, &tm1, tz);
-    gmtime_tz(&t2, &tm2, tz);
+    gmtime_tz(&t1_sec, &tm1, tz);
+    gmtime_tz(&t2_sec, &tm2, tz);
     return tm1.tm_year == tm2.tm_year && tm1.tm_mon == tm2.tm_mon;
 }
 
@@ -411,41 +390,41 @@ bool TimeUtil::IsLeapYear(int year)
     return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
 }
 
-bool TimeUtil::IsExpired(uint64_t start_ms, uint64_t ttl_ms)
+bool TimeUtil::IsExpiredMs(uint64_t start_ms, uint64_t ttl_ms)
 {
     return TimeUtil::GetCurrentMs() >= start_ms + ttl_ms;
 }
 
-time_t TimeUtil::GetDayStart(time_t ts, int tz_offset)
+time_t TimeUtil::GetDayStart(time_t ts_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
     struct tm tm;
-    gmtime_tz(&ts, &tm, tz);
+    gmtime_tz(&ts_sec, &tm, tz);
     tm.tm_hour = 0;
     tm.tm_min = 0;
     tm.tm_sec = 0;
     return timegm_tz(&tm, tz);
 }
 
-time_t TimeUtil::GetDayEnd(time_t ts, int tz_offset)
+time_t TimeUtil::GetDayEnd(time_t ts_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
     struct tm tm;
-    gmtime_tz(&ts, &tm, tz);
+    gmtime_tz(&ts_sec, &tm, tz);
     tm.tm_hour = 23;
     tm.tm_min = 59;
     tm.tm_sec = 59;
     return timegm_tz(&tm, tz);
 }
 
-time_t TimeUtil::GetWeekStart(time_t ts, int tz_offset)
+time_t TimeUtil::GetWeekStart(time_t ts_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
     struct tm tm;
-    gmtime_tz(&ts, &tm, tz);
+    gmtime_tz(&ts_sec, &tm, tz);
     // tm_wday: 0=Sunday, convert to Mon=0..Sun=6
     int days_from_monday = (tm.tm_wday == 0) ? 6 : (tm.tm_wday - 1);
-    time_t monday = ts - days_from_monday * 86400;
+    time_t monday = ts_sec - days_from_monday * 86400;
     struct tm tm_monday;
     gmtime_tz(&monday, &tm_monday, tz);
     tm_monday.tm_hour = 0;
@@ -454,14 +433,14 @@ time_t TimeUtil::GetWeekStart(time_t ts, int tz_offset)
     return timegm_tz(&tm_monday, tz);
 }
 
-time_t TimeUtil::GetWeekEnd(time_t ts, int tz_offset)
+time_t TimeUtil::GetWeekEnd(time_t ts_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
     struct tm tm;
-    gmtime_tz(&ts, &tm, tz);
+    gmtime_tz(&ts_sec, &tm, tz);
     int days_from_monday = (tm.tm_wday == 0) ? 6 : (tm.tm_wday - 1);
     int days_to_sunday = 6 - days_from_monday;
-    time_t sunday = ts + days_to_sunday * 86400;
+    time_t sunday = ts_sec + days_to_sunday * 86400;
     struct tm tm_sunday;
     gmtime_tz(&sunday, &tm_sunday, tz);
     tm_sunday.tm_hour = 23;
@@ -470,11 +449,11 @@ time_t TimeUtil::GetWeekEnd(time_t ts, int tz_offset)
     return timegm_tz(&tm_sunday, tz);
 }
 
-time_t TimeUtil::GetMonthStart(time_t ts, int tz_offset)
+time_t TimeUtil::GetMonthStart(time_t ts_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
     struct tm tm;
-    gmtime_tz(&ts, &tm, tz);
+    gmtime_tz(&ts_sec, &tm, tz);
     tm.tm_mday = 1;
     tm.tm_hour = 0;
     tm.tm_min = 0;
@@ -482,11 +461,11 @@ time_t TimeUtil::GetMonthStart(time_t ts, int tz_offset)
     return timegm_tz(&tm, tz);
 }
 
-time_t TimeUtil::GetMonthEnd(time_t ts, int tz_offset)
+time_t TimeUtil::GetMonthEnd(time_t ts_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
     struct tm tm;
-    gmtime_tz(&ts, &tm, tz);
+    gmtime_tz(&ts_sec, &tm, tz);
     // Go to first day of next month, then subtract 1 second
     if (tm.tm_mon == 11) {
         tm.tm_year += 1;
@@ -502,41 +481,41 @@ time_t TimeUtil::GetMonthEnd(time_t ts, int tz_offset)
     return next_month_start - 1;
 }
 
-uint64_t TimeUtil::GetNextResetTime(uint64_t base_ts, uint64_t interval_ms)
+uint64_t TimeUtil::GetNextResetTimeMs(uint64_t base_ms, uint64_t interval_ms)
 {
     uint64_t now_ms = TimeUtil::GetCurrentMs();
-    if (now_ms <= base_ts) {
-        return base_ts;
+    if (now_ms <= base_ms) {
+        return base_ms;
     }
-    uint64_t elapsed = now_ms - base_ts;
+    uint64_t elapsed = now_ms - base_ms;
     uint64_t periods = elapsed / interval_ms;
     if (elapsed % interval_ms == 0) {
         return now_ms;
     }
-    return base_ts + (periods + 1) * interval_ms;
+    return base_ms + (periods + 1) * interval_ms;
 }
 
-int TimeUtil::GetDayOfWeek(time_t ts, int tz_offset)
+int TimeUtil::GetDayOfWeek(time_t ts_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
     struct tm tm;
-    gmtime_tz(&ts, &tm, tz);
+    gmtime_tz(&ts_sec, &tm, tz);
     return tm.tm_wday;
 }
 
-int TimeUtil::GetDayOfYear(time_t ts, int tz_offset)
+int TimeUtil::GetDayOfYear(time_t ts_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
     struct tm tm;
-    gmtime_tz(&ts, &tm, tz);
+    gmtime_tz(&ts_sec, &tm, tz);
     return tm.tm_yday + 1;
 }
 
-int TimeUtil::GetSecondsSinceMidnight(time_t ts, int tz_offset)
+int TimeUtil::GetSecondsSinceMidnight(time_t ts_sec, int tz_offset)
 {
     int tz = (tz_offset == INT32_MAX) ? GetTimezoneOffset() : tz_offset;
     struct tm tm;
-    gmtime_tz(&ts, &tm, tz);
+    gmtime_tz(&ts_sec, &tm, tz);
     return tm.tm_hour * 3600 + tm.tm_min * 60 + tm.tm_sec;
 }
 
@@ -552,10 +531,10 @@ int TimeUtil::DaysInMonth(int year, int month)
     return days_per_month[month - 1];
 }
 
-int64_t TimeUtil::DaysBetween(time_t t1, time_t t2)
+int64_t TimeUtil::DaysBetween(time_t t1_sec, time_t t2_sec)
 {
-    time_t start = TimeUtil::GetDayStart(t1);
-    time_t end = TimeUtil::GetDayStart(t2);
+    time_t start = TimeUtil::GetDayStart(t1_sec);
+    time_t end = TimeUtil::GetDayStart(t2_sec);
     int64_t diff = static_cast<int64_t>(end - start);
     if (diff < 0) {
         diff = -diff;
@@ -573,7 +552,7 @@ uint64_t TimeUtil::GetRemainingMs(uint64_t start_ms, uint64_t ttl_ms)
     return deadline - now_ms;
 }
 
-std::string TimeUtil::FormatDuration(uint64_t ms)
+std::string TimeUtil::FormatDurationMs(uint64_t ms)
 {
     uint64_t total_sec = ms / 1000;
     if (total_sec == 0) {
