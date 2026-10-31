@@ -26,7 +26,7 @@
 |------------------------|---------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
 | 日志                   | `INFO/WARN/ERROR(logger) << ...` + `LOG_NAME`                                                                                   | `printf` / `std::cout` / 自建日志  |
 | 配置                   | `Config::Lookup<T>` + `addListener`                                                                                             | 自己读 yaml / json / ini           |
-| 时间                   | `TimeUtil::GetCurrentMs/Time2Str/Str2Time/IsExpired/...`                                                                        | 到处 `std::chrono` / `time()`      |
+| 时间                   | `TimeUtil::GetCurrentMs/Time2StrSec/Time2StrMs/Str2Time/IsExpiredMs/...`                                                        | 到处 `std::chrono` / `time()`      |
 | 字符串                 | `StringUtil::Split/Join/Trim/Replace/UrlEncode/Base64/Hex`                                                                      | 手写 split / trim / base64         |
 | 文件                   | `FSUtil::ListAllFile/ReadFileToString/Exists/Mkdir/OpenForWrite`                                                                | 裸 `fopen` / `std::filesystem`     |
 | 环境 / 参数            | `Env` / `EnvMgr`                                                                                                                | 自己解析 `argv`                    |
@@ -69,7 +69,7 @@
 
 ### 时间 / 字符串 / 文件
 
-- 时间：`TimeUtil::GetCurrentMs/Us/Sec`、`Time2Str`、`Str2Time`、`IsExpired`、`GetDayStart` 等
+- 时间：`TimeUtil::GetCurrentMs/Us/Sec`、`Time2StrSec`、`Time2StrMs`、`Str2Time`、`IsExpiredMs`、`GetDayStart` 等（单位写在函数名里）
 - 字符串：`StringUtil::Split` 默认跳过空段；`UrlEncode`（空格→`+`）与 `URLEncode`（空格→`%20`）别用混
 - 文件：`FSUtil::ListAllFile(files, dir, ".yml")`，第二个参数名是 `subfix`（不是拼写错误）
 - 加密：SHA / MD5 返回 hex；HMAC 返回原始字节，需要原始字节时用 `StringUtil::HexDecode`

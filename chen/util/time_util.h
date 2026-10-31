@@ -44,38 +44,38 @@ public:
     static time_t GetCurrentSec();
 
     /**
-     * @brief 将时间转换为字符串（秒级，默认使用本地时区）
-     * @param ts 秒时间戳, 默认为当前时间
+     * @brief 将秒时间戳转换为字符串（默认使用本地时区）
+     * @param ts_sec 秒时间戳, 默认为当前时间
      * @param format 格式字符串, 默认为 "%Y-%m-%d %H:%M:%S"
      * @return std::string 格式化后的时间字符串
      */
-    static std::string Time2Str(time_t ts = time(0), const std::string& format = "%Y-%m-%d %H:%M:%S");
+    static std::string Time2StrSec(time_t ts_sec = time(0), const std::string& format = "%Y-%m-%d %H:%M:%S");
 
     /**
-     * @brief 将时间转换为字符串（毫秒级，默认使用本地时区，支持 %f 占位符替换为毫秒）
-     * @param ts 毫秒时间戳
+     * @brief 将毫秒时间戳转换为字符串（默认使用本地时区，支持 %f 占位符替换为毫秒）
+     * @param ts_ms 毫秒时间戳
      * @param format 格式字符串, 默认为 "%Y-%m-%d %H:%M:%S.%f"
      * @return std::string 格式化后的时间字符串
      */
-    static std::string Time2Str(uint64_t ts, const std::string& format = "%Y-%m-%d %H:%M:%S.%f");
+    static std::string Time2StrMs(uint64_t ts_ms, const std::string& format = "%Y-%m-%d %H:%M:%S.%f");
 
     /**
-     * @brief 将时间转换为字符串（指定时区偏移）
-     * @param ts 秒时间戳 (UTC)
+     * @brief 将秒时间戳转换为字符串（指定时区偏移）
+     * @param ts_sec 秒时间戳 (UTC)
      * @param format 格式字符串
      * @param tz_offset 时区偏移秒数（UTC 以东为正），如 UTC=0, CST=28800, EST=-18000
      * @return std::string 格式化后的时间字符串
      */
-    static std::string Time2Str(time_t ts, const std::string& format, int tz_offset);
+    static std::string Time2StrSec(time_t ts_sec, const std::string& format, int tz_offset);
 
     /**
-     * @brief 将时间转换为字符串（毫秒级，指定时区偏移）
-     * @param ts 毫秒时间戳 (UTC)
+     * @brief 将毫秒时间戳转换为字符串（指定时区偏移）
+     * @param ts_ms 毫秒时间戳 (UTC)
      * @param format 格式字符串
      * @param tz_offset 时区偏移秒数（UTC 以东为正）
      * @return std::string 格式化后的时间字符串
      */
-    static std::string Time2Str(uint64_t ts, const std::string& format, int tz_offset);
+    static std::string Time2StrMs(uint64_t ts_ms, const std::string& format, int tz_offset);
 
     /**
      * @brief 将字符串转换为时间戳
@@ -102,10 +102,10 @@ public:
 
     /**
      * @brief 获取 RFC1123 格式的 HTTP 时间字符串
-     * @param ts 秒时间戳, 默认为当前时间
+     * @param ts_sec 秒时间戳, 默认为当前时间
      * @return std::string "Thu, 01 Dec 2022 16:00:00 GMT" 格式
      */
-    static std::string GetRFC1123Time(time_t ts = time(0));
+    static std::string GetRFC1123Time(time_t ts_sec = time(0));
 
     /**
      * @brief 毫秒时间戳转秒时间戳
@@ -124,53 +124,31 @@ public:
     static int GetTimezoneOffset();
 
     /**
-     * @brief 判断时间戳是否是一天的开始（凌晨 0 点，允许 1 秒误差）
-     * @param ts 时间戳（毫秒或秒均可）, 默认为当前秒时间戳
-     * @param day_ms 一天的毫秒数，默认 24 小时
-     * @return bool
-     */
-    static bool IsZeroOfDay(uint64_t ts = time(0), uint64_t day_ms = 24 * 3600 * 1000);
-
-    /**
-     * @brief 判断时间戳是否是一个周的开始（周一凌晨，允许 1 秒误差）
-     * @param ts 秒时间戳, 默认为当前时间
-     * @return bool
-     */
-    static bool IsZeroOfWeek(uint64_t ts = time(0));
-
-    /**
-     * @brief 判断时间戳是否是一个月的开始（1 号凌晨，允许 1 秒误差）
-     * @param ts 秒时间戳, 默认为当前时间
-     * @return bool
-     */
-    static bool IsZeroOfMonth(uint64_t ts = time(0));
-
-    /**
      * @brief 判断两个时间戳是否在同一天（默认本地时区）
-     * @param t1 秒时间戳
-     * @param t2 秒时间戳
+     * @param t1_sec 秒时间戳
+     * @param t2_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return bool
      */
-    static bool IsSameDay(time_t t1, time_t t2, int tz_offset = INT32_MAX);
+    static bool IsSameDay(time_t t1_sec, time_t t2_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 判断两个时间戳是否在同一周（默认本地时区，周一为一周开始）
-     * @param t1 秒时间戳
-     * @param t2 秒时间戳
+     * @param t1_sec 秒时间戳
+     * @param t2_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return bool
      */
-    static bool IsSameWeek(time_t t1, time_t t2, int tz_offset = INT32_MAX);
+    static bool IsSameWeek(time_t t1_sec, time_t t2_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 判断两个时间戳是否在同一个月（默认本地时区）
-     * @param t1 秒时间戳
-     * @param t2 秒时间戳
+     * @param t1_sec 秒时间戳
+     * @param t2_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return bool
      */
-    static bool IsSameMonth(time_t t1, time_t t2, int tz_offset = INT32_MAX);
+    static bool IsSameMonth(time_t t1_sec, time_t t2_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 判断是否为闰年
@@ -185,87 +163,87 @@ public:
      * @param ttl_ms   TTL 毫秒数
      * @return bool 是否已过期
      */
-    static bool IsExpired(uint64_t start_ms, uint64_t ttl_ms);
+    static bool IsExpiredMs(uint64_t start_ms, uint64_t ttl_ms);
 
     /**
      * @brief 获取指定时间戳所在日的 00:00:00（默认本地时区）
-     * @param ts 秒时间戳
+     * @param ts_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return time_t 当日 0 点的秒时间戳
      */
-    static time_t GetDayStart(time_t ts, int tz_offset = INT32_MAX);
+    static time_t GetDayStart(time_t ts_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 获取指定时间戳所在日的 23:59:59（默认本地时区）
-     * @param ts 秒时间戳
+     * @param ts_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return time_t 当日最后一秒的秒时间戳
      */
-    static time_t GetDayEnd(time_t ts, int tz_offset = INT32_MAX);
+    static time_t GetDayEnd(time_t ts_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 获取指定时间戳所在周的周一 00:00:00（默认本地时区）
-     * @param ts 秒时间戳
+     * @param ts_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return time_t 周一 0 点的秒时间戳
      */
-    static time_t GetWeekStart(time_t ts, int tz_offset = INT32_MAX);
+    static time_t GetWeekStart(time_t ts_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 获取指定时间戳所在周的周日 23:59:59（默认本地时区）
-     * @param ts 秒时间戳
+     * @param ts_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return time_t 周日最后一秒的秒时间戳
      */
-    static time_t GetWeekEnd(time_t ts, int tz_offset = INT32_MAX);
+    static time_t GetWeekEnd(time_t ts_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 获取指定时间戳所在月的 1 号 00:00:00（默认本地时区）
-     * @param ts 秒时间戳
+     * @param ts_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return time_t 当月 1 号 0 点的秒时间戳
      */
-    static time_t GetMonthStart(time_t ts, int tz_offset = INT32_MAX);
+    static time_t GetMonthStart(time_t ts_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 获取指定时间戳所在月的最后一天 23:59:59（默认本地时区）
-     * @param ts 秒时间戳
+     * @param ts_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return time_t 当月最后一秒的秒时间戳
      */
-    static time_t GetMonthEnd(time_t ts, int tz_offset = INT32_MAX);
+    static time_t GetMonthEnd(time_t ts_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 获取下一个周期重置时间（如每日/每周刷新）
-     * @param base_ts 基准时间戳秒
+     * @param base_ms 基准毫秒时间戳
      * @param interval_ms 周期毫秒数
      * @return uint64_t 下一个重置点的毫秒时间戳
      */
-    static uint64_t GetNextResetTime(uint64_t base_ts, uint64_t interval_ms);
+    static uint64_t GetNextResetTimeMs(uint64_t base_ms, uint64_t interval_ms);
 
     /**
      * @brief 获取星期几（默认本地时区）
-     * @param ts 秒时间戳
+     * @param ts_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return int 0=Sunday, 1=Monday, ..., 6=Saturday
      */
-    static int GetDayOfWeek(time_t ts, int tz_offset = INT32_MAX);
+    static int GetDayOfWeek(time_t ts_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 获取一年中的第几天（默认本地时区）
-     * @param ts 秒时间戳
+     * @param ts_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return int 1-366
      */
-    static int GetDayOfYear(time_t ts, int tz_offset = INT32_MAX);
+    static int GetDayOfYear(time_t ts_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 获取当天已过去的秒数（默认本地时区）
-     * @param ts 秒时间戳
+     * @param ts_sec 秒时间戳
      * @param tz_offset 时区偏移秒数，默认 INT_MAX 表示使用本地时区
      * @return int 0-86399
      */
-    static int GetSecondsSinceMidnight(time_t ts, int tz_offset = INT32_MAX);
+    static int GetSecondsSinceMidnight(time_t ts_sec, int tz_offset = INT32_MAX);
 
     /**
      * @brief 获取指定月份的天数
@@ -277,11 +255,11 @@ public:
 
     /**
      * @brief 计算两个时间戳相差的天数（绝对值）
-     * @param t1 秒时间戳
-     * @param t2 秒时间戳
+     * @param t1_sec 秒时间戳
+     * @param t2_sec 秒时间戳
      * @return int64_t 天数差
      */
-    static int64_t DaysBetween(time_t t1, time_t t2);
+    static int64_t DaysBetween(time_t t1_sec, time_t t2_sec);
 
     /**
      * @brief 获取距离截止时间的剩余毫秒数
@@ -296,7 +274,7 @@ public:
      * @param ms 毫秒数
      * @return std::string 如 "2d 15h 30m 15s" / "45m 30s" / "5s" / "0s"
      */
-    static std::string FormatDuration(uint64_t ms);
+    static std::string FormatDurationMs(uint64_t ms);
 
 private:
     /**

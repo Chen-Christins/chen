@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 时间工具单位显式化
+
+- **变更** `TimeUtil` 的秒/毫秒接口不再通过 `time_t`/`uint64_t` 重载区分：`Time2Str` 拆分为
+  `Time2StrSec` / `Time2StrMs`，`IsExpired` → `IsExpiredMs`、`FormatDuration` → `FormatDurationMs`、
+  `GetNextResetTime` → `GetNextResetTimeMs`；删除实现错误的 `IsZeroOfDay/Week/Month`
+- **修复** `LoadBalance::statusString` 把毫秒时间戳先 `/1000` 再传给毫秒接口，初始化时间被显示成 1970 年
+- **修复** `ProcessInfo` 启动时间字段声明为 `uint64_t` 却存秒值，`toString()` 按毫秒格式化后显示 1970 年
+
 ### 连接复用 / RPC Future（新增）
 
 - **新增** `HttpClient` 连接池：按 `scheme://host:port` 复用 `HttpConnectionPool`，省掉每次请求的 TCP/TLS 握手；新增配置项

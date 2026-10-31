@@ -8,9 +8,9 @@
 using namespace chen;
 
 // ── 时间 ──
-uint64_t now_ms = GetCurrentMs();
-std::string ts = Time2Str(now_ms, "%Y-%m-%d %H:%M:%S");  // 2026-06-28 12:00:00
-bool expired = IsExpired(start_ms, 30000);                 // 30s TTL
+uint64_t now_ms = TimeUtil::GetCurrentMs();
+std::string ts = TimeUtil::Time2StrMs(now_ms, "%Y-%m-%d %H:%M:%S");  // 2026-06-28 12:00:00
+bool expired = TimeUtil::IsExpiredMs(start_ms, 30000);               // 30s TTL
 
 // ── 加密 ──
 std::string md5 = EncryptorUtil::MD5("data");              // hex 32 字符
@@ -65,7 +65,18 @@ Atomic::addFetch(val, 1);                                   // 线程安全自�
 
 | 文件          | 用途                                                                     | 注意                                                                                 |
 |---------------|--------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
-| `time_util.h` | 高精度时钟、时间格式化/解析(ISO 8601)、HTTP 时间、日/周/月边界、TTL 检查 | `Str2Time` 自动检测 ISO 8601 / 日期 / 时间格式；还提供 `chen` 命名空间的内联快捷函数 |
+| `time_util.h` | 高精度时钟、时间格式化/解析(ISO 8601)、HTTP 时间、日/周/月边界、TTL 检查 | `Str2Time` 自动检测 ISO 8601 / 日期 / 时间格式；**函数名带 `Sec`/`Ms` 后缀标明单位** |
+
+#### 时间单位约定
+
+| 单位 | 函数 / 类型                                                                                                              | 说明                             |
+|------|--------------------------------------------------------------------------------------------------------------------------|----------------------------------|
+| 秒   | `GetCurrentSec()` / `Time2StrSec()` / `Str2Time()` / `time_t`                                                            | `time_t` 按 POSIX 约定为秒时间戳 |
+| 毫秒 | `GetCurrentMs()` / `Time2StrMs()` / `IsExpiredMs()` / `GetRemainingMs()` / `GetNextResetTimeMs()` / `FormatDurationMs()` | 参数名统一带 `_ms` 后缀          |
+| 微秒 | `GetCurrentUs()`                                                                                                         |                                  |
+| 纳秒 | `GetCurrentNanos()`                                                                                                      |                                  |
+
+秒和毫秒的接口 **不会互相重载**，不要靠 `time_t`/`uint64_t` 隐式转换来选函数；传错单位会直接得到 1970 年的时间。
 
 ### 文件系统
 
