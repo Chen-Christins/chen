@@ -142,6 +142,8 @@ private:
 
     /**
      * @brief 挂起期间用 IOManager 定时器做超时唤醒
+     * @param timeout_ms 超时时间
+     * @param self 相关 waiter 的信息
      * @param[out] timer 成功时返回定时器句柄
      * @return bool false 表示当前没有 IOManager（无法在挂起期间计时）
      * @pre 调用方必须持有 m_mutex
@@ -224,11 +226,10 @@ public:
 template <typename T>
 class Future {
 public:
-    typedef std::shared_ptr<detail::FutureState<T>> StatePtr;
 
     Future() = default;
 
-    explicit Future(StatePtr state)
+    explicit Future(detail::FutureState<T>::ptr state)
         : m_state(std::move(state))
     {
     }
@@ -268,16 +269,16 @@ public:
     /**
      * @brief 取出共享状态（需要与回调配合时使用）
      */
-    const StatePtr& state() const { return m_state; }
+    const detail::FutureState<T>::ptr& state() const { return m_state; }
 
 private:
     /// 共享状态
-    StatePtr m_state;
+    detail::FutureState<T>::ptr m_state;
 };
 
 /**
  * @class Future<void>
- * @brief 无返回值结果句柄（实现在 future.cc）
+ * @brief 无返回值结果句柄
  */
 template <>
 class Future<void> {
@@ -363,7 +364,7 @@ private:
 
 /**
  * @class Promise<void>
- * @brief 无返回值结果生产端（实现在 future.cc）
+ * @brief 无返回值结果生产端
  */
 template <>
 class Promise<void> {
