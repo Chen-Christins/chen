@@ -43,9 +43,12 @@ C++20 协程服务器框架 Chen 的 SDK 包。
 - libsqlite3
 - libevent
 - libmysqlclient
+- libpq（PostgreSQL 客户端库）
 - libnghttp2
 - libboost-context
 - openssl
+
+> 编译包含 `chen/db/postgresql.h` 的代码需要安装 `libpq-dev`（Debian/Ubuntu）。
 
 > 三方依赖不随 SDK 分发。下游工程在自己的 `dependencies.json` 中声明
 > `deps-<arch>.zip` 并下载到本地 `deps/`，用于编译模块和程序。

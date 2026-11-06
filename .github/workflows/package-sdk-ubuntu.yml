@@ -41,6 +41,7 @@ jobs:
             libssl-dev \
             libevent-dev \
             libmysqlclient-dev \
+            libpq-dev \
             redis \
             libnghttp2-dev \
             git \

@@ -219,6 +219,8 @@ find_library(nghttp2 nghttp2 REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(Protobuf REQUIRED)
 find_package(Boost REQUIRED COMPONENTS context)
+find_package(PostgreSQL REQUIRED)
+include_directories(${PostgreSQL_INCLUDE_DIRS})
 
 set(CHEN_SDK_DEP_LIBS
     ${PTHREAD}
@@ -231,6 +233,7 @@ set(CHEN_SDK_DEP_LIBS
     ${Protobuf_LIBRARIES}
     ${MySQLClient}
     ${nghttp2}
+    ${PostgreSQL_LIBRARIES}
 )
 
 # Append the resolved Boost libraries (paths or linker names).
@@ -253,7 +256,7 @@ else()
 endif()
 
 # Expose Boost include directories to consumers of this SDK
-set(CHEN_SDK_DEP_INCLUDE_DIRS ${Boost_INCLUDE_DIRS} PARENT_SCOPE)
+set(CHEN_SDK_DEP_INCLUDE_DIRS ${Boost_INCLUDE_DIRS} ${PostgreSQL_INCLUDE_DIRS} PARENT_SCOPE)
 
 set(CHEN_SDK_DEP_LIBS ${CHEN_SDK_DEP_LIBS} PARENT_SCOPE)
 

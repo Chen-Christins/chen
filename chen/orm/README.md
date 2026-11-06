@@ -1,6 +1,6 @@
 # ORM — 对象关系映射
 
-自研轻量 ORM 代码生成器，从 XML 表定义生成业务结构体（`*Info`）和 DAO 类（`*Dao`），支持 SQLite 和 MySQL，参数化查询。
+自研轻量 ORM 代码生成器，从 XML 表定义生成业务结构体（`*Info`）和 DAO 类（`*Dao`），支持 SQLite、MySQL 和 PostgreSQL，参数化查询。
 
 > 本文只讲表定义、代码生成和 DAO。参数化 SQL 构建器（`chen/db/query_builder.h`）和
 > 分库分表（`chen/db/shard.h`）属于 db 模块，完整说明见 [`chen/db/README.md`](../db/README.md)。
@@ -25,12 +25,16 @@
 </table>
 ```
 
-| 属性        | 说明                         | 默认值 |
-|-------------|------------------------------|--------|
-| `name`      | 数据库表名                   | 必填   |
-| `namespace` | C++ 命名空间（`.` 分隔）     | 必填   |
-| `version`   | 数据库版本号，用于版本化迁移 | 1      |
-| `desc`      | 表注释                       | 空     |
+| 属性        | 说明                                                                                   | 默认值    |
+|-------------|----------------------------------------------------------------------------------------|-----------|
+| `name`      | 数据库表名                                                                             | 必填      |
+| `namespace` | C++ 命名空间（`.` 分隔）                                                               | 必填      |
+| `db`        | 数据库方言：`sqlite3` / `mysql` / `postgresql`（也接受 `sqlite`、`postgres`、`pgsql`） | `sqlite3` |
+| `version`   | 数据库版本号，用于版本化迁移                                                           | 1         |
+| `desc`      | 表注释                                                                                 | 空        |
+
+> 不写 `db` 时按 SQLite3 生成。已有的 MySQL 项目需要显式补上 `db="mysql"`，
+> 否则建表、迁移和 DAO SQL 都会按 SQLite3 方言生成。非法 `db` 值会让生成器直接失败。
 
 ### 2. 运行代码生成器
 
@@ -77,17 +81,17 @@ CategoryInfoDao::QueryAll(list, conn);
 
 ### 写入
 
-| 方法                         | 说明                                                     |
-|------------------------------|----------------------------------------------------------|
-| `Insert(info, conn)`         | 插入新记录，自动回填自增主键，成功后 `markClean()`       |
-| `InsertOrUpdate(info, conn)` | 插入或替换（MySQL: REPLACE INTO），成功后 `markClean()`  |
-| `Update(info, conn)`         | 只更新被修改过的字段（脏字段追踪），成功后 `markClean()` |
-| `Delete(info, conn)`         | 按主键删除                                               |
-| `Delete(id, conn)`           | 按主键值删除                                             |
-| `DeleteBy<Col>(val, conn)`   | 按索引列删除                                             |
-| `BatchInsert(infos, conn)`   | 单条 SQL 批量插入多行                                    |
-| `BatchUpdate(infos, conn)`   | 事务内逐条更新，一条失败全部回滚                         |
-| `BatchDelete(ids, conn)`     | DELETE WHERE id IN (...)                                 |
+| 方法                         | 说明                                                                                 |
+|------------------------------|--------------------------------------------------------------------------------------|
+| `Insert(info, conn)`         | 插入新记录，自动回填自增主键，成功后 `markClean()`                                   |
+| `InsertOrUpdate(info, conn)` | 插入或更新（MySQL: `REPLACE INTO`；PostgreSQL: `ON CONFLICT`），成功后 `markClean()` |
+| `Update(info, conn)`         | 只更新被修改过的字段（脏字段追踪），成功后 `markClean()`                             |
+| `Delete(info, conn)`         | 按主键删除                                                                           |
+| `Delete(id, conn)`           | 按主键值删除                                                                         |
+| `DeleteBy<Col>(val, conn)`   | 按索引列删除                                                                         |
+| `BatchInsert(infos, conn)`   | 单条 SQL 批量插入多行                                                                |
+| `BatchUpdate(infos, conn)`   | 事务内逐条更新，一条失败全部回滚                                                     |
+| `BatchDelete(ids, conn)`     | DELETE WHERE id IN (...)                                                             |
 
 ### 查询
 
@@ -196,25 +200,32 @@ INSERT / UPDATE / DELETE 与直接执行的完整说明见 [`chen/db/README.md`]
 
 ## XML 列类型参考
 
-| XML type    | C++ 类型      | SQLite    | MySQL            |
-|-------------|---------------|-----------|------------------|
-| `int8`      | `int8_t`      | INTEGER   | tinyint          |
-| `int16`     | `int16_t`     | INTEGER   | smallint         |
-| `int32`     | `int32_t`     | INTEGER   | int              |
-| `int64`     | `int64_t`     | INTEGER   | bigint           |
-| `uint8`     | `uint8_t`     | INTEGER   | tinyint unsigned |
-| `float`     | `float`       | REAL      | float            |
-| `double`    | `double`      | REAL      | double           |
-| `string`    | `std::string` | TEXT      | varchar(N)       |
-| `text`      | `std::string` | TEXT      | text             |
-| `blob`      | `std::string` | BLOB      | blob             |
-| `datetime`  | `int64_t`     | TIMESTAMP | datetime         |
-| `timestamp` | `int64_t`     | TIMESTAMP | timestamp        |
+| XML type    | C++ 类型      | SQLite    | MySQL             | PostgreSQL                  |
+|-------------|---------------|-----------|-------------------|-----------------------------|
+| `int8`      | `int8_t`      | INTEGER   | tinyint           | smallint                    |
+| `int16`     | `int16_t`     | INTEGER   | smallint          | smallint                    |
+| `int32`     | `int32_t`     | INTEGER   | int               | integer                     |
+| `int64`     | `int64_t`     | INTEGER   | bigint            | bigint                      |
+| `uint8`     | `uint8_t`     | INTEGER   | tinyint unsigned  | smallint                    |
+| `uint16`    | `uint16_t`    | INTEGER   | smallint unsigned | integer                     |
+| `uint32`    | `uint32_t`    | INTEGER   | int unsigned      | bigint                      |
+| `uint64`    | `uint64_t`    | INTEGER   | bigint unsigned   | numeric(20,0)               |
+| `float`     | `float`       | REAL      | float             | real                        |
+| `double`    | `double`      | REAL      | double            | double precision            |
+| `string`    | `std::string` | TEXT      | varchar(N)        | character varying(N)        |
+| `text`      | `std::string` | TEXT      | text              | text                        |
+| `blob`      | `std::string` | BLOB      | blob              | bytea                       |
+| `datetime`  | `int64_t`     | TIMESTAMP | datetime          | timestamp without time zone |
+| `timestamp` | `int64_t`     | TIMESTAMP | timestamp         | timestamp without time zone |
 
 > `datetime` 在 MySQL 中生成 `DATETIME`，支持 `1970-01-01` 及 2038 之后的时间；空时间默认值为
 > `'1970-01-01 00:00:00'`。
 > `timestamp` 生成 MySQL `TIMESTAMP`，受 `1970-01-01 00:00:01` ~ `2038-01-19 03:14:07` 范围限制，
 > 空时间默认值仍为 `'1980-01-01 00:00:00'`，需要宽范围时间时请使用 `datetime`。
+>
+> PostgreSQL 下 `datetime` / `timestamp` 都映射为 `timestamp without time zone`，空时间默认值
+> 为 `'1970-01-01 00:00:00'`；`uint64` 映射为 `numeric(20,0)`，因此不能作为自增列。
+> 数值默认值为 `0`，字符串为空串，`blob` 为 `''::bytea`。
 
 ## DDL 迁移
 
@@ -222,14 +233,41 @@ INSERT / UPDATE / DELETE 与直接执行的完整说明见 [`chen/db/README.md`]
 // 建表
 CategoryInfoDao::CreateTableSQLite3(conn);
 CategoryInfoDao::CreateTableMySQL(conn);
+CategoryInfoDao::CreateTablePostgreSQL(conn);
 
 // 按 XML 定义自动迁移表结构（ADD/MODIFY/DROP COLUMN）
 CategoryInfoDao::MigrateTableSQLite3(conn);
 CategoryInfoDao::MigrateTableMySQL(conn);
+CategoryInfoDao::MigrateTablePostgreSQL(conn);
 ```
 
 - SQLite3 迁移：检测类型变更或删除列时自动 `RENAME → CREATE → INSERT → DROP` 重建表
 - MySQL 迁移：使用 `MODIFY COLUMN` / `DROP COLUMN` / `ADD COLUMN` 逐列修改
+- PostgreSQL 迁移：查询 `pg_attribute` 获取现有列，使用 `ALTER COLUMN ... TYPE / SET NOT NULL / SET DEFAULT`
+  和 `ADD/DROP COLUMN` 逐列修改，并同步注释、索引和更新触发器（不重建表）
+- `Migrate()` 会自动按 XML 的 `db` 选择对应方言的建表/迁移函数
+
+## PostgreSQL
+
+表定义写 `db="postgresql"` 后，生成的代码使用 PostgreSQL 方言：
+
+- 表名、列名、索引名统一使用双引号标识符。
+- 自增列生成 `GENERATED BY DEFAULT AS IDENTITY`；只允许一个自增列，且必须是整数类型
+  （`uint64` 映射为 `numeric`，会被拒绝）。
+- `Insert` 使用 `RETURNING` 回填自增主键；`InsertOrUpdate` 使用
+  `ON CONFLICT (<主键>) DO UPDATE`，没有主键时退化为 `ON CONFLICT DO NOTHING`。
+- `update="current_timestamp"`（或 `now()`）通过 `BEFORE UPDATE` 触发器实现；
+  触发器函数和触发器名均为 `<table>_update`。PG 12/13 不支持 `CREATE OR REPLACE TRIGGER`，
+  因此每次先 `DROP TRIGGER IF EXISTS` 再创建。
+- 普通索引和唯一索引以 `<table>_<col1>_<col2>` 命名，建表时使用
+  `CREATE [UNIQUE] INDEX IF NOT EXISTS`，迁移时先 `DROP INDEX IF EXISTS` 再重建。
+- 生成 DAO 的 SQL 仍使用 `?` 占位符，由 PostgreSQL 驱动改写为 `$1..$n`。
+  SQL 中作为运算符的 `?`（如 JSONB）无法与占位符区分，请改用 `jsonb_exists()`。
+- `InsertOrUpdate` 显式指定自增主键时不会自动推进 identity 序列，后续不指定主键的插入
+  可能发生主键冲突，需要业务侧同步序列或避免显式写入自增主键。
+
+> 运行期驱动配置见 [`docs/db-configuration.md`](../../docs/db-configuration.md#postgresql) 和
+> [`chen/db/README.md`](../db/README.md#postgresql)。
 
 ---
 
