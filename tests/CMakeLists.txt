@@ -45,6 +45,7 @@ if (TEST)
     chen_add_executable(test_future "test_future.cc" "" "${LIBS}")
     chen_add_executable(test_http_client "test_http_client.cc" "" "${LIBS}")
     chen_add_executable(test_log_size_rotate "test_log_size_rotate.cc" "" "${LIBS}")
+    chen_add_executable(test_log_reload_formatter "test_log_reload_formatter.cc" "" "${LIBS}")
 endif ()
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)

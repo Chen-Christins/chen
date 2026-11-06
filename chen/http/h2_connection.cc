@@ -133,10 +133,12 @@ HttpResult::ptr H2Connection::doRequest(HttpRequest::ptr req, uint64_t timeout_m
 
     // Regular headers
     for (auto& h : req->getHeaders()) {
-        if (strcasecmp(h.first.c_str(), "host") == 0)
+        if (strcasecmp(h.first.c_str(), "host") == 0) {
             continue;
-        if (is_http1_specific_header(h.first))
+        }
+        if (is_http1_specific_header(h.first)) {
             continue;
+        }
         strs.push_back(to_lower(h.first));
         nva.push_back(make_nv(strs.back(), h.second));
     }
