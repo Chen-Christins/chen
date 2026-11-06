@@ -181,6 +181,22 @@ public:
     HttpResponse::ptr recvResponse();
 
     /**
+     * @brief 按 URL 与参数构造请求对象（不发送）
+     * @param method 请求方法
+     * @param uri 目标 URI
+     * @param headers 请求头
+     * @param body 请求体
+     * @param close 是否要求关闭连接；连接池复用时应传 false
+     * @return HttpRequest::ptr 构造好的请求
+     */
+    static HttpRequest::ptr BuildRequest(
+        HttpMethod method,
+        Uri::ptr uri,
+        const std::map<std::string, std::string>& headers = {},
+        const std::string& body = "",
+        bool close = true);
+
+    /**
      * @brief 以流式方式接收 HTTP 响应
      * @param callback 流式数据回调，每收到一块 body 数据时调用
      * @return HttpResponse::ptr 含响应头和状态码（body 为空），失败返回 nullptr
@@ -207,7 +223,14 @@ public:
         int32_t port,
         uint32_t max_size,
         uint32_t max_alive_time,
-        uint32_t max_request);
+        uint32_t max_request,
+        bool ssl = false);
+
+    /**
+     * @brief 析构：释放池中空闲连接
+     * @attention 只能在没有在途请求时销毁（在途连接的归还回调持有池指针）
+     */
+    ~HttpConnectionPool();
 
     HttpConnection::ptr getConnection();
 
@@ -297,6 +320,8 @@ private:
     uint32_t m_maxSize;
     uint32_t m_maxAliveTime;
     uint32_t m_maxRequest;
+    /// 是否使用 TLS（https）
+    bool m_ssl = false;
 
     std::mutex m_mutex;
     std::list<HttpConnection*> m_conns;

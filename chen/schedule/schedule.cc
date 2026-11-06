@@ -129,11 +129,11 @@ void Scheduler::stop()
     m_autoStop = true;
     // 使用use_caller，并且只有一个线程，而且主协程的状态为结束或者初始化
     if (m_rootFiber && m_threadCount == 0 && (m_rootFiber->getState() == Fiber::TERM || m_rootFiber->getState() == Fiber::INIT)) {
-        INFO(logger) << this << " scheduler stopped";
         m_stopping = true;
 
         // 如果达到停止条件直接停止
         if (stopping()) {
+            INFO(logger) << this << " scheduler stopped";
             return;
         }
     }
@@ -181,6 +181,12 @@ bool Scheduler::stopping()
     std::lock_guard lock(m_mutex);
     // 当自动停止 && 正在停止 && 任务队列为空 && 活跃线程数为0时
     return m_autoStop && m_stopping && m_fibers.empty() && m_activeThreadCount == 0;
+}
+
+bool Scheduler::isStopping()
+{
+    std::lock_guard lock(m_mutex);
+    return m_stopping;
 }
 
 // 新创建的线程直接在run上面启动

@@ -19,12 +19,14 @@ try:
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.backends import default_backend
+
     HAS_CRYPTOGRAPHY = True
 except ImportError:
     HAS_CRYPTOGRAPHY = False
 
 try:
     import pyaes
+
     HAS_PYAES = True
 except ImportError:
     HAS_PYAES = False
@@ -32,11 +34,11 @@ except ImportError:
 
 class EncryptionType(IntEnum):
     """加密类型枚举"""
-    NONE = 0          # 无加密
-    XOR = 1           # 简单XOR加密（不安全，仅用于兼容）
-    AES256_GCM = 2    # AES-256-GCM
+    NONE = 0  # 无加密
+    XOR = 1  # 简单XOR加密（不安全，仅用于兼容）
+    AES256_GCM = 2  # AES-256-GCM
     CHACHA20_POLY1305 = 3  # ChaCha20-Poly1305
-    CUSTOM = 4        # 自定义加密方案
+    CUSTOM = 4  # 自定义加密方案
 
 
 class SecureEncryptor:

@@ -227,5 +227,6 @@ INFO(LOG_ROOT()) << std::format("{} connections active", count);
 
 - 新增 logger → 自动创建
 - 修改 level / formatter → 即时更新
+- 删除 formatter → 恢复默认格式
 - 修改 appender → 重建输出器（旧文件正常关闭）
 - 删除 logger → level 置为最大值（停止输出）

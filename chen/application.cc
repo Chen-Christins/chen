@@ -165,13 +165,15 @@ bool Application::init(int argc, char** argv)
 bool Application::run()
 {
     bool is_daemon = EnvMgr::GetInstance()->has("d");
-    return start_daemon(
-               m_argc, m_argv,
-               [this](int, char**) {
-                   return masterMain();
-               },
-               is_daemon)
-        == 0;
+
+    bool ret = start_daemon(
+        m_argc, m_argv,
+        [this](int, char**) {
+            return masterMain();
+        },
+        is_daemon);
+
+    return ret == 0;
 }
 
 void Application::signalHandler(int sig)
@@ -651,7 +653,6 @@ int Application::masterMain()
 
     signal(SIGPIPE, SIG_IGN);
 
-    // 屏蔽信号，用 sigwaitinfo/sigtimedwait 同步处理（master 单线程，避免异步 handler）
     sigemptyset(&m_masterSigset);
     sigaddset(&m_masterSigset, SIGHUP);
     sigaddset(&m_masterSigset, SIGTERM);
@@ -659,7 +660,6 @@ int Application::masterMain()
     sigaddset(&m_masterSigset, SIGCHLD);
     sigprocmask(SIG_BLOCK, &m_masterSigset, nullptr);
 
-    // 启动首个 worker 并等待就绪
     int idx = spawnWorker();
     if (idx < 0 || !waitWorkerReady(m_workers[idx], g_worker_ready_timeout_ms->getValue())) {
         ERROR(logger) << "master: initial worker failed to start";
@@ -716,7 +716,6 @@ int Application::masterMain()
 
 void Application::workerMain(int ready_fd)
 {
-    // 先安装处理器，再解除 master 继承的信号屏蔽
     registerSignals();
     sigset_t set;
     sigemptyset(&set);
@@ -744,7 +743,6 @@ void Application::workerMain(int ready_fd)
     m_mainIOManager->stop();
     m_tickIOManager->stop();
 
-    // 显式释放 IOManager，确保 ~Scheduler/~IOManager 和 fiber 析构
     m_mainIOManager.reset();
     m_tickIOManager.reset();
     _exit(0);

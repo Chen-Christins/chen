@@ -165,4 +165,12 @@ private:
     std::vector<FdContext*> m_fdContexts;
 };
 
+/**
+ * @brief 解析当前线程可用的调度器
+ * @details 优先级：preferred > IOManager::GetThis() > Scheduler::GetThis()
+ * @param preferred 调用方显式指定的调度器，可为空
+ * @return Scheduler* 全部不可用时返回 nullptr
+ */
+Scheduler* ResolveScheduler(Scheduler* preferred = nullptr);
+
 } // namespace chen

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include <netinet/tcp.h>
 #include <sys/socket.h>
@@ -15,6 +16,7 @@
 
 #include <openssl/err.h>
 #include <openssl/ssl.h> // SSL_CTX, SSL
+#include <openssl/x509v3.h> // 证书主机名校验
 
 #include "../util/noncopyable.h"
 #include "address.h"
@@ -513,6 +515,24 @@ public:
     bool loadCertificates(const std::string& cert_file, const std::string& key_file);
 
     /**
+     * @brief 设置 TLS SNI 主机名
+     * @details 客户端握手时作为 server_name 扩展发送，访问虚拟主机（如 CDN、webhook 域名）必需；
+     *          服务端忽略该设置。设置后客户端还会用它做证书主机名校验。
+     */
+    void setServerName(const std::string& v) { m_serverName = v; }
+
+    /**
+     * @brief 是否校验服务端证书（证书链 + 主机名），默认开启
+     * @details 自签名 / 内部服务可关闭；关闭后与旧行为一致（不校验）
+     */
+    void setVerifyPeer(bool v) { m_verifyPeer = v; }
+
+    /**
+     * @brief 当前是否校验服务端证书
+     */
+    bool isVerifyPeer() const { return m_verifyPeer; }
+
+    /**
      * @brief 打印Socket信息
      * @param os 写入流
      * @return std::ostream&
@@ -528,10 +548,29 @@ protected:
     virtual bool init(int sock) override;
 
 private:
+    /**
+     * @brief 非阻塞 socket 上的 TLS 握手循环
+     * @param server true=SSL_accept（服务端），false=SSL_connect（客户端）
+     * @return bool 握手是否成功
+     * @details 需要 IOManager：握手期间把 fd 的可读/可写事件交给 epoll，协程挂起而不占线程
+     */
+    bool sslHandshake(bool server);
+
+    /**
+     * @brief SSL_read/SSL_write 返回 WANT_* 时等待 fd 就绪
+     * @param sslError SSL_get_error 的结果（必须是 WANT_READ/WANT_WRITE）
+     * @return bool true 可以重试 | false 等待失败或超时
+     */
+    bool sslWaitIO(int sslError);
+
     /// SSL上下文
     std::shared_ptr<SSL_CTX> m_ctx;
     /// SSL实例
     std::shared_ptr<SSL> m_ssl;
+    /// TLS SNI 主机名（客户端），同时用于证书主机名校验
+    std::string m_serverName;
+    /// 是否校验服务端证书（客户端）
+    bool m_verifyPeer = true;
 };
 
 /**

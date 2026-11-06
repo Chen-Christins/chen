@@ -365,6 +365,13 @@ public:
     bool isClose() const { return m_close; }
     void setClose(bool v) { m_close = v; }
 
+    /**
+     * @brief 根据响应头补全状态
+     * @details 解析 `connection` 头，决定这条连接之后能否复用；
+     *          客户端解析出响应后应调用（否则 `isClose()` 恒为构造时的默认值）
+     */
+    void init();
+
     // HTTP/2
     bool isHttp2() const { return m_version == HttpRequest::HTTP2_VERSION; }
     const std::vector<std::string>& getCookies() const { return m_cookies; }

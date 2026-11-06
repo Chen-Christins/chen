@@ -79,10 +79,6 @@ private:
     void doSend();
 
 private:
-    Socket::ptr m_socket;
-    nghttp2_session* m_session = nullptr;
-    bool m_connected = false;
-
     // Pending response data (built by callbacks)
     struct PendingResponse {
         HttpResponse::ptr response;
@@ -90,7 +86,16 @@ private:
         bool complete = false;
         bool success = true;
     };
+
+private:
+    Socket::ptr m_socket;
+
+    nghttp2_session* m_session = nullptr;
+
+    bool m_connected = false;
+
     std::unordered_map<int32_t, PendingResponse> m_responses;
+
     std::shared_mutex m_respMutex;
 };
 

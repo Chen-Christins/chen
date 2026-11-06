@@ -10,8 +10,8 @@ static Logger::ptr logger = LOG_NAME("system");
 std::string ProcessInfo::toString() const
 {
     std::stringstream ss;
-    ss << "[ProcessInfo parent_id=" << parent_id << " main_id=" << main_id << " parent_start_time=" << TimeUtil::Time2Str(parent_start_time)
-       << " main_start_time=" << TimeUtil::Time2Str(main_start_time) << " restart_count=" << restart_count << "]";
+    ss << "[ProcessInfo parent_id=" << parent_id << " main_id=" << main_id << " parent_start_time=" << TimeUtil::Time2StrSec(parent_start_time)
+       << " main_start_time=" << TimeUtil::Time2StrSec(main_start_time) << " restart_count=" << restart_count << "]";
 
     return ss.str();
 }

@@ -10,8 +10,11 @@
 
 namespace chen {
 
+/// 默认日志格式
+static constexpr const char* kDefaultFormatterPattern = "%d{%Y-%m-%d %H:%M:%S.%f}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n";
+
 // LogEvent
-const char* LogLevel::toString(LogLevel::Level level)
+const char* LogLevel::toString(Level level)
 {
     switch (level) {
 #define XX(name)         \
@@ -61,7 +64,7 @@ Logger::Logger(const std::string& name)
     : m_name(name)
     , m_level(LogLevel::TRACE)
 {
-    m_formatter.reset(new LogFormatter("%d{%Y-%m-%d %H:%M:%S.%f}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"));
+    m_formatter.reset(new LogFormatter(kDefaultFormatterPattern));
 }
 
 void Logger::log(LogLevel::Level level, std::shared_ptr<LogEvent> event)
@@ -149,6 +152,12 @@ void Logger::setFormatter(const std::string& val)
         std::cout << "Logger setFormatter name=" << m_name << " value=" << val << " invalid formatter" << std::endl;
         return;
     }
+    setFormatter(pattern);
+}
+
+void Logger::resetFormatter()
+{
+    LogFormatter::ptr pattern(new LogFormatter(kDefaultFormatterPattern));
     setFormatter(pattern);
 }
 
@@ -1174,6 +1183,8 @@ struct LogIniter {
                 logger->setLevel(i.level);
                 if (!i.formatter.empty()) {
                     logger->setFormatter(i.formatter);
+                } else {
+                    logger->resetFormatter();
                 }
 
                 logger->clearAppenders();
@@ -1206,6 +1217,7 @@ struct LogIniter {
                     auto logger = LOG_NAME(i.name);
                     logger->setLevel((LogLevel::Level)100);
                     logger->clearAppenders();
+                    logger->resetFormatter();
                 }
             }
             DEBUG(LOG_ROOT()) << "on_logger_conf_changed";

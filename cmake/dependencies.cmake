@@ -20,25 +20,25 @@ list(PREPEND CMAKE_INCLUDE_PATH ${DEPS_ROOT}/include)
 set(_CHEN_LIB_SUFFIXES_DEFAULT ${CMAKE_FIND_LIBRARY_SUFFIXES})
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
-find_library(JSONCPP_LIB     jsoncpp     PATHS ${DEPS_ROOT}/lib NO_DEFAULT_PATH)
-find_library(TINYXML2_LIB    tinyxml2    PATHS ${DEPS_ROOT}/lib NO_DEFAULT_PATH)
+find_library(JSONCPP_LIB jsoncpp PATHS ${DEPS_ROOT}/lib NO_DEFAULT_PATH)
+find_library(TINYXML2_LIB tinyxml2 PATHS ${DEPS_ROOT}/lib NO_DEFAULT_PATH)
 find_library(HIREDIS_VIP_LIB hiredis_vip PATHS ${DEPS_ROOT}/lib NO_DEFAULT_PATH)
-find_library(YAML_CPP_LIB    yaml-cpp    PATHS ${DEPS_ROOT}/lib NO_DEFAULT_PATH)
-find_library(PROTOBUF_LIB    protobuf    PATHS ${DEPS_ROOT}/lib NO_DEFAULT_PATH)
+find_library(YAML_CPP_LIB yaml-cpp PATHS ${DEPS_ROOT}/lib NO_DEFAULT_PATH)
+find_library(PROTOBUF_LIB protobuf PATHS ${DEPS_ROOT}/lib NO_DEFAULT_PATH)
 
-foreach(_dep JSONCPP_LIB TINYXML2_LIB HIREDIS_VIP_LIB YAML_CPP_LIB PROTOBUF_LIB)
-    if(NOT ${_dep})
+foreach (_dep JSONCPP_LIB TINYXML2_LIB HIREDIS_VIP_LIB YAML_CPP_LIB PROTOBUF_LIB)
+    if (NOT ${_dep})
         message(FATAL_ERROR "${_dep} 未找到：${DEPS_ROOT}/lib（先执行 ./deps.py sync）")
-    endif()
+    endif ()
     message(STATUS "${_dep} = ${${_dep}}")
-endforeach()
+endforeach ()
 
 # protoc（生成 *.pb.cc/.h 用），同样来自 deps/bin
 set(PROTOBUF_PROTOC_EXECUTABLE ${DEPS_ROOT}/bin/protoc)
 set(Protobuf_PROTOC_EXECUTABLE ${PROTOBUF_PROTOC_EXECUTABLE})
-if(NOT EXISTS ${PROTOBUF_PROTOC_EXECUTABLE})
+if (NOT EXISTS ${PROTOBUF_PROTOC_EXECUTABLE})
     message(FATAL_ERROR "protoc 未找到：${PROTOBUF_PROTOC_EXECUTABLE}（先执行 ./deps.py sync）")
-endif()
+endif ()
 message(STATUS "protoc = ${PROTOBUF_PROTOC_EXECUTABLE}")
 
 # ---------------------------------------------------------------------------
@@ -47,53 +47,53 @@ message(STATUS "protoc = ${PROTOBUF_PROTOC_EXECUTABLE}")
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${_CHEN_LIB_SUFFIXES_DEFAULT})
 
 set(_SYS_DEPS
-    PTHREAD_LIB pthread
-    DL_LIB dl
-    CRYPT_LIB crypt
-    SQLITE3_LIB sqlite3
-    EVENT_LIB event
-    MYSQLCLIENT_LIB mysqlclient
-    NGHTTP2_LIB nghttp2
+        PTHREAD_LIB pthread
+        DL_LIB dl
+        CRYPT_LIB crypt
+        SQLITE3_LIB sqlite3
+        EVENT_LIB event
+        MYSQLCLIENT_LIB mysqlclient
+        NGHTTP2_LIB nghttp2
 )
 list(LENGTH _SYS_DEPS _sys_len)
 math(EXPR _sys_last "${_sys_len} - 1")
-foreach(_i RANGE 0 ${_sys_last} 2)
+foreach (_i RANGE 0 ${_sys_last} 2)
     math(EXPR _j "${_i} + 1")
     list(GET _SYS_DEPS ${_i} _name)
     list(GET _SYS_DEPS ${_j} _lib)
     find_library(${_name} ${_lib})
-    if(${_name})
+    if (${_name})
         message(STATUS "${_name} = ${${_name}}")
-    else()
+    else ()
         message(STATUS "${_name} = (not found, fallback to -l${_lib})")
         set(${_name} ${_lib})
-    endif()
-endforeach()
+    endif ()
+endforeach ()
 
 # OpenSSL（静态）
 set(OPENSSL_USE_STATIC_LIBS TRUE)
 find_package(OpenSSL REQUIRED)
-if(OPENSSL_FOUND)
+if (OPENSSL_FOUND)
     include_directories(${OPENSSL_INCLUDE_DIR})
     message(STATUS "OPENSSL_SSL_LIBRARY = ${OPENSSL_SSL_LIBRARY}")
     message(STATUS "OPENSSL_CRYPTO_LIBRARY = ${OPENSSL_CRYPTO_LIBRARY}")
-endif()
+endif ()
 
 # Boost.Context
 find_package(Boost REQUIRED COMPONENTS context CONFIG)
-if(Boost_FOUND)
+if (Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
     get_target_property(_boost_ctx Boost::context IMPORTED_LOCATION)
-    if(NOT _boost_ctx)
+    if (NOT _boost_ctx)
         get_target_property(_boost_ctx Boost::context IMPORTED_LOCATION_RELEASE)
-    endif()
+    endif ()
     message(STATUS "Boost::context = ${_boost_ctx}")
-endif()
+endif ()
 
 # nghttp2 头文件（库路径已由 NGHTTP2_LIB 解析）
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(NGHTTP2 REQUIRED libnghttp2)
-if(NGHTTP2_FOUND)
+if (NGHTTP2_FOUND)
     include_directories(${NGHTTP2_INCLUDE_DIRS})
     message(STATUS "NGHTTP2_INCLUDE_DIRS = ${NGHTTP2_INCLUDE_DIRS}")
-endif()
+endif ()
