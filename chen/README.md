@@ -41,6 +41,7 @@
 | 模块          | 说明                                                  | 文档                          |
 |---------------|-------------------------------------------------------|-------------------------------|
 | **socket**    | Socket API 封装，支持 TCP/UDP/SSL/Unix Domain         | [README](socket/README.md)    |
+| **tls**       | TLS 配置与 SSL_CTX 上下文封装（证书、ALPN、校验）     | [README](tls/README.md)       |
 | **bytearray** | 二进制数据读写缓冲区（网络字节序、变长编码）          | [README](bytearray/README.md) |
 | **streams**   | 流式读写扩展（负载均衡、服务发现、zlib 压缩流）       | [README](streams/README.md)   |
 | **module**    | 动态模块加载（dlopen）+ `Library` dlopen/dlclose 封装 | [README](module/README.md)    |
