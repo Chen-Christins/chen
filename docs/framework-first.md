@@ -42,6 +42,7 @@
 | 单例                   | `Singleton` / `LeakySingleton`                                                                                                  | 自己写双重检查锁                   |
 | 锁                     | `SpinLock` + `MutexType::Lock`                                                                                                  | 裸 pthread mutex                   |
 | 地址 / 网络            | `Address::LookupAny`、`Socket::CreateTCP/UDP`                                                                                   | `getaddrinfo` / `socket` / `epoll` |
+| TLS / 证书             | `chen/tls` 的 `TlsConfig` / `TlsContext`，`SSLSocket` 复用其上下文                                                              | 业务里直接调 OpenSSL `SSL_CTX_*`   |
 | TCP 服务               | `TcpServer` / `TcpServerFactory`                                                                                                | 自己写 accept 循环                 |
 | HTTP / WS              | `HttpServer` + `ServletDispatch`、`WSServer`                                                                                    | 自己解析 HTTP                      |
 | RPC                    | `RpcServer` / `RpcClient` / `RpcClientPoolMgr` / Hub                                                                            | 自定义跨进程协议                   |
@@ -165,6 +166,7 @@
 | 定时器    | `chen/timer/README.md`        | `TimerManager`                                                                 |
 | Hook      | `chen/hook/README.md`         | 阻塞调用 fiber 化                                                              |
 | Socket    | `chen/socket/README.md`       | `Socket` / `Address`                                                           |
+| TLS       | `chen/tls/README.md`          | `TlsConfig` / `TlsContext`                                                     |
 | TCP       | `chen/tcp/README.md`          | `TcpServer`                                                                    |
 | UDP       | `chen/udp/README.md`          | `UdpServer`                                                                    |
 | HTTP      | `chen/http/README.md`         | `HttpServer` / `WSServer` / `HttpClient`                                       |

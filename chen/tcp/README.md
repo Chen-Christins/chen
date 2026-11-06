@@ -29,13 +29,34 @@ bind → listen → start() → accept fiber 循环 → handleClient(client)
 ## 配置
 
 ```yaml
-server:
+servers:
   - type: http
     name: game_http_server
     address: ["0.0.0.0:8080"]
     timeout: 30000
     ssl: false
 ```
+
+## TLS / HTTPS
+
+```yaml
+servers:
+  - type: http
+    name: game_https_server
+    address: ["0.0.0.0:8443"]
+    ssl: 1
+    cert_file: /etc/chen/certs/server.crt
+    key_file: /etc/chen/certs/server.key
+    min_tls_version: TLS1.2
+    handshake_timeout_ms: 10000
+    alpn: ["h2", "http/1.1"]   # 可省略；http/http2 默认就是 h2 + http/1.1
+```
+
+- `TcpServerConf` 只做 YAML 映射，证书/ALPN/版本校验统一交给 `chen/tls`
+- accept worker 只负责 `accept()`；TLS 握手在 io worker 中执行，慢握手不阻塞新连接接入
+- 握手超时由 `handshake_timeout_ms` 控制，失败会关闭连接并释放限流计数
+- worker fork 后、开始 accept 前会从磁盘重新加载证书，避免继承 master 的旧证书
+- 旧配置只写 `ssl: 1` + `cert_file` + `key_file` 仍然兼容（`loadCertificates()`）
 
 ## 连接限流
 
