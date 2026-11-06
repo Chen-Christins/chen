@@ -75,7 +75,7 @@
 
 ### 数据库
 
-- **ORM**：自研轻量 ORM，支持 SQLite/MySQL，参数化查询
+- **ORM**：自研轻量 ORM，支持 SQLite/MySQL/PostgreSQL，参数化查询
 - **Redis**：基于 hiredis 的异步 Redis 客户端
 - **FoxThread**：独立数据库线程，避免阻塞 I/O（懒启动）
 
@@ -94,7 +94,7 @@
 - nghttp2
 - yaml-cpp
 - jsoncpp
-- SQLite3 / MySQL
+- SQLite3 / MySQL / PostgreSQL（libpq）
 - hiredis
 - Ragel（HTTP 解析器生成）
 
@@ -149,7 +149,10 @@ make sdk
 
 **部署说明**
 
-`libchen.so` 由 chen 构建时用 `deps/` 里的静态库（`yaml-cpp` / `tinyxml2` / `jsoncpp` / `hiredis-vip` / `protobuf`）静态链接，因此部署时无需安装这几个库，只需系统依赖：`libsqlite3`、`libevent`、`libmysqlclient`、`libnghttp2`、`libboost-context`、`openssl`。三方符号随 `libchen.so`（共享库、全局作用域）导出，下游 `dlopen` 的模块可直接解析。可用 `objdump -p libchen.so | grep NEEDED` 核对。
+`libchen.so` 由 chen 构建时用 `deps/` 里的静态库（`yaml-cpp` / `tinyxml2` / `jsoncpp` / `hiredis-vip` / `protobuf`
+）静态链接，因此部署时无需安装这几个库，只需系统依赖：`libsqlite3`、`libevent`、`libmysqlclient`、`libpq`、`libnghttp2`、
+`libboost-context`、`openssl`。三方符号随 `libchen.so`（共享库、全局作用域）导出，下游 `dlopen` 的模块可直接解析。可用
+`objdump -p libchen.so | grep NEEDED` 核对。
 
 > 三方依赖**不随 SDK 分发**。下游工程在自己的 `dependencies.json` 中声明 `deps-<arch>.zip` 并下载到本地 `deps/`（用于编译其模块/程序）。
 
@@ -251,7 +254,7 @@ fiber:
 配置文件变更由 inotify 事件驱动自动重载（改完即生效，无轮询延迟），业务模块如何声明配置项
 并响应变更见 [`chen/watcher/README.md`](chen/watcher/README.md)。
 
-Redis / MySQL / SQLite3 的配置字段与业务侧用法见
+Redis / MySQL / SQLite3 / PostgreSQL 的配置字段与业务侧用法见
 [`docs/db-configuration.md`](docs/db-configuration.md)。
 
 ## 编写模块
