@@ -26,8 +26,6 @@ class Future;
 template <typename T>
 class Promise;
 
-namespace detail {
-
 /**
  * @class FutureStateBase
  * @brief Future 共享状态基类（非模板部分，实现在 future.cc）
@@ -215,8 +213,6 @@ public:
     void get();
 };
 
-} // namespace detail
-
 /**
  * @class Future
  * @brief 异步结果句柄
@@ -229,7 +225,7 @@ public:
 
     Future() = default;
 
-    explicit Future(detail::FutureState<T>::ptr state)
+    explicit Future(FutureState<T>::ptr state)
         : m_state(std::move(state))
     {
     }
@@ -269,11 +265,11 @@ public:
     /**
      * @brief 取出共享状态（需要与回调配合时使用）
      */
-    const detail::FutureState<T>::ptr& state() const { return m_state; }
+    const FutureState<T>::ptr& state() const { return m_state; }
 
 private:
     /// 共享状态
-    detail::FutureState<T>::ptr m_state;
+    FutureState<T>::ptr m_state;
 };
 
 /**
@@ -283,7 +279,7 @@ private:
 template <>
 class Future<void> {
 public:
-    typedef std::shared_ptr<detail::FutureState<void>> StatePtr;
+    typedef std::shared_ptr<FutureState<void>> StatePtr;
 
     Future() = default;
 
@@ -333,7 +329,7 @@ template <typename T>
 class Promise {
 public:
     Promise()
-        : m_state(std::make_shared<detail::FutureState<T>>())
+        : m_state(std::make_shared<FutureState<T>>())
     {
     }
 
@@ -359,7 +355,7 @@ public:
 
 private:
     /// 共享状态
-    std::shared_ptr<detail::FutureState<T>> m_state;
+    std::shared_ptr<FutureState<T>> m_state;
 };
 
 /**
@@ -393,7 +389,7 @@ public:
 
 private:
     /// 共享状态
-    std::shared_ptr<detail::FutureState<void>> m_state;
+    std::shared_ptr<FutureState<void>> m_state;
 };
 
 } // namespace chen

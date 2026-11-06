@@ -15,7 +15,7 @@
 
 namespace chen {
 
-namespace detail {
+static Logger::ptr g_logger = LOG_NAME("system");
 
 FutureStateBase::~FutureStateBase() = default;
 
@@ -39,7 +39,7 @@ void FutureStateBase::rethrowIfException() const
 
 void FutureStateBase::wait()
 {
-    (void)waitImpl(0);
+    waitImpl(0);
 }
 
 bool FutureStateBase::waitFor(uint64_t timeout_ms)
@@ -68,7 +68,7 @@ void FutureStateBase::setException(std::exception_ptr e)
 
 void FutureStateBase::warnDuplicate(const char* api)
 {
-    WARN(LOG_NAME("system")) << "Future already satisfied, ignore " << api;
+    WARN(g_logger) << "Future already satisfied, ignore " << api;
 }
 
 std::vector<FutureStateBase::Waiter::ptr> FutureStateBase::completeLocked()
@@ -163,7 +163,7 @@ bool FutureStateBase::waitImpl(uint64_t timeout_ms)
     // 线程主协程 / 调度器 root 协程 / 普通线程只能阻塞，Yield 出去就回不来
     if (!Fiber::CanYield()) {
         if (Scheduler::GetThis()) {
-            WARN(LOG_NAME("system")) << "Future::wait called in scheduler main fiber, fallback to thread blocking";
+            WARN(g_logger) << "Future::wait called in scheduler main fiber, fallback to thread blocking";
         }
         if (timeout_ms) {
             return m_cond.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] {
@@ -186,7 +186,7 @@ bool FutureStateBase::waitImpl(uint64_t timeout_ms)
     if (timeout_ms && !armTimerLocked(timeout_ms, waiter, timer)) {
         // 没有 IOManager 就没有定时器，只能退化成阻塞等待
         removeWaiterLocked(waiter->id);
-        WARN(LOG_NAME("system")) << "Future::waitFor in fiber without IOManager, fallback to thread blocking";
+        WARN(g_logger) << "Future::waitFor in fiber without IOManager, fallback to thread blocking";
         return m_cond.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] {
             return m_done;
         });
@@ -236,8 +236,6 @@ void FutureState<void>::get()
     rethrowIfException();
 }
 
-} // namespace detail
-
 Future<void>::Future(StatePtr state)
     : m_state(std::move(state))
 {
@@ -278,7 +276,7 @@ const Future<void>::StatePtr& Future<void>::state() const
 }
 
 Promise<void>::Promise()
-    : m_state(std::make_shared<detail::FutureState<void>>())
+    : m_state(std::make_shared<FutureState<void>>())
 {
 }
 
