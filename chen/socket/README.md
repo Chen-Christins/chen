@@ -54,7 +54,9 @@ client->setRecvTimeout(5000);  // 5s 接收超时
 > `cancel*` 在 fd 无效（`isValid() == false`）或当前线程没有 `IOManager` 时返回 `false`，不会阻塞或崩溃；
 > 负 fd 在 `IOManager` 侧也会被直接拒绝。
 
-## SSLSocket（TLS 客户端）
+## SSLSocket（TLS 客户端 / 服务端）
+
+### 客户端
 
 ```cpp
 SSLSocket::ptr sock = SSLSocket::CreateTCP(addr);   // addr 用域名解析出的 IP
@@ -63,10 +65,51 @@ sock->setVerifyPeer(true);                          // 默认就是 true，自�
 sock->connect(addr);
 ```
 
-- 校验默认 **开启**：`SSL_CTX_set_default_verify_paths()` 加载系统 CA（可用 `SSL_CERT_FILE` / `SSL_CERT_DIR` 覆盖），
-  `SSL_set1_host()` 校验主机名；失败时日志会打印 `certificate verify failed: ...`
-- 没设置 `setServerName` 时只能校验证书链、无法校验主机名（会打 WARN），客户端建议始终设置
-- 握手与 `SSL_read/SSL_write` 的 `WANT_READ/WANT_WRITE` 都在 IOManager 上等待，协程挂起而不占线程，30s 超时
+也可以直接带配置创建：
+
+```cpp
+chen::tls::TlsConfig conf = chen::tls::TlsConfig::DefaultClient();
+conf.ca_file = "/etc/chen/certs/ca.crt";            // 私有 CA
+conf.alpn = {"http/1.1"};
+auto sock = SSLSocket::CreateTCP(addr, conf);
+sock->setServerName("api.example.com");
+sock->connect(addr);
+```
+
+- 校验默认 **开启**：系统 CA，或 `TlsConfig.ca_file` 指定私有 CA
+- `SNI` 与主机名校验使用 `setServerName()` 的域名；IP 字面量自动走 IP SAN 校验，且不发送 SNI
+- 客户端 ALPN 由 `TlsConfig.alpn` 指定；`TlsConfig::DefaultClient()` 默认只声明 `http/1.1`
+- 握手与 `SSL_read/SSL_write` 的 `WANT_READ/WANT_WRITE` 都在 IOManager 上等待，协程挂起而不占线程
+- 握手超时由 `TlsConfig.handshake_timeout_ms` 控制，默认 10000ms
+
+### 服务端
+
+```cpp
+chen::tls::TlsConfig conf = chen::tls::TlsConfig::DefaultServer();
+conf.cert_file = "/etc/chen/certs/server.crt";
+conf.key_file = "/etc/chen/certs/server.key";
+conf.alpn = {"h2", "http/1.1"};
+
+auto listen = SSLSocket::CreateTCP(addr, conf);
+listen->bind(addr);
+listen->listen();
+```
+
+- `setTlsConfig()` 会在服务端立即创建 `TlsContext`
+- `accept()` 只建立 TCP 连接并继承监听 socket 的 `TlsContext`
+- **过渡期说明**：当前 `SSLSocket::init()` 仍会在 accept 阶段自动握手，保持现有 HTTPS 行为；
+  Step 3 接入 `TcpServer` 后改为由 io worker 显式调用 `handshake(timeout_ms)`
+- 显式握手 API 已就绪，握手成功后可读取协商结果：
+
+```cpp
+auto client = listen->accept();
+if (client && client->handshake(10000)) {
+    std::string proto = client->getAlpnProtocol();   // "h2" / "http/1.1" / ""
+}
+```
+
+- `getHandshakeStatus()` 返回 `NOT_STARTED / OK / TIMEOUT / VERIFY_FAILED / PEER_CLOSED / ERROR`，供日志与指标分类
+- `loadCertificates(cert, key)` 保留为兼容接口，内部构造服务端 `TlsConfig`
 
 ## SocketStream
 

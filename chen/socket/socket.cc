@@ -1,12 +1,19 @@
 #include "socket.h"
 
+#include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/tcp.h>
+
+#include <openssl/x509v3.h>
+
+#include <atomic>
 
 #include "../hook/fd_manager.h"
 #include "../hook/hook.h"
 #include "../iomanager/iomanager.h"
 #include "../log/log.h"
 #include "../util/macro.h"
+#include "../util/time_util.h"
 
 namespace chen {
 
@@ -550,11 +557,44 @@ struct _SSLInit {
 
 static _SSLInit s_init;
 
+/**
+ * @brief 判断字符串是否为 IPv4/IPv6 字面量
+ * @details IP 不能作为 SNI 发送，证书校验要走 X509_VERIFY_PARAM_set1_ip_asc。
+ */
+bool IsIpLiteral(const std::string& host)
+{
+    if (host.empty()) {
+        return false;
+    }
+    in_addr v4;
+    in6_addr v6;
+    return inet_pton(AF_INET, host.c_str(), &v4) == 1 || inet_pton(AF_INET6, host.c_str(), &v6) == 1;
+}
+
+/**
+ * @brief 取并清空当前线程最近一次 OpenSSL 错误
+ */
+std::string LastSslError()
+{
+    char buf[256];
+    ERR_error_string_n(ERR_get_error(), buf, sizeof(buf));
+    return buf;
+}
+
 } // namespace
 
 SSLSocket::ptr SSLSocket::CreateTCP(Address::ptr address)
 {
     SSLSocket::ptr sock(new SSLSocket(address->getFamily(), TCP, 0));
+    return sock;
+}
+
+SSLSocket::ptr SSLSocket::CreateTCP(Address::ptr address, const tls::TlsConfig& conf)
+{
+    SSLSocket::ptr sock(new SSLSocket(address->getFamily(), TCP, 0));
+    if (!sock->setTlsConfig(conf)) {
+        return nullptr;
+    }
     return sock;
 }
 
@@ -573,6 +613,7 @@ SSLSocket::ptr SSLSocket::CreateTCPSocket6()
 SSLSocket::SSLSocket(int family, int type, int protocol)
     : Socket(family, type, protocol)
 {
+    m_tlsConfig = tls::TlsConfig::DefaultClient();
 }
 
 Socket::ptr SSLSocket::accept()
@@ -589,7 +630,11 @@ Socket::ptr SSLSocket::accept()
         }
         return nullptr;
     }
-    sock->m_ctx = m_ctx;
+
+    // accept 出的连接继承监听 socket 的 TLS 上下文与配置
+    sock->m_tlsContext = m_tlsContext;
+    sock->m_tlsConfig = m_tlsConfig;
+    sock->m_verifyPeer = m_verifyPeer;
     if (sock->init(newsock)) {
         return sock;
     }
@@ -607,41 +652,18 @@ bool SSLSocket::connect(const Address::ptr addr, uint64_t timeout_ms)
         return false;
     }
 
-    m_ctx.reset(SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
-    if (!m_ctx) {
-        ERROR(logger) << "SSL_CTX_new(TLS_client_method) failed, addr=" << addr->toString();
-        return false;
-    }
-
-    // 校验策略要在 SSL_new 之前设置到 ctx 上
-    if (m_verifyPeer) {
-        SSL_CTX_set_verify(m_ctx.get(), SSL_VERIFY_PEER, nullptr);
-        if (SSL_CTX_set_default_verify_paths(m_ctx.get()) != 1) {
-            WARN(logger) << "SSL_CTX_set_default_verify_paths failed, 可用 SSL_CERT_FILE/SSL_CERT_DIR 指定 CA";
+    if (!m_tlsContext) {
+        tls::TlsConfig conf = m_tlsConfig;
+        conf.enabled = true;
+        conf.server = false;
+        m_tlsContext = tls::TlsContext::CreateClient(conf);
+        if (!m_tlsContext) {
+            ERROR(logger) << "create client tls context failed, addr=" << addr->toString();
+            return false;
         }
-    } else {
-        SSL_CTX_set_verify(m_ctx.get(), SSL_VERIFY_NONE, nullptr);
     }
 
-    m_ssl.reset(SSL_new(m_ctx.get()), SSL_free);
-    if (!m_ssl) {
-        ERROR(logger) << "SSL_new failed, addr=" << addr->toString();
-        return false;
-    }
-    SSL_set_fd(m_ssl.get(), m_sock);
-
-    if (!m_serverName.empty()) {
-        // 虚拟主机 / CDN 必须带 SNI，否则服务端可能返回默认站点证书
-        SSL_set_tlsext_host_name(m_ssl.get(), m_serverName.c_str());
-        // 用同一个 host 校验证书主机名
-        if (m_verifyPeer && SSL_set1_host(m_ssl.get(), m_serverName.c_str()) != 1) {
-            WARN(logger) << "SSL_set1_host failed, host=" << m_serverName << " fd=" << m_sock;
-        }
-    } else if (m_verifyPeer) {
-        WARN(logger) << "SSL client has no server name, skip hostname verification, addr=" << addr->toString();
-    }
-
-    return sslHandshake(false);
+    return handshake(m_tlsConfig.handshake_timeout_ms);
 }
 
 bool SSLSocket::listen(int backlog)
@@ -651,6 +673,15 @@ bool SSLSocket::listen(int backlog)
 
 bool SSLSocket::close()
 {
+    if (m_ssl) {
+        // 握手失败时不要发 close_notify，避免向已关闭的连接写数据触发 SIGPIPE
+        if (m_handshakeStatus == HandshakeStatus::OK) {
+            // 非阻塞 socket 上最多尝试一次，失败直接 close，避免拖住 drain
+            SSL_shutdown(m_ssl.get());
+        }
+        m_ssl.reset();
+    }
+    m_alpnProtocol.clear();
     return Socket::close();
 }
 
@@ -667,7 +698,7 @@ int SSLSocket::send(const void* buffer, size_t length, int flags)
         }
         int err = SSL_get_error(m_ssl.get(), rt);
         if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
-            if (!sslWaitIO(err)) {
+            if (sslWaitIO(err, 30000) != WaitResult::OK) {
                 return -1;
             }
             continue;
@@ -724,7 +755,7 @@ int SSLSocket::recv(void* buffer, size_t length, int flags)
         }
         int err = SSL_get_error(m_ssl.get(), rt);
         if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
-            if (!sslWaitIO(err)) {
+            if (sslWaitIO(err, 30000) != WaitResult::OK) {
                 return -1;
             }
             continue;
@@ -770,23 +801,303 @@ int SSLSocket::recvFrom(iovec* buffers, size_t length, Address::ptr from, int fl
     ASSERT(false);
     return -1;
 }
-// 证书加载
+
 bool SSLSocket::loadCertificates(const std::string& cert_file, const std::string& key_file)
 {
-    m_ctx.reset(SSL_CTX_new(TLS_server_method()), SSL_CTX_free);
-    if (SSL_CTX_use_certificate_chain_file(m_ctx.get(), cert_file.c_str()) != 1) {
-        ERROR(logger) << "SSL_CTX_use_certificate_chain_file(" << cert_file << ") error";
+    tls::TlsConfig conf = tls::TlsConfig::DefaultServer();
+    conf.cert_file = cert_file;
+    conf.key_file = key_file;
+    if (m_tlsConfig.handshake_timeout_ms > 0) {
+        conf.handshake_timeout_ms = m_tlsConfig.handshake_timeout_ms;
+    }
+    return setTlsConfig(conf);
+}
+
+bool SSLSocket::setTlsConfig(const tls::TlsConfig& v)
+{
+    m_tlsConfig = v;
+    m_verifyPeer = v.verify_peer;
+    m_tlsContext.reset();
+
+    if (!v.enabled || !v.server) {
+        return true;
+    }
+
+    auto ctx = tls::TlsContext::CreateServer(v);
+    if (!ctx) {
+        ERROR(logger) << "create server tls context failed, conf=" << v.toString();
         return false;
     }
-    if (SSL_CTX_use_PrivateKey_file(m_ctx.get(), key_file.c_str(), SSL_FILETYPE_PEM) != 1) {
-        ERROR(logger) << "SSL_CTX_use_PrivateKey_file(" << key_file << ") error";
-        return false;
-    }
-    if (SSL_CTX_check_private_key(m_ctx.get()) != 1) {
-        ERROR(logger) << "SSL_CTX_check_private_key cert_file=" << cert_file << ", key_file=" << key_file;
-        return false;
-    }
+    m_tlsContext = ctx;
     return true;
+}
+
+bool SSLSocket::setTlsContext(tls::TlsContext::ptr ctx)
+{
+    if (!ctx) {
+        return false;
+    }
+    m_tlsContext = ctx;
+    m_tlsConfig = ctx->getConfig();
+    m_verifyPeer = m_tlsConfig.verify_peer;
+    return true;
+}
+
+bool SSLSocket::handshake(uint64_t timeout_ms)
+{
+    if (!m_tlsContext) {
+        ERROR(logger) << "tls handshake without context, fd=" << m_sock;
+        m_handshakeStatus = HandshakeStatus::ERROR;
+        return false;
+    }
+
+    if (!m_ssl) {
+        auto ctx = m_tlsContext->getShared();
+        if (!ctx) {
+            ERROR(logger) << "tls handshake context is empty, fd=" << m_sock;
+            m_handshakeStatus = HandshakeStatus::ERROR;
+            return false;
+        }
+        m_ssl.reset(SSL_new(ctx.get()), SSL_free);
+        if (!m_ssl) {
+            ERROR(logger) << "SSL_new failed, fd=" << m_sock << " err=" << LastSslError();
+            m_handshakeStatus = HandshakeStatus::ERROR;
+            return false;
+        }
+        if (SSL_set_fd(m_ssl.get(), m_sock) != 1) {
+            ERROR(logger) << "SSL_set_fd failed, fd=" << m_sock;
+            m_handshakeStatus = HandshakeStatus::ERROR;
+            return false;
+        }
+        if (!m_tlsContext->getConfig().server && !setupClientSsl()) {
+            m_handshakeStatus = HandshakeStatus::ERROR;
+            return false;
+        }
+    }
+
+    const bool server = m_tlsContext->getConfig().server;
+    if (timeout_ms == 0) {
+        timeout_ms = m_tlsConfig.handshake_timeout_ms;
+    }
+    if (timeout_ms == 0) {
+        timeout_ms = 10000;
+    }
+
+    // TLS 的读写在用户态处理 WANT_*：把 fd 标记为“用户非阻塞”，让 hook 在 EAGAIN 时
+    // 直接返回，而不是在 hook 内部挂起协程。否则 SSL_connect 会阻塞到对端响应/关闭，
+    // 握手超时和 SSL_read/SSL_write 的 WANT 重试都无法生效。
+    if (IOManager::GetThis()) {
+        FdCtx::ptr fd_ctx = FdMgr::GetInstance()->get(m_sock);
+        if (fd_ctx) {
+            fd_ctx->setUserNonblock(true);
+        }
+        if (fcntl_f) {
+            int flags = fcntl_f(m_sock, F_GETFL, 0);
+            if (flags >= 0 && (flags & O_NONBLOCK) == 0 && fcntl_f(m_sock, F_SETFL, flags | O_NONBLOCK) != 0) {
+                WARN(logger) << "set user non-blocking failed, fd=" << m_sock << " errno=" << errno << " " << strerror(errno);
+            }
+        }
+    }
+    return sslHandshake(server, timeout_ms);
+}
+
+const char* SSLSocket::HandshakeStatusString(HandshakeStatus status)
+{
+    switch (status) {
+    case HandshakeStatus::NOT_STARTED:
+        return "not_started";
+    case HandshakeStatus::OK:
+        return "ok";
+    case HandshakeStatus::PEER_CLOSED:
+        return "peer_closed";
+    case HandshakeStatus::TIMEOUT:
+        return "timeout";
+    case HandshakeStatus::VERIFY_FAILED:
+        return "verify_failed";
+    case HandshakeStatus::ERROR:
+    default:
+        return "error";
+    }
+}
+
+bool SSLSocket::setupClientSsl()
+{
+    if (!m_ssl) {
+        return false;
+    }
+
+    const bool is_ip = IsIpLiteral(m_serverName);
+    if (!m_serverName.empty() && !is_ip) {
+        if (SSL_set_tlsext_host_name(m_ssl.get(), m_serverName.c_str()) != 1) {
+            WARN(logger) << "SSL_set_tlsext_host_name failed, host=" << m_serverName << " fd=" << m_sock;
+        }
+    }
+
+    if (m_verifyPeer) {
+        if (m_serverName.empty()) {
+            WARN(logger) << "SSL client has no server name, skip hostname verification, fd=" << m_sock;
+        } else {
+            X509_VERIFY_PARAM* param = SSL_get0_param(m_ssl.get());
+            X509_VERIFY_PARAM_set_hostflags(param, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+            int rt = is_ip ? X509_VERIFY_PARAM_set1_ip_asc(param, m_serverName.c_str()) : X509_VERIFY_PARAM_set1_host(param, m_serverName.c_str(), 0);
+            if (rt != 1) {
+                WARN(logger) << "set tls verify host failed, host=" << m_serverName << " fd=" << m_sock;
+            }
+        }
+    }
+
+    if (!m_tlsConfig.alpn.empty()) {
+        std::string wire;
+        wire.reserve(m_tlsConfig.alpn.size() * 8);
+        for (const auto& proto : m_tlsConfig.alpn) {
+            wire.push_back(static_cast<char>(proto.size()));
+            wire.append(proto);
+        }
+        if (SSL_set_alpn_protos(m_ssl.get(), reinterpret_cast<const unsigned char*>(wire.data()), static_cast<unsigned int>(wire.size())) != 0) {
+            WARN(logger) << "SSL_set_alpn_protos failed, fd=" << m_sock;
+        }
+    }
+
+    return true;
+}
+
+bool SSLSocket::sslHandshake(bool server, uint64_t timeout_ms)
+{
+    const char* op = server ? "SSL_accept" : "SSL_connect";
+
+    IOManager* iom = IOManager::GetThis();
+    if (!iom) {
+        if (server) {
+            ERROR(logger) << "SSL_accept requires IOManager, fd=" << m_sock;
+            m_handshakeStatus = HandshakeStatus::ERROR;
+            return false;
+        }
+        // 非调度器线程上 fd 通常是阻塞的，直接同步握手
+        int ret = SSL_connect(m_ssl.get());
+        if (ret == 1) {
+            m_handshakeStatus = HandshakeStatus::OK;
+            m_alpnProtocol = tls::TlsContext::GetAlpn(m_ssl.get());
+            return true;
+        }
+
+        int err = SSL_get_error(m_ssl.get(), ret);
+        if (err == SSL_ERROR_ZERO_RETURN) {
+            m_handshakeStatus = HandshakeStatus::PEER_CLOSED;
+            return false;
+        }
+        long verify_result = SSL_get_verify_result(m_ssl.get());
+        if (verify_result != X509_V_OK) {
+            m_handshakeStatus = HandshakeStatus::VERIFY_FAILED;
+            WARN(logger) << "certificate verify failed: " << X509_verify_cert_error_string(verify_result) << " fd=" << m_sock;
+            return false;
+        }
+        m_handshakeStatus = HandshakeStatus::ERROR;
+        WARN(logger) << op << " failed: " << LastSslError() << " fd=" << m_sock;
+        return false;
+    }
+
+    // 非阻塞 socket 上的 SSL 握手需要多次往返
+    const uint64_t deadline_ms = TimeUtil::GetCurrentMs() + timeout_ms;
+    for (;;) {
+        int ret = server ? SSL_accept(m_ssl.get()) : SSL_connect(m_ssl.get());
+        if (ret == 1) {
+            m_handshakeStatus = HandshakeStatus::OK;
+            m_alpnProtocol = tls::TlsContext::GetAlpn(m_ssl.get());
+            if (!m_alpnProtocol.empty()) {
+                DEBUG(logger) << "tls handshake ok, fd=" << m_sock << " alpn=" << m_alpnProtocol;
+            }
+            return true;
+        }
+
+        int err = SSL_get_error(m_ssl.get(), ret);
+        if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+            uint64_t now_ms = TimeUtil::GetCurrentMs();
+            if (now_ms >= deadline_ms) {
+                WARN(logger) << op << " timed out after " << timeout_ms << "ms, fd=" << m_sock;
+                m_handshakeStatus = HandshakeStatus::TIMEOUT;
+                return false;
+            }
+            WaitResult wait_result = sslWaitIO(err, deadline_ms - now_ms);
+            if (wait_result == WaitResult::TIMEOUT) {
+                WARN(logger) << op << " timed out after " << timeout_ms << "ms, fd=" << m_sock;
+                m_handshakeStatus = HandshakeStatus::TIMEOUT;
+                return false;
+            }
+            if (wait_result == WaitResult::ERROR) {
+                WARN(logger) << op << " wait io failed, fd=" << m_sock;
+                m_handshakeStatus = HandshakeStatus::ERROR;
+                return false;
+            }
+            continue;
+        }
+
+        if (err == SSL_ERROR_ZERO_RETURN || (err == SSL_ERROR_SYSCALL && ret == 0)) {
+            // 对端在握手完成前关闭了连接
+            DEBUG(logger) << op << ": peer closed during handshake, fd=" << m_sock;
+            m_handshakeStatus = HandshakeStatus::PEER_CLOSED;
+            return false;
+        }
+
+        long verify_result = SSL_get_verify_result(m_ssl.get());
+        if (verify_result != X509_V_OK) {
+            WARN(logger) << "certificate verify failed: " << X509_verify_cert_error_string(verify_result) << " fd=" << m_sock;
+            m_handshakeStatus = HandshakeStatus::VERIFY_FAILED;
+            return false;
+        }
+
+        unsigned long ssl_err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(ssl_err, err_buf, sizeof(err_buf));
+        WARN(logger) << op << " failed: " << err_buf << " (ssl_err=" << err << ") fd=" << m_sock;
+        m_handshakeStatus = HandshakeStatus::ERROR;
+        return false;
+    }
+}
+
+SSLSocket::WaitResult SSLSocket::sslWaitIO(int sslError, uint64_t timeout_ms)
+{
+    IOManager* iom = IOManager::GetThis();
+    if (!iom) {
+        return WaitResult::ERROR;
+    }
+
+    IOManager::Event event = (sslError == SSL_ERROR_WANT_READ) ? IOManager::READ : IOManager::WRITE;
+
+    struct WaitTimerInfo {
+        std::atomic<int> done{0};
+        std::atomic<int> timed_out{0};
+    };
+    auto info = std::make_shared<WaitTimerInfo>();
+
+    Timer::ptr timer = iom->addTimer(timeout_ms, [info, fd = m_sock, iom, event]() {
+        if (info->done.load() != 0 || info->timed_out.exchange(1) != 0) {
+            return;
+        }
+        iom->cancelEvent(fd, event);
+    });
+
+    if (UNLIKELY(iom->addEvent(m_sock, event) != 0)) {
+        ERROR(logger) << "sslWaitIO addEvent failed for fd=" << m_sock;
+        if (timer) {
+            timer->cancel();
+        }
+        return WaitResult::ERROR;
+    }
+
+    Fiber::YieldToHold();
+
+    // 标记等待已结束，避免定时器在 fd 被复用后再操作旧事件
+    info->done.store(1);
+    if (timer) {
+        timer->cancel();
+    }
+    if (info->timed_out.load() != 0) {
+        return WaitResult::TIMEOUT;
+    }
+    if (!isValid()) {
+        return WaitResult::ERROR;
+    }
+    return WaitResult::OK;
 }
 
 std::ostream& SSLSocket::dump(std::ostream& os) const
@@ -801,149 +1112,19 @@ std::ostream& SSLSocket::dump(std::ostream& os) const
     if (m_remoteAddress) {
         os << " remote_address=" << m_remoteAddress->toString();
     }
+
+    if (!m_alpnProtocol.empty()) {
+        os << " alpn=" << m_alpnProtocol;
+    }
+    os << " handshake=" << HandshakeStatusString(m_handshakeStatus);
     os << "]";
     return os;
 }
 
 bool SSLSocket::init(int sock)
 {
-    bool v = Socket::init(sock);
-    if (v) {
-        // 这里进行https的握手
-        m_ssl.reset(SSL_new(m_ctx.get()), SSL_free);
-        SSL_set_fd(m_ssl.get(), m_sock);
-        v = sslHandshake(true);
-    }
-    return v;
-}
-
-bool SSLSocket::sslWaitIO(int sslError)
-{
-    IOManager* iom = IOManager::GetThis();
-    if (!iom) {
-        return false;
-    }
-
-    static constexpr uint64_t kWaitTimeoutMs = 30000;
-    IOManager::Event event = (sslError == SSL_ERROR_WANT_READ) ? IOManager::READ : IOManager::WRITE;
-
-    struct WaitTimerInfo {
-        int cancelled = 0;
-    };
-    auto info = std::make_shared<WaitTimerInfo>();
-    std::weak_ptr<WaitTimerInfo> winfo(info);
-
-    Timer::ptr timer = iom->addConditionTimer(
-        kWaitTimeoutMs,
-        [winfo, fd = m_sock, iom, event]() {
-            auto t = winfo.lock();
-            if (!t || t->cancelled) {
-                return;
-            }
-            t->cancelled = ETIMEDOUT;
-            iom->cancelEvent(fd, event);
-        },
-        winfo);
-
-    if (UNLIKELY(iom->addEvent(m_sock, event) != 0)) {
-        ERROR(logger) << "sslWaitIO addEvent failed for fd=" << m_sock;
-        timer->cancel();
-        return false;
-    }
-
-    Fiber::YieldToHold();
-
-    if (timer) {
-        timer->cancel();
-    }
-    if (info->cancelled) {
-        WARN(logger) << "ssl io timed out on fd=" << m_sock;
-        return false;
-    }
-    return true;
-}
-
-bool SSLSocket::sslHandshake(bool server)
-{
-    const char* op = server ? "SSL_accept" : "SSL_connect";
-
-    IOManager* iom = IOManager::GetThis();
-    if (!iom) {
-        if (server) {
-            ERROR(logger) << "SSL_accept requires IOManager, fd=" << m_sock;
-            return false;
-        }
-        // 非调度器线程上 fd 通常是阻塞的，直接同步握手
-        return SSL_connect(m_ssl.get()) == 1;
-    }
-
-    // SSL 握手超时 30 秒
-    static constexpr uint64_t kHandshakeTimeoutMs = 30000;
-    struct HandshakeTimerInfo {
-        int cancelled = 0;
-    };
-    auto tinfo = std::make_shared<HandshakeTimerInfo>();
-    std::weak_ptr<HandshakeTimerInfo> winfo(tinfo);
-
-    // 非阻塞 socket 上的 SSL 握手需要多次往返
-    while (true) {
-        int ret = server ? SSL_accept(m_ssl.get()) : SSL_connect(m_ssl.get());
-        if (ret == 1) {
-            return true;
-        }
-        int err = SSL_get_error(m_ssl.get(), ret);
-        if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
-            IOManager::Event event = (err == SSL_ERROR_WANT_READ) ? IOManager::READ : IOManager::WRITE;
-
-            // 添加超时定时器
-            Timer::ptr timer = iom->addConditionTimer(
-                kHandshakeTimeoutMs,
-                [winfo, fd = m_sock, iom, event]() {
-                    auto t = winfo.lock();
-                    if (!t || t->cancelled) {
-                        return;
-                    }
-                    t->cancelled = ETIMEDOUT;
-                    iom->cancelEvent(fd, event);
-                },
-                winfo);
-
-            if (UNLIKELY(iom->addEvent(m_sock, event) != 0)) {
-                ERROR(logger) << op << " addEvent failed for fd=" << m_sock;
-                timer->cancel();
-                return false;
-            }
-
-            Fiber::YieldToHold();
-
-            if (timer) {
-                timer->cancel();
-            }
-
-            // 超时被唤醒
-            if (tinfo->cancelled) {
-                WARN(logger) << "SSL handshake timed out on fd=" << m_sock;
-                return false;
-            }
-        } else if (err == SSL_ERROR_ZERO_RETURN) {
-            // 对端在握手完成前关闭了连接
-            DEBUG(logger) << op << ": peer closed during handshake, fd=" << m_sock;
-            return false;
-        } else {
-            // 真正的错误（证书问题、协议不匹配等）
-            unsigned long ssl_err = ERR_get_error();
-            char err_buf[256];
-            ERR_error_string_n(ssl_err, err_buf, sizeof(err_buf));
-            if (!server) {
-                long verify_result = SSL_get_verify_result(m_ssl.get());
-                if (verify_result != X509_V_OK) {
-                    WARN(logger) << "certificate verify failed: " << X509_verify_cert_error_string(verify_result) << " fd=" << m_sock;
-                }
-            }
-            WARN(logger) << op << " failed: " << err_buf << " (ssl_err=" << err << ") fd=" << m_sock;
-            return false;
-        }
-    }
+    // accept 只建立 TCP 连接；TLS 握手由 TcpServer 在 io worker 中显式调用 handshake()
+    return Socket::init(sock);
 }
 
 std::ostream& operator<<(std::ostream& os, const Socket& sock)

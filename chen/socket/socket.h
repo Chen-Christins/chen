@@ -15,9 +15,9 @@
 #include <sys/types.h>
 
 #include <openssl/err.h>
-#include <openssl/ssl.h> // SSL_CTX, SSL
-#include <openssl/x509v3.h> // 证书主机名校验
 
+#include "../tls/tls_config.h"
+#include "../tls/tls_context.h"
 #include "../util/noncopyable.h"
 #include "address.h"
 
@@ -372,11 +372,37 @@ public:
     typedef std::shared_ptr<SSLSocket> ptr;
 
     /**
+     * @brief TLS 握手结果
+     */
+    enum class HandshakeStatus {
+        /// 尚未握手
+        NOT_STARTED = 0,
+        /// 握手成功
+        OK,
+        /// 对端在握手完成前关闭连接
+        PEER_CLOSED,
+        /// 握手超时
+        TIMEOUT,
+        /// 证书链 / 主机名校验失败
+        VERIFY_FAILED,
+        /// 其他 OpenSSL 错误
+        ERROR,
+    };
+
+    /**
      * @brief 创建一个SSL的TCP Socket
      * @param address 目标地址
      * @return SSLSocket::ptr
      */
     static SSLSocket::ptr CreateTCP(Address::ptr address);
+
+    /**
+     * @brief 创建一个带 TLS 配置的 SSL TCP Socket
+     * @param address 目标地址
+     * @param conf TLS 配置；服务端配置会立即创建 TlsContext
+     * @return 失败返回 nullptr
+     */
+    static SSLSocket::ptr CreateTCP(Address::ptr address, const tls::TlsConfig& conf);
 
     /**
      * @brief 创建一个IPv4的SSL TCP Socket
@@ -511,8 +537,61 @@ public:
      * @param cert_file 证书文件
      * @param key_file 私钥文件
      * @return bool 是否成功
+     * @details 兼容旧接口，内部构造服务端 TlsConfig 并创建 TlsContext。
      */
     bool loadCertificates(const std::string& cert_file, const std::string& key_file);
+
+    /**
+     * @brief 显式执行 TLS 握手
+     * @param timeout_ms 超时时间；0 表示使用 TlsConfig.handshake_timeout_ms
+     * @return bool 是否成功
+     * @details 服务端 accept 后由 io worker 调用；客户端 connect() 内部会调用。
+     */
+    bool handshake(uint64_t timeout_ms = 0);
+
+    /**
+     * @brief 设置 TLS 上下文
+     * @details 服务端监听 socket 设置后，accept 出的连接会继承同一个上下文。
+     */
+    bool setTlsContext(tls::TlsContext::ptr ctx);
+
+    /**
+     * @brief 获取当前 TLS 上下文
+     */
+    tls::TlsContext::ptr getTlsContext() const { return m_tlsContext; }
+
+    /**
+     * @brief 设置 TLS 配置
+     * @details 服务端配置会立即创建 TlsContext；客户端配置在 connect() 时使用。
+     * @return bool 上下文创建是否成功（客户端配置总是返回 true）
+     */
+    bool setTlsConfig(const tls::TlsConfig& v);
+
+    /**
+     * @brief 获取当前 TLS 配置
+     */
+    const tls::TlsConfig& getTlsConfig() const { return m_tlsConfig; }
+
+    /**
+     * @brief 获取握手协商出的 ALPN 协议
+     * @return 未握手或未协商时返回空字符串
+     */
+    std::string getAlpnProtocol() const { return m_alpnProtocol; }
+
+    /**
+     * @brief 是否协商为 HTTP/2
+     */
+    bool isAlpnH2() const { return m_alpnProtocol == "h2"; }
+
+    /**
+     * @brief 获取最近一次握手结果
+     */
+    HandshakeStatus getHandshakeStatus() const { return m_handshakeStatus; }
+
+    /**
+     * @brief 握手结果转字符串（用于日志 / 指标标签）
+     */
+    static const char* HandshakeStatusString(HandshakeStatus status);
 
     /**
      * @brief 设置 TLS SNI 主机名
@@ -525,7 +604,11 @@ public:
      * @brief 是否校验服务端证书（证书链 + 主机名），默认开启
      * @details 自签名 / 内部服务可关闭；关闭后与旧行为一致（不校验）
      */
-    void setVerifyPeer(bool v) { m_verifyPeer = v; }
+    void setVerifyPeer(bool v)
+    {
+        m_verifyPeer = v;
+        m_tlsConfig.verify_peer = v;
+    }
 
     /**
      * @brief 当前是否校验服务端证书
@@ -549,26 +632,48 @@ protected:
 
 private:
     /**
+     * @brief SSL_read/SSL_write/握手等待 fd 的结果
+     */
+    enum class WaitResult {
+        OK = 0,
+        TIMEOUT,
+        ERROR,
+    };
+
+    /**
+     * @brief 客户端握手前的 SSL 参数设置：SNI、主机名校验、ALPN
+     */
+    bool setupClientSsl();
+
+    /**
      * @brief 非阻塞 socket 上的 TLS 握手循环
      * @param server true=SSL_accept（服务端），false=SSL_connect（客户端）
+     * @param timeout_ms 握手超时时间
      * @return bool 握手是否成功
      * @details 需要 IOManager：握手期间把 fd 的可读/可写事件交给 epoll，协程挂起而不占线程
      */
-    bool sslHandshake(bool server);
+    bool sslHandshake(bool server, uint64_t timeout_ms);
 
     /**
-     * @brief SSL_read/SSL_write 返回 WANT_* 时等待 fd 就绪
+     * @brief SSL 返回 WANT_* 时等待 fd 就绪
      * @param sslError SSL_get_error 的结果（必须是 WANT_READ/WANT_WRITE）
-     * @return bool true 可以重试 | false 等待失败或超时
+     * @param timeout_ms 等待超时时间
      */
-    bool sslWaitIO(int sslError);
+    WaitResult sslWaitIO(int sslError, uint64_t timeout_ms);
 
-    /// SSL上下文
-    std::shared_ptr<SSL_CTX> m_ctx;
-    /// SSL实例
+private:
+    /// TLS 上下文
+    tls::TlsContext::ptr m_tlsContext;
+    /// TLS 配置（客户端创建上下文 / 服务端握手超时使用）
+    tls::TlsConfig m_tlsConfig;
+    /// SSL 实例
     std::shared_ptr<SSL> m_ssl;
     /// TLS SNI 主机名（客户端），同时用于证书主机名校验
     std::string m_serverName;
+    /// 握手协商出的 ALPN
+    std::string m_alpnProtocol;
+    /// 最近一次握手结果
+    HandshakeStatus m_handshakeStatus = HandshakeStatus::NOT_STARTED;
     /// 是否校验服务端证书（客户端）
     bool m_verifyPeer = true;
 };

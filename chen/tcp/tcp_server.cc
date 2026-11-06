@@ -5,6 +5,8 @@
 
 #include "../config/config.h"
 #include "../log/log.h"
+#include "../metrics/metrics.h"
+#include "../util/time_util.h"
 
 namespace chen {
 
@@ -18,12 +20,32 @@ bool TcpServerConf::operator==(const TcpServerConf& oth) const
         && type == oth.type
         && name == oth.name
         && cert_file == oth.cert_file
-        && key_file == oth.key_file
-        && accept_worker == oth.accept_worker
+        && key_file == oth.key_file && min_tls_version == oth.min_tls_version
+        && max_tls_version == oth.max_tls_version && ciphers == oth.ciphers && ciphersuites == oth.ciphersuites && alpn == oth.alpn
+        && handshake_timeout_ms == oth.handshake_timeout_ms && accept_worker == oth.accept_worker
         && io_worker == oth.io_worker
         && process_worker == oth.process_worker
         && negotiateH2 == oth.negotiateH2
         && args == oth.args;
+}
+
+tls::TlsConfig MakeTlsConfig(const TcpServerConf& conf)
+{
+    tls::TlsConfig tls_conf = tls::TlsConfig::DefaultServer();
+    tls_conf.cert_file = conf.cert_file;
+    tls_conf.key_file = conf.key_file;
+    tls_conf.min_version = conf.min_tls_version;
+    tls_conf.max_version = conf.max_tls_version;
+    tls_conf.ciphers = conf.ciphers;
+    tls_conf.ciphersuites = conf.ciphersuites;
+    tls_conf.handshake_timeout_ms = conf.handshake_timeout_ms > 0 ? conf.handshake_timeout_ms : 10000;
+    tls_conf.alpn = conf.alpn;
+
+    // HTTP/HTTP2 默认声明 h2 + http/1.1；RPC/WS/Game 不默认声明，避免误协商
+    if (tls_conf.alpn.empty() && (conf.type == "http" || conf.type == "http2")) {
+        tls_conf.alpn = {"h2", "http/1.1"};
+    }
+    return tls_conf;
 }
 
 namespace {
@@ -87,8 +109,20 @@ bool TcpServer::bind(Address::ptr addr, bool ssl)
 bool TcpServer::bind(const std::vector<Address::ptr>& addrs, std::vector<Address::ptr>& fails, bool ssl)
 {
     m_ssl = ssl;
+    if (m_ssl && !m_tlsContext) {
+        WARN(logger) << "server bind with ssl=1 but no tls context, all handshakes will fail, name=" << m_name;
+    }
     for (auto& addr : addrs) {
-        Socket::ptr sock = ssl ? SSLSocket::CreateTCP(addr) : Socket::CreateTCP(addr);
+        Socket::ptr sock;
+        if (ssl) {
+            auto ssl_sock = SSLSocket::CreateTCP(addr);
+            if (m_tlsContext) {
+                ssl_sock->setTlsContext(m_tlsContext);
+            }
+            sock = ssl_sock;
+        } else {
+            sock = Socket::CreateTCP(addr);
+        }
         if (!sock->bind(addr)) {
             ERROR(logger) << "bind fail errno=" << errno << " errstr=" << strerror(errno) << " addr=[" << addr->toString() << "]";
             fails.push_back(addr);
@@ -194,14 +228,22 @@ void TcpServer::startAccept(Socket::ptr sock)
                 m_activeClients.insert(client);
             }
             m_ioWorker->schedule([this, self = shared_from_this(), client]() {
+                if (m_ssl) {
+                    auto ssl = std::dynamic_pointer_cast<SSLSocket>(client);
+                    uint64_t begin_us = TimeUtil::GetCurrentUs();
+                    bool ok = ssl && ssl->handshake(m_handshakeTimeoutMs);
+                    uint64_t cost_us = TimeUtil::GetCurrentUs() - begin_us;
+                    recordTlsHandshake(ssl, ok, cost_us);
+                    if (!ok) {
+                        DEBUG(logger) << "tls handshake failed, name=" << m_name << " client=" << *client
+                                      << " status=" << (ssl ? SSLSocket::HandshakeStatusString(ssl->getHandshakeStatus()) : "not_ssl");
+                        client->close();
+                        releaseClient(client);
+                        return;
+                    }
+                }
                 handleClient(client);
-                {
-                    std::lock_guard lock(m_clientsMutex);
-                    m_activeClients.erase(client);
-                }
-                if (m_connLimiter) {
-                    m_connLimiter->release();
-                }
+                releaseClient(client);
             });
         } else {
             // stop() 关闭了监听 socket，accept 返回 EBADF 是预期行为，不打错误日志
@@ -210,6 +252,57 @@ void TcpServer::startAccept(Socket::ptr sock)
                 ERROR(logger) << "accept errno=" << errno << " errstr=" << strerror(errno);
             }
         }
+    }
+}
+
+void TcpServer::releaseClient(const Socket::ptr& client)
+{
+    {
+        std::lock_guard lock(m_clientsMutex);
+        m_activeClients.erase(client);
+    }
+    if (m_connLimiter) {
+        m_connLimiter->release();
+    }
+}
+
+void TcpServer::recordTlsHandshake(const SSLSocket::ptr& ssl, bool ok, uint64_t cost_us)
+{
+    auto* registry = metrics::RegistryMgr::GetInstance();
+    const std::string server = m_name.empty() ? "-" : m_name;
+
+    const char* result = "ok";
+    if (!ok) {
+        if (ssl) {
+            switch (ssl->getHandshakeStatus()) {
+            case SSLSocket::HandshakeStatus::TIMEOUT:
+                result = "timeout";
+                break;
+            case SSLSocket::HandshakeStatus::VERIFY_FAILED:
+                result = "verify_failed";
+                break;
+            case SSLSocket::HandshakeStatus::OK:
+                result = "ok";
+                break;
+            case SSLSocket::HandshakeStatus::NOT_STARTED:
+            case SSLSocket::HandshakeStatus::PEER_CLOSED:
+            case SSLSocket::HandshakeStatus::ERROR:
+            default:
+                result = "error";
+                break;
+            }
+        } else {
+            result = "error";
+        }
+    }
+
+    registry->getCounter("chen_tls_handshakes_total", "TLS handshake total", {{"server", server}, {"result", result}})->inc();
+    registry->getHistogram("chen_tls_handshake_duration_seconds", "TLS handshake duration", {{"server", server}})
+        ->observe(static_cast<double>(cost_us) / 1000000.0);
+
+    if (ok && ssl) {
+        const std::string protocol = ssl->getAlpnProtocol().empty() ? "none" : ssl->getAlpnProtocol();
+        registry->getCounter("chen_tls_alpn_total", "TLS ALPN negotiation total", {{"server", server}, {"protocol", protocol}})->inc();
     }
 }
 
@@ -225,17 +318,70 @@ void TcpServer::setConf(const TcpServerConf& v)
                   << " effective_recv_timeout_ms=" << m_recvTimeout;
 }
 
-bool TcpServer::loadCertificates(const std::string& cert_file, const std::string& key_file)
+bool TcpServer::setTlsConfig(const tls::TlsConfig& conf)
 {
-    for (auto& i : m_socks) {
-        auto ssl_sock = std::dynamic_pointer_cast<SSLSocket>(i);
-        if (ssl_sock) {
-            if (!ssl_sock->loadCertificates(cert_file, key_file)) {
-                return false;
-            }
+    tls::TlsConfig tls_conf = conf;
+    tls_conf.enabled = true;
+    tls_conf.server = true;
+    if (tls_conf.handshake_timeout_ms == 0) {
+        tls_conf.handshake_timeout_ms = 10000;
+    }
+
+    auto ctx = tls::TlsContext::CreateServer(tls_conf);
+    if (!ctx) {
+        ERROR(logger) << "create server tls context failed, name=" << m_name << " conf=" << tls_conf.toString();
+        return false;
+    }
+
+    m_tlsConfig = tls_conf;
+    m_tlsContext = ctx;
+    m_ssl = true;
+    m_handshakeTimeoutMs = tls_conf.handshake_timeout_ms;
+
+    // 已绑定的监听 socket 立即切换到新上下文；旧上下文由 shared_ptr 保证存量连接可用
+    for (auto& sock : m_socks) {
+        auto ssl_sock = std::dynamic_pointer_cast<SSLSocket>(sock);
+        if (ssl_sock && !ssl_sock->setTlsContext(ctx)) {
+            ERROR(logger) << "apply tls context to listen socket failed, name=" << m_name;
+            return false;
         }
     }
     return true;
+}
+
+bool TcpServer::reloadCertificatesFromConf()
+{
+    if (!m_ssl) {
+        return true;
+    }
+    if (!m_conf) {
+        ERROR(logger) << "reload certificates failed: server has no conf, name=" << m_name;
+        return false;
+    }
+
+    tls::TlsConfig conf = MakeTlsConfig(*m_conf);
+    if (!setTlsConfig(conf)) {
+        ERROR(logger) << "reload certificates failed, name=" << m_name << " cert=" << conf.cert_file << " key=" << conf.key_file;
+        return false;
+    }
+    INFO(logger) << "reload certificates success, name=" << m_name << " cert=" << conf.cert_file;
+    return true;
+}
+
+bool TcpServer::loadCertificates(const std::string& cert_file, const std::string& key_file)
+{
+    tls::TlsConfig conf = m_tlsConfig;
+    conf.enabled = true;
+    conf.server = true;
+    conf.cert_file = cert_file;
+    conf.key_file = key_file;
+    if (conf.handshake_timeout_ms == 0) {
+        conf.handshake_timeout_ms = 10000;
+    }
+    if (conf.alpn.empty() && (m_type == "http" || m_type == "http2")) {
+        conf.alpn = {"h2", "http/1.1"};
+    }
+    return setTlsConfig(conf);
 }
 
 std::string TcpServer::toString(const std::string& prefix)
