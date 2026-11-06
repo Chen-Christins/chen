@@ -1,0 +1,36 @@
+# 日志配置
+logs:
+  - name: root
+    level: info
+    formatter: "%d{%Y-%m-%d %H:%M:%S.%f}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"
+    appenders:
+      - type: FileLogAppender
+        file: /home/chen/workspace/chen/logs/root.log
+        # time_rotate: hour
+        # max_size: 104857600   # 单文件超过 100MB 即分片
+      - type: StdoutLogAppender
+  - name: system
+    level: debug
+    formatter: "%d{%Y-%m-%d %H:%M:%S.%f}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"
+    appenders:
+      - type: FileLogAppender
+        file: /home/chen/workspace/chen/logs/system.log
+        # time_rotate: 30min
+      - type: StdoutLogAppender
+  - name: access
+    level: info
+    formatter: "%d{%Y-%m-%d %H:%M:%S.%f}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"
+    appenders:
+      - type: FileLogAppender
+        file: /home/chen/workspace/chen/logs/access.log
+        # time_rotate: day
+        # max_size: 104857600   # 单文件超过 100MB 即分片
+      - type: StdoutLogAppender
+  - name: http_gateway
+    level: debug
+    formatter: "%d{%Y-%m-%d %H:%M:%S.%f}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"
+    appenders:
+      - type: FileLogAppender
+        file: /home/chen/workspace/chen/logs/http_gateway.log
+        # time_rotate: day
+      - type: StdoutLogAppender

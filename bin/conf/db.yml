@@ -1,0 +1,25 @@
+# 数据库配置
+sqlite3:
+  dbs:
+    blog:
+      path: /home/chen/workspace/chen/blog.db
+      sql: PRAGMA synchronous = OFF
+
+
+# Redis配置（由业务 module 决定是否使用，框架不主动初始化）
+redis:
+  config:
+    blog:
+      host: 127.0.0.1:6379
+      type: fox_redis
+      pool: 1
+      timeout: 100
+  desc: "type: redis,redis_cluster,fox_redis,fox_redis_cluster"
+
+
+# Redis线程配置
+fox_thread:
+  redis:
+    name: redis
+    num: 1
+    advance: 0
