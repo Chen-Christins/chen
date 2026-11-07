@@ -256,6 +256,7 @@ CategoryInfoDao::MigrateTablePostgreSQL(conn);
   （`uint64` 映射为 `numeric`，会被拒绝）。
 - `Insert` 使用 `RETURNING` 回填自增主键；`InsertOrUpdate` 使用
   `ON CONFLICT (<主键>) DO UPDATE`，没有主键时退化为 `ON CONFLICT DO NOTHING`。
+  只有自增列的表使用 `INSERT ... DEFAULT VALUES`，其 `BatchInsert` 退化为逐行调用 `Insert`。
 - `update="current_timestamp"`（或 `now()`）通过 `BEFORE UPDATE` 触发器实现；
   触发器函数和触发器名均为 `<table>_update`。PG 12/13 不支持 `CREATE OR REPLACE TRIGGER`，
   因此每次先 `DROP TRIGGER IF EXISTS` 再创建。
