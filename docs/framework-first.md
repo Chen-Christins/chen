@@ -22,40 +22,40 @@
 
 ## 能力对照表
 
-| 需求                   | 用框架的                                                                                                                        | 不要                               |
-|------------------------|---------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
-| 日志                   | `INFO/WARN/ERROR(logger) << ...` + `LOG_NAME`                                                                                   | `printf` / `std::cout` / 自建日志  |
-| 配置                   | `Config::Lookup<T>` + `addListener`                                                                                             | 自己读 yaml / json / ini           |
-| 时间                   | `TimeUtil::GetCurrentMs/Time2StrSec/Time2StrMs/Str2Time/IsExpiredMs/...`                                                        | 到处 `std::chrono` / `time()`      |
-| 字符串                 | `StringUtil::Split/Join/Trim/Replace/UrlEncode/Base64/Hex`                                                                      | 手写 split / trim / base64         |
-| 文件                   | `FSUtil::ListAllFile/ReadFileToString/Exists/Mkdir/OpenForWrite`                                                                | 裸 `fopen` / `std::filesystem`     |
-| 环境 / 参数            | `Env` / `EnvMgr`                                                                                                                | 自己解析 `argv`                    |
-| JSON                   | `JsonUtil::FromString/ToString`                                                                                                 | 散落 `Json::Reader`                |
-| 类型转换               | `LexicalCast<From,To>`、`TypeUtil::Atoi/Atof/ToString`                                                                          | 一律手写 `std::stoi`               |
-| 加解密                 | `EncryptorUtil::MD5/SHA1/SHA256/HMAC/AES-GCM`                                                                                   | 直接调 OpenSSL                     |
-| 压缩                   | `CompressUtil::Gzip/Zlib`                                                                                                       | 直接调 zlib                        |
-| 随机                   | `RandomUtil::RandInt/RandString/RandElement`、`SnowflakeIdGenerator`                                                            | `rand()`                           |
-| 字节序                 | `chen::endian`、`htonll` / `ntohll`                                                                                             | 手写移位                           |
-| 二进制缓冲             | `ByteArray`（`writeFint32` / `readStringVint` 等）                                                                              | 裸 `memcpy` 拼包                   |
-| 协程 / 异步            | `IOManager::GetThis()->schedule(...)`、`addTimer(...)`、`chen/util/future.h` 的 `Promise`/`Future`、`http::HttpClient` 异步请求 | `std::thread` + `sleep_for`        |
-| 并发等待               | `FiberSemaphore` / `Semaphore`                                                                                                  | fiber 里长时间 `std::mutex`        |
-| 单例                   | `Singleton` / `LeakySingleton`                                                                                                  | 自己写双重检查锁                   |
-| 锁                     | `SpinLock` + `MutexType::Lock`                                                                                                  | 裸 pthread mutex                   |
-| 地址 / 网络            | `Address::LookupAny`、`Socket::CreateTCP/UDP`                                                                                   | `getaddrinfo` / `socket` / `epoll` |
-| TCP 服务               | `TcpServer` / `TcpServerFactory`                                                                                                | 自己写 accept 循环                 |
-| HTTP / WS              | `HttpServer` + `ServletDispatch`、`WSServer`                                                                                    | 自己解析 HTTP                      |
-| RPC                    | `RpcServer` / `RpcClient` / `RpcClientPoolMgr` / Hub                                                                            | 自定义跨进程协议                   |
-| Redis / MySQL / SQLite | `RedisMgr` / `MySQLMgr` / `SQLite3Mgr` + `*Util`                                                                                | 自己建连接 / 连接池                |
-| SQL 构建               | `QueryBuilder`                                                                                                                  | 字符串拼 SQL                       |
-| 分库分表               | `ShardRouterMgr`                                                                                                                | 自己取模路由                       |
-| ORM                    | `chen/orm`（XML 定义 + Dao）                                                                                                    | 手写 CRUD                          |
-| 事件 / 解耦            | `EventBusMgr` / `EventDispatcherMgr`                                                                                            | 自己维护回调表                     |
-| 缓存                   | `LruCache` / `HashLruCache`                                                                                                     | 自己写 LRU                         |
-| 限流                   | `RateLimiter` / `ConnLimiter`                                                                                                   | 自己计数                           |
-| 指标                   | `RegistryMgr` 的 `Counter/Gauge/Histogram`                                                                                      | 自己统计                           |
-| 模块                   | `chen::Module` 生命周期                                                                                                         | 自己 `dlopen`                      |
-| 配置热加载             | `FileWatcher` + `ConfigVar::addListener`                                                                                        | 自建 inotify 轮询                  |
-| 路径处理               | `FSUtil::Dirname/Basename/GetCwd`                                                                                               | 手写字符串截取                     |
+| 需求                                | 用框架的                                                                                                                        | 不要                               |
+|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
+| 日志                                | `INFO/WARN/ERROR(logger) << ...` + `LOG_NAME`                                                                                   | `printf` / `std::cout` / 自建日志  |
+| 配置                                | `Config::Lookup<T>` + `addListener`                                                                                             | 自己读 yaml / json / ini           |
+| 时间                                | `TimeUtil::GetCurrentMs/Time2StrSec/Time2StrMs/Str2Time/IsExpiredMs/...`                                                        | 到处 `std::chrono` / `time()`      |
+| 字符串                              | `StringUtil::Split/Join/Trim/Replace/UrlEncode/Base64/Hex`                                                                      | 手写 split / trim / base64         |
+| 文件                                | `FSUtil::ListAllFile/ReadFileToString/Exists/Mkdir/OpenForWrite`                                                                | 裸 `fopen` / `std::filesystem`     |
+| 环境 / 参数                         | `Env` / `EnvMgr`                                                                                                                | 自己解析 `argv`                    |
+| JSON                                | `JsonUtil::FromString/ToString`                                                                                                 | 散落 `Json::Reader`                |
+| 类型转换                            | `LexicalCast<From,To>`、`TypeUtil::Atoi/Atof/ToString`                                                                          | 一律手写 `std::stoi`               |
+| 加解密                              | `EncryptorUtil::MD5/SHA1/SHA256/HMAC/AES-GCM`                                                                                   | 直接调 OpenSSL                     |
+| 压缩                                | `CompressUtil::Gzip/Zlib`                                                                                                       | 直接调 zlib                        |
+| 随机                                | `RandomUtil::RandInt/RandString/RandElement`、`SnowflakeIdGenerator`                                                            | `rand()`                           |
+| 字节序                              | `chen::endian`、`htonll` / `ntohll`                                                                                             | 手写移位                           |
+| 二进制缓冲                          | `ByteArray`（`writeFint32` / `readStringVint` 等）                                                                              | 裸 `memcpy` 拼包                   |
+| 协程 / 异步                         | `IOManager::GetThis()->schedule(...)`、`addTimer(...)`、`chen/util/future.h` 的 `Promise`/`Future`、`http::HttpClient` 异步请求 | `std::thread` + `sleep_for`        |
+| 并发等待                            | `FiberSemaphore` / `Semaphore`                                                                                                  | fiber 里长时间 `std::mutex`        |
+| 单例                                | `Singleton` / `LeakySingleton`                                                                                                  | 自己写双重检查锁                   |
+| 锁                                  | `SpinLock` + `MutexType::Lock`                                                                                                  | 裸 pthread mutex                   |
+| 地址 / 网络                         | `Address::LookupAny`、`Socket::CreateTCP/UDP`                                                                                   | `getaddrinfo` / `socket` / `epoll` |
+| TCP 服务                            | `TcpServer` / `TcpServerFactory`                                                                                                | 自己写 accept 循环                 |
+| HTTP / WS                           | `HttpServer` + `ServletDispatch`、`WSServer`                                                                                    | 自己解析 HTTP                      |
+| RPC                                 | `RpcServer` / `RpcClient` / `RpcClientPoolMgr` / Hub                                                                            | 自定义跨进程协议                   |
+| Redis / MySQL / SQLite / PostgreSQL | `RedisMgr` / `MySQLMgr` / `SQLite3Mgr` / `PostgreSQLMgr` + `*Util`                                                              | 自己建连接 / 连接池                |
+| SQL 构建                            | `QueryBuilder`                                                                                                                  | 字符串拼 SQL                       |
+| 分库分表                            | `ShardRouterMgr`                                                                                                                | 自己取模路由                       |
+| ORM                                 | `chen/orm`（XML 定义 + Dao）                                                                                                    | 手写 CRUD                          |
+| 事件 / 解耦                         | `EventBusMgr` / `EventDispatcherMgr`                                                                                            | 自己维护回调表                     |
+| 缓存                                | `LruCache` / `HashLruCache`                                                                                                     | 自己写 LRU                         |
+| 限流                                | `RateLimiter` / `ConnLimiter`                                                                                                   | 自己计数                           |
+| 指标                                | `RegistryMgr` 的 `Counter/Gauge/Histogram`                                                                                      | 自己统计                           |
+| 模块                                | `chen::Module` 生命周期                                                                                                         | 自己 `dlopen`                      |
+| 配置热加载                          | `FileWatcher` + `ConfigVar::addListener`                                                                                        | 自建 inotify 轮询                  |
+| 路径处理                            | `FSUtil::Dirname/Basename/GetCwd`                                                                                               | 手写字符串截取                     |
 
 ## 分领域规则
 

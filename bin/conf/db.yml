@@ -16,10 +16,19 @@ redis:
       timeout: 100
   desc: "type: redis,redis_cluster,fox_redis,fox_redis_cluster"
 
-
 # Redis线程配置
 fox_thread:
   redis:
     name: redis
     num: 1
     advance: 0
+
+postgresql:
+  dbs:
+    blog:
+      host: 127.0.0.1
+      port: 5432
+      user: postgres
+      passwd: "123456"
+      dbname: postgres
+      pool: 5

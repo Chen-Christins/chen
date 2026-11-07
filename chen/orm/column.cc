@@ -62,6 +62,72 @@ std::string Column::getMySQLDefault()
     return getSQLite3Default();
 }
 
+namespace {
+
+/**
+ * @brief 转义写入生成代码 C++ 字符串字面量中的 SQL 字符串内容
+ *
+ * 生成代码形如 conn->execute("... DEFAULT 'value'")，因此需要同时处理
+ * SQL 单引号（双写）和 C++ 字符串字面量中的反斜杠/双引号/换行。
+ */
+std::string escapePostgreSQLStringLiteral(const std::string& v)
+{
+    std::string out;
+    out.reserve(v.size() + 8);
+    for (char c : v) {
+        switch (c) {
+        case '\'':
+            out += "''";
+            break;
+        case '\\':
+            out += "\\\\";
+            break;
+        case '"':
+            out += "\\\"";
+            break;
+        case '\n':
+            out += "\\n";
+            break;
+        case '\r':
+            out += "\\r";
+            break;
+        case '\t':
+            out += "\\t";
+            break;
+        default:
+            out += c;
+            break;
+        }
+    }
+    return out;
+}
+
+} // namespace
+
+std::string Column::getPostgreSQLDefault()
+{
+    if (m_dtype <= TYPE_UINT64) {
+        if (m_default.empty()) {
+            return "0";
+        }
+        return m_default;
+    }
+    if (m_dtype <= TYPE_BLOB) {
+        std::string value = "'" + escapePostgreSQLStringLiteral(m_default) + "'";
+        if (m_dtype == TYPE_BLOB) {
+            value += "::bytea";
+        }
+        return value;
+    }
+    if (m_default.empty()) {
+        return "'1970-01-01 00:00:00'";
+    }
+    if (m_default == "current_timestamp") {
+        return "CURRENT_TIMESTAMP";
+    }
+    return m_default;
+}
+
 bool Column::init(const tinyxml2::XMLElement& node)
 {
     if (!node.Attribute("name")) {
@@ -180,7 +246,7 @@ std::string Column::TypeToString(Type type)
     XX(TYPE_INT8, int8_t);
     XX(TYPE_UINT8, uint8_t);
     XX(TYPE_INT16, int16_t);
-    XX(TYPE_UINT16, int16_t);
+    XX(TYPE_UINT16, uint16_t);
     XX(TYPE_INT32, int32_t);
     XX(TYPE_UINT32, uint32_t);
     XX(TYPE_INT64, int64_t);
@@ -243,6 +309,34 @@ std::string Column::getMySQLTypeString()
     }
     if (m_dtype == TYPE_STRING) {
         return "varchar(" + std::to_string(m_length ? m_length : 128) + ")";
+    }
+    return "";
+}
+
+std::string Column::getPostgreSQLTypeString()
+{
+#define XX(a, b)        \
+    if (a == m_dtype) { \
+        return #b;      \
+    }
+    XX(TYPE_INT8, smallint);
+    XX(TYPE_UINT8, smallint);
+    XX(TYPE_INT16, smallint);
+    XX(TYPE_UINT16, integer);
+    XX(TYPE_INT32, integer);
+    XX(TYPE_UINT32, bigint);
+    XX(TYPE_INT64, bigint);
+    XX(TYPE_UINT64, numeric(20, 0));
+    XX(TYPE_FLOAT, real);
+    XX(TYPE_DOUBLE, double precision);
+    XX(TYPE_BLOB, bytea);
+    XX(TYPE_TEXT, text);
+#undef XX
+    if (m_dtype == TYPE_TIMESTAMP) {
+        return "timestamp without time zone";
+    }
+    if (m_dtype == TYPE_STRING) {
+        return "character varying(" + std::to_string(m_length ? m_length : 128) + ")";
     }
     return "";
 }

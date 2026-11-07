@@ -1,7 +1,7 @@
 # DB / Redis 配置指南（业务侧）
 
 框架只提供数据库/缓存的 **接口与实现库**，不再主动初始化或释放任何连接。
-是否使用 Redis / MySQL / SQLite3、用几个库、何时建连与释放，全部由业务 module 决定。
+是否使用 Redis / MySQL / SQLite3 / PostgreSQL、用几个库、何时建连与释放，全部由业务 module 决定。
 
 本文说明如何在 `bin/conf/system.yml`（或业务自己的 `.yml`）中配置，以及模块里如何取用。
 
@@ -16,12 +16,13 @@
 
 ## 配置键总览
 
-| 配置键         | 类型                            | 说明                                   |
-|----------------|---------------------------------|----------------------------------------|
-| `redis.config` | `map<name, map<string,string>>` | Redis 连接池，`name` 为逻辑名          |
-| `fox_thread`   | `map<name, {num, advance}>`     | FoxThread 线程池，异步 Redis 依赖      |
-| `mysql.dbs`    | `map<name, map<string,string>>` | MySQL 连接池                           |
-| `sqlite3.dbs`  | `map<name, map<string,string>>` | SQLite3 连接池（每个 `name` 一个文件） |
+| 配置键           | 类型                            | 说明                                   |
+|------------------|---------------------------------|----------------------------------------|
+| `redis.config`   | `map<name, map<string,string>>` | Redis 连接池，`name` 为逻辑名          |
+| `fox_thread`     | `map<name, {num, advance}>`     | FoxThread 线程池，异步 Redis 依赖      |
+| `mysql.dbs`      | `map<name, map<string,string>>` | MySQL 连接池                           |
+| `postgresql.dbs` | `map<name, map<string,string>>` | PostgreSQL 连接池                      |
+| `sqlite3.dbs`    | `map<name, map<string,string>>` | SQLite3 连接池（每个 `name` 一个文件） |
 
 ---
 
@@ -173,6 +174,86 @@ trx->commit();
 
 ---
 
+## PostgreSQL
+
+> 编译和运行需要 libpq：Debian/Ubuntu 安装 `libpq-dev`（运行库 `libpq5`）。
+
+### 配置结构
+
+```yaml
+postgresql:
+  dbs:
+    blog:
+      host: 127.0.0.1
+      port: 5432
+      user: postgres
+      passwd: secret
+      dbname: blog
+      pool: 5
+    log:
+      host: 10.0.0.3
+      port: 5432
+      user: app
+      passwd: secret2
+      dbname: log
+      connect_timeout: 10
+      sslmode: prefer
+      application_name: chen
+```
+
+| 字段               | 必填 | 说明                                       |
+|--------------------|------|--------------------------------------------|
+| `host` / `port`    | 是   | 实例地址与端口                             |
+| `user` / `passwd`  | 是   | 账号密码                                   |
+| `dbname`           | 是   | 默认库名                                   |
+| `pool`             | 否   | 连接池大小，默认 `5`                       |
+| `connect_timeout`  | 否   | 连接超时（秒），默认 `10`                  |
+| `sslmode`          | 否   | libpq `sslmode`，默认 `prefer`             |
+| `application_name` | 否   | 连接标识，默认 `chen`                      |
+| `options`          | 否   | libpq `options`，例如 `-c search_path=app` |
+
+### 使用
+
+```cpp
+#include <chen/db/postgresql.h>
+
+// 直接取连接（可做事务）
+auto conn = chen::PostgreSQLMgr::GetInstance()->get("blog");
+conn->execute("update users set name='%s' where id=%d", "x", 1);
+auto res = conn->query("select id, name from users");
+
+// 或静态工具（内部自动 get + 归还）
+chen::PostgreSQLUtil::Query("blog", "select * from users where id=%d", 1);
+chen::PostgreSQLUtil::Execute("blog", "delete from users where id=%d", 1);
+
+// 事务
+auto trx = chen::PostgreSQLMgr::GetInstance()->openTransaction("blog", false);
+trx->begin();
+trx->execute("insert into t(a) values(1)");
+trx->commit();
+```
+
+需要绑定参数时使用 `prepare`，SQL 里仍写 `?`，驱动会改写为 `$1..$n`：
+
+```cpp
+auto stmt = conn->prepare("select id, name from users where status = ? and name = ?");
+stmt->bindInt32(1, 1);
+stmt->bindString(2, "alice");
+auto res = stmt->query();
+```
+
+注意事项：
+
+- 直接 `execute/query` 的格式串是 printf 风格（`%d` / `%s`），不是 libpq 的 `$1`；
+  需要防止 SQL 注入时请使用 `prepare` 或 ORM 生成的 DAO。
+- 占位符改写会跳过字符串、双引号标识符、注释和 dollar quote 中的 `?`。JSONB 的 `?`
+  运算符无法自动区分，请改用 `jsonb_exists(col, 'key')`。
+- `blob` 以 `bytea` 二进制格式绑定和读取。
+- 语句出错后事务会被 PostgreSQL 标记为 aborted；此时 `commit()` 会显式回滚并返回 `false`，
+  `auto_commit` 事务在出错后析构也会回滚。
+
+---
+
 ## SQLite3
 
 ### 配置结构
@@ -211,7 +292,7 @@ chen::SQLite3Mgr::GetInstance()->execute("blog", "delete from t where a=1");
 
 `dbs` / `config` 支持多个命名条目，每个名字有独立参数与连接池：
 
-1. **连接多个库/实例**：如 `blog`、`user`、`log` 指向不同 MySQL 实例或 schema
+1. **连接多个库/实例**：如 `blog`、`user`、`log` 指向不同 MySQL / PostgreSQL 实例或 schema
 2. **每库独立连接池**：`get(name)` 从对应池取、归还时也按 name 回池，互不干扰
 3. **读写分离 / 分库分表**：配 `master`/`slave` 或 `shard0`/`shard1`，业务按需选名字
 4. **业务与权限隔离**：不同 module 用不同账号 / 库 / 字符集
@@ -227,13 +308,17 @@ chen::MySQLMgr::GetInstance()->registerMySQL("tmp",
      {"passwd", ""}, {"dbname", "tmp"}});
 
 chen::SQLite3Mgr::GetInstance()->registerSQLite3("tmp", {{"path", "/data/tmp.db"}});
+
+chen::PostgreSQLMgr::GetInstance()->registerPostgreSQL("tmp",
+    {{"host", "127.0.0.1"}, {"port", "5432"}, {"user", "postgres"},
+     {"passwd", ""}, {"dbname", "tmp"}});
 ```
 
 `get(name)` 的查找顺序：连接池 → 配置文件 → 运行时注册。
 
 ## 配置变更注意
 
-- MySQL / SQLite3 的参数在 **每次 `get()` 时读取配置**，新增名字立即生效；
+- MySQL / SQLite3 / PostgreSQL 的参数在 **每次 `get()` 时读取配置**，新增名字立即生效；
   已建连的旧名字仍用旧参数，需业务层重建连接或重启。
 - Redis 在 `RedisManager` 构造时 **快照 `redis.config`**，改配置后需重新初始化
   （释放 `freeAll()` 后重新 `GetInstance()`，或重启/热重载模块）才生效。
