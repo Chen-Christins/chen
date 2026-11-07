@@ -93,7 +93,7 @@ auto result = db->query("SELECT * FROM users");
 
 ## PostgreSQL
 
-基于 libpq，配置位于 `postgresql.dbs.<name>`：
+基于 libpq，目标 PostgreSQL 12+，配置位于 `postgresql.dbs.<name>`：
 
 ```cpp
 #include <chen/db/postgresql.h>
@@ -124,7 +124,8 @@ auto result = stmt->query();
 - `getLastInsertId()` 使用 `lastval()`，返回当前连接最近一次序列值。
 - 事务通过 `openTransaction(name, auto_commit)` 创建。语句出错后 PostgreSQL 会把事务标记为
   aborted，此时 `commit()` 会显式回滚并返回 `false`；`auto_commit` 事务在出错后析构同样回滚，
-  不会把未提交数据留在连接池连接里。
+  不会把未提交数据留在连接池连接里。连接归还连接池时若仍处于事务中，会先执行 `ROLLBACK`，
+  回滚失败则丢弃该连接。
 - 连接池大小取配置中的 `pool`，默认 5。
 
 ## QueryBuilder

@@ -766,39 +766,56 @@ void Table::gen_dao_src(std::ofstream& ofs)
     ofs << "}" << std::endl << std::endl;
     ofs << "int " << GetAsClassName(class_name_dao) << "::Insert(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass << "::ptr conn) {"
         << std::endl;
-    ofs << "    std::string sql = \"insert into " << sqlTable() << " (";
-    is_first = true;
     Column::ptr auto_inc;
-
+    size_t insert_col_count = 0;
     for (auto& i : m_cols) {
         if (i->isAutoIncrement()) {
             auto_inc = i;
-            continue;
+        } else {
+            ++insert_col_count;
         }
-        if (!is_first) {
-            ofs << ", ";
-        }
-        ofs << sqlIdent(i->getName());
-        is_first = false;
     }
 
-    ofs << ") values (";
-    is_first = true;
-    for (auto& i : m_cols) {
-        if (i->isAutoIncrement()) {
-            continue;
+    if (isPostgreSQL() && insert_col_count == 0) {
+        // PostgreSQL 不支持 MySQL 的 () VALUES () 语法，只有自增列时用 DEFAULT VALUES
+        ofs << "    std::string sql = \"insert into " << sqlTable() << " default values";
+        if (auto_inc) {
+            ofs << " returning " << sqlIdent(auto_inc->getName());
         }
-        if (!is_first) {
-            ofs << ", ";
+        ofs << "\";" << std::endl;
+    } else {
+        ofs << "    std::string sql = \"insert into " << sqlTable() << " (";
+        is_first = true;
+
+        for (auto& i : m_cols) {
+            if (i->isAutoIncrement()) {
+                continue;
+            }
+            if (!is_first) {
+                ofs << ", ";
+            }
+            ofs << sqlIdent(i->getName());
+            is_first = false;
         }
-        ofs << "?";
-        is_first = false;
+
+        ofs << ") values (";
+        is_first = true;
+        for (auto& i : m_cols) {
+            if (i->isAutoIncrement()) {
+                continue;
+            }
+            if (!is_first) {
+                ofs << ", ";
+            }
+            ofs << "?";
+            is_first = false;
+        }
+        ofs << ")";
+        if (isPostgreSQL() && auto_inc) {
+            ofs << " returning " << sqlIdent(auto_inc->getName());
+        }
+        ofs << "\";" << std::endl;
     }
-    ofs << ")";
-    if (isPostgreSQL() && auto_inc) {
-        ofs << " returning " << sqlIdent(auto_inc->getName());
-    }
-    ofs << "\";" << std::endl;
 
     CHECK_STMT("conn->getErrno()");
 
@@ -952,46 +969,57 @@ void Table::gen_dao_src(std::ofstream& ofs)
     ofs << "        return -1;" << std::endl;
     ofs << "    }" << std::endl;
 
-    // Build INSERT SQL with multiple value tuples
-    ofs << "    std::string sql = \"insert into " << sqlTable() << " (\";" << std::endl;
-    is_first = true;
-    for (auto& col : m_cols) {
-        if (col->isAutoIncrement())
-            continue;
-        if (!is_first)
-            ofs << "    sql += \", \";" << std::endl;
-        ofs << "    sql += \"" << sqlIdent(col->getName()) << "\";" << std::endl;
-        is_first = false;
-    }
-    ofs << "    sql += \") VALUES \";" << std::endl;
-    ofs << "    for (size_t r = 0; r < infos.size(); ++r) {" << std::endl;
-    ofs << "        if (r) sql += \", \";" << std::endl;
-    ofs << "        sql += \"(\";" << std::endl;
-    is_first = true;
-    for (size_t ci = 0; ci < m_cols.size(); ++ci) {
-        if (m_cols[ci]->isAutoIncrement())
-            continue;
-        if (!is_first)
-            ofs << "        sql += \", \";" << std::endl;
-        ofs << "        sql += \"?\";" << std::endl;
-        is_first = false;
-    }
-    ofs << "        sql += \")\";" << std::endl;
-    ofs << "    }" << std::endl;
+    if (isPostgreSQL() && insert_col_count == 0) {
+        // 只有自增列的表无法使用多行 VALUES，逐行调用 Insert
+        ofs << "    for (auto& info : infos) {" << std::endl;
+        ofs << "        if (int rt = Insert(info, conn)) {" << std::endl;
+        ofs << "            return rt;" << std::endl;
+        ofs << "        }" << std::endl;
+        ofs << "    }" << std::endl;
+        ofs << "    return 0;" << std::endl;
+        ofs << "}" << std::endl << std::endl;
+    } else {
+        // Build INSERT SQL with multiple value tuples
+        ofs << "    std::string sql = \"insert into " << sqlTable() << " (\";" << std::endl;
+        is_first = true;
+        for (auto& col : m_cols) {
+            if (col->isAutoIncrement())
+                continue;
+            if (!is_first)
+                ofs << "    sql += \", \";" << std::endl;
+            ofs << "    sql += \"" << sqlIdent(col->getName()) << "\";" << std::endl;
+            is_first = false;
+        }
+        ofs << "    sql += \") VALUES \";" << std::endl;
+        ofs << "    for (size_t r = 0; r < infos.size(); ++r) {" << std::endl;
+        ofs << "        if (r) sql += \", \";" << std::endl;
+        ofs << "        sql += \"(\";" << std::endl;
+        is_first = true;
+        for (size_t ci = 0; ci < m_cols.size(); ++ci) {
+            if (m_cols[ci]->isAutoIncrement())
+                continue;
+            if (!is_first)
+                ofs << "        sql += \", \";" << std::endl;
+            ofs << "        sql += \"?\";" << std::endl;
+            is_first = false;
+        }
+        ofs << "        sql += \")\";" << std::endl;
+        ofs << "    }" << std::endl;
 
-    CHECK_STMT("conn->getErrno()");
+        CHECK_STMT("conn->getErrno()");
 
-    // Bind all rows
-    ofs << "    int idx = 1;" << std::endl;
-    ofs << "    for (auto& info : infos) {" << std::endl;
-    for (auto& col : m_cols) {
-        if (col->isAutoIncrement())
-            continue;
-        ofs << "        stmt->" << col->getBindString() << "(idx++, info->" << GetAsMemberName(col->getName()) << ");" << std::endl;
+        // Bind all rows
+        ofs << "    int idx = 1;" << std::endl;
+        ofs << "    for (auto& info : infos) {" << std::endl;
+        for (auto& col : m_cols) {
+            if (col->isAutoIncrement())
+                continue;
+            ofs << "        stmt->" << col->getBindString() << "(idx++, info->" << GetAsMemberName(col->getName()) << ");" << std::endl;
+        }
+        ofs << "    }" << std::endl;
+        ofs << "    return stmt->execute();" << std::endl;
+        ofs << "}" << std::endl << std::endl;
     }
-    ofs << "    }" << std::endl;
-    ofs << "    return stmt->execute();" << std::endl;
-    ofs << "}" << std::endl << std::endl;
 
     // ===== BatchUpdate =====
     ofs << "int " << GetAsClassName(class_name_dao) << "::BatchUpdate(const std::vector<" << GetAsClassName(class_name) << "::ptr>& infos, "
@@ -2118,6 +2146,10 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs)
                 << " failed: \" << conn->getErrStr();" << std::endl;
             ofs << "            return rt;" << std::endl;
             ofs << "        }" << std::endl;
+            if (!col->getDesc().empty()) {
+                ofs << "        conn->execute(std::string(\"COMMENT ON COLUMN " << sqlTable() << "." << sqlIdent(col->getName()) << " IS '"
+                    << escapeCppSqlLiteral(col->getDesc()) << "'\"));" << std::endl;
+            }
         }
         ofs << "    }" << std::endl;
         ofs << std::endl;

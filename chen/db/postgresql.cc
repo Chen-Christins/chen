@@ -327,8 +327,9 @@ void PostgreSQL::clearError()
 
 bool PostgreSQL::connect()
 {
-    if (m_conn && PQstatus(m_conn) == CONNECTION_OK) {
-        m_hasError = false;
+    // 连接仍然可用且没有记录到错误时才复用；否则关闭重连，避免把一个处于
+    // aborted transaction 状态（PQstatus 仍为 CONNECTION_OK）的连接重新放回池中。
+    if (m_conn && !m_hasError && PQstatus(m_conn) == CONNECTION_OK) {
         clearError();
         return true;
     }
@@ -438,19 +439,26 @@ int PostgreSQL::execute(const std::string& sql)
 {
     clearError();
     if (!m_conn) {
+        m_hasError = true;
         setError("PostgreSQL::execute m_conn is null");
         return m_errno;
     }
 
     PGresult* res = PQexec(m_conn, sql.c_str());
     if (!res) {
+        m_hasError = true;
         setError(PQerrorMessage(m_conn));
         return m_errno;
     }
 
     ExecStatusType status = PQresultStatus(res);
     if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK && status != PGRES_EMPTY_QUERY) {
+        // 语句失败后连接可能仍为 CONNECTION_OK（例如事务已 aborted），
+        // 标记后连接池会在下次复用时 ping / 重连。
+        m_hasError = true;
         setError(PQresultErrorMessage(res));
+    } else {
+        m_hasError = false;
     }
     PQclear(res);
     return m_errno;
@@ -459,16 +467,19 @@ int PostgreSQL::execute(const std::string& sql)
 int64_t PostgreSQL::getLastInsertId()
 {
     if (!m_conn) {
+        m_hasError = true;
         setError("PostgreSQL::getLastInsertId m_conn is null");
         return 0;
     }
 
     PGresult* res = PQexec(m_conn, "SELECT lastval()");
     if (!res) {
+        m_hasError = true;
         setError(PQerrorMessage(m_conn));
         return 0;
     }
     if (PQresultStatus(res) != PGRES_TUPLES_OK || PQntuples(res) < 1 || PQgetisnull(res, 0, 0)) {
+        m_hasError = true;
         setError(PQresultErrorMessage(res));
         PQclear(res);
         return 0;
@@ -476,6 +487,7 @@ int64_t PostgreSQL::getLastInsertId()
 
     int64_t id = static_cast<int64_t>(std::strtoll(PQgetvalue(res, 0, 0), nullptr, 10));
     PQclear(res);
+    m_hasError = false;
     clearError();
     return id;
 }
@@ -498,23 +510,28 @@ ISQLData::ptr PostgreSQL::query(const std::string& sql)
 {
     clearError();
     if (!m_conn) {
+        m_hasError = true;
         setError("PostgreSQL::query m_conn is null");
         return nullptr;
     }
 
     PGresult* res = PQexec(m_conn, sql.c_str());
     if (!res) {
+        m_hasError = true;
         setError(PQerrorMessage(m_conn));
         return nullptr;
     }
 
     ExecStatusType status = PQresultStatus(res);
     if (status != PGRES_TUPLES_OK && status != PGRES_COMMAND_OK) {
+        // 同 execute：错误可能只发生在事务层，连接本身仍是 CONNECTION_OK。
+        m_hasError = true;
         setError(PQresultErrorMessage(res));
         PQclear(res);
         return nullptr;
     }
 
+    m_hasError = false;
     return PostgreSQLData::ptr(new PostgreSQLData(res, 0, ""));
 }
 
@@ -1064,10 +1081,19 @@ void PostgreSQLManager::freePostgreSQL(const std::string& name, PostgreSQL* db)
         return;
     }
     if (db->m_conn && PQstatus(db->m_conn) == CONNECTION_OK) {
-        std::lock_guard lock(m_mutex);
-        if (m_conns[name].size() < static_cast<size_t>(db->m_poolSize)) {
-            m_conns[name].push_back(db);
-            return;
+        // 防御性清理：正常归还时事务对象已经结束，不应残留事务状态。
+        if (PQtransactionStatus(db->m_conn) != PQTRANS_IDLE) {
+            PGresult* res = PQexec(db->m_conn, "ROLLBACK");
+            if (res) {
+                PQclear(res);
+            }
+        }
+        if (PQtransactionStatus(db->m_conn) == PQTRANS_IDLE) {
+            std::lock_guard lock(m_mutex);
+            if (m_conns[name].size() < static_cast<size_t>(db->m_poolSize)) {
+                m_conns[name].push_back(db);
+                return;
+            }
         }
     }
     delete db;
