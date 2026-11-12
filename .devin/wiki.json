@@ -1,0 +1,303 @@
+{
+  "repo_notes": [
+    {
+      "content": "所有 wiki 页面请使用简体中文撰写；代码路径、类名、函数名、API 名称、命令行参数等标识符保留英文原文。"
+    }
+  ],
+  "pages": [
+    {
+      "title": "概览",
+      "purpose": "介绍 chen 框架是什么：一个基于 C++20 协程/纤程的异步网络服务器框架。概述整体架构（master/worker 进程、纤程、IOManager、模块、协议服务器）、仓库布局，以及指向子页面的链接。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "快速开始与构建",
+      "purpose": "克隆代码、通过 deps.py/dependencies.json 同步依赖、Makefile 与 CMake 构建、使用 -s/-d/-c 参数运行 bin/main、配置目录说明。",
+      "parent": "概览",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "项目历史与路线图",
+      "purpose": "从 CHANGELOG 看版本演进、v1.6.0 的 master/worker 计划、roadmap，以及 docs/ 中的文档集合。",
+      "parent": "概览",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "核心运行时",
+      "purpose": "执行核心总览：纤程、调度器、IOManager 的 epoll 循环、定时器、线程与系统调用 hook。包含指向子页面的链接。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "纤程、调度器与 IOManager",
+      "purpose": "chen/fiber、chen/schedule、chen/iomanager、chen/timer：M:N 协程调度、boost.context 上下文切换、epoll 循环、tickle 管道、时间堆定时器。",
+      "parent": "核心运行时",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "系统调用 Hook 与文件描述符管理",
+      "purpose": "chen/hook/hook.cc 与 fd_manager：拦截 socket/IO 系统调用、FdCtx 超时、fd 复用安全性。",
+      "parent": "核心运行时",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "线程、同步与工具库",
+      "purpose": "chen/thread、chen/util（互斥锁、单例、字符串/时间/json/环境变量/压缩/加密工具）、宏与非拷贝辅助类。",
+      "parent": "核心运行时",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "应用生命周期与模块",
+      "purpose": "进程模型、守护进程化、配置热加载与可插拔模块系统总览。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Master/Worker 进程模型",
+      "purpose": "Application::init/run、masterMain、spawnWorker、就绪管道、信号处理、优雅关闭与零停机重载；daemon.cc。",
+      "parent": "应用生命周期与模块",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "模块系统与生命周期",
+      "purpose": "chen::Module 钩子（onLoad/onServerReady/onServerUp/onTick/onDeactivate/onUnload）、dlopen 加载、ModuleMgr、编写 .so 模块。",
+      "parent": "应用生命周期与模块",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "配置系统",
+      "purpose": "Config::Lookup/ConfigVar、YAML 与 XML 加载、conf 目录、inotify FileWatcher 热重载、日志配置约定。",
+      "parent": "应用生命周期与模块",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "日志",
+      "purpose": "Logger/LogAppender/LogFormatter、日志轮转与保留策略、FSUtil 文件系统辅助、YAML 驱动的 logger 配置。",
+      "parent": "应用生命周期与模块",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "网络与协议服务器",
+      "purpose": "网络栈总览：从 socket 与地址，到 TcpServer，再到各类协议服务器。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Socket、地址与流",
+      "purpose": "Socket/SSLSocket 抽象、地址族、chen/streams、bytearray 序列化缓冲区。",
+      "parent": "网络与协议服务器",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "TCP/UDP 服务器基础",
+      "purpose": "TcpServer 的 accept 循环、worker 分配、UdpServer、TcpServerFactory 注册、连接排空与限制（rate_limiter、ConnLimiter）。",
+      "parent": "网络与协议服务器",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "HTTP 技术栈",
+      "purpose": "chen/http 总览：报文解析、servlet、会话/连接，以及高级协议。包含指向子页面的链接。",
+      "parent": "网络与协议服务器",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "HTTP/1.1 解析、Servlet 与服务器",
+      "purpose": "Ragel 生成的 http11/httpclient 解析器、uri.rl、HttpRequest/HttpResponse、ServletDispatch、HttpServer 与 HttpConnection 客户端。",
+      "parent": "网络与协议服务器",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "WebSocket、HTTP/2 与 SSE",
+      "purpose": "WSServer/WSServlet/ws_session 的帧处理、基于 nghttp2 的 h2_connection/session/stream、Server-Sent Events servlet 与客户端。",
+      "parent": "网络与协议服务器",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "RPC 框架",
+      "purpose": "chen/rpc：序列化、协议分帧、handler_map、RpcServer/RpcClient、客户端连接池、future/异步调用、RpcHubRegistry 路由模式。",
+      "parent": "网络与协议服务器",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Game 与 Rock 二进制协议",
+      "purpose": "chen/game 的 GameServer 与 chen/rock 二进制分帧协议、协议 XML 定义与生成的头文件。",
+      "parent": "网络与协议服务器",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "数据层",
+      "purpose": "持久化与数据结构总览：SQL/Redis 访问、ORM 代码生成、缓存与事件总线。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "数据库访问（MySQL、SQLite、Redis）",
+      "purpose": "chen/db：db.h 抽象、MySQL/SQLite 驱动、Redis 客户端、FoxThread 阻塞查询隔离、QueryBuilder、基于 ShardRouter 的分库分表。",
+      "parent": "数据层",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "ORM 代码生成",
+      "purpose": "chen/orm 生成器（column/index/table/util）、XML 表定义、生成的 Dao 类与脏数据跟踪；`orm` 可执行程序。",
+      "parent": "数据层",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "数据结构、缓存与事件总线",
+      "purpose": "chen/ds：bitmap/roaring 位图、lru_cache、cache_status、dispatcher 与 event_bus 发布/订阅；chen/data 读取器。",
+      "parent": "数据层",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "指标与可观测性",
+      "purpose": "chen/metrics 的 Counter/Gauge/Histogram、RegistryMgr、metrics_servlet 的 Prometheus/OpenMetrics/JSON 暴露。",
+      "parent": "数据层",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "构建、工具与分发",
+      "purpose": "构建系统、SDK 打包、CI 与开发者工具总览。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "CMake 构建系统",
+      "purpose": "根 CMakeLists 目标、cmake/utils.cmake 宏（ragelmaker、protobuf_maker、version.h.in）、dependencies.cmake 中的依赖解析。",
+      "parent": "构建、工具与分发",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "SDK 打包与 CI",
+      "purpose": "package_sdk.sh 流水线、生成的消费端 CMakeLists 与 CHEN_SDK_DEP_LIBS、GitHub Actions 的 ubuntu 打包工作流、docs/sdk-readme 与 sdk-agents。",
+      "parent": "构建、工具与分发",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "开发者工具与资源流水线",
+      "purpose": "tools/：xml_converter、xlsx/csv/bin 转换脚本、encrypt.py、format_code.sh 与 .clang-format、apply.sh。",
+      "parent": "构建、工具与分发",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "测试",
+      "purpose": "tests/ 布局与 CMake 注册、测试类别（fiber、iomanager、http、rpc、db、module、game）及运行方式。",
+      "parent": "构建、工具与分发",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    }
+  ]
+}
