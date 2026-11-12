@@ -8,7 +8,6 @@
 #pragma once
 
 #include <condition_variable>
-#include <cstdint>
 #include <exception>
 #include <memory>
 #include <mutex>

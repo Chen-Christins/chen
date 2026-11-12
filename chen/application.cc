@@ -23,17 +23,24 @@ namespace chen {
 static Logger::ptr logger = LOG_NAME("system");
 
 static ConfigVar<std::string>::ptr g_server_work_path = Config::Lookup("server.work_path", std::string(), "server work path");
+
 static ConfigVar<std::string>::ptr g_server_pid_file = Config::Lookup("server.pid_file", std::string("chen.pid"), "server pid file");
-static ConfigVar<std::string>::ptr g_server_process_name =
-    Config::Lookup("server.process_name", std::string(), "process title base name, default is the executable file name");
+
 static ConfigVar<std::vector<TcpServerConf>>::ptr g_servers_conf = Config::Lookup("servers", std::vector<TcpServerConf>(), "server conf");
+
 static ConfigVar<uint64_t>::ptr g_drain_timeout_ms = Config::Lookup("server.drain_timeout_ms", (uint64_t)3000, "graceful shutdown drain timeout ms");
+
 static ConfigVar<uint64_t>::ptr g_housekeeping_interval_ms =
     Config::Lookup("server.housekeeping_interval_ms", (uint64_t)500, "housekeeping timer interval ms");
+
 static ConfigVar<uint64_t>::ptr g_worker_ready_timeout_ms =
     Config::Lookup("server.worker_ready_timeout_ms", (uint64_t)30000, "master waits worker ready timeout ms");
+
 static ConfigVar<uint32_t>::ptr g_worker_restart_interval_ms =
     Config::Lookup("server.worker_restart_interval_ms", (uint32_t)2000, "master restarts crashed worker interval ms");
+
+static ConfigVar<std::string>::ptr g_server_process_name =
+    Config::Lookup("server.process_name", std::string(), "process title base name, default is the executable file name");
 
 static void RegisterBuiltInServers()
 {
@@ -71,7 +78,7 @@ static void RegisterBuiltInServers()
                 magic = static_cast<uint32_t>(strtoul(it->second.c_str(), nullptr, 0));
             }
             if (auto it = conf.args.find("header_size"); it != conf.args.end()) {
-                header_size = static_cast<size_t>(strtoul(it->second.c_str(), nullptr, 0));
+                header_size = strtoul(it->second.c_str(), nullptr, 0);
             }
             auto parser = game::CreateLengthFieldParser(header_size, magic);
             return TcpServer::ptr(new game::GenericProtocolServer(parser, process_worker, io_worker, accept_worker));
