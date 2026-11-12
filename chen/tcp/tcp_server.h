@@ -206,6 +206,12 @@ public:
     TcpServerConf::ptr getConf() { return m_conf; }
 
     /**
+     * @brief 获取所有监听 socket
+     * @details 用于服务发现注册等场景读取实际绑定的地址；返回拷贝避免与 stop() 并发
+     */
+    std::vector<Socket::ptr> getSocks() const { return m_socks; }
+
+    /**
      * @brief 获取连接准入限流器
      * @return ConnLimiter::ptr 未启用限流时返回 nullptr
      */

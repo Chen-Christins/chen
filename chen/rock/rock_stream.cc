@@ -1,9 +1,10 @@
 #include "rock_stream.h"
 
+#include <algorithm>
+
 #include "../config/config.h"
 #include "../iomanager/worker.h"
 #include "../socket/socket.h"
-#include "rock_stream.h"
 
 namespace chen {
 
@@ -12,10 +13,11 @@ static Logger::ptr logger = LOG_NAME("system");
 static ConfigVar<std::unordered_map<std::string, std::unordered_map<std::string, std::string>>>::ptr g_rock_services =
     Config::Lookup("rock_services", std::unordered_map<std::string, std::unordered_map<std::string, std::string>>(), "rock_services");
 
-// static ConfigVar<std::unordered_map<std::string
-//     ,std::unordered_map<std::string, std::string> > >::ptr g_rock_services =
-//     Config::Lookup("rock_services", std::unordered_map<std::string
-//     ,std::unordered_map<std::string, std::string> >(), "rock_services");
+static ConfigVar<std::string>::ptr g_rock_service_worker =
+    Config::Lookup("rock.service_worker", std::string(), "worker scheduler name for rock service connections, empty means current scheduler");
+
+static ConfigVar<uint32_t>::ptr g_rock_request_max_retry =
+    Config::Lookup("rock.request_max_retry", (uint32_t)2, "max retry count when rock request fails without response");
 
 RockResult::RockResult(int32_t _result, int32_t _used, RockResponse::ptr rsp, RockRequest::ptr req)
     : result(_result)
@@ -194,8 +196,28 @@ static SocketStream::ptr create_rock_stream(ServiceItemInfo::ptr info)
 
     RockConnection::ptr conn(new RockConnection);
 
-    WorkerMgr::GetInstance()->schedule("service_io", [conn, addr]() {
-        conn->connect(addr);
+    IOManager* io = nullptr;
+    auto worker_name = g_rock_service_worker->getValue();
+    if (!worker_name.empty()) {
+        auto sched = WorkerMgr::GetInstance()->getAsIOManager(worker_name);
+        if (sched) {
+            io = sched.get();
+        } else {
+            WARN(logger) << "rock.service_worker=" << worker_name << " not found, fallback to current IOManager";
+        }
+    }
+    if (!io) {
+        io = IOManager::GetThis();
+    }
+    if (!io) {
+        ERROR(logger) << "create rock stream fail: no IOManager, service=" << info->toString();
+        return nullptr;
+    }
+
+    io->schedule([conn, addr]() {
+        if (!conn->connect(addr)) {
+            WARN(logger) << "rock connect fail, will retry, addr=" << *addr;
+        }
         conn->start();
     });
     return conn;
@@ -231,26 +253,74 @@ RockResult::ptr RockSDLoadBalance::request(
     if (!lb) {
         return std::make_shared<RockResult>(ILoadBalance::NO_SERVICE, 0, nullptr, req);
     }
-    auto conn = lb->get(idx);
-    if (!conn) {
+
+    const uint32_t max_retry = g_rock_request_max_retry->getValue();
+    const uint64_t start_ms = TimeUtil::GetCurrentMs();
+    RockResult::ptr last_result;
+
+    for (uint32_t attempt = 0; attempt <= max_retry; ++attempt) {
+        uint64_t now = TimeUtil::GetCurrentMs();
+        int64_t remain = (int64_t)timeout_ms - (int64_t)(now - start_ms);
+        if (remain <= 0 && attempt > 0) {
+            break;
+        }
+
+        auto conn = lb->get(idx == (uint64_t)-1 ? (uint64_t)-1 : idx + attempt);
+        if (!conn) {
+            if (!last_result) {
+                return std::make_shared<RockResult>(ILoadBalance::NO_CONNECTION, 0, nullptr, req);
+            }
+            break;
+        }
+
+        auto stream = conn->getStreamAs<RockStream>();
+        if (!stream) {
+            if (!last_result) {
+                return std::make_shared<RockResult>(ILoadBalance::NO_CONNECTION, 0, nullptr, req);
+            }
+            break;
+        }
+
+        auto& stats = conn->get(now / 1000);
+        stats.incDoing(1);
+        stats.incTotal(1);
+
+        // timeout_ms 是总预算，按剩余尝试次数切分，避免第一次超时吃光预算导致无法重试
+        uint32_t attempts_left = max_retry - attempt + 1;
+        uint32_t attempt_timeout = remain > 0 ? (uint32_t)std::max<int64_t>(1, remain / attempts_left) : 1;
+        auto result = stream->request(req, attempt_timeout);
+        uint64_t used = TimeUtil::GetCurrentMs() - now;
+
+        if (result->response) {
+            // 收到响应即视为业务结果（即使 result 非 0 也不重试，避免重复执行）
+            stats.incOks(1);
+            stats.incUsedTime(used);
+            conn->resetFail();
+            stats.decDoing(1);
+            return result;
+        }
+
+        if (result->result == AsyncSocketStream::TIMEOUT) {
+            stats.incTimeouts(1);
+        } else if (result->result < 0) {
+            stats.incErrs(1);
+        }
+        stats.decDoing(1);
+
+        conn->incFail();
+        last_result = result;
+
+        // 只有传输层错误才换实例重试；业务错误不重试
+        if (result->result != AsyncSocketStream::TIMEOUT && result->result != AsyncSocketStream::IO_ERROR
+            && result->result != AsyncSocketStream::NOT_CONNECT) {
+            break;
+        }
+    }
+
+    if (!last_result) {
         return std::make_shared<RockResult>(ILoadBalance::NO_CONNECTION, 0, nullptr, req);
     }
-    uint64_t ts = TimeUtil::GetCurrentMs();
-    auto& stats = conn->get(ts / 1000);
-    stats.incDoing(1);
-    stats.incTotal(1);
-    auto r = conn->getStreamAs<RockStream>()->request(req, timeout_ms);
-    uint64_t ts2 = TimeUtil::GetCurrentMs();
-    if (r->result == 0) {
-        stats.incOks(1);
-        stats.incUsedTime(ts2 - ts);
-    } else if (r->result == AsyncSocketStream::TIMEOUT) {
-        stats.incTimeouts(1);
-    } else if (r->result < 0) {
-        stats.incErrs(1);
-    }
-    stats.decDoing(1);
-    return r;
+    return last_result;
 }
 
 } // namespace chen

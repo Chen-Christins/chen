@@ -15,7 +15,7 @@ IServiceDiscovery::~IServiceDiscovery()
 {
 }
 
-ServiceItemInfo::ptr ServiceItemInfo::Create(const std::string& addr, const std::string& data)
+ServiceItemInfo::ptr ServiceItemInfo::Create(const std::string& addr, const std::string& data, uint32_t weight)
 {
     std::size_t pos = addr.find(":");
     if (pos == std::string::npos) {
@@ -39,13 +39,14 @@ ServiceItemInfo::ptr ServiceItemInfo::Create(const std::string& addr, const std:
     rt->m_ip = ip;
     rt->m_port = port;
     rt->m_data = data;
+    rt->m_weight = weight == 0 ? 10000 : weight;
     return rt;
 }
 
 std::string ServiceItemInfo::toString() const
 {
     std::stringstream ss;
-    ss << "[ServiceItemInfo id=" << m_id << " ip=" << m_ip << " port=" << m_port << " data=" << m_data << "]";
+    ss << "[ServiceItemInfo id=" << m_id << " ip=" << m_ip << " port=" << m_port << " weight=" << m_weight << " data=" << m_data << "]";
     return ss.str();
 }
 
@@ -53,6 +54,27 @@ void IServiceDiscovery::registerServer(const std::string& domain, const std::str
 {
     std::unique_lock lock(m_mtx);
     m_registerInfos[domain][service][addr] = data;
+}
+
+bool IServiceDiscovery::unregisterServer(const std::string& domain, const std::string& service, const std::string& addr)
+{
+    std::unique_lock lock(m_mtx);
+    auto it = m_registerInfos.find(domain);
+    if (it == m_registerInfos.end()) {
+        return false;
+    }
+    auto sit = it->second.find(service);
+    if (sit == it->second.end()) {
+        return false;
+    }
+    bool erased = sit->second.erase(addr) > 0;
+    if (sit->second.empty()) {
+        it->second.erase(sit);
+    }
+    if (it->second.empty()) {
+        m_registerInfos.erase(it);
+    }
+    return erased;
 }
 
 void IServiceDiscovery::queryServer(const std::string& domain, const std::string& service)

@@ -39,6 +39,27 @@
 | `onTick()`        | 每 N 毫秒           | 定时任务                                                         |
 | `onDeactivate()`  | worker drain / 关机 | flush 数据、收尾（tick 定时器已由框架取消）                      |
 | `onUnload()`      | worker 退出前       | clearAll EventBus，释放资源                                      |
+| `handleRequest()` | 收到协议请求        | 自定义协议分发（如 Rock），返回 false 时关闭连接                 |
+| `handleNotify()`  | 收到协议通知        | 自定义协议单向分发，返回 false 时关闭连接                        |
+
+### 服务注册
+
+`Module::registerService(server_type, domain, service)` 把本进程监听的服务器地址
+写入 `Application` 持有的服务发现实例，通常在 `onServerReady()` 中调用：
+
+```cpp
+bool MyModule::onServerReady() {
+    registerService("rock", "astartes", "rock");
+    return true;
+}
+```
+
+需要先设置服务发现实例；配置了 `service_discovery.domains` 时框架会自动创建
+`StaticServiceDiscovery`，也可以在模块 `onLoad()` 里手动
+`Application::GetInstance()->setServiceDiscovery(sd)`。
+
+`onDeactivate()` 默认会把本模块登记过的地址从服务发现中移除；如果覆写
+`onDeactivate()`，需要显式调用 `Module::onDeactivate()`。
 
 ## 使用
 

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <map>
+#include <mutex>
 #include <shared_mutex>
 #include <vector>
 
@@ -106,6 +107,25 @@ public:
     virtual bool onServerUp();
 
     /**
+     * @brief 处理自定义协议请求
+     * @details 由 RockServer 等协议服务器分发，基类默认只记录日志并返回 true
+     * @param[in] req 请求消息
+     * @param[in] rsp 响应消息
+     * @param[in] stream 连接流
+     * @return bool 返回 false 时服务器会关闭该连接
+     */
+    virtual bool handleRequest(Message::ptr req, Message::ptr rsp, Stream::ptr stream);
+
+    /**
+     * @brief 处理自定义协议通知
+     * @details 由 RockServer 等协议服务器分发，基类默认只记录日志并返回 true
+     * @param[in] notify 通知消息
+     * @param[in] stream 连接流
+     * @return bool 返回 false 时服务器会关闭该连接
+     */
+    virtual bool handleNotify(Message::ptr notify, Stream::ptr stream);
+
+    /**
      * @brief 模块定时 tick 回调，由框架按 getTickIntervalMs() 的间隔周期性调用
      * @details 默认实现为空，子类按需覆写
      */
@@ -154,6 +174,24 @@ public:
      */
     void setFilename(const std::string& v) { m_filename = v; }
 
+    /**
+     * @brief 把当前模块监听的服务器地址注册到服务发现
+     * @details 需要 Application 已设置 IServiceDiscovery 实例；会跳过回环地址，
+     *          监听 0.0.0.0 时使用本机非回环 IPv4 地址
+     * @param[in] server_type 服务器类型（对应 yml 中的 type，如 rock/rpc）
+     * @param[in] domain 服务域名
+     * @param[in] service 服务名称
+     */
+    void registerService(const std::string& server_type, const std::string& domain, const std::string& service);
+
+    /**
+     * @brief 注销本模块注册的服务地址
+     * @param[in] server_type 服务器类型
+     * @param[in] domain 服务域名
+     * @param[in] service 服务名称
+     */
+    void unregisterService(const std::string& server_type, const std::string& domain, const std::string& service);
+
 protected:
     /**
      * @brief 获取所有 HTTP 服务器
@@ -180,6 +218,21 @@ protected:
     void getAllGameServer(std::vector<std::shared_ptr<game::GenericProtocolServer>>& servers);
 
 private:
+    /**
+     * @brief 已注册到服务发现的地址
+     */
+    struct RegisteredService {
+        std::string server_type;
+        std::string domain;
+        std::string service;
+        std::string addr;
+    };
+
+    /**
+     * @brief 注销全部已注册服务（onDeactivate 自动调用）
+     */
+    void unregisterAllServices();
+
     /// 模块名称
     std::string m_name;
     /// 模块版本
@@ -190,6 +243,10 @@ private:
     std::string m_id;
     /// 模块类型
     uint32_t m_type;
+    /// 已注册到服务发现的地址
+    std::vector<RegisteredService> m_registeredServices;
+    /// 保护 m_registeredServices
+    std::mutex m_registeredServicesMutex;
 };
 
 class RockModule : public Module {
@@ -200,8 +257,8 @@ public:
     virtual bool handleRockRequest(RockRequest::ptr request, RockResponse::ptr response, RockStream::ptr stream) = 0;
     virtual bool handleRockNotify(RockNotify::ptr notify, RockStream::ptr stream) = 0;
 
-    virtual bool handleRequest(Message::ptr req, Message::ptr rsp, Stream::ptr stream);
-    virtual bool handleNotify(Message::ptr notify, Stream::ptr stream);
+    virtual bool handleRequest(Message::ptr req, Message::ptr rsp, Stream::ptr stream) override;
+    virtual bool handleNotify(Message::ptr notify, Stream::ptr stream) override;
 };
 
 class ModuleManager {

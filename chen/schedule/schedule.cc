@@ -365,14 +365,15 @@ std::ostream& Scheduler::dump(std::ostream& os)
 SchedulerSwitcher::SchedulerSwitcher(Scheduler* target)
 {
     m_caller = Scheduler::GetThis();
-    if (target) {
+    // 不在调度器线程里时无法切换，直接跳过
+    if (target && m_caller && target != m_caller) {
         target->switchTo();
     }
 }
 
 SchedulerSwitcher::~SchedulerSwitcher()
 {
-    if (m_caller) {
+    if (m_caller && Scheduler::GetThis() != m_caller) {
         m_caller->switchTo();
     }
 }

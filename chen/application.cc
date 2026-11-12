@@ -14,7 +14,9 @@
 #include "http/ws_server.h"
 #include "iomanager/worker.h"
 #include "module/module.h"
+#include "rock/rock_server.h"
 #include "rpc/rpc_server.h"
+#include "streams/static_service_discovery.h"
 #include "util/env.h"
 #include "version.h"
 
@@ -82,6 +84,9 @@ static void RegisterBuiltInServers()
             }
             auto parser = game::CreateLengthFieldParser(header_size, magic);
             return TcpServer::ptr(new game::GenericProtocolServer(parser, process_worker, io_worker, accept_worker));
+        });
+        TcpServerFactory::Register("rock", [](const TcpServerConf&, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
+            return TcpServer::ptr(new RockServer("rock", process_worker, io_worker, accept_worker));
         });
     });
 }
@@ -334,6 +339,11 @@ void Application::doGracefulShutdown()
             for (auto& m : modules) {
                 m->onUnload();
             }
+        }
+
+        if (auto sd = getServiceDiscovery()) {
+            INFO(logger) << "graceful shutdown: stopping service discovery...";
+            sd->stop();
         }
 
         INFO(logger) << "graceful shutdown: stopping WorkerMgr...";
@@ -805,6 +815,14 @@ void Application::reportWorkerFailed()
 
 int Application::run_fiber()
 {
+    // 配置了静态服务发现时自动创建，模块可在 onLoad/onServerReady 中 registerService
+    if (!getServiceDiscovery()) {
+        if (auto sd = StaticServiceDiscovery::CreateFromConfig()) {
+            setServiceDiscovery(sd);
+            INFO(logger) << "created StaticServiceDiscovery from config";
+        }
+    }
+
     // worker 从磁盘加载模块（含最新版本）
     ModuleMgr::GetInstance()->init();
 
@@ -880,6 +898,11 @@ int Application::run_fiber()
         i->onServerReady();
     }
 
+    // 模块注册完成后再发布服务实例，确保 registerService 补录的地址可见
+    if (auto sd = getServiceDiscovery()) {
+        sd->start();
+    }
+
     for (auto& [type, servers] : m_servers) {
         for (auto& server : servers) {
             server->start();
@@ -931,6 +954,18 @@ void Application::getAllServers(std::vector<TcpServer::ptr>& svrs)
     for (auto& [type, servers] : m_servers) {
         svrs.insert(svrs.end(), servers.begin(), servers.end());
     }
+}
+
+IServiceDiscovery::ptr Application::getServiceDiscovery() const
+{
+    std::lock_guard lock(m_serviceDiscoveryMutex);
+    return m_serviceDiscovery;
+}
+
+void Application::setServiceDiscovery(IServiceDiscovery::ptr sd)
+{
+    std::lock_guard lock(m_serviceDiscoveryMutex);
+    m_serviceDiscovery = std::move(sd);
 }
 
 } // namespace chen

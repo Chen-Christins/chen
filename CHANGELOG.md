@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Rock 协议接入（新增）
+
+- **新增** `TcpServerFactory` 注册 `rock` 类型，yml 中写 `type: rock` 即可启动 `RockServer`
+- **新增** `Module::handleRequest/handleNotify` 虚函数与 `RockModule` 实现，恢复 `RockServer` 对
+  `Module::ROCK` 模块的请求/通知分发（之前分发逻辑被注释，模块收不到消息）
+- **新增** `Module::registerService(server_type, domain, service)`：模块可把自己监听的地址注册进服务发现，
+  监听 `0.0.0.0` 时使用本机非回环 IPv4，回环地址会跳过；配套 `TcpServer::getSocks()`
+- **新增** `StaticServiceDiscovery`（`chen/streams/`）：从 `service_discovery.domains` 读取静态实例，
+  支持 `addServer/delServer` 运行时增量更新；`Application` 在配置非空时自动创建，并在模块
+  `onServerReady` 之后 `start()`、`onUnload` 之后 `stop()`
+- **新增** 静态服务发现支持 `{name, address, weight}` 实例结构、`service_discovery.domains` 配置热更新
+  （`ConfigVar` 监听），权重会传递到 `LoadBalanceItem`
+- **新增** `Module::onDeactivate()` 默认把 `registerService` 登记的地址从服务发现注销；
+  新增 `Module::unregisterService()` 与 `IServiceDiscovery::unregisterServer()`
+- **新增** `RockSDLoadBalance::request` 在未收到响应时换实例重试（`rock.request_max_retry`，默认 2，
+  `timeout_ms` 为包含重试的总预算）；收到响应后不重试，语义为 at-least-once
+- **新增** 被动健康检查：连续失败达到 `load_balance.fail_threshold` 后在
+  `load_balance.fail_cooldown_ms` 内摘除实例，冷却后 half-open 放行一次
+- **修复** `WeightLoadBalance::get` 在可用实例中按权重做前缀和选择，避免选中后再找可用项导致权重失真
+- **新增** `rock.service_worker` 配置：服务发现建连使用的 worker 调度器，留空使用当前 `IOManager`；
+  原写死的 `service_io` 在未配置时会直接丢任务
+- **新增** `tests/test_rock.cc`：覆盖请求/响应、gzip、通知、超时、坏帧断开、handler 返回 false 关闭连接
+- **修复** Rock 帧长度校验允许正好等于 `rock.protocol.max_length`，并限制 gzip 解压后大小
+- **修复** `ModuleManager::add/del` 未维护 `m_type2Modules`，导致 `foreach(Module::ROCK)` 永远为空、Rock 请求被当作未处理
+- **修复** `SchedulerSwitcher` 继承 `Scheduler` 后构造时隐式调用 `Scheduler(1, true)`，在协程中触发
+  `ASSERT(GetThis() == nullptr)`；改为普通 RAII 类，仅在调用方和目标调度器都存在时切换
+- **修复** `Address::GetInterfaceAddresses` 对没有地址/掩码的虚拟网卡解引用空指针（自动选择本机 IP 时会用到）
+
 ### 时间工具单位显式化
 
 - **变更** `TimeUtil` 的秒/毫秒接口不再通过 `time_t`/`uint64_t` 重载区分：`Time2Str` 拆分为
