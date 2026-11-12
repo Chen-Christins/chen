@@ -24,6 +24,8 @@ static Logger::ptr logger = LOG_NAME("system");
 
 static ConfigVar<std::string>::ptr g_server_work_path = Config::Lookup("server.work_path", std::string(), "server work path");
 static ConfigVar<std::string>::ptr g_server_pid_file = Config::Lookup("server.pid_file", std::string("chen.pid"), "server pid file");
+static ConfigVar<std::string>::ptr g_server_process_name =
+    Config::Lookup("server.process_name", std::string(), "process title base name, default is the executable file name");
 static ConfigVar<std::vector<TcpServerConf>>::ptr g_servers_conf = Config::Lookup("servers", std::vector<TcpServerConf>(), "server conf");
 static ConfigVar<uint64_t>::ptr g_drain_timeout_ms = Config::Lookup("server.drain_timeout_ms", (uint64_t)3000, "graceful shutdown drain timeout ms");
 static ConfigVar<uint64_t>::ptr g_housekeeping_interval_ms =
@@ -122,6 +124,8 @@ bool Application::init(int argc, char** argv)
     }
 
     Config::LoadFromConfDir(conf_path);
+
+    EnvMgr::GetInstance()->setProcTitleBase(g_server_process_name->getValue());
 
     // 信号命令: -s reload / -s stop / -s quit（类似 nginx -s）
     if (EnvMgr::GetInstance()->has("s")) {
@@ -272,6 +276,8 @@ void Application::doConfigReload(const std::string& file)
 
 void Application::doGracefulShutdown()
 {
+    EnvMgr::GetInstance()->setProcTitleRole(m_isWorker ? "worker process (draining)" : "master process (draining)");
+
     INFO(logger) << "graceful shutdown: stopping all servers...";
     for (auto& [type, servers] : m_servers) {
         for (auto& server : servers) {
@@ -564,6 +570,12 @@ void Application::reapWorkers()
 
 void Application::handleReload()
 {
+    EnvMgr::GetInstance()->setProcTitleRole("master process (reloading)");
+    // 无论成功失败，返回时恢复 master 角色
+    struct TitleRestore {
+        ~TitleRestore() { EnvMgr::GetInstance()->setProcTitleRole("master process"); }
+    } title_restore;
+
     INFO(logger) << "master: received SIGHUP, reloading modules...";
 
     int idx = spawnWorker();
@@ -634,6 +646,8 @@ void Application::shutdownWorkers()
 
 int Application::masterMain()
 {
+    EnvMgr::GetInstance()->setProcTitleRole("master process");
+
     if (!setupServers()) {
         ERROR(logger) << "master: setup servers failed";
         return 1;
@@ -716,6 +730,8 @@ int Application::masterMain()
 
 void Application::workerMain(int ready_fd)
 {
+    EnvMgr::GetInstance()->setProcTitleRole("worker process");
+
     registerSignals();
     sigset_t set;
     sigemptyset(&set);

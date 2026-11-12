@@ -7,6 +7,7 @@
  */
 #pragma once
 
+#include <cstddef>
 #include <map>
 #include <shared_mutex>
 #include <string>
@@ -119,6 +120,57 @@ public:
      */
     std::string getConfigPath();
 
+    /**
+     * @brief 设置进程标题的基础名
+     * @details 最终 ps / /proc/pid/cmdline 显示为 "<base>: <role>"；
+     *          传空则回退到可执行文件名。必须在 init 之后调用。
+     * @param name 基础名，例如 "TechHaven-Server"
+     */
+    void setProcTitleBase(const std::string& name);
+
+    /**
+     * @brief 设置进程标题的角色部分
+     * @details 最终显示为 "<base>: <role>"，例如 "worker process"；传空则只显示基础名。
+     * @param role 角色名
+     */
+    void setProcTitleRole(const std::string& role);
+
+    /**
+     * @brief 直接设置完整的进程标题
+     * @details 不改变基础名和角色，后续调用 setProcTitleBase/setProcTitleRole 会重新组合覆盖它。
+     * @param title 完整标题，超出可复写区域的部分会被截断
+     */
+    void setProcTitle(const std::string& title);
+
+    /**
+     * @brief 获取当前进程标题
+     */
+    std::string getProcTitle();
+
+    /**
+     * @brief 设置 /proc/pid/comm（top、pkill 默认读取的名字）
+     * @details 只影响调用线程，且最长 15 字节，超出会被截断。
+     * @param name 线程名
+     */
+    void setProcComm(const std::string& name);
+
+private:
+    /**
+     * @brief 记录 argv/environ 中可复写的标题区域
+     * @details 必须在 main 早期、任何 setenv 之前调用，由 init 负责。
+     */
+    void initProcTitle(int argc, char** argv);
+
+    /**
+     * @brief 按基础名 + 角色组合出当前标题（调用方需持有 m_mutex）
+     */
+    std::string buildProcTitleLocked() const;
+
+    /**
+     * @brief 把标题写入 argv 区域并清空剩余字节（调用方需持有 m_mutex）
+     */
+    void writeProcTitleLocked(const std::string& title);
+
 private:
     /// 读写锁
     std::shared_mutex m_mutex;
@@ -132,6 +184,18 @@ private:
     std::string m_exe;
     /// 可执行文件所在的路径
     std::string m_cwd;
+    /// 可复写的进程标题区域起始地址（argv[0]）
+    char* m_titleBuf = nullptr;
+    /// 可复写的进程标题区域字节数
+    std::size_t m_titleMax = 0;
+    /// 可执行文件名，作为基础名的兜底
+    std::string m_titleDefault;
+    /// 用户设置的基础名，为空时使用 m_titleDefault
+    std::string m_titleBase;
+    /// 用户设置的角色名
+    std::string m_titleRole;
+    /// 当前完整进程标题
+    std::string m_title;
 };
 
 typedef Singleton<Env> EnvMgr;

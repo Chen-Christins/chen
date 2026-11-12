@@ -19,7 +19,7 @@
 namespace chen::rpc {
 
 /**
- * @brief 服务注册表（对应旧版 Tunnel 的 CSvrRouteMgr）
+ * @brief 服务注册表
  * @details hub 侧维护服务实例与路由索引，服务注册后建立：
  *          - peer_id -> conn                       （DIRECT）
  *          - func_id -> [instance_id -> peer_id]   （GROUPID / BROADCAST）
