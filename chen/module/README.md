@@ -14,24 +14,31 @@
 ## 模块生命周期
 
 ```
-启动: CreateModule() → onLoad() → onServerReady() → onServerUp() → [onTick()...]
-                                                    ↓
-关机: onDeactivate() → onUnload() → DestroyModule()（进程退出时回收地址空间）
-重载: 新进程加载新模块；旧进程 onDeactivate() → onUnload() → 退出
+启动（worker）: CreateModule(dlopen)
+               → onBeforeArgsParse → onAfterArgsParse
+               → onLoad → onServerReady → onServerUp → [onTick()...]
+
+退出（热重载 drain / 关机）:
+               停止 accept → 关闭连接 → 限时 drain（server.drain_timeout_ms）
+               → 取消 tick 定时器 → onDeactivate → onUnload → _exit(0)
 ```
+
+> 正常启停和热重载 **不做进程内 `dlclose`**：`ModuleMgr` 是 `LeakySingleton`，
+> worker 用 `_exit(0)` 退出，地址空间由内核回收。只有显式调用
+> `ModuleMgr::del()/delAll()` 时才会析构模块并 `dlclose`。
 
 所有方法都有默认空实现，子类按需覆写。
 
 ### 方法说明
 
-| 方法              | 何时调用            | 典型操作                                 |
-|-------------------|---------------------|------------------------------------------|
-| `onLoad()`        | dlopen 后           | 初始化内部状态                           |
-| `onServerReady()` | server 创建后       | clearAll + 注册 servlet/handler/EventBus |
-| `onServerUp()`    | server 开始 accept  | 启动后台任务                             |
-| `onTick()`        | 每 N 毫秒           | 定时任务                                 |
-| `onDeactivate()`  | 旧模块被替换 / 关机 | stop 定时器, flush 数据                  |
-| `onUnload()`      | 仅关机              | clearAll EventBus, 释放资源              |
+| 方法              | 何时调用            | 典型操作                                                         |
+|-------------------|---------------------|------------------------------------------------------------------|
+| `onLoad()`        | dlopen 后           | 初始化内部状态                                                   |
+| `onServerReady()` | server 创建后       | 注册 servlet/handler/EventBus（`clearAll` 可选，且需在其后注册） |
+| `onServerUp()`    | server 开始 accept  | 启动后台任务                                                     |
+| `onTick()`        | 每 N 毫秒           | 定时任务                                                         |
+| `onDeactivate()`  | worker drain / 关机 | flush 数据、收尾（tick 定时器已由框架取消）                      |
+| `onUnload()`      | worker 退出前       | clearAll EventBus，释放资源                                      |
 
 ## 使用
 
@@ -50,7 +57,8 @@ void DestroyModule(Module* m) { delete m; }
 
 ```cpp
 bool MyModule::onServerReady() {
-    // 清除旧模块 EventBus listener
+    // EventBus 是进程内单例，新 worker 无需清理旧版本；
+    // 若保留 clearAll，模块 listener 必须在其之后注册
     chen::EventBusMgr::GetInstance()->clearAll();
 
     // 获取 RPC 服务器并注册方法
@@ -102,4 +110,4 @@ worker 进程加载磁盘上的新模块；新 worker 就绪后，master 通知�
 EventBus 是进程内单例，listener 中的 `std::function` 存储模块 `.so` 中的函数指针。
 多进程模型下，每个 worker 拥有独立的 EventBus 实例，进程退出时随地址空间一并回收，
 不存在跨版本的悬空指针问题。各 worker 的 `onServerReady()` 无需为兼容旧版本而调用
-`clearAll()`（同进程内仍建议保持清理习惯）。
+`clearAll()`。若显式调用 `ModuleMgr::del()` 卸载模块，则必须先清理 listener / 回调。

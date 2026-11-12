@@ -16,20 +16,20 @@
 
 | 方法         | 不实现的后果                                                   |
 |--------------|----------------------------------------------------------------|
-| `onUnload()` | 关闭时 EventBus listener 悬空（segfault 风险）、脏数据不 flush |
+| `onUnload()` | 不释放外部资源、不清理本进程注册的回调；进程即将退出，影响有限 |
 | `onLoad()`   | 大部分模块需要初始化内部状态，默认只返回 true                  |
 
 ### 按需继承
 
-| 方法                               | 什么时候需要                              |
-|------------------------------------|-------------------------------------------|
-| `onTick()` + `getTickIntervalMs()` | 定时任务（定时发布文章、定期 flush 缓存） |
-| `onDeactivate()`                   | 热重载时有定时器要停、脏数据要 flush      |
-| `onServerUp()`                     | 需要感知 server 开始 accept 的时刻        |
-| `onConnect(stream)`                | 基于 Rock 协议的连接就绪回调              |
-| `onDisconnect(stream)`             | 基于 Rock 协议的连接断开回调              |
-| `onBeforeArgsParse(argc, argv)`    | 需要在参数解析前介入命令行参数            |
-| `onAfterArgsParse(argc, argv)`     | 需要在参数解析后介入命令行参数            |
+| 方法                               | 什么时候需要                               |
+|------------------------------------|--------------------------------------------|
+| `onTick()` + `getTickIntervalMs()` | 定时任务（定时发布文章、定期 flush 缓存）  |
+| `onDeactivate()`                   | worker drain（热重载/关机）时 flush 脏数据 |
+| `onServerUp()`                     | 需要感知 server 开始 accept 的时刻         |
+| `onConnect(stream)`                | 基于 Rock 协议的连接就绪回调               |
+| `onDisconnect(stream)`             | 基于 Rock 协议的连接断开回调               |
+| `onBeforeArgsParse(argc, argv)`    | 需要在参数解析前介入命令行参数             |
+| `onAfterArgsParse(argc, argv)`     | 需要在参数解析后介入命令行参数             |
 
 ---
 
@@ -45,7 +45,7 @@ public:
     }
 
     bool onServerReady() override {
-        // 清除旧模块 EventBus listener
+        // EventBus 是进程内单例；若保留 clearAll，listener 必须在其后注册
         chen::EventBusMgr::GetInstance()->clearAll();
 
         chen::Application::GetInstance()->getServer("http", m_servers);
@@ -79,7 +79,7 @@ public:
     bool onLoad() override { return true; }
 
     bool onServerReady() override {
-        // 1. 清除 EventBus listener（保证本进程干净）
+        // 1. 可选：清空 EventBus（新 worker 本来就是空的；listener 必须在之后注册）
         chen::EventBusMgr::GetInstance()->clearAll();
 
         // 2. 初始化数据库
@@ -105,13 +105,13 @@ public:
 
     uint64_t getTickIntervalMs() override { return 60000; }
 
-    // ======== 重载旧 worker / 关机 ========
+    // ======== worker drain（热重载/关机） ========
     bool onDeactivate() override {
-        ArticleMgr::stop();  // flush + 停定时器
+        ArticleMgr::stop();  // flush 脏数据（tick 定时器已由框架取消）
         return true;
     }
 
-    // ======== 优雅关闭 ========
+    // ======== worker 退出前 ========
     bool onUnload() override {
         chen::EventBusMgr::GetInstance()->clearAll();
         ArticleMgr::stop();
@@ -157,8 +157,8 @@ public:
 └─ 否 → 纯工具模块, onLoad 即可
 
 有 EventBus listener?
-├─ 是 → onServerReady 开头调 clearAll(), 结尾调 EventMsgsInit()
-│       onUnload() 调 clearAll()
+├─ 是 → onServerReady 里注册；若调用 clearAll，listener 必须在之后注册
+│       onUnload 可选清理（worker 退出时地址空间由内核回收）
 └─ 否 → 不需要
 
 有数据要存?
@@ -277,4 +277,5 @@ group->waitAll();  // 阻塞直到 100 个任务全部完成
 ### 注意事项
 
 - 绝大多数业务场景不需要另一个池——同一个池就够用了。只有当 CPU 计算明显拖慢 HTTP 响应时才考虑隔离。
-- 热重载时 WorkerMgr 的池会正常 stop/restart，旧池里排队的协程会被丢弃。有不能丢的任务时在 `onDeactivate` 里等待完成。
+- 热重载会换 worker 进程：旧 worker 的 WorkerMgr 池随进程退出，池里排队的协程会被丢弃。有不能丢的任务时在 `onDeactivate`
+  里等待完成。

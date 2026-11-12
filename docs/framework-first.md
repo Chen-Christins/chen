@@ -136,7 +136,8 @@
 
 - 头文件 `<chen/...>`，库 `lib/libchen.so`；模块 README 在 `include/chen/<module>/README.md`
 - 三方库（yaml-cpp / tinyxml2 / jsoncpp / hiredis-vip / protobuf）已静态进 `libchen.so`，不要再链接
-- 模块在 `onUnload` 里注销 `registerMethod` / servlet / EventBus，避免热重载后旧 `.so` 回调悬空
+- 模块在 `onUnload` 里注销 `registerMethod` / servlet / EventBus；正常热重载换 worker 进程、不做进程内 `dlclose`，显式
+  `ModuleMgr::del()` 卸载模块时才必须保证不残留 `.so` 回调
 - 热重载会换 worker 进程，堆内状态会重置；跨重载数据落 Redis / MySQL，或在 `onDeactivate` flush
 - 不要复制框架源码到业务，升级 SDK 会失配
 

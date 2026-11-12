@@ -223,7 +223,8 @@ INFO(LOG_ROOT()) << std::format("{} connections active", count);
 
 ## 热重载
 
-日志配置支持热重载——修改 `system.yml` 中 `logs` 段后发送 `SIGUSR2` 信号（或调用配置 reload），新配置即时生效：
+日志配置支持热重载——修改 `system.yml` 中 `logs` 段后，worker 内的配置目录 inotify 监听会重新加载该文件并触发 `ConfigVar`
+回调，新配置即时生效（无需发信号、无需重启）：
 
 - 新增 logger → 自动创建
 - 修改 level / formatter → 即时更新

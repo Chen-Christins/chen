@@ -577,7 +577,7 @@ public:
     }
 
     /**
-     * @brief 注销本地方法处理器（热重载时避免旧 .so 的 lambda 残留）
+     * @brief 注销本地方法处理器（显式卸载模块时避免旧 .so 的 lambda 残留）
      * @param name 方法名
      */
     void unregisterMethod(const std::string& name);

@@ -279,15 +279,17 @@ RpcClientPoolMgr::GetInstance()->pruneIdle(60000);  // 回收 60s 空闲连接
 
 ### 热重载
 
-`registerMethod` 将函数存入 lambda。热重载时：
+`registerMethod` 将函数存入 lambda。热重载采用多进程换 worker：旧 worker 退出后由内核
+回收地址空间，不会在进程内 `dlclose`。如果显式调用 `ModuleMgr::del()` 卸载模块，
+则必须先注销本模块注册的方法：
 
 ```cpp
 server->unregisterMethod("old_func");
 // 再重新注册
 ```
 
-避免旧 `.so` 卸载后函数指针悬垂。RpcClient 的 `registerMethod`（接收转发请求）同样在
-`unload` 时需 `unregisterMethod` 清理。
+RpcClient 的 `registerMethod`（接收转发请求）同样在显式卸载模块时需
+`unregisterMethod` 清理。
 
 ### 心跳
 
