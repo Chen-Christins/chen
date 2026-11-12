@@ -7,13 +7,13 @@
  */
 #pragma once
 
-#include <cctype>
 #include <cstdint>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "../config/config.h"
+#include "../util/string_util.h"
 #include "service_discovery.h"
 
 namespace chen {
@@ -158,35 +158,25 @@ class LexicalCast<std::string, StaticServiceDiscovery::ItemConf> {
 public:
     StaticServiceDiscovery::ItemConf operator()(const std::string& v)
     {
-        auto trim = [](std::string s) {
-            while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) {
-                s.erase(s.begin());
-            }
-            while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) {
-                s.pop_back();
-            }
-            if (s.size() >= 2 && ((s.front() == '"' && s.back() == '"') || (s.front() == '\'' && s.back() == '\''))) {
-                s = s.substr(1, s.size() - 2);
-            }
-            return s;
-        };
+        // YAML 标量可能带引号，Trim 的字符集合同时覆盖空白和引号
+        static const std::string s_delimit = " \t\r\n\"'";
 
         StaticServiceDiscovery::ItemConf item;
         YAML::Node node = YAML::Load(v);
         std::stringstream ss;
         if (node["name"]) {
             ss << node["name"];
-            item.name = trim(ss.str());
+            item.name = StringUtil::Trim(ss.str(), s_delimit);
         }
         if (node["address"]) {
             ss.str("");
             ss << node["address"];
-            item.address = trim(ss.str());
+            item.address = StringUtil::Trim(ss.str(), s_delimit);
         }
         if (node["weight"]) {
             ss.str("");
             ss << node["weight"];
-            item.weight = LexicalCast<std::string, uint32_t>()(trim(ss.str()));
+            item.weight = LexicalCast<std::string, uint32_t>()(StringUtil::Trim(ss.str(), s_delimit));
         }
         return item;
     }
