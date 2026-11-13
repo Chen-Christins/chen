@@ -39,6 +39,15 @@ if (TEST)
     chen_add_executable(test_game_client "test_game_client.cc" "" "${LIBS}")
     chen_add_executable(test_rock "test_rock.cc" "" "${LIBS}")
     chen_add_executable(test_mysql "test_mysql.cc" "" "${LIBS}")
+    chen_add_executable(test_postgresql "test_postgresql.cc" "" "${LIBS}")
+    # ORM 生成器不在 libchen 中，单独编译 orm 源码
+    set(TEST_ORM_GEN_SRC
+            "test_orm_gen.cc"
+            "${ROOT_DIR}/chen/orm/column.cc"
+            "${ROOT_DIR}/chen/orm/index.cc"
+            "${ROOT_DIR}/chen/orm/table.cc"
+            "${ROOT_DIR}/chen/orm/util.cc")
+    chen_add_executable(test_orm_gen "${TEST_ORM_GEN_SRC}" "" "${LIBS}")
     chen_add_executable(test_h2_server "test_h2_server.cc" "" "${LIBS}")
     chen_add_executable(test_time_util "test_time_util.cc" "" "${LIBS}")
     chen_add_executable(test_encryptor_util "test_encryptor_util.cc" "" "${LIBS}")

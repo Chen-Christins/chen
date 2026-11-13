@@ -1,23 +1,25 @@
 # DB — 数据库模块
 
-数据库连接（MySQL / SQLite3 / Redis）、参数化 SQL 构建（QueryBuilder）、分库分表路由（Shard）
+数据库连接（MySQL / SQLite3 / PostgreSQL / Redis）、参数化 SQL 构建（QueryBuilder）、分库分表路由（Shard）
 与异步数据库线程。
 
-> 配置与业务侧用法（Redis / MySQL / SQLite3 的 YAML 字段、多库、生命周期）见
+> 配置与业务侧用法（Redis / MySQL / SQLite3 / PostgreSQL 的 YAML 字段、多库、生命周期）见
 > [`docs/db-configuration.md`](../../docs/db-configuration.md)。
 
 ## 核心类
 
-| 类             | 说明                                                      |
-|----------------|-----------------------------------------------------------|
-| `IDB`          | 数据库抽象接口（`ISQLData` / `ISQLUpdate` / `ISQLQuery`） |
-| `Redis`        | Redis 客户端封装，基于 hiredis                            |
-| `RedisMgr`     | Redis 连接管理（单例）                                    |
-| `MySQL`        | MySQL 连接封装                                            |
-| `FoxThread`    | 独立数据库线程，避免阻塞 I/O                              |
-| `FoxThreadMgr` | FoxThread 管理器（单例）                                  |
-| `QueryBuilder` | 参数化 SQL 构建器：WHERE / JOIN / 分页 / 聚合 / 子查询    |
-| `ShardRouter`  | 分库分表路由入口（`ShardRouterMgr` 单例）                 |
+| 类              | 说明                                                      |
+|-----------------|-----------------------------------------------------------|
+| `IDB`           | 数据库抽象接口（`ISQLData` / `ISQLUpdate` / `ISQLQuery`） |
+| `Redis`         | Redis 客户端封装，基于 hiredis                            |
+| `RedisMgr`      | Redis 连接管理（单例）                                    |
+| `MySQL`         | MySQL 连接封装                                            |
+| `PostgreSQL`    | PostgreSQL 连接封装（基于 libpq）                         |
+| `PostgreSQLMgr` | PostgreSQL 连接管理（单例）                               |
+| `FoxThread`     | 独立数据库线程，避免阻塞 I/O                              |
+| `FoxThreadMgr`  | FoxThread 管理器（单例）                                  |
+| `QueryBuilder`  | 参数化 SQL 构建器：WHERE / JOIN / 分页 / 聚合 / 子查询    |
+| `ShardRouter`   | 分库分表路由入口（`ShardRouterMgr` 单例）                 |
 
 ## 设计
 
@@ -88,6 +90,43 @@ MySQLUtil::Query("blog", "SELECT * FROM users WHERE id=%d", id);
 auto db = SQLite3Mgr::GetInstance()->get("blog");
 auto result = db->query("SELECT * FROM users");
 ```
+
+## PostgreSQL
+
+基于 libpq，目标 PostgreSQL 12+，配置位于 `postgresql.dbs.<name>`：
+
+```cpp
+#include <chen/db/postgresql.h>
+
+auto conn = PostgreSQLMgr::GetInstance()->get("blog");
+auto result = conn->query("SELECT * FROM users WHERE id=%d", id);
+
+// 或静态工具
+PostgreSQLUtil::Query("blog", "SELECT * FROM users WHERE id=%d", id);
+```
+
+参数化 SQL 仍使用 `?` 占位符，驱动会改写为 PostgreSQL 的 `$1..$n`：
+
+```cpp
+auto stmt = conn->prepare("SELECT id, name FROM users WHERE name = ? AND status = ?");
+stmt->bindString(1, "alice");
+stmt->bindInt32(2, 1);
+auto result = stmt->query();
+```
+
+实现说明：
+
+- `execute/query` 使用 `PQexec`，支持一次发送多条 DDL 语句；`prepare` 使用 `PQexecParams`，
+  不创建服务端 prepared statement，避免连接归还后 `DEALLOCATE` 的问题。
+- 占位符改写是词法级的：字符串、双引号标识符、行/块注释和 dollar quote 里的 `?` 不会被处理。
+  JSONB 的 `?` 运算符无法自动区分，请改用 `jsonb_exists(col, 'key')`。
+- `blob` 以二进制格式绑定为 `bytea`，读取时对文本格式结果自动 `PQunescapeBytea`。
+- `getLastInsertId()` 使用 `lastval()`，返回当前连接最近一次序列值。
+- 事务通过 `openTransaction(name, auto_commit)` 创建。语句出错后 PostgreSQL 会把事务标记为
+  aborted，此时 `commit()` 会显式回滚并返回 `false`；`auto_commit` 事务在出错后析构同样回滚，
+  不会把未提交数据留在连接池连接里。连接归还连接池时若仍处于事务中，会先执行 `ROLLBACK`，
+  回滚失败则丢弃该连接。
+- 连接池大小取配置中的 `pool`，默认 5。
 
 ## QueryBuilder
 

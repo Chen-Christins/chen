@@ -122,7 +122,7 @@ public:
 };
 ```
 
-> 框架不代为初始化/释放数据库。Redis / MySQL / SQLite3 的配置与模块内用法见
+> 框架不代为初始化/释放数据库。Redis / MySQL / SQLite3 / PostgreSQL 的配置与模块内用法见
 > [`docs/db-configuration.md`](db-configuration.md)。
 
 ### 纯 RPC/Game 模块

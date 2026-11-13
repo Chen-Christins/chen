@@ -37,6 +37,7 @@ target_link_libraries(chen
         ${OPENSSL_LIBRARIES}
         ${EVENT_LIB}
         ${MYSQLCLIENT_LIB}
+        ${PostgreSQL_LIBRARIES}
         Boost::context
         ${NGHTTP2_LIB}
         ${PTHREAD_LIB}

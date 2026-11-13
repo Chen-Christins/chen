@@ -14,6 +14,43 @@ namespace orm {
 
 static Logger::ptr logger = LOG_NAME("orm");
 
+/**
+ * @brief 转义 SQL 字符串字面量并适配生成的 C++ 字符串
+ *
+ * 单引号按 SQL 规则双写；反斜杠、双引号、换行按 C++ 字符串字面量转义。
+ */
+static std::string escapeCppSqlLiteral(const std::string& v)
+{
+    std::string out;
+    out.reserve(v.size() + 8);
+    for (char c : v) {
+        switch (c) {
+        case '\'':
+            out += "''";
+            break;
+        case '\\':
+            out += "\\\\";
+            break;
+        case '"':
+            out += "\\\"";
+            break;
+        case '\n':
+            out += "\\n";
+            break;
+        case '\r':
+            out += "\\r";
+            break;
+        case '\t':
+            out += "\\t";
+            break;
+        default:
+            out += c;
+            break;
+        }
+    }
+    return out;
+}
+
 bool Table::init(const tinyxml2::XMLElement& node)
 {
     if (!node.Attribute("name")) {
@@ -34,6 +71,21 @@ bool Table::init(const tinyxml2::XMLElement& node)
 
     if (node.Attribute("version")) {
         m_version = node.IntAttribute("version");
+    }
+
+    if (node.Attribute("db")) {
+        std::string db = StringUtil::ToLower(node.Attribute("db"));
+        if (db == "sqlite3" || db == "sqlite") {
+            m_dbType = DB_SQLITE3;
+        } else if (db == "mysql") {
+            m_dbType = DB_MYSQL;
+        } else if (db == "postgresql" || db == "postgres" || db == "pgsql") {
+            m_dbType = DB_POSTGRESQL;
+        } else {
+            ERROR(logger) << "table name=" << m_name << " db=" << db << " is invalid"
+                          << " (expected sqlite3/mysql/postgresql)";
+            return false;
+        }
     }
 
     const tinyxml2::XMLElement* cols = node.FirstChildElement("columns");
@@ -108,6 +160,40 @@ bool Table::init(const tinyxml2::XMLElement& node)
         m_idxs.push_back(idx_ptr);
         idx = idx->NextSiblingElement("index");
     } while (idx);
+
+    if (m_dbType == DB_POSTGRESQL) {
+        int auto_increment_count = 0;
+        for (auto& col : m_cols) {
+            if (!col->isAutoIncrement()) {
+                continue;
+            }
+            ++auto_increment_count;
+            if (col->getDType() == Column::TYPE_UINT64) {
+                ERROR(logger) << "table name=" << m_name << " column name=" << col->getName() << " type=uint64 cannot be auto_increment in PostgreSQL"
+                              << " (numeric(20,0) does not support identity)";
+                return false;
+            }
+            switch (col->getDType()) {
+            case Column::TYPE_INT8:
+            case Column::TYPE_UINT8:
+            case Column::TYPE_INT16:
+            case Column::TYPE_UINT16:
+            case Column::TYPE_INT32:
+            case Column::TYPE_UINT32:
+            case Column::TYPE_INT64:
+                break;
+            default:
+                ERROR(logger) << "table name=" << m_name << " column name=" << col->getName() << " type=" << col->getType()
+                              << " cannot be auto_increment in PostgreSQL"
+                              << " (identity requires an integer type)";
+                return false;
+            }
+        }
+        if (auto_increment_count > 1) {
+            ERROR(logger) << "table name=" << m_name << " has " << auto_increment_count << " auto_increment columns, PostgreSQL allows only one";
+            return false;
+        }
+    }
     return true;
 }
 
@@ -124,6 +210,24 @@ std::string Table::getFileName() const
     std::string str = m_name + m_subfix;
     std::transform(str.begin(), str.end(), str.begin(), ::tolower);
     return str;
+}
+
+std::string Table::sqlIdent(const std::string& name) const
+{
+    if (m_dbType != DB_POSTGRESQL) {
+        return name;
+    }
+    // 生成代码最终是 C++ 字符串字面量，这里先输出 \" 形式
+    return "\\\"" + name + "\\\"";
+}
+
+std::string Table::getIndexName(const Index::ptr& idx) const
+{
+    std::string name = m_name;
+    for (auto& col : idx->getCols()) {
+        name += "_" + col;
+    }
+    return name;
 }
 
 void Table::gen_inc(const std::string& path)
@@ -536,8 +640,10 @@ void Table::gen_dao_inc(std::ofstream& ofs)
 
     ofs << "    static int CreateTableSQLite3(" << m_dbclass << "::ptr info);" << std::endl;
     ofs << "    static int CreateTableMySQL(" << m_dbclass << "::ptr info);" << std::endl;
+    ofs << "    static int CreateTablePostgreSQL(" << m_dbclass << "::ptr info);" << std::endl;
     ofs << "    static int MigrateTableSQLite3(" << m_dbclass << "::ptr info);" << std::endl;
     ofs << "    static int MigrateTableMySQL(" << m_dbclass << "::ptr info);" << std::endl;
+    ofs << "    static int MigrateTablePostgreSQL(" << m_dbclass << "::ptr info);" << std::endl;
 
     // ---- 版本化迁移 ----
     /**
@@ -606,7 +712,7 @@ void Table::gen_dao_src(std::ofstream& ofs)
     ofs << "    if (!info->isDirty()) {" << std::endl;
     ofs << "        return 0;" << std::endl;
     ofs << "    }" << std::endl;
-    ofs << "    std::string sql = \"update " << m_name << " set \";" << std::endl;
+    ofs << "    std::string sql = \"update " << sqlTable() << " set \";" << std::endl;
     ofs << "    bool first = true;" << std::endl;
     auto pks = getPKs();
     for (size_t ci = 0; ci < m_cols.size(); ++ci) {
@@ -614,7 +720,7 @@ void Table::gen_dao_src(std::ofstream& ofs)
             continue;
         ofs << "    if (info->m_flags & (1ull << " << ci << ")) {" << std::endl;
         ofs << "        if (!first) sql += \", \";" << std::endl;
-        ofs << "        sql += \"" << m_cols[ci]->getName() << " = ?\";" << std::endl;
+        ofs << "        sql += \"" << sqlIdent(m_cols[ci]->getName()) << " = ?\";" << std::endl;
         ofs << "        first = false;" << std::endl;
         ofs << "    }" << std::endl;
     }
@@ -623,7 +729,7 @@ void Table::gen_dao_src(std::ofstream& ofs)
     for (auto& i : pks) {
         if (!is_first)
             ofs << " and";
-        ofs << " " << i->getName() << " = ?";
+        ofs << " " << sqlIdent(i->getName()) << " = ?";
         is_first = false;
     }
     ofs << "\";" << std::endl;
@@ -660,35 +766,56 @@ void Table::gen_dao_src(std::ofstream& ofs)
     ofs << "}" << std::endl << std::endl;
     ofs << "int " << GetAsClassName(class_name_dao) << "::Insert(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass << "::ptr conn) {"
         << std::endl;
-    ofs << "    std::string sql = \"insert into " << m_name << " (";
-    is_first = true;
     Column::ptr auto_inc;
-
+    size_t insert_col_count = 0;
     for (auto& i : m_cols) {
         if (i->isAutoIncrement()) {
             auto_inc = i;
-            continue;
+        } else {
+            ++insert_col_count;
         }
-        if (!is_first) {
-            ofs << ", ";
-        }
-        ofs << i->getName();
-        is_first = false;
     }
 
-    ofs << ") values (";
-    is_first = true;
-    for (auto& i : m_cols) {
-        if (i->isAutoIncrement()) {
-            continue;
+    if (isPostgreSQL() && insert_col_count == 0) {
+        // PostgreSQL 不支持 MySQL 的 () VALUES () 语法，只有自增列时用 DEFAULT VALUES
+        ofs << "    std::string sql = \"insert into " << sqlTable() << " default values";
+        if (auto_inc) {
+            ofs << " returning " << sqlIdent(auto_inc->getName());
         }
-        if (!is_first) {
-            ofs << ", ";
+        ofs << "\";" << std::endl;
+    } else {
+        ofs << "    std::string sql = \"insert into " << sqlTable() << " (";
+        is_first = true;
+
+        for (auto& i : m_cols) {
+            if (i->isAutoIncrement()) {
+                continue;
+            }
+            if (!is_first) {
+                ofs << ", ";
+            }
+            ofs << sqlIdent(i->getName());
+            is_first = false;
         }
-        ofs << "?";
-        is_first = false;
+
+        ofs << ") values (";
+        is_first = true;
+        for (auto& i : m_cols) {
+            if (i->isAutoIncrement()) {
+                continue;
+            }
+            if (!is_first) {
+                ofs << ", ";
+            }
+            ofs << "?";
+            is_first = false;
+        }
+        ofs << ")";
+        if (isPostgreSQL() && auto_inc) {
+            ofs << " returning " << sqlIdent(auto_inc->getName());
+        }
+        ofs << "\";" << std::endl;
     }
-    ofs << ")\";" << std::endl;
 
     CHECK_STMT("conn->getErrno()");
 
@@ -702,19 +829,32 @@ void Table::gen_dao_src(std::ofstream& ofs)
         ofs << ");" << std::endl;
         ++idx;
     }
-    ofs << "    int rt = stmt->execute();" << std::endl;
-    if (auto_inc) {
-        ofs << "    if(rt == 0) {" << std::endl;
-        ofs << "        info->" << GetAsMemberName(auto_inc->getName()) << " = conn->getLastInsertId();" << std::endl << "    }" << std::endl;
+    if (isPostgreSQL() && auto_inc) {
+        ofs << "    auto result = stmt->query();" << std::endl;
+        ofs << "    if (!result) {" << std::endl;
+        ofs << "        return stmt->getErrno();" << std::endl;
+        ofs << "    }" << std::endl;
+        ofs << "    if (result->next()) {" << std::endl;
+        ofs << "        info->" << GetAsMemberName(auto_inc->getName()) << " = result->getInt64(0);" << std::endl;
+        ofs << "    }" << std::endl;
+        ofs << "    info->markClean();" << std::endl;
+        ofs << "    return 0;" << std::endl;
+    } else {
+        ofs << "    int rt = stmt->execute();" << std::endl;
+        if (auto_inc) {
+            ofs << "    if(rt == 0) {" << std::endl;
+            ofs << "        info->" << GetAsMemberName(auto_inc->getName()) << " = conn->getLastInsertId();" << std::endl << "    }" << std::endl;
+        }
+        ofs << "    if (rt == 0) {" << std::endl;
+        ofs << "        info->markClean();" << std::endl;
+        ofs << "    }" << std::endl;
+        ofs << "    return rt;" << std::endl;
     }
-    ofs << "    if (rt == 0) {" << std::endl;
-    ofs << "        info->markClean();" << std::endl;
-    ofs << "    }" << std::endl;
-    ofs << "    return rt;" << std::endl;
     ofs << "}" << std::endl << std::endl;
 
     ofs << "int " << GetAsClassName(class_name_dao) << "::InsertOrUpdate(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass
         << "::ptr conn) {" << std::endl;
+    auto_inc = nullptr;
     for (auto& i : m_cols) {
         if (i->isAutoIncrement()) {
             auto_inc = i;
@@ -726,27 +866,83 @@ void Table::gen_dao_src(std::ofstream& ofs)
         ofs << "        return Insert(info, conn);" << std::endl;
         ofs << "    }" << std::endl;
     }
-    ofs << "    std::string sql = \"replace into " << m_name << " (";
-    is_first = true;
-    for (auto& i : m_cols) {
-        if (!is_first) {
-            ofs << ", ";
+    if (isPostgreSQL()) {
+        ofs << "    std::string sql = \"insert into " << sqlTable() << " (";
+        is_first = true;
+        for (auto& i : m_cols) {
+            if (!is_first) {
+                ofs << ", ";
+            }
+            ofs << sqlIdent(i->getName());
+            is_first = false;
         }
-        ofs << i->getName();
-        is_first = false;
-    }
-
-    ofs << ") values (";
-    is_first = true;
-    for (auto& i : m_cols) {
-        (void)i;
-        if (!is_first) {
-            ofs << ", ";
+        ofs << ") values (";
+        is_first = true;
+        for (auto& i : m_cols) {
+            (void)i;
+            if (!is_first) {
+                ofs << ", ";
+            }
+            ofs << "?";
+            is_first = false;
         }
-        ofs << "?";
-        is_first = false;
+        ofs << ")";
+        if (!pks.empty()) {
+            ofs << " on conflict (";
+            is_first = true;
+            for (auto& pk : pks) {
+                if (!is_first) {
+                    ofs << ", ";
+                }
+                ofs << sqlIdent(pk->getName());
+                is_first = false;
+            }
+            ofs << ")";
+            std::vector<Column::ptr> update_cols;
+            for (auto& col : m_cols) {
+                if (!is_exists(pks, col)) {
+                    update_cols.push_back(col);
+                }
+            }
+            if (update_cols.empty()) {
+                ofs << " do nothing";
+            } else {
+                ofs << " do update set ";
+                is_first = true;
+                for (auto& col : update_cols) {
+                    if (!is_first) {
+                        ofs << ", ";
+                    }
+                    ofs << sqlIdent(col->getName()) << " = excluded." << sqlIdent(col->getName());
+                    is_first = false;
+                }
+            }
+        } else {
+            ofs << " on conflict do nothing";
+        }
+        ofs << "\";" << std::endl;
+    } else {
+        ofs << "    std::string sql = \"replace into " << sqlTable() << " (";
+        is_first = true;
+        for (auto& i : m_cols) {
+            if (!is_first) {
+                ofs << ", ";
+            }
+            ofs << sqlIdent(i->getName());
+            is_first = false;
+        }
+        ofs << ") values (";
+        is_first = true;
+        for (auto& i : m_cols) {
+            (void)i;
+            if (!is_first) {
+                ofs << ", ";
+            }
+            ofs << "?";
+            is_first = false;
+        }
+        ofs << ")\";" << std::endl;
     }
-    ofs << ")\";" << std::endl;
 
     CHECK_STMT("conn->getErrno()");
     idx = 1;
@@ -773,46 +969,57 @@ void Table::gen_dao_src(std::ofstream& ofs)
     ofs << "        return -1;" << std::endl;
     ofs << "    }" << std::endl;
 
-    // Build INSERT SQL with multiple value tuples
-    ofs << "    std::string sql = \"insert into " << m_name << " (\";" << std::endl;
-    is_first = true;
-    for (auto& col : m_cols) {
-        if (col->isAutoIncrement())
-            continue;
-        if (!is_first)
-            ofs << "    sql += \", \";" << std::endl;
-        ofs << "    sql += \"" << col->getName() << "\";" << std::endl;
-        is_first = false;
-    }
-    ofs << "    sql += \") VALUES \";" << std::endl;
-    ofs << "    for (size_t r = 0; r < infos.size(); ++r) {" << std::endl;
-    ofs << "        if (r) sql += \", \";" << std::endl;
-    ofs << "        sql += \"(\";" << std::endl;
-    is_first = true;
-    for (size_t ci = 0; ci < m_cols.size(); ++ci) {
-        if (m_cols[ci]->isAutoIncrement())
-            continue;
-        if (!is_first)
-            ofs << "        sql += \", \";" << std::endl;
-        ofs << "        sql += \"?\";" << std::endl;
-        is_first = false;
-    }
-    ofs << "        sql += \")\";" << std::endl;
-    ofs << "    }" << std::endl;
+    if (isPostgreSQL() && insert_col_count == 0) {
+        // 只有自增列的表无法使用多行 VALUES，逐行调用 Insert
+        ofs << "    for (auto& info : infos) {" << std::endl;
+        ofs << "        if (int rt = Insert(info, conn)) {" << std::endl;
+        ofs << "            return rt;" << std::endl;
+        ofs << "        }" << std::endl;
+        ofs << "    }" << std::endl;
+        ofs << "    return 0;" << std::endl;
+        ofs << "}" << std::endl << std::endl;
+    } else {
+        // Build INSERT SQL with multiple value tuples
+        ofs << "    std::string sql = \"insert into " << sqlTable() << " (\";" << std::endl;
+        is_first = true;
+        for (auto& col : m_cols) {
+            if (col->isAutoIncrement())
+                continue;
+            if (!is_first)
+                ofs << "    sql += \", \";" << std::endl;
+            ofs << "    sql += \"" << sqlIdent(col->getName()) << "\";" << std::endl;
+            is_first = false;
+        }
+        ofs << "    sql += \") VALUES \";" << std::endl;
+        ofs << "    for (size_t r = 0; r < infos.size(); ++r) {" << std::endl;
+        ofs << "        if (r) sql += \", \";" << std::endl;
+        ofs << "        sql += \"(\";" << std::endl;
+        is_first = true;
+        for (size_t ci = 0; ci < m_cols.size(); ++ci) {
+            if (m_cols[ci]->isAutoIncrement())
+                continue;
+            if (!is_first)
+                ofs << "        sql += \", \";" << std::endl;
+            ofs << "        sql += \"?\";" << std::endl;
+            is_first = false;
+        }
+        ofs << "        sql += \")\";" << std::endl;
+        ofs << "    }" << std::endl;
 
-    CHECK_STMT("conn->getErrno()");
+        CHECK_STMT("conn->getErrno()");
 
-    // Bind all rows
-    ofs << "    int idx = 1;" << std::endl;
-    ofs << "    for (auto& info : infos) {" << std::endl;
-    for (auto& col : m_cols) {
-        if (col->isAutoIncrement())
-            continue;
-        ofs << "        stmt->" << col->getBindString() << "(idx++, info->" << GetAsMemberName(col->getName()) << ");" << std::endl;
+        // Bind all rows
+        ofs << "    int idx = 1;" << std::endl;
+        ofs << "    for (auto& info : infos) {" << std::endl;
+        for (auto& col : m_cols) {
+            if (col->isAutoIncrement())
+                continue;
+            ofs << "        stmt->" << col->getBindString() << "(idx++, info->" << GetAsMemberName(col->getName()) << ");" << std::endl;
+        }
+        ofs << "    }" << std::endl;
+        ofs << "    return stmt->execute();" << std::endl;
+        ofs << "}" << std::endl << std::endl;
     }
-    ofs << "    }" << std::endl;
-    ofs << "    return stmt->execute();" << std::endl;
-    ofs << "}" << std::endl << std::endl;
 
     // ===== BatchUpdate =====
     ofs << "int " << GetAsClassName(class_name_dao) << "::BatchUpdate(const std::vector<" << GetAsClassName(class_name) << "::ptr>& infos, "
@@ -850,14 +1057,14 @@ void Table::gen_dao_src(std::ofstream& ofs)
     ofs << "        ERROR(logger) << \"BatchDelete conn is null\";" << std::endl;
     ofs << "        return -1;" << std::endl;
     ofs << "    }" << std::endl;
-    ofs << "    std::string sql = \"delete from " << m_name << " where ";
+    ofs << "    std::string sql = \"delete from " << sqlTable() << " where ";
     {
         auto pks = getPKs();
         is_first = true;
         for (auto& pk : pks) {
             if (!is_first)
                 ofs << " and ";
-            ofs << pk->getName();
+            ofs << sqlIdent(pk->getName());
             is_first = false;
         }
     }
@@ -878,13 +1085,13 @@ void Table::gen_dao_src(std::ofstream& ofs)
     ofs << "int " << GetAsClassName(class_name_dao) << "::Delete(" << GetAsClassName(class_name) << "::ptr info, " << m_updateclass << "::ptr conn) {"
         << std::endl;
 
-    ofs << "    std::string sql = \"delete from " << m_name << " where";
+    ofs << "    std::string sql = \"delete from " << sqlTable() << " where";
     is_first = true;
     for (auto& i : pks) {
         if (!is_first) {
             ofs << " and";
         }
-        ofs << " " << i->getName() << " = ?";
+        ofs << " " << sqlIdent(i->getName()) << " = ?";
         is_first = false;
     }
     ofs << "\";" << std::endl;
@@ -911,13 +1118,13 @@ void Table::gen_dao_src(std::ofstream& ofs)
                 ofs << " const " << d->getDTypeString() << "& " << GetAsVariable(d->getName()) << ", ";
             }
             ofs << m_updateclass << "::ptr conn) {" << std::endl;
-            ofs << "    std::string sql = \"delete from " << m_name << " where";
+            ofs << "    std::string sql = \"delete from " << sqlTable() << " where";
             is_first = true;
             for (auto& x : i->getCols()) {
                 if (!is_first) {
                     ofs << " and";
                 }
-                ofs << " " << x << " = ?";
+                ofs << " " << sqlIdent(x) << " = ?";
                 is_first = false;
             }
             ofs << "\";" << std::endl;
@@ -940,10 +1147,10 @@ void Table::gen_dao_src(std::ofstream& ofs)
         if (!is_first) {
             ofs << ", ";
         }
-        ofs << i->getName();
+        ofs << sqlIdent(i->getName());
         is_first = false;
     }
-    ofs << " from " << m_name << "\";" << std::endl;
+    ofs << " from " << sqlTable() << "\";" << std::endl;
     CHECK_STMT("conn->getErrno()");
     ofs << "    auto rt = stmt->query();" << std::endl;
     ofs << "    if(!rt) {" << std::endl;
@@ -975,16 +1182,16 @@ void Table::gen_dao_src(std::ofstream& ofs)
         if (!is_first) {
             ofs << ", ";
         }
-        ofs << i->getName();
+        ofs << sqlIdent(i->getName());
         is_first = false;
     }
-    ofs << " from " << m_name << " where";
+    ofs << " from " << sqlTable() << " where";
     is_first = true;
     for (auto& i : pks) {
         if (!is_first) {
             ofs << " and";
         }
-        ofs << " " << i->getName() << " = ?";
+        ofs << " " << sqlIdent(i->getName()) << " = ?";
         is_first = false;
     }
     ofs << "\";" << std::endl;
@@ -1028,16 +1235,16 @@ void Table::gen_dao_src(std::ofstream& ofs)
                 if (!is_first) {
                     ofs << ", ";
                 }
-                ofs << i->getName();
+                ofs << sqlIdent(i->getName());
                 is_first = false;
             }
-            ofs << " from " << m_name << " where";
+            ofs << " from " << sqlTable() << " where";
             is_first = true;
             for (auto& x : i->getCols()) {
                 if (!is_first) {
                     ofs << " and";
                 }
-                ofs << " " << x << " = ?";
+                ofs << " " << sqlIdent(x) << " = ?";
                 is_first = false;
             }
             ofs << "\";" << std::endl;
@@ -1080,16 +1287,16 @@ void Table::gen_dao_src(std::ofstream& ofs)
                 if (!is_first) {
                     ofs << ", ";
                 }
-                ofs << i->getName();
+                ofs << sqlIdent(i->getName());
                 is_first = false;
             }
-            ofs << " from " << m_name << " where";
+            ofs << " from " << sqlTable() << " where";
             is_first = true;
             for (auto& x : i->getCols()) {
                 if (!is_first) {
                     ofs << " and";
                 }
-                ofs << " " << x << " = ?";
+                ofs << " " << sqlIdent(x) << " = ?";
                 is_first = false;
             }
             ofs << "\";" << std::endl;
@@ -1124,13 +1331,13 @@ void Table::gen_dao_src(std::ofstream& ofs)
             ofs << "int32_t offset, int32_t limit, " << m_queryclass << "::ptr conn) {" << std::endl;
 
             // COUNT query
-            ofs << "    std::string countSql = \"select count(*) from " << m_name << " where";
+            ofs << "    std::string countSql = \"select count(*) from " << sqlTable() << " where";
             is_first = true;
             for (auto& x : i->getCols()) {
                 if (!is_first) {
                     ofs << " and";
                 }
-                ofs << " " << x << " = ?";
+                ofs << " " << sqlIdent(x) << " = ?";
                 is_first = false;
             }
             ofs << "\";" << std::endl;
@@ -1164,16 +1371,16 @@ void Table::gen_dao_src(std::ofstream& ofs)
                 if (!is_first) {
                     ofs << ", ";
                 }
-                ofs << col->getName();
+                ofs << sqlIdent(col->getName());
                 is_first = false;
             }
-            ofs << " from " << m_name << " where";
+            ofs << " from " << sqlTable() << " where";
             is_first = true;
             for (auto& x : i->getCols()) {
                 if (!is_first) {
                     ofs << " and";
                 }
-                ofs << " " << x << " = ?";
+                ofs << " " << sqlIdent(x) << " = ?";
                 is_first = false;
             }
             ofs << " order by ";
@@ -1184,7 +1391,7 @@ void Table::gen_dao_src(std::ofstream& ofs)
                     if (!is_first) {
                         ofs << ", ";
                     }
-                    ofs << pk->getName() << " desc";
+                    ofs << sqlIdent(pk->getName()) << " desc";
                     is_first = false;
                 }
             }
@@ -1230,7 +1437,7 @@ void Table::gen_dao_src(std::ofstream& ofs)
 
     // ===== newQuery (创建预配置表名的 QueryBuilder) =====
     ofs << "chen::QueryBuilder::ptr " << GetAsClassName(class_name_dao) << "::newQuery(const std::string& alias) {" << std::endl;
-    ofs << "    std::string table = \"" << m_name << "\";" << std::endl;
+    ofs << "    std::string table = \"" << sqlTable() << "\";" << std::endl;
     ofs << "    if (!alias.empty()) {" << std::endl;
     ofs << "        table += \" \" + alias;" << std::endl;
     ofs << "    }" << std::endl;
@@ -1256,7 +1463,7 @@ void Table::gen_dao_src(std::ofstream& ofs)
         if (!is_first) {
             ofs << ", ";
         }
-        ofs << i->getName();
+        ofs << sqlIdent(i->getName());
         is_first = false;
     }
     ofs << "\");" << std::endl;
@@ -1316,7 +1523,7 @@ void Table::gen_dao_src(std::ofstream& ofs)
         if (!is_first) {
             ofs << ", ";
         }
-        ofs << i->getName();
+        ofs << sqlIdent(i->getName());
         is_first = false;
     }
     ofs << "\", false);" << std::endl;
@@ -1332,7 +1539,7 @@ void Table::gen_dao_src(std::ofstream& ofs)
             if (!is_first) {
                 ofs << ", ";
             }
-            ofs << pk->getName() << " desc";
+            ofs << sqlIdent(pk->getName()) << " desc";
             is_first = false;
         }
     }
@@ -1484,6 +1691,53 @@ void Table::gen_dao_src(std::ofstream& ofs)
     ofs << "\");" << std::endl;
     ofs << "}" << std::endl << std::endl;
 
+    // ===== PostgreSQL 建表 =====
+    ofs << "int " << GetAsClassName(class_name_dao) << "::CreateTablePostgreSQL(" << m_dbclass << "::ptr conn) {" << std::endl;
+    ofs << "    if (int rt = conn->execute(std::string(\"CREATE TABLE IF NOT EXISTS " << sqlTable() << "(\"" << std::endl;
+    is_first = true;
+    for (auto& i : m_cols) {
+        if (!is_first) {
+            ofs << ",\"" << std::endl;
+        }
+        ofs << "            \"" << sqlIdent(i->getName()) << " " << i->getPostgreSQLTypeString();
+        if (i->isAutoIncrement()) {
+            ofs << " GENERATED BY DEFAULT AS IDENTITY";
+        } else {
+            ofs << " NOT NULL DEFAULT " << i->getPostgreSQLDefault();
+        }
+        is_first = false;
+    }
+    if (!pks.empty()) {
+        ofs << ",\"" << std::endl << "            \"PRIMARY KEY(";
+        is_first = true;
+        for (auto& i : pks) {
+            if (!is_first) {
+                ofs << ", ";
+            }
+            ofs << sqlIdent(i->getName());
+            is_first = false;
+        }
+        ofs << ")";
+    }
+    ofs << ")\"))) {" << std::endl;
+    ofs << "        ERROR(logger) << \"CREATE TABLE " << escapeCppSqlLiteral(m_name) << " failed: \" << conn->getErrStr();" << std::endl;
+    ofs << "        return conn->getErrno();" << std::endl;
+    ofs << "    }" << std::endl;
+    if (!m_desc.empty()) {
+        ofs << "    conn->execute(std::string(\"COMMENT ON TABLE " << sqlTable() << " IS '" << escapeCppSqlLiteral(m_desc) << "'\"));" << std::endl;
+    }
+    for (auto& i : m_cols) {
+        if (i->getDesc().empty()) {
+            continue;
+        }
+        ofs << "    conn->execute(std::string(\"COMMENT ON COLUMN " << sqlTable() << "." << sqlIdent(i->getName()) << " IS '"
+            << escapeCppSqlLiteral(i->getDesc()) << "'\"));" << std::endl;
+    }
+    gen_pg_index_sql(ofs, "    ", true, false);
+    gen_pg_trigger_sql(ofs, "    ", false);
+    ofs << "    return 0;" << std::endl;
+    ofs << "}" << std::endl << std::endl;
+
     // ===== Migrate (版本化迁移) =====
     ofs << "int " << GetAsClassName(class_name_dao) << "::Migrate(" << m_dbclass << "::ptr conn) {" << std::endl;
     ofs << "    if (!conn) {" << std::endl;
@@ -1516,6 +1770,8 @@ void Table::gen_dao_src(std::ofstream& ofs)
         if (v == 1) {
             if (m_dbType == DB_MYSQL) {
                 ofs << "        if (CreateTableMySQL(conn)) {" << std::endl;
+            } else if (m_dbType == DB_POSTGRESQL) {
+                ofs << "        if (CreateTablePostgreSQL(conn)) {" << std::endl;
             } else {
                 ofs << "        if (CreateTableSQLite3(conn)) {" << std::endl;
             }
@@ -1525,6 +1781,8 @@ void Table::gen_dao_src(std::ofstream& ofs)
         } else {
             if (m_dbType == DB_MYSQL) {
                 ofs << "        if (MigrateTableMySQL(conn)) {" << std::endl;
+            } else if (m_dbType == DB_POSTGRESQL) {
+                ofs << "        if (MigrateTablePostgreSQL(conn)) {" << std::endl;
             } else {
                 ofs << "        if (MigrateTableSQLite3(conn)) {" << std::endl;
             }
@@ -1761,6 +2019,225 @@ void Table::gen_dao_migrate_src(std::ofstream& ofs)
 
     ofs << "    return 0;" << std::endl;
     ofs << "}" << std::endl << std::endl;
+
+    // ===== PostgreSQL Migration (pg_attribute + ALTER COLUMN, no recreate) =====
+    ofs << "int " << GetAsClassName(class_name_dao) << "::MigrateTablePostgreSQL(" << m_dbclass << "::ptr conn) {" << std::endl;
+    ofs << "    auto stmt = conn->prepare(\"SELECT a.attname, format_type(a.atttypid, a.atttypmod), CASE WHEN a.attnotnull THEN '1' ELSE '0' END, "
+           "a.attidentity::text FROM pg_attribute a WHERE a.attrelid = to_regclass(?) AND a.attnum > 0 AND NOT a.attisdropped\");"
+        << std::endl;
+    ofs << "    if (!stmt) {" << std::endl;
+    ofs << "        ERROR(logger) << \"MigrateTablePostgreSQL prepare failed errno=\" << conn->getErrno() << \" errstr=\" << conn->getErrStr();"
+        << std::endl;
+    ofs << "        return conn->getErrno();" << std::endl;
+    ofs << "    }" << std::endl;
+    ofs << "    stmt->bindString(1, \"" << sqlTable() << "\");" << std::endl;
+    ofs << "    auto data = stmt->query();" << std::endl;
+    ofs << "    if (!data) {" << std::endl;
+    ofs << "        ERROR(logger) << \"MigrateTablePostgreSQL query failed errno=\" << stmt->getErrno() << \" errstr=\" << stmt->getErrStr();"
+        << std::endl;
+    ofs << "        return stmt->getErrno();" << std::endl;
+    ofs << "    }" << std::endl;
+    ofs << "    std::map<std::string, std::string> existing_types;" << std::endl;
+    ofs << "    std::map<std::string, bool> existing_notnull;" << std::endl;
+    ofs << "    std::map<std::string, std::string> existing_identity;" << std::endl;
+    ofs << "    while (data->next()) {" << std::endl;
+    ofs << "        std::string name = data->getString(0);" << std::endl;
+    ofs << "        existing_types[name] = data->getString(1);" << std::endl;
+    ofs << "        existing_notnull[name] = data->getString(2) == \"1\";" << std::endl;
+    ofs << "        existing_identity[name] = data->getString(3);" << std::endl;
+    ofs << "    }" << std::endl;
+    ofs << "    if (existing_types.empty()) {" << std::endl;
+    ofs << "        return CreateTablePostgreSQL(conn);" << std::endl;
+    ofs << "    }" << std::endl;
+    ofs << std::endl;
+
+    for (auto& col : m_cols) {
+        const std::string& name = col->getName();
+        ofs << "    {" << std::endl;
+        ofs << "        auto it = existing_types.find(\"" << name << "\");" << std::endl;
+        ofs << "        if (it != existing_types.end()) {" << std::endl;
+        ofs << "            if (it->second != \"" << col->getPostgreSQLTypeString() << "\") {" << std::endl;
+        ofs << "                INFO(logger) << \"Altering column " << escapeCppSqlLiteral(m_name) << "." << escapeCppSqlLiteral(name)
+            << " type \" << it->second << \" -> " << col->getPostgreSQLTypeString() << "\";" << std::endl;
+        ofs << "                if (int rt = conn->execute(std::string(\"ALTER TABLE " << sqlTable() << " ALTER COLUMN " << sqlIdent(name) << " TYPE "
+            << col->getPostgreSQLTypeString() << "\"))) {" << std::endl;
+        ofs << "                    ERROR(logger) << \"ALTER COLUMN " << escapeCppSqlLiteral(m_name) << "." << escapeCppSqlLiteral(name)
+            << " TYPE failed: \" << conn->getErrStr();" << std::endl;
+        ofs << "                    return rt;" << std::endl;
+        ofs << "                }" << std::endl;
+        ofs << "            }" << std::endl;
+        ofs << "            if (!existing_notnull[\"" << name << "\"]) {" << std::endl;
+        ofs << "                if (int rt = conn->execute(std::string(\"ALTER TABLE " << sqlTable() << " ALTER COLUMN " << sqlIdent(name)
+            << " SET NOT NULL\"))) {" << std::endl;
+        ofs << "                    ERROR(logger) << \"ALTER COLUMN " << escapeCppSqlLiteral(m_name) << "." << escapeCppSqlLiteral(name)
+            << " SET NOT NULL failed: \" << conn->getErrStr();" << std::endl;
+        ofs << "                    return rt;" << std::endl;
+        ofs << "                }" << std::endl;
+        ofs << "            }" << std::endl;
+        if (col->isAutoIncrement()) {
+            ofs << "            if (existing_identity[\"" << name << "\"].empty()) {" << std::endl;
+            ofs << "                conn->execute(std::string(\"ALTER TABLE " << sqlTable() << " ALTER COLUMN " << sqlIdent(name)
+                << " DROP DEFAULT\"));" << std::endl;
+            ofs << "                if (int rt = conn->execute(std::string(\"ALTER TABLE " << sqlTable() << " ALTER COLUMN " << sqlIdent(name)
+                << " ADD GENERATED BY DEFAULT AS IDENTITY\"))) {" << std::endl;
+            ofs << "                    ERROR(logger) << \"ALTER COLUMN " << escapeCppSqlLiteral(m_name) << "." << escapeCppSqlLiteral(name)
+                << " ADD IDENTITY failed: \" << conn->getErrStr();" << std::endl;
+            ofs << "                    return rt;" << std::endl;
+            ofs << "                }" << std::endl;
+            ofs << "            }" << std::endl;
+        } else {
+            ofs << "            if (!existing_identity[\"" << name << "\"].empty()) {" << std::endl;
+            ofs << "                if (int rt = conn->execute(std::string(\"ALTER TABLE " << sqlTable() << " ALTER COLUMN " << sqlIdent(name)
+                << " DROP IDENTITY IF EXISTS\"))) {" << std::endl;
+            ofs << "                    ERROR(logger) << \"ALTER COLUMN " << escapeCppSqlLiteral(m_name) << "." << escapeCppSqlLiteral(name)
+                << " DROP IDENTITY failed: \" << conn->getErrStr();" << std::endl;
+            ofs << "                    return rt;" << std::endl;
+            ofs << "                }" << std::endl;
+            ofs << "            }" << std::endl;
+            ofs << "            if (int rt = conn->execute(std::string(\"ALTER TABLE " << sqlTable() << " ALTER COLUMN " << sqlIdent(name)
+                << " SET DEFAULT " << col->getPostgreSQLDefault() << "\"))) {" << std::endl;
+            ofs << "                ERROR(logger) << \"ALTER COLUMN " << escapeCppSqlLiteral(m_name) << "." << escapeCppSqlLiteral(name)
+                << " SET DEFAULT failed: \" << conn->getErrStr();" << std::endl;
+            ofs << "                return rt;" << std::endl;
+            ofs << "            }" << std::endl;
+        }
+        if (!col->getDesc().empty()) {
+            ofs << "            conn->execute(std::string(\"COMMENT ON COLUMN " << sqlTable() << "." << sqlIdent(name) << " IS '"
+                << escapeCppSqlLiteral(col->getDesc()) << "'\"));" << std::endl;
+        }
+        ofs << "        }" << std::endl;
+        ofs << "    }" << std::endl;
+    }
+    ofs << std::endl;
+
+    // Drop columns that exist in DB but not in XML
+    ofs << "    for (auto& [name, _] : existing_types) {" << std::endl;
+    ofs << "        (void)_;" << std::endl;
+    ofs << "        bool found = false;" << std::endl;
+    for (auto& col : m_cols) {
+        ofs << "        if (name == \"" << col->getName() << "\") found = true;" << std::endl;
+    }
+    ofs << "        if (!found) {" << std::endl;
+    ofs << "            WARN(logger) << \"Dropping column " << escapeCppSqlLiteral(m_name)
+        << ".\" << name << \" (not in schema, data will be lost)\";" << std::endl;
+    ofs << "            std::string sql = \"ALTER TABLE " << sqlTable() << " DROP COLUMN \\\"\" + name + \"\\\"\";" << std::endl;
+    ofs << "            if (int rt = conn->execute(sql)) {" << std::endl;
+    ofs << "                ERROR(logger) << \"DROP COLUMN " << escapeCppSqlLiteral(m_name) << ".\" << name << \" failed: \" << conn->getErrStr();"
+        << std::endl;
+    ofs << "                return rt;" << std::endl;
+    ofs << "            }" << std::endl;
+    ofs << "        }" << std::endl;
+    ofs << "    }" << std::endl;
+    ofs << std::endl;
+
+    // Add missing columns (in XML but not in DB)
+    for (auto& col : m_cols) {
+        std::string default_value = col->getPostgreSQLDefault();
+        ofs << "    if (existing_types.find(\"" << col->getName() << "\") == existing_types.end()) {" << std::endl;
+        if (col->isAutoIncrement()) {
+            ofs << "        WARN(logger) << \"Column " << escapeCppSqlLiteral(m_name) << "." << escapeCppSqlLiteral(col->getName())
+                << " (auto_increment) is missing, recreate the table manually\";" << std::endl;
+        } else {
+            ofs << "        INFO(logger) << \"Adding column " << escapeCppSqlLiteral(m_name) << "." << escapeCppSqlLiteral(col->getName()) << "\";"
+                << std::endl;
+            ofs << "        if (int rt = conn->execute(std::string(\"ALTER TABLE " << sqlTable() << " ADD COLUMN " << sqlIdent(col->getName()) << " "
+                << col->getPostgreSQLTypeString() << " NOT NULL DEFAULT " << default_value << "\"))) {" << std::endl;
+            ofs << "            ERROR(logger) << \"ADD COLUMN " << escapeCppSqlLiteral(m_name) << "." << escapeCppSqlLiteral(col->getName())
+                << " failed: \" << conn->getErrStr();" << std::endl;
+            ofs << "            return rt;" << std::endl;
+            ofs << "        }" << std::endl;
+            if (!col->getDesc().empty()) {
+                ofs << "        conn->execute(std::string(\"COMMENT ON COLUMN " << sqlTable() << "." << sqlIdent(col->getName()) << " IS '"
+                    << escapeCppSqlLiteral(col->getDesc()) << "'\"));" << std::endl;
+            }
+        }
+        ofs << "    }" << std::endl;
+        ofs << std::endl;
+    }
+
+    if (!m_desc.empty()) {
+        ofs << "    conn->execute(std::string(\"COMMENT ON TABLE " << sqlTable() << " IS '" << escapeCppSqlLiteral(m_desc) << "'\"));" << std::endl;
+    }
+    gen_pg_index_sql(ofs, "    ", false, true);
+    gen_pg_trigger_sql(ofs, "    ", true);
+
+    ofs << "    return 0;" << std::endl;
+    ofs << "}" << std::endl << std::endl;
+}
+
+void Table::gen_pg_index_sql(std::ofstream& ofs, const std::string& indent, bool if_not_exists, bool drop_first)
+{
+    for (auto& idx : m_idxs) {
+        if (idx->getDType() == Index::TYPE_PK) {
+            continue;
+        }
+        std::string name = sqlIdent(getIndexName(idx));
+        if (drop_first) {
+            ofs << indent << "conn->execute(std::string(\"DROP INDEX IF EXISTS " << name << "\"));" << std::endl;
+        }
+        ofs << indent << "if (int rt = conn->execute(std::string(\"CREATE";
+        if (idx->getDType() == Index::TYPE_UNIQ) {
+            ofs << " UNIQUE";
+        }
+        ofs << " INDEX ";
+        if (if_not_exists) {
+            ofs << "IF NOT EXISTS ";
+        }
+        ofs << name << " ON " << sqlTable() << "(";
+        bool is_first = true;
+        for (auto& col : idx->getCols()) {
+            if (!is_first) {
+                ofs << ", ";
+            }
+            ofs << sqlIdent(col);
+            is_first = false;
+        }
+        ofs << ")\"))) {" << std::endl;
+        ofs << indent << "    ERROR(logger) << \"CREATE INDEX " << escapeCppSqlLiteral(getIndexName(idx)) << " failed: \" << conn->getErrStr();"
+            << std::endl;
+        ofs << indent << "    return rt;" << std::endl;
+        ofs << indent << "}" << std::endl;
+    }
+}
+
+void Table::gen_pg_trigger_sql(std::ofstream& ofs, const std::string& indent, bool drop_first)
+{
+    std::vector<Column::ptr> update_cols;
+    for (auto& col : m_cols) {
+        if (!col->getUpdate().empty()) {
+            update_cols.push_back(col);
+        }
+    }
+
+    std::string trigger = sqlIdent(m_name + "_update");
+    if (update_cols.empty()) {
+        if (drop_first) {
+            ofs << indent << "conn->execute(std::string(\"DROP TRIGGER IF EXISTS " << trigger << " ON " << sqlTable() << "\"));" << std::endl;
+            ofs << indent << "conn->execute(std::string(\"DROP FUNCTION IF EXISTS " << trigger << "()\"));" << std::endl;
+        }
+        return;
+    }
+
+    ofs << indent << "if (int rt = conn->execute(std::string(\"CREATE OR REPLACE FUNCTION " << trigger << "() RETURNS trigger AS $chen$ BEGIN ";
+    for (auto& col : update_cols) {
+        std::string expr = col->getUpdate();
+        if (StringUtil::ToLower(expr) == "current_timestamp" || StringUtil::ToLower(expr) == "now()") {
+            expr = "CURRENT_TIMESTAMP";
+        }
+        ofs << "NEW." << sqlIdent(col->getName()) << " = " << expr << "; ";
+    }
+    ofs << "RETURN NEW; END; $chen$ LANGUAGE plpgsql\"))) {" << std::endl;
+    ofs << indent << "    ERROR(logger) << \"CREATE TRIGGER FUNCTION " << escapeCppSqlLiteral(m_name + "_update")
+        << " failed: \" << conn->getErrStr();" << std::endl;
+    ofs << indent << "    return rt;" << std::endl;
+    ofs << indent << "}" << std::endl;
+    ofs << indent << "conn->execute(std::string(\"DROP TRIGGER IF EXISTS " << trigger << " ON " << sqlTable() << "\"));" << std::endl;
+    ofs << indent << "if (int rt = conn->execute(std::string(\"CREATE TRIGGER " << trigger << " BEFORE UPDATE ON " << sqlTable()
+        << " FOR EACH ROW EXECUTE FUNCTION " << trigger << "()\"))) {" << std::endl;
+    ofs << indent << "    ERROR(logger) << \"CREATE TRIGGER " << escapeCppSqlLiteral(m_name + "_update") << " failed: \" << conn->getErrStr();"
+        << std::endl;
+    ofs << indent << "    return rt;" << std::endl;
+    ofs << indent << "}" << std::endl;
 }
 
 } // namespace orm
