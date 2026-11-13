@@ -417,17 +417,17 @@ bool Application::setupServers()
             server->setName(i.name);
             EnvMgr::GetInstance()->setEnv("server", i.name);
         }
+        if (i.ssl) {
+            if (!server->setTlsConfig(MakeTlsConfig(i))) {
+                ERROR(logger) << "setTlsConfig fail, cert_file=" << i.cert_file << " key_file=" << i.key_file;
+                return false;
+            }
+        }
         if (std::vector<Address::ptr> fails; !server->bind(address, fails, i.ssl)) {
             for (auto& x : fails) {
                 ERROR(logger) << "bind address fail:" << *x;
             }
             return false;
-        }
-        if (i.ssl) {
-            if (!server->loadCertificates(i.cert_file, i.key_file)) {
-                ERROR(logger) << "loadCertificates fail, cert_file=" << i.cert_file << " key_file=" << i.key_file;
-                return false;
-            }
         }
         server->setConf(i);
         m_servers[i.type].push_back(server);
@@ -905,6 +905,13 @@ int Application::run_fiber()
 
     for (auto& [type, servers] : m_servers) {
         for (auto& server : servers) {
+            // master fork 后 worker 继承的是 fork 时刻的 TLS 上下文；
+            // 开始 accept 前必须从磁盘重新加载证书，避免使用 master 中的旧证书。
+            if (!server->reloadCertificatesFromConf()) {
+                ERROR(logger) << "worker reload certificates failed, type=" << type;
+                reportWorkerFailed();
+                _exit(1);
+            }
             server->start();
         }
     }

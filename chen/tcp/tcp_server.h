@@ -38,6 +38,12 @@ struct TcpServerConf {
     std::string name;
     std::string cert_file;
     std::string key_file;
+    std::string min_tls_version = "TLS1.2";
+    std::string max_tls_version;
+    std::string ciphers;
+    std::string ciphersuites;
+    std::vector<std::string> alpn;
+    int handshake_timeout_ms = 10000;
     std::string accept_worker;
     std::string io_worker;
     std::string process_worker;
@@ -48,6 +54,14 @@ struct TcpServerConf {
 
     bool operator==(const TcpServerConf& oth) const;
 };
+
+/**
+ * @brief 将 TcpServerConf 转为 TLS 配置
+ * @details HTTP/HTTP2 服务端在未显式配置 alpn 时默认 h2 + http/1.1；
+ *          其他协议（RPC/WS/Game）不默认声明 ALPN。
+ * @return TLS 配置，调用方需检查 TlsContext::CreateServer 是否成功
+ */
+tls::TlsConfig MakeTlsConfig(const TcpServerConf& conf);
 
 /**
  * @brief 模版全特化
@@ -68,6 +82,16 @@ public:
         conf.ssl = node["ssl"].as<int>(conf.ssl);
         conf.cert_file = node["cert_file"].as<std::string>(conf.cert_file);
         conf.key_file = node["key_file"].as<std::string>(conf.key_file);
+        conf.min_tls_version = node["min_tls_version"].as<std::string>(conf.min_tls_version);
+        conf.max_tls_version = node["max_tls_version"].as<std::string>(conf.max_tls_version);
+        conf.ciphers = node["ciphers"].as<std::string>(conf.ciphers);
+        conf.ciphersuites = node["ciphersuites"].as<std::string>(conf.ciphersuites);
+        conf.handshake_timeout_ms = node["handshake_timeout_ms"].as<int>(conf.handshake_timeout_ms);
+        if (node["alpn"].IsDefined()) {
+            for (size_t i = 0; i < node["alpn"].size(); ++i) {
+                conf.alpn.push_back(node["alpn"][i].as<std::string>());
+            }
+        }
         conf.accept_worker = node["accept_worker"].as<std::string>();
         conf.io_worker = node["io_worker"].as<std::string>();
         conf.process_worker = node["process_worker"].as<std::string>();
@@ -104,6 +128,14 @@ public:
         node["ssl"] = conf.ssl;
         node["cert_file"] = conf.cert_file;
         node["key_file"] = conf.key_file;
+        node["min_tls_version"] = conf.min_tls_version;
+        node["max_tls_version"] = conf.max_tls_version;
+        node["ciphers"] = conf.ciphers;
+        node["ciphersuites"] = conf.ciphersuites;
+        node["handshake_timeout_ms"] = conf.handshake_timeout_ms;
+        for (auto& i : conf.alpn) {
+            node["alpn"].push_back(i);
+        }
         node["accept_worker"] = conf.accept_worker;
         node["io_worker"] = conf.io_worker;
         node["process_worker"] = conf.process_worker;
@@ -246,6 +278,30 @@ public:
     bool loadCertificates(const std::string& cert_file, const std::string& key_file);
 
     /**
+     * @brief 设置 TLS 配置并创建服务端上下文
+     * @details 需要在 bind() 前调用；bind 时会把上下文挂到监听 SSLSocket。
+     * @return 上下文创建是否成功
+     */
+    bool setTlsConfig(const tls::TlsConfig& conf);
+
+    /**
+     * @brief 按当前 TcpServerConf 从磁盘重新加载证书并替换 TLS 上下文
+     * @details master fork 出 worker 后，worker 在 start() 前调用，避免继承旧证书。
+     * @return 非 TLS server 或加载成功返回 true
+     */
+    bool reloadCertificatesFromConf();
+
+    /**
+     * @brief 是否启用 TLS
+     */
+    bool isSsl() const { return m_ssl; }
+
+    /**
+     * @brief 获取 TLS 握手超时（毫秒）
+     */
+    uint64_t getHandshakeTimeoutMs() const { return m_handshakeTimeoutMs; }
+
+    /**
      * @brief 打印当前server的状态日志
      * @param prefix 前缀
      * @return 状态文本
@@ -265,6 +321,19 @@ protected:
      */
     virtual void startAccept(Socket::ptr sock);
 
+    /**
+     * @brief 连接处理结束后清理 active 集合与限流计数
+     */
+    void releaseClient(const Socket::ptr& client);
+
+    /**
+     * @brief 记录 TLS 握手指标
+     * @param ssl 握手完成的 socket，失败可为空
+     * @param ok 是否成功
+     * @param cost_us 握手耗时（微秒）
+     */
+    void recordTlsHandshake(const SSLSocket::ptr& ssl, bool ok, uint64_t cost_us);
+
 protected:
     /// 工作线程池
     IOManager* m_worker;
@@ -281,6 +350,12 @@ protected:
     bool m_isStop;
     /// https服务是否开启
     bool m_ssl = false;
+    /// TLS 配置（bind / reload 使用）
+    tls::TlsConfig m_tlsConfig;
+    /// TLS 服务端上下文
+    tls::TlsContext::ptr m_tlsContext;
+    /// TLS 握手超时（毫秒）
+    uint64_t m_handshakeTimeoutMs = 10000;
     /// 服务器类型
     std::string m_type = "tcp";
     /// TcpServerConf
