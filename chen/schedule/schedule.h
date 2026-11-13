@@ -219,13 +219,16 @@ protected:
     int m_rootThreadId = 0;
 };
 
-class SchedulerSwitcher : public Scheduler {
+class SchedulerSwitcher {
 public:
     SchedulerSwitcher(Scheduler* target = nullptr);
     ~SchedulerSwitcher();
 
+    SchedulerSwitcher(const SchedulerSwitcher&) = delete;
+    SchedulerSwitcher& operator=(const SchedulerSwitcher&) = delete;
+
 private:
-    Scheduler* m_caller;
+    Scheduler* m_caller = nullptr;
 };
 
 } // namespace chen

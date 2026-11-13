@@ -55,17 +55,17 @@
 
 ### 网络协议支持
 
-| 协议 | 说明 |
-|------|------|
-| TCP | 通用 TCP 服务器，自定义协议支持 |
-| UDP | 独立 UDP 服务器，`recvfrom` 数据报循环 |
-| Rock | 私有二进制协议（magic + version + flag + length） |
-| HTTP/1.1 | HTTP 请求解析、路由、中间件 |
-| HTTP/2 | 基于 nghttp2 的 HTTP/2 服务器 |
-| WebSocket | WS 协议升级与帧处理 |
-| SSE | Server-Sent Events 流式推送 |
-| RPC | 模板驱动的 RPC 框架，自动序列化/反序列化，无需 IDL；支持同步与回调式异步调用 |
-| Game | 自定义二进制游戏协议（magic + cmd + seq + len） |
+| 协议      | 说明                                                                                             |
+|-----------|--------------------------------------------------------------------------------------------------|
+| TCP       | 通用 TCP 服务器，自定义协议支持                                                                  |
+| UDP       | 独立 UDP 服务器，`recvfrom` 数据报循环                                                           |
+| Rock      | 私有二进制协议（magic + version + flag + length），`type: rock` 启动，模块通过 `RockModule` 扩展 |
+| HTTP/1.1  | HTTP 请求解析、路由、中间件                                                                      |
+| HTTP/2    | 基于 nghttp2 的 HTTP/2 服务器                                                                    |
+| WebSocket | WS 协议升级与帧处理                                                                              |
+| SSE       | Server-Sent Events 流式推送                                                                      |
+| RPC       | 模板驱动的 RPC 框架，自动序列化/反序列化，无需 IDL；支持同步与回调式异步调用                     |
+| Game      | 自定义二进制游戏协议（magic + cmd + seq + len）                                                  |
 
 ### 定时器
 

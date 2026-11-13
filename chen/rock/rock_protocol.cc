@@ -200,8 +200,8 @@ Message::ptr RockMessageDecoder::parseFrom(Stream::ptr stream)
         }
 
         header.length = byteswapOnLittleEndian(header.length);
-        if ((uint32_t)header.length >= g_rock_protocol_max_length->getValue()) {
-            ERROR(g_logger) << "RockMessageDecoder head.length(" << header.length << ") >=" << g_rock_protocol_max_length->getValue();
+        if (header.length < 0 || (uint32_t)header.length > g_rock_protocol_max_length->getValue()) {
+            ERROR(g_logger) << "RockMessageDecoder head.length(" << header.length << ") >" << g_rock_protocol_max_length->getValue();
             return nullptr;
         }
         ByteArray::ptr ba(new ByteArray);
@@ -222,6 +222,10 @@ Message::ptr RockMessageDecoder::parseFrom(Stream::ptr stream)
                 return nullptr;
             }
             ba = zstream->getByteArray();
+            if (ba->getSize() > g_rock_protocol_max_length->getValue()) {
+                ERROR(g_logger) << "RockMessageDecoder ungzip length(" << ba->getSize() << ") >" << g_rock_protocol_max_length->getValue();
+                return nullptr;
+            }
         }
         uint8_t type = ba->readFuint8();
         Message::ptr msg;

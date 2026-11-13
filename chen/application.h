@@ -8,7 +8,9 @@
 #pragma once
 
 #include <atomic>
+#include <mutex>
 
+#include "streams/service_discovery.h"
 #include "tcp/tcp_server.h"
 #include "timer/timer.h"
 #include "watcher/file_watcher.h"
@@ -54,6 +56,19 @@ public:
      * @param svrs 拿到的全部 server
      */
     void getAllServers(std::vector<TcpServer::ptr>& svrs);
+
+    /**
+     * @brief 获取服务发现实例
+     * @details 模块可在 onLoad/onServerReady 中通过 registerService 使用
+     */
+    IServiceDiscovery::ptr getServiceDiscovery() const;
+
+    /**
+     * @brief 设置服务发现实例
+     * @details 需要在使用方（如模块 onLoad）中设置；worker 会在模块 onServerReady
+     *          之后调用 start()，在模块 onUnload 之后调用 stop()
+     */
+    void setServiceDiscovery(IServiceDiscovery::ptr sd);
 
     /**
      * @brief 信号处理器（SIGINT/SIGTERM/SIGQUIT → worker 优雅关闭）
@@ -222,6 +237,10 @@ private:
     /// 所有server列表 — 必须声明在 IOManager 之后，确保 ~Application() 时
     /// IOManager 比 m_servers 更晚析构，TcpServer::close() 调用时 FdMgr 等存活
     std::map<std::string, std::vector<TcpServer::ptr>> m_servers;
+    /// 服务发现实例（模块可注册/查询）
+    IServiceDiscovery::ptr m_serviceDiscovery;
+    /// 保护 m_serviceDiscovery
+    mutable std::mutex m_serviceDiscoveryMutex;
     /// 程序实例
     static Application* m_instance;
     /// 优雅关闭信号标志

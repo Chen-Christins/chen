@@ -37,7 +37,7 @@ void RockServer::handleClient(Socket::ptr client)
             if (rt) {
                 return;
             }
-            // rt = m->handleRequest(req, rsp, conn);
+            rt = m->handleRequest(req, rsp, conn);
         });
         return rt;
     });
@@ -49,7 +49,7 @@ void RockServer::handleClient(Socket::ptr client)
             if (rt) {
                 return;
             }
-            // rt = m->handleNotify(nty, conn);
+            rt = m->handleNotify(nty, conn);
         });
         return rt;
     });
