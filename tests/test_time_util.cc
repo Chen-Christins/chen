@@ -30,16 +30,16 @@ void test_basic_time() {
 void test_time_conversion() {
     std::cout << "=== test_time_conversion ===" << std::endl;
 
-    // Time2Str with time_t
+    // Time2StrSec with time_t (seconds)
     time_t ts = 1705300000; // 2024-01-15 ~xx:xx:xx
-    std::string s1 = chen::TimeUtil::Time2Str(ts);
-    std::cout << "Time2Str(time_t): " << s1 << std::endl;
+    std::string s1 = chen::TimeUtil::Time2StrSec(ts);
+    std::cout << "Time2StrSec(time_t): " << s1 << std::endl;
     assert(!s1.empty());
 
-    // Time2Str with uint64_t (ms)
+    // Time2StrMs with uint64_t (milliseconds)
     uint64_t ts_ms = static_cast<uint64_t>(ts) * 1000 + 456;
-    std::string s2 = chen::TimeUtil::Time2Str(ts_ms);
-    std::cout << "Time2Str(ms): " << s2 << std::endl;
+    std::string s2 = chen::TimeUtil::Time2StrMs(ts_ms);
+    std::cout << "Time2StrMs(ms): " << s2 << std::endl;
     // Should contain something like ".456"
     assert(s2.find("456") != std::string::npos || s2.find("46") != std::string::npos);
 
@@ -48,6 +48,30 @@ void test_time_conversion() {
     std::cout << "Str2Time: " << parsed << " == " << ts << std::endl;
     // Note: mktime may adjust for DST, so we allow small difference
     assert(std::abs(static_cast<int64_t>(parsed - ts)) <= 86400);
+
+    std::cout << "PASS" << std::endl;
+}
+
+void test_unit_explicitness()
+{
+    std::cout << "=== test_unit_explicitness ===" << std::endl;
+
+    time_t ts_sec = 1705329000; // 2024-01-15 14:30:00 UTC
+    uint64_t ts_ms = chen::TimeUtil::UnixSecToMs(ts_sec) + 123;
+
+    // 同一时刻：秒接口与毫秒接口格式化结果一致
+    std::string sec_str = chen::TimeUtil::Time2StrSec(ts_sec, "%Y-%m-%d %H:%M:%S", 0);
+    std::string ms_str = chen::TimeUtil::Time2StrMs(ts_ms, "%Y-%m-%d %H:%M:%S", 0);
+    assert(sec_str == "2024-01-15 14:30:00");
+    assert(ms_str == sec_str);
+
+    // 毫秒部分单独验证
+    std::string ms_str_full = chen::TimeUtil::Time2StrMs(ts_ms, "%Y-%m-%d %H:%M:%S.%f", 0);
+    assert(ms_str_full == "2024-01-15 14:30:00.123");
+
+    // 秒/毫秒互转
+    assert(chen::TimeUtil::UnixMsToSec(ts_ms) == ts_sec);
+    assert(chen::TimeUtil::UnixSecToMs(ts_sec) == chen::TimeUtil::UnixMsToSec(ts_ms) * 1000);
 
     std::cout << "PASS" << std::endl;
 }
@@ -69,29 +93,29 @@ void test_auto_str2time() {
 
     // ISO 8601 with Z (UTC)
     time_t t3 = chen::TimeUtil::Str2Time("2024-01-15T10:30:00Z");
-    std::cout << "ISO 8601 Z: " << t3 << " -> " << chen::TimeUtil::Time2Str(t3) << std::endl;
+    std::cout << "ISO 8601 Z: " << t3 << " -> " << chen::TimeUtil::Time2StrSec(t3) << std::endl;
     assert(t3 > 0);
 
     // ISO 8601 with timezone offset
     time_t t4 = chen::TimeUtil::Str2Time("2024-01-15T10:30:00+08:00");
-    std::cout << "ISO 8601 +08:00: " << t4 << " -> " << chen::TimeUtil::Time2Str(t4) << std::endl;
+    std::cout << "ISO 8601 +08:00: " << t4 << " -> " << chen::TimeUtil::Time2StrSec(t4) << std::endl;
     assert(t4 > 0);
 
     // ISO 8601 with milliseconds and Z
     time_t t5 = chen::TimeUtil::Str2Time("2024-01-15T10:30:00.123Z");
-    std::cout << "ISO 8601 ms Z: " << t5 << " -> " << chen::TimeUtil::Time2Str(t5) << std::endl;
+    std::cout << "ISO 8601 ms Z: " << t5 << " -> " << chen::TimeUtil::Time2StrSec(t5) << std::endl;
     assert(t5 > 0);
     // Same second (ms stripped), so should equal t3
     assert(t5 == t3);
 
     // Date only
     time_t t6 = chen::TimeUtil::Str2Time("2024-01-15");
-    std::cout << "Date only: " << t6 << " -> " << chen::TimeUtil::Time2Str(t6) << std::endl;
+    std::cout << "Date only: " << t6 << " -> " << chen::TimeUtil::Time2StrSec(t6) << std::endl;
     assert(t6 > 0);
 
     // Time only
     time_t t7 = chen::TimeUtil::Str2Time("10:30:00");
-    std::cout << "Time only: " << t7 << " -> " << chen::TimeUtil::Time2Str(t7) << std::endl;
+    std::cout << "Time only: " << t7 << " -> " << chen::TimeUtil::Time2StrSec(t7) << std::endl;
     assert(t7 > 0);
 
     // Empty string
@@ -104,12 +128,12 @@ void test_auto_str2time() {
 
     // GitHub-style: full ISO 8601 with timezone
     time_t t10 = chen::TimeUtil::Str2Time("2026-06-26T08:25:58+08:00");
-    std::cout << "GitHub-style: " << t10 << " -> " << chen::TimeUtil::Time2Str(t10) << std::endl;
+    std::cout << "GitHub-style: " << t10 << " -> " << chen::TimeUtil::Time2StrSec(t10) << std::endl;
     assert(t10 > 0);
 
     // Negative timezone offset
     time_t t11 = chen::TimeUtil::Str2Time("2024-01-15T10:30:00-05:00");
-    std::cout << "ISO 8601 -05:00: " << t11 << " -> " << chen::TimeUtil::Time2Str(t11) << std::endl;
+    std::cout << "ISO 8601 -05:00: " << t11 << " -> " << chen::TimeUtil::Time2StrSec(t11) << std::endl;
     assert(t11 > 0);
     // -05:00 means 5 hours behind UTC, so UTC time is 15:30:00
     // t3 is 10:30:00Z = 10:30:00 UTC
@@ -162,10 +186,10 @@ void test_time_judgment() {
     assert(chen::TimeUtil::DaysInMonth(2024, 0) == 0);  // invalid
     assert(chen::TimeUtil::DaysInMonth(2024, 13) == 0); // invalid
 
-    // IsExpired / GetRemainingMs
+    // IsExpiredMs / GetRemainingMs
     uint64_t now_ms = chen::TimeUtil::GetCurrentMs();
-    assert(chen::TimeUtil::IsExpired(now_ms - 1000, 500) == true);  // already expired
-    assert(chen::TimeUtil::IsExpired(now_ms, 100000) == false);     // not yet expired
+    assert(chen::TimeUtil::IsExpiredMs(now_ms - 1000, 500) == true); // already expired
+    assert(chen::TimeUtil::IsExpiredMs(now_ms, 100000) == false);    // not yet expired
     assert(chen::TimeUtil::GetRemainingMs(now_ms, 100000) <= 100000);
     assert(chen::TimeUtil::GetRemainingMs(now_ms - 10000, 1000) == 0); // expired
 
@@ -186,9 +210,9 @@ void test_boundary() {
     assert(day_end >= ts);
     assert(chen::TimeUtil::IsSameDay(day_start, day_end));
     // Verify start is at midnight
-    std::string start_str = chen::TimeUtil::Time2Str(day_start, "%H:%M:%S");
+    std::string start_str = chen::TimeUtil::Time2StrSec(day_start, "%H:%M:%S");
     assert(start_str == "00:00:00");
-    std::string end_str = chen::TimeUtil::Time2Str(day_end, "%H:%M:%S");
+    std::string end_str = chen::TimeUtil::Time2StrSec(day_end, "%H:%M:%S");
     assert(end_str == "23:59:59");
 
     // Week boundary
@@ -236,15 +260,15 @@ void test_field_extract() {
 void test_duration() {
     std::cout << "=== test_duration ===" << std::endl;
 
-    assert(chen::TimeUtil::FormatDuration(0) == "0s");
-    assert(chen::TimeUtil::FormatDuration(500) == "0s");
-    assert(chen::TimeUtil::FormatDuration(1000) == "1s");
-    assert(chen::TimeUtil::FormatDuration(5000) == "5s");
-    assert(chen::TimeUtil::FormatDuration(65000) == "1m 5s");
-    assert(chen::TimeUtil::FormatDuration(3600000) == "1h");
-    assert(chen::TimeUtil::FormatDuration(3661000) == "1h 1m 1s");
-    assert(chen::TimeUtil::FormatDuration(90061000) == "1d 1h 1m 1s");
-    assert(chen::TimeUtil::FormatDuration(86400000) == "1d");
+    assert(chen::TimeUtil::FormatDurationMs(0) == "0s");
+    assert(chen::TimeUtil::FormatDurationMs(500) == "0s");
+    assert(chen::TimeUtil::FormatDurationMs(1000) == "1s");
+    assert(chen::TimeUtil::FormatDurationMs(5000) == "5s");
+    assert(chen::TimeUtil::FormatDurationMs(65000) == "1m 5s");
+    assert(chen::TimeUtil::FormatDurationMs(3600000) == "1h");
+    assert(chen::TimeUtil::FormatDurationMs(3661000) == "1h 1m 1s");
+    assert(chen::TimeUtil::FormatDurationMs(90061000) == "1d 1h 1m 1s");
+    assert(chen::TimeUtil::FormatDurationMs(86400000) == "1d");
 
     std::cout << "PASS" << std::endl;
 }
@@ -275,14 +299,14 @@ void test_next_reset() {
     uint64_t base = now_ms - 5000;  // 5 seconds ago
     uint64_t interval = 10000;      // 10 second interval
 
-    uint64_t next = chen::TimeUtil::GetNextResetTime(base, interval);
+    uint64_t next = chen::TimeUtil::GetNextResetTimeMs(base, interval);
     std::cout << "next reset: " << next << " (base=" << base << ", now=" << now_ms << ")" << std::endl;
     assert(next > now_ms);
     assert((next - base) % interval == 0);
 
     // Future base
     uint64_t future_base = now_ms + 100000;
-    uint64_t next_future = chen::TimeUtil::GetNextResetTime(future_base, interval);
+    uint64_t next_future = chen::TimeUtil::GetNextResetTimeMs(future_base, interval);
     assert(next_future == future_base);
 
     std::cout << "PASS" << std::endl;
@@ -306,28 +330,28 @@ void test_time2str_with_timezone() {
     time_t ts = 1705329000;  // 2024-01-15 14:30:00 UTC
 
     // UTC 格式化
-    std::string utc_str = chen::TimeUtil::Time2Str(ts, "%Y-%m-%d %H:%M:%S", 0);
+    std::string utc_str = chen::TimeUtil::Time2StrSec(ts, "%Y-%m-%d %H:%M:%S", 0);
     assert(utc_str == "2024-01-15 14:30:00");
     std::cout << "  UTC:     " << utc_str << std::endl;
 
     // CST +08:00
-    std::string cst_str = chen::TimeUtil::Time2Str(ts, "%Y-%m-%d %H:%M:%S", 28800);
+    std::string cst_str = chen::TimeUtil::Time2StrSec(ts, "%Y-%m-%d %H:%M:%S", 28800);
     assert(cst_str == "2024-01-15 22:30:00");
     std::cout << "  CST+08:  " << cst_str << std::endl;
 
     // EST -05:00
-    std::string est_str = chen::TimeUtil::Time2Str(ts, "%Y-%m-%d %H:%M:%S", -18000);
+    std::string est_str = chen::TimeUtil::Time2StrSec(ts, "%Y-%m-%d %H:%M:%S", -18000);
     assert(est_str == "2024-01-15 09:30:00");
     std::cout << "  EST-05:  " << est_str << std::endl;
 
     // +05:30 印度时区（半小时偏移）
-    std::string ist_str = chen::TimeUtil::Time2Str(ts, "%Y-%m-%d %H:%M:%S", 19800);
+    std::string ist_str = chen::TimeUtil::Time2StrSec(ts, "%Y-%m-%d %H:%M:%S", 19800);
     assert(ist_str == "2024-01-15 20:00:00");
     std::cout << "  IST+05:30: " << ist_str << std::endl;
 
     // 跨日期：UTC 23:00 在 +08:00 为次日 07:00
     time_t ts2 = 1705360000;  // 2024-01-15 23:06:40 UTC → +08:00 2024-01-16 07:06:40
-    std::string cst_cross = chen::TimeUtil::Time2Str(ts2, "%Y-%m-%d %H:%M:%S", 28800);
+    std::string cst_cross = chen::TimeUtil::Time2StrSec(ts2, "%Y-%m-%d %H:%M:%S", 28800);
     assert(cst_cross == "2024-01-16 07:06:40");
     std::cout << "  cross-day CST: " << cst_cross << std::endl;
 
@@ -340,17 +364,17 @@ void test_time2str_ms_with_timezone() {
     // 毫秒时间戳
     uint64_t ts_ms = 1705329000000ULL;  // 2024-01-15 14:30:00.000 UTC
 
-    std::string utc_ms = chen::TimeUtil::Time2Str(ts_ms, "%Y-%m-%d %H:%M:%S.%f", 0);
+    std::string utc_ms = chen::TimeUtil::Time2StrMs(ts_ms, "%Y-%m-%d %H:%M:%S.%f", 0);
     assert(utc_ms == "2024-01-15 14:30:00.000");
     std::cout << "  UTC ms:              " << utc_ms << std::endl;
 
-    std::string cst_ms = chen::TimeUtil::Time2Str(ts_ms, "%Y-%m-%d %H:%M:%S.%f", 28800);
+    std::string cst_ms = chen::TimeUtil::Time2StrMs(ts_ms, "%Y-%m-%d %H:%M:%S.%f", 28800);
     assert(cst_ms == "2024-01-15 22:30:00.000");
     std::cout << "  CST+08:00 ms:        " << cst_ms << std::endl;
 
     // 带上非零毫秒
     uint64_t ts_ms2 = 1705329000456ULL;  // 456ms
-    std::string utc_ms2 = chen::TimeUtil::Time2Str(ts_ms2, "%H:%M:%S.%f", 0);
+    std::string utc_ms2 = chen::TimeUtil::Time2StrMs(ts_ms2, "%H:%M:%S.%f", 0);
     assert(utc_ms2 == "14:30:00.456");
     std::cout << "  UTC ms with 456ms:   " << utc_ms2 << std::endl;
 
@@ -366,8 +390,8 @@ void test_day_boundary_with_timezone() {
     // UTC 日边界
     time_t utc_start = chen::TimeUtil::GetDayStart(ts, 0);
     time_t utc_end = chen::TimeUtil::GetDayEnd(ts, 0);
-    std::string utc_start_str = chen::TimeUtil::Time2Str(utc_start, "%Y-%m-%d %H:%M:%S", 0);
-    std::string utc_end_str = chen::TimeUtil::Time2Str(utc_end, "%Y-%m-%d %H:%M:%S", 0);
+    std::string utc_start_str = chen::TimeUtil::Time2StrSec(utc_start, "%Y-%m-%d %H:%M:%S", 0);
+    std::string utc_end_str = chen::TimeUtil::Time2StrSec(utc_end, "%Y-%m-%d %H:%M:%S", 0);
     assert(utc_start_str == "2024-01-15 00:00:00");
     assert(utc_end_str == "2024-01-15 23:59:59");
     std::cout << "  UTC day: [" << utc_start_str << ", " << utc_end_str << "]" << std::endl;
@@ -375,8 +399,8 @@ void test_day_boundary_with_timezone() {
     // CST +08:00 日边界（ts 是 UTC 14:30，北京时间 22:30，仍在 15 号）
     time_t cst_start = chen::TimeUtil::GetDayStart(ts, 28800);
     time_t cst_end = chen::TimeUtil::GetDayEnd(ts, 28800);
-    std::string cst_start_str = chen::TimeUtil::Time2Str(cst_start, "%Y-%m-%d %H:%M:%S", 28800);
-    std::string cst_end_str = chen::TimeUtil::Time2Str(cst_end, "%Y-%m-%d %H:%M:%S", 28800);
+    std::string cst_start_str = chen::TimeUtil::Time2StrSec(cst_start, "%Y-%m-%d %H:%M:%S", 28800);
+    std::string cst_end_str = chen::TimeUtil::Time2StrSec(cst_end, "%Y-%m-%d %H:%M:%S", 28800);
     assert(cst_start_str == "2024-01-15 00:00:00");
     assert(cst_end_str == "2024-01-15 23:59:59");
     std::cout << "  CST day: [" << cst_start_str << ", " << cst_end_str << "]" << std::endl;
@@ -396,15 +420,15 @@ void test_week_boundary_with_timezone() {
     // UTC 周边界
     time_t utc_week_start = chen::TimeUtil::GetWeekStart(ts, 0);
     time_t utc_week_end = chen::TimeUtil::GetWeekEnd(ts, 0);
-    std::string ws_utc = chen::TimeUtil::Time2Str(utc_week_start, "%Y-%m-%d %H:%M:%S", 0);
-    std::string we_utc = chen::TimeUtil::Time2Str(utc_week_end, "%Y-%m-%d %H:%M:%S", 0);
+    std::string ws_utc = chen::TimeUtil::Time2StrSec(utc_week_start, "%Y-%m-%d %H:%M:%S", 0);
+    std::string we_utc = chen::TimeUtil::Time2StrSec(utc_week_end, "%Y-%m-%d %H:%M:%S", 0);
     std::cout << "  UTC week: [" << ws_utc << ", " << we_utc << "]" << std::endl;
     // 2024-01-15 是周一，所以 week start 应该是当天 00:00:00
     assert(ws_utc == "2024-01-15 00:00:00");
 
     // CST 周边界
     time_t cst_week_start = chen::TimeUtil::GetWeekStart(ts, 28800);
-    std::string ws_cst = chen::TimeUtil::Time2Str(cst_week_start, "%Y-%m-%d %H:%M:%S", 28800);
+    std::string ws_cst = chen::TimeUtil::Time2StrSec(cst_week_start, "%Y-%m-%d %H:%M:%S", 28800);
     std::cout << "  CST week start: " << ws_cst << std::endl;
     assert(ws_cst == "2024-01-15 00:00:00");
 
@@ -419,8 +443,8 @@ void test_month_boundary_with_timezone() {
     // UTC 月边界
     time_t utc_month_start = chen::TimeUtil::GetMonthStart(ts, 0);
     time_t utc_month_end = chen::TimeUtil::GetMonthEnd(ts, 0);
-    std::string ms_utc = chen::TimeUtil::Time2Str(utc_month_start, "%Y-%m-%d %H:%M:%S", 0);
-    std::string me_utc = chen::TimeUtil::Time2Str(utc_month_end, "%Y-%m-%d %H:%M:%S", 0);
+    std::string ms_utc = chen::TimeUtil::Time2StrSec(utc_month_start, "%Y-%m-%d %H:%M:%S", 0);
+    std::string me_utc = chen::TimeUtil::Time2StrSec(utc_month_end, "%Y-%m-%d %H:%M:%S", 0);
     assert(ms_utc == "2024-01-01 00:00:00");
     assert(me_utc == "2024-01-31 23:59:59");
     std::cout << "  UTC month: [" << ms_utc << ", " << me_utc << "]" << std::endl;
@@ -428,7 +452,7 @@ void test_month_boundary_with_timezone() {
     // CST 月边界（UTC 12月31日晚上在 CST 已经是 1月1日）
     time_t ts_dec31_utc = chen::TimeUtil::Str2Time("2023-12-31 18:00:00");  // UTC
     time_t cst_month_start = chen::TimeUtil::GetMonthStart(ts_dec31_utc, 28800);
-    std::string ms_cst = chen::TimeUtil::Time2Str(cst_month_start, "%Y-%m-%d %H:%M:%S", 28800);
+    std::string ms_cst = chen::TimeUtil::Time2StrSec(cst_month_start, "%Y-%m-%d %H:%M:%S", 28800);
     // 北京时间 12月31日 18:00 + 8h = 1月1日 02:00，所以 month start 是 1月1日
     std::cout << "  CST month start of Dec 31 18:00 UTC: " << ms_cst << std::endl;
 
@@ -501,8 +525,8 @@ void test_timezone_default_is_local() {
     time_t ts = chen::TimeUtil::GetCurrentSec();
 
     // 不带时区参数的调用和显式传本地时区应该结果一致
-    std::string local_default = chen::TimeUtil::Time2Str(ts);
-    std::string local_explicit = chen::TimeUtil::Time2Str(ts, "%Y-%m-%d %H:%M:%S", tz);
+    std::string local_default = chen::TimeUtil::Time2StrSec(ts);
+    std::string local_explicit = chen::TimeUtil::Time2StrSec(ts, "%Y-%m-%d %H:%M:%S", tz);
     assert(local_default == local_explicit);
 
     time_t day_default = chen::TimeUtil::GetDayStart(ts);
@@ -531,10 +555,10 @@ void test_timezone_default_is_local() {
 void test_timezone_roundtrip() {
     std::cout << "=== test_timezone_roundtrip ===" << std::endl;
 
-    // Str2Time 解析带时区的 ISO 8601 → time_t (UTC) → Time2Str 回 UTC 验证
+    // Str2Time 解析带时区的 ISO 8601 → time_t (UTC) → Time2StrSec 回 UTC 验证
     std::string iso_str = "2024-01-15T10:30:00Z";
     time_t parsed = chen::TimeUtil::Str2Time(iso_str);
-    std::string formatted = chen::TimeUtil::Time2Str(parsed, "%Y-%m-%dT%H:%M:%SZ", 0);
+    std::string formatted = chen::TimeUtil::Time2StrSec(parsed, "%Y-%m-%dT%H:%M:%SZ", 0);
     assert(formatted == iso_str);
     std::cout << "  " << iso_str << " -> " << formatted << " OK" << std::endl;
 
@@ -543,7 +567,7 @@ void test_timezone_roundtrip() {
     time_t parsed_cst = chen::TimeUtil::Str2Time(iso_cst);
     // parsed_cst 应该是 UTC 时间戳，和 parsed 相同
     assert(parsed_cst == parsed);
-    std::string formatted_utc = chen::TimeUtil::Time2Str(parsed_cst, "%Y-%m-%dT%H:%M:%SZ", 0);
+    std::string formatted_utc = chen::TimeUtil::Time2StrSec(parsed_cst, "%Y-%m-%dT%H:%M:%SZ", 0);
     assert(formatted_utc == "2024-01-15T10:30:00Z");
     std::cout << "  " << iso_cst << " -> " << formatted_utc << " OK" << std::endl;
 
@@ -572,6 +596,7 @@ void test_util_include_compat() {
 int main() {
     test_basic_time();
     test_time_conversion();
+    test_unit_explicitness();
     test_auto_str2time();
     test_rfc1123();
     test_time_judgment();

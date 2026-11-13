@@ -56,6 +56,9 @@ epoll_wait (阻塞等待) → 事件就绪 → 触发对应 Fiber/Callback
 | `tickle()`                | 通过 pipe 唤醒 epoll_wait                                     |
 | `idle()`                  | idle fiber 主循环：epoll_wait → 处理就绪事件 → 触发超时定时器 |
 
+> `idle()` 的 `epoll_wait` 保底超时是 3000ms（没有定时器时）。 **进程停止过程中**
+> （`stop()` 已调用）该超时会被压到 10ms，避免线程睡满 3 秒导致 `stop()` 退出变慢。
+
 ## WorkerGroup — 批量任务
 
 ```cpp

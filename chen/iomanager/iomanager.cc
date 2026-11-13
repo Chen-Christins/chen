@@ -100,6 +100,10 @@ IOManager::~IOManager()
 
 int IOManager::addEvent(int fd, Event event, std::function<void()> cb)
 {
+    if (fd < 0) {
+        return -1;
+    }
+
     FdContext* fd_ctx = nullptr;
     // 加读锁
     std::shared_lock lock(m_mutex);
@@ -186,7 +190,8 @@ int IOManager::addEvent(int fd, Event event, std::function<void()> cb)
 bool IOManager::delEvent(int fd, Event event)
 {
     std::shared_lock lock(m_mutex);
-    if (fd >= (int)m_fdContexts.size()) {
+    // fd 为负（socket 已关闭）时必须拒绝，否则 m_fdContexts[-1] 越界
+    if (fd < 0 || fd >= (int)m_fdContexts.size()) {
         return false;
     }
     // 拿到fd对应的context
@@ -238,7 +243,8 @@ bool IOManager::delEvent(int fd, Event event)
 bool IOManager::cancelEvent(int fd, Event event)
 {
     std::shared_lock lock(m_mutex);
-    if (fd >= (int)m_fdContexts.size()) {
+    // fd 为负（socket 已关闭）时必须拒绝，否则 m_fdContexts[-1] 越界
+    if (fd < 0 || fd >= (int)m_fdContexts.size()) {
         return false;
     }
     // 拿到fd对应的context
@@ -284,7 +290,8 @@ bool IOManager::cancelEvent(int fd, Event event)
 bool IOManager::cancelAll(int fd)
 {
     std::shared_lock lock(m_mutex);
-    if (fd >= (int)m_fdContexts.size()) {
+    // fd 为负（socket 已关闭）时必须拒绝，否则 m_fdContexts[-1] 越界
+    if (fd < 0 || fd >= (int)m_fdContexts.size()) {
         return false;
     }
     // 拿到fd对应的context
@@ -338,6 +345,17 @@ IOManager* IOManager::GetThis()
     return dynamic_cast<IOManager*>(Scheduler::GetThis());
 }
 
+Scheduler* ResolveScheduler(Scheduler* preferred)
+{
+    if (preferred) {
+        return preferred;
+    }
+    if (IOManager* iom = IOManager::GetThis()) {
+        return iom;
+    }
+    return Scheduler::GetThis();
+}
+
 void IOManager::tickle()
 {
     // 没有空闲的线程，就不能tickle
@@ -382,12 +400,18 @@ void IOManager::idle()
         int rt = 0;
         do {
             static const int MAX_TIMEOUT = 3000;
+            // 停止过程中把轮询间隔压到毫秒级：此时不会再有任务来 tickle，睡满 MAX_TIMEOUT 会拖慢退出
+            static const uint64_t MAX_STOPPING_TIMEOUT = 10;
             if (next_timeout != ~0ull) {
                 // 睡眠时间为next_timeout，但不能超过MAX_TIMEOUT
                 next_timeout = (int)next_timeout > MAX_TIMEOUT ? MAX_TIMEOUT : (int)next_timeout;
             } else {
                 // 没有定时器就睡眠 MAX_TIMEOUT
                 next_timeout = MAX_TIMEOUT;
+            }
+            // 正在停止时缩短轮询间隔：此时已经没人会 tickle 了，长睡眠会让 stop() 干等
+            if (next_timeout > MAX_STOPPING_TIMEOUT && isStopping()) {
+                next_timeout = MAX_STOPPING_TIMEOUT;
             }
             /*
              * 阻塞在这里，但有3中情况能够唤醒epoll_wait

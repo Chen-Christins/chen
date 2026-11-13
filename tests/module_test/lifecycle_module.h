@@ -22,7 +22,7 @@ namespace module_test {
  *
  * 使用：
  *   1. cp bin/module/lifecycle_module.so bin/module/
- *   2. bin/main -s -c bin/conf/system.yml
+ *   2. bin/server -s -c bin/conf/system.yml
  *   3. 修改代码重新编译，覆盖 bin/module/lifecycle_module.so
  *   4. kill -HUP $(cat bin/chen.pid)
  *   5. 观察新 worker 加载新模块、旧 worker drain 退出的生命周期日志

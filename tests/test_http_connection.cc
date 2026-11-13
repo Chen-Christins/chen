@@ -7,8 +7,7 @@
 static chen::Logger::ptr logger = LOG_ROOT();
 
 void test_pool() {
-    chen::http::HttpConnectionPool::ptr pool(new chen::http::HttpConnectionPool(
-                "www.chen.top", "", 80, 10, 1000 * 30, 5));
+    chen::http::HttpConnectionPool::ptr pool(new chen::http::HttpConnectionPool("techhaven.website", "", 80, 10, 1000 * 30, 5));
 
     chen::IOManager::GetThis()->addTimer(1000, [pool](){
             auto r = pool->doGet("/", 300);
@@ -16,8 +15,34 @@ void test_pool() {
     }, true);
 }
 
+/**
+ * @brief HTTPS 客户端：SNI + 证书链/主机名校验 + 非阻塞握手
+ * @note 需要外网；失败只打日志，不做断言，避免离线环境误报
+ */
+void test_https()
+{
+    INFO(logger) << "=== test_https ===";
+    // 1) 直连（HttpConnection::DoRequest），走 SSLSocket 校验路径
+    auto r = chen::http::HttpConnection::DoGet("https://www.baidu.com/", 5000);
+    if (r) {
+        INFO(logger) << "https direct result=" << r->result << " error=" << r->error
+                     << " status=" << (r->response ? (int)r->response->getStatus() : 0);
+    } else {
+        ERROR(logger) << "https direct request returned null";
+    }
+
+    // 2) 连接池（ssl=true）复用同一条 TLS 连接
+    chen::http::HttpConnectionPool pool("www.baidu.com", "www.baidu.com", 443, 4, 30000, 10, true);
+    for (int i = 0; i < 2; ++i) {
+        auto rt = pool.doGet("/", 5000);
+        INFO(logger) << "https pool#" << i << " result=" << rt->result << " error=" << rt->error
+                     << " status=" << (rt->response ? (int)rt->response->getStatus() : 0);
+    }
+}
+
 void run() {
-    chen::Address::ptr addr = chen::Address::LookupAny("www.chen.top:80");
+    logger->setLevel(chen::LogLevel::TRACE);
+    chen::Address::ptr addr = chen::Address::LookupAny("techhaven.website:80");
     if (!addr) {
         INFO(logger) << "get addr error";
         return ;
@@ -33,7 +58,7 @@ void run() {
     chen::http::HttpConnection::ptr conn(new chen::http::HttpConnection(sock));
     chen::http::HttpRequest::ptr req(new chen::http::HttpRequest);
     req->setPath("/blog/");
-    req->setHeader("host", "www.chen.top");
+    req->setHeader("host", "techhaven.website");
     INFO(logger) << "req: " << std::endl << *req;
 
     conn->sendRequest(req);
@@ -50,7 +75,7 @@ void run() {
 
     INFO(logger) << "----------------------------------------------";
 
-    auto r = chen::http::HttpConnection::DoGet("http://www.chen.top/blog/", 300);
+    auto r = chen::http::HttpConnection::DoGet("http://techhaven.website/blog/", 300);
     INFO(logger) << "result=" << r->result
         << " error=" << r->error
         << " rsp=" << (r->response ? r->response->toString() : "");
@@ -308,7 +333,7 @@ void test_sse_all() {
 
 void test_streaming() {
     INFO(logger) << "=== test_streaming ===";
-    chen::Address::ptr addr = chen::Address::LookupAny("www.chen.top:80");
+    chen::Address::ptr addr = chen::Address::LookupAny("techhaven.website:80");
     if (!addr) {
         INFO(logger) << "get addr error, skip streaming test";
         return;
@@ -324,7 +349,7 @@ void test_streaming() {
     chen::http::HttpConnection::ptr conn(new chen::http::HttpConnection(sock));
     chen::http::HttpRequest::ptr req(new chen::http::HttpRequest);
     req->setPath("/blog/");
-    req->setHeader("host", "www.chen.top");
+    req->setHeader("host", "techhaven.website");
 
     conn->sendRequest(req);
 
@@ -347,16 +372,20 @@ void test_streaming() {
 }
 
 int main(int argc, char** argv) {
+    logger->setLevel(chen::LogLevel::TRACE);
     chen::IOManager iom(2);
 
     // Run SSE client tests (no network needed)
     iom.schedule(test_sse_all);
 
     // Run HTTP tests (need network)
-    iom.schedule(run);
+    // iom.schedule(run);
 
     // Run streaming test
     iom.schedule(test_streaming);
+
+    // Run HTTPS (TLS verify) test
+    iom.schedule(test_https);
 
     return 0;
 }

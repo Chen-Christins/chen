@@ -213,6 +213,98 @@ public:
      */
     static std::string SHA3_512(const void* data, size_t len);
 
+    // ========== 原始二进制摘要（Raw） ==========
+
+    /**
+     * @brief 计算 MD5 摘要（原始二进制）
+     * @param data 输入字符串
+     * @return std::string 16 字节原始摘要，失败返回空串
+     */
+    static std::string MD5Raw(const std::string& data);
+
+    /**
+     * @brief 计算 MD5 摘要（原始二进制）
+     * @param data 数据指针
+     * @param len 数据长度
+     * @return std::string 16 字节原始摘要，失败返回空串
+     */
+    static std::string MD5Raw(const void* data, size_t len);
+
+    /**
+     * @brief 计算 SHA-1 摘要（原始二进制）
+     * @param data 输入字符串
+     * @return std::string 20 字节原始摘要，失败返回空串
+     */
+    static std::string SHA1Raw(const std::string& data);
+
+    /**
+     * @brief 计算 SHA-1 摘要（原始二进制）
+     * @param data 数据指针
+     * @param len 数据长度
+     * @return std::string 20 字节原始摘要，失败返回空串
+     */
+    static std::string SHA1Raw(const void* data, size_t len);
+
+    /**
+     * @brief 计算 SHA-256 摘要（原始二进制）
+     * @param data 输入字符串
+     * @return std::string 32 字节原始摘要，失败返回空串
+     */
+    static std::string SHA256Raw(const std::string& data);
+
+    /**
+     * @brief 计算 SHA-256 摘要（原始二进制）
+     * @param data 数据指针
+     * @param len 数据长度
+     * @return std::string 32 字节原始摘要，失败返回空串
+     */
+    static std::string SHA256Raw(const void* data, size_t len);
+
+    /**
+     * @brief 计算 SHA-512 摘要（原始二进制）
+     * @param data 输入字符串
+     * @return std::string 64 字节原始摘要，失败返回空串
+     */
+    static std::string SHA512Raw(const std::string& data);
+
+    /**
+     * @brief 计算 SHA-512 摘要（原始二进制）
+     * @param data 数据指针
+     * @param len 数据长度
+     * @return std::string 64 字节原始摘要，失败返回空串
+     */
+    static std::string SHA512Raw(const void* data, size_t len);
+
+    /**
+     * @brief 计算 SHA3-256 摘要（原始二进制）
+     * @param data 输入字符串
+     * @return std::string 32 字节原始摘要，失败返回空串
+     */
+    static std::string SHA3_256Raw(const std::string& data);
+
+    /**
+     * @brief 计算 SHA3-256 摘要（原始二进制）
+     * @param data 数据指针
+     * @param len 数据长度
+     * @return std::string 32 字节原始摘要，失败返回空串
+     */
+    static std::string SHA3_256Raw(const void* data, size_t len);
+
+    /**
+     * @brief 计算 SHA3-512 摘要（原始二进制）
+     * @param data 输入字符串
+     * @return std::string 64 字节原始摘要，失败返回空串
+     */
+    static std::string SHA3_512Raw(const std::string& data);
+
+    /**
+     * @brief 计算 SHA3-512 摘要（原始二进制）
+     * @param data 数据指针
+     * @param len 数据长度
+     * @return std::string 64 字节原始摘要，失败返回空串
+     */
+    static std::string SHA3_512Raw(const void* data, size_t len);
+
     // ========== HMAC 签名 ==========
 
     /**
@@ -268,6 +360,44 @@ public:
      * @return std::string 原始二进制签名
      */
     static std::string HMAC_SHA384(const void* data, size_t data_len, const void* key, size_t key_len);
+
+    /**
+     * @brief HMAC-SHA512 签名（原始二进制）
+     * @param data 待签名数据
+     * @param key 密钥
+     * @return std::string 原始二进制签名
+     */
+    static std::string HMAC_SHA512(const std::string& data, const std::string& key);
+
+    /**
+     * @brief HMAC-SHA512 签名（原始二进制）
+     * @param data 数据指针
+     * @param data_len 数据长度
+     * @param key 密钥指针
+     * @param key_len 密钥长度
+     * @return std::string 原始二进制签名
+     */
+    static std::string HMAC_SHA512(const void* data, size_t data_len, const void* key, size_t key_len);
+
+    // ========== 安全工具 ==========
+
+    /**
+     * @brief 常量时间比较两个字符串（用于 tag / 签名 / HMAC 校验）
+     * @param a 字符串 A
+     * @param b 字符串 B
+     * @return bool 内容是否相同
+     */
+    static bool SecureCompare(const std::string& a, const std::string& b);
+
+    /**
+     * @brief PBKDF2-HMAC-SHA256 密钥派生
+     * @param password 密码
+     * @param salt 盐值
+     * @param iterations 迭代次数，默认 100000
+     * @param keyLen 派生密钥长度（字节），默认 32
+     * @return std::string 原始二进制密钥，失败返回空串
+     */
+    static std::string PBKDF2_SHA256(const std::string& password, const std::string& salt, int iterations = 100000, size_t keyLen = 32);
 
     // ========== 非加密 Hash（哈希表、分片） ==========
 
@@ -339,6 +469,21 @@ public:
      * @return uint64_t 哈希值
      */
     static uint64_t XXHash64(const void* data, size_t len, uint64_t seed = 0);
+
+    /**
+     * @brief CRC32 校验和（IEEE 802.3 多项式 0xEDB88320）
+     * @param data 输入字符串
+     * @return uint32_t CRC32 值
+     */
+    static uint32_t CRC32(const std::string& data);
+
+    /**
+     * @brief CRC32 校验和（IEEE 802.3 多项式 0xEDB88320）
+     * @param data 数据指针
+     * @param len 数据长度
+     * @return uint32_t CRC32 值
+     */
+    static uint32_t CRC32(const void* data, size_t len);
 
     // ========== RSA 签名 ==========
 

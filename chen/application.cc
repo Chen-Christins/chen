@@ -14,7 +14,9 @@
 #include "http/ws_server.h"
 #include "iomanager/worker.h"
 #include "module/module.h"
+#include "rock/rock_server.h"
 #include "rpc/rpc_server.h"
+#include "streams/static_service_discovery.h"
 #include "util/env.h"
 #include "version.h"
 
@@ -23,15 +25,24 @@ namespace chen {
 static Logger::ptr logger = LOG_NAME("system");
 
 static ConfigVar<std::string>::ptr g_server_work_path = Config::Lookup("server.work_path", std::string(), "server work path");
+
 static ConfigVar<std::string>::ptr g_server_pid_file = Config::Lookup("server.pid_file", std::string("chen.pid"), "server pid file");
+
 static ConfigVar<std::vector<TcpServerConf>>::ptr g_servers_conf = Config::Lookup("servers", std::vector<TcpServerConf>(), "server conf");
+
 static ConfigVar<uint64_t>::ptr g_drain_timeout_ms = Config::Lookup("server.drain_timeout_ms", (uint64_t)3000, "graceful shutdown drain timeout ms");
+
 static ConfigVar<uint64_t>::ptr g_housekeeping_interval_ms =
     Config::Lookup("server.housekeeping_interval_ms", (uint64_t)500, "housekeeping timer interval ms");
+
 static ConfigVar<uint64_t>::ptr g_worker_ready_timeout_ms =
     Config::Lookup("server.worker_ready_timeout_ms", (uint64_t)30000, "master waits worker ready timeout ms");
+
 static ConfigVar<uint32_t>::ptr g_worker_restart_interval_ms =
     Config::Lookup("server.worker_restart_interval_ms", (uint32_t)2000, "master restarts crashed worker interval ms");
+
+static ConfigVar<std::string>::ptr g_server_process_name =
+    Config::Lookup("server.process_name", std::string(), "process title base name, default is the executable file name");
 
 static void RegisterBuiltInServers()
 {
@@ -69,10 +80,13 @@ static void RegisterBuiltInServers()
                 magic = static_cast<uint32_t>(strtoul(it->second.c_str(), nullptr, 0));
             }
             if (auto it = conf.args.find("header_size"); it != conf.args.end()) {
-                header_size = static_cast<size_t>(strtoul(it->second.c_str(), nullptr, 0));
+                header_size = strtoul(it->second.c_str(), nullptr, 0);
             }
             auto parser = game::CreateLengthFieldParser(header_size, magic);
             return TcpServer::ptr(new game::GenericProtocolServer(parser, process_worker, io_worker, accept_worker));
+        });
+        TcpServerFactory::Register("rock", [](const TcpServerConf&, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
+            return TcpServer::ptr(new RockServer("rock", process_worker, io_worker, accept_worker));
         });
     });
 }
@@ -123,6 +137,8 @@ bool Application::init(int argc, char** argv)
 
     Config::LoadFromConfDir(conf_path);
 
+    EnvMgr::GetInstance()->setProcTitleBase(g_server_process_name->getValue());
+
     // 信号命令: -s reload / -s stop / -s quit（类似 nginx -s）
     if (EnvMgr::GetInstance()->has("s")) {
         std::string sig_name = EnvMgr::GetInstance()->get("s");
@@ -165,13 +181,15 @@ bool Application::init(int argc, char** argv)
 bool Application::run()
 {
     bool is_daemon = EnvMgr::GetInstance()->has("d");
-    return start_daemon(
-               m_argc, m_argv,
-               [this](int, char**) {
-                   return masterMain();
-               },
-               is_daemon)
-        == 0;
+
+    bool ret = start_daemon(
+        m_argc, m_argv,
+        [this](int, char**) {
+            return masterMain();
+        },
+        is_daemon);
+
+    return ret == 0;
 }
 
 void Application::signalHandler(int sig)
@@ -270,6 +288,8 @@ void Application::doConfigReload(const std::string& file)
 
 void Application::doGracefulShutdown()
 {
+    EnvMgr::GetInstance()->setProcTitleRole(m_isWorker ? "worker process (draining)" : "master process (draining)");
+
     INFO(logger) << "graceful shutdown: stopping all servers...";
     for (auto& [type, servers] : m_servers) {
         for (auto& server : servers) {
@@ -319,6 +339,11 @@ void Application::doGracefulShutdown()
             for (auto& m : modules) {
                 m->onUnload();
             }
+        }
+
+        if (auto sd = getServiceDiscovery()) {
+            INFO(logger) << "graceful shutdown: stopping service discovery...";
+            sd->stop();
         }
 
         INFO(logger) << "graceful shutdown: stopping WorkerMgr...";
@@ -562,6 +587,12 @@ void Application::reapWorkers()
 
 void Application::handleReload()
 {
+    EnvMgr::GetInstance()->setProcTitleRole("master process (reloading)");
+    // 无论成功失败，返回时恢复 master 角色
+    struct TitleRestore {
+        ~TitleRestore() { EnvMgr::GetInstance()->setProcTitleRole("master process"); }
+    } title_restore;
+
     INFO(logger) << "master: received SIGHUP, reloading modules...";
 
     int idx = spawnWorker();
@@ -632,6 +663,8 @@ void Application::shutdownWorkers()
 
 int Application::masterMain()
 {
+    EnvMgr::GetInstance()->setProcTitleRole("master process");
+
     if (!setupServers()) {
         ERROR(logger) << "master: setup servers failed";
         return 1;
@@ -651,7 +684,6 @@ int Application::masterMain()
 
     signal(SIGPIPE, SIG_IGN);
 
-    // 屏蔽信号，用 sigwaitinfo/sigtimedwait 同步处理（master 单线程，避免异步 handler）
     sigemptyset(&m_masterSigset);
     sigaddset(&m_masterSigset, SIGHUP);
     sigaddset(&m_masterSigset, SIGTERM);
@@ -659,7 +691,6 @@ int Application::masterMain()
     sigaddset(&m_masterSigset, SIGCHLD);
     sigprocmask(SIG_BLOCK, &m_masterSigset, nullptr);
 
-    // 启动首个 worker 并等待就绪
     int idx = spawnWorker();
     if (idx < 0 || !waitWorkerReady(m_workers[idx], g_worker_ready_timeout_ms->getValue())) {
         ERROR(logger) << "master: initial worker failed to start";
@@ -716,7 +747,8 @@ int Application::masterMain()
 
 void Application::workerMain(int ready_fd)
 {
-    // 先安装处理器，再解除 master 继承的信号屏蔽
+    EnvMgr::GetInstance()->setProcTitleRole("worker process");
+
     registerSignals();
     sigset_t set;
     sigemptyset(&set);
@@ -744,7 +776,6 @@ void Application::workerMain(int ready_fd)
     m_mainIOManager->stop();
     m_tickIOManager->stop();
 
-    // 显式释放 IOManager，确保 ~Scheduler/~IOManager 和 fiber 析构
     m_mainIOManager.reset();
     m_tickIOManager.reset();
     _exit(0);
@@ -784,6 +815,14 @@ void Application::reportWorkerFailed()
 
 int Application::run_fiber()
 {
+    // 配置了静态服务发现时自动创建，模块可在 onLoad/onServerReady 中 registerService
+    if (!getServiceDiscovery()) {
+        if (auto sd = StaticServiceDiscovery::CreateFromConfig()) {
+            setServiceDiscovery(sd);
+            INFO(logger) << "created StaticServiceDiscovery from config";
+        }
+    }
+
     // worker 从磁盘加载模块（含最新版本）
     ModuleMgr::GetInstance()->init();
 
@@ -859,6 +898,11 @@ int Application::run_fiber()
         i->onServerReady();
     }
 
+    // 模块注册完成后再发布服务实例，确保 registerService 补录的地址可见
+    if (auto sd = getServiceDiscovery()) {
+        sd->start();
+    }
+
     for (auto& [type, servers] : m_servers) {
         for (auto& server : servers) {
             server->start();
@@ -910,6 +954,18 @@ void Application::getAllServers(std::vector<TcpServer::ptr>& svrs)
     for (auto& [type, servers] : m_servers) {
         svrs.insert(svrs.end(), servers.begin(), servers.end());
     }
+}
+
+IServiceDiscovery::ptr Application::getServiceDiscovery() const
+{
+    std::lock_guard lock(m_serviceDiscoveryMutex);
+    return m_serviceDiscovery;
+}
+
+void Application::setServiceDiscovery(IServiceDiscovery::ptr sd)
+{
+    std::lock_guard lock(m_serviceDiscoveryMutex);
+    m_serviceDiscovery = std::move(sd);
 }
 
 } // namespace chen

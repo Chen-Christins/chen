@@ -250,7 +250,7 @@ int SQLite3Stmt::bindBlob(int idx, const std::string& value)
 
 int SQLite3Stmt::bindTime(int idx, const time_t& value)
 {
-    return bind(idx, TimeUtil::Time2Str(value));
+    return bind(idx, TimeUtil::Time2StrSec(value));
 }
 
 int SQLite3Stmt::bindNull(int idx)

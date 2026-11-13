@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 #include "chen/iomanager/iomanager.h"
 #include "chen/log/log.h"
 #include "chen/rpc/rpc_server.h"
@@ -104,7 +106,15 @@ void run()
 
 int main(int argc, char** argv)
 {
-    chen::IOManager iom(1);
+    // use_caller=false：调度器自己起线程，main 只负责保活。
+    // 这样 run() 里的 bind/start 与 main 解耦，不会出现「靠 ~IOManager 驱动、
+    // 客户端抢在 bind 之前连接」的时序问题。
+    chen::IOManager iom(2, false, "rpc_server");
     iom.schedule(run);
+
+    INFO(logger) << "rpc server process started, press Ctrl-C to stop";
+    while (true) {
+        sleep(10);
+    }
     return 0;
 }

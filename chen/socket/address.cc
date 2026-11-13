@@ -185,6 +185,10 @@ bool Address::GetInterfaceAddresses(std::multimap<std::string, std::pair<Address
         for (next = results; next; next = next->ifa_next) {
             Address::ptr addr;
             uint32_t prefix_len = ~0u;
+            // 某些虚拟网卡可能没有地址/掩码，直接跳过避免空指针
+            if (!next->ifa_addr || !next->ifa_netmask) {
+                continue;
+            }
             if (family != AF_UNSPEC && family != next->ifa_addr->sa_family) {
                 continue;
             }

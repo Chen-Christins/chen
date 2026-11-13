@@ -148,10 +148,10 @@ bin/server -s reload
 
 - 何时调用: server 创建完毕、绑定端口后
 - 职责（按顺序）:
-  1. `clearAll()` — 清除 EventBus listener（保持清理习惯）
-  2. 连接数据库
-  3. 注册 HTTP servlet / WS servlet / RPC handler
-  4. 初始化 EventBus listener
+    1. `clearAll()` — 清除 EventBus listener（保持清理习惯）
+    2. 连接数据库
+    3. 注册 HTTP servlet / WS servlet / RPC handler
+    4. 初始化 EventBus listener
 - 注意: 注册的 handler/servlet 必须是 **本进程加载的 `.so` 中的代码**
 
 ### `bool onServerUp()`
@@ -168,21 +168,21 @@ bin/server -s reload
 ### `bool onDeactivate()`
 
 - 何时调用:
-  - 重载: 旧 worker 停止 accept、drain 完成后
-  - 关机: 所有模块的 onUnload 之前
+    - 重载: 旧 worker 停止 accept、drain 完成后
+    - 关机: 所有模块的 onUnload 之前
 - 职责:
-  - 停止后台定时器
-  - flush 脏数据到 DB/Redis
-  - **不要**关闭 WebSocket 连接（框架的 drain 机制处理）
+    - 停止后台定时器
+    - flush 脏数据到 DB/Redis
+    - **不要**关闭 WebSocket 连接（框架的 drain 机制处理）
 
 ### `bool onUnload()`
 
 - 何时调用: worker 进程退出前（重载旧 worker / 关机均会调用）
 - 职责:
-  - `clearAll()` — 清除 EventBus listener
-  - 保存脏数据
-  - 停止定时器
-  - 释放资源，包括 DB/Redis 连接（如 `RedisMgr::GetInstance()->freeAll()`）
+    - `clearAll()` — 清除 EventBus listener
+    - 保存脏数据
+    - 停止定时器
+    - 释放资源，包括 DB/Redis 连接（如 `RedisMgr::GetInstance()->freeAll()`）
 
 ---
 

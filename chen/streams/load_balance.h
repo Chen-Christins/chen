@@ -7,6 +7,7 @@
  */
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <shared_mutex>
 
@@ -93,6 +94,16 @@ public:
     virtual bool isValid();
     void close();
 
+    /**
+     * @brief 记录一次请求失败（用于被动摘除）
+     */
+    void incFail();
+
+    /**
+     * @brief 请求成功后清除失败计数
+     */
+    void resetFail();
+
     std::string toString();
 
 protected:
@@ -100,6 +111,10 @@ protected:
     SocketStream::ptr m_stream;
     int32_t m_weight = 0;
     HolderStatsSet m_stats;
+    /// 连续失败次数
+    std::atomic<uint32_t> m_consecutiveFails{0};
+    /// 最近一次失败时间（毫秒）
+    std::atomic<uint64_t> m_lastFailMs{0};
 };
 
 class ILoadBalance {
@@ -174,14 +189,8 @@ public:
 protected:
     virtual void initNolock() override;
 
-private:
-    int32_t getIdx(uint64_t v = -1);
-
 protected:
     std::vector<LoadBalanceItem::ptr> m_items;
-
-private:
-    std::vector<int64_t> m_weights;
 };
 
 // class FairLoadBalance : public LoadBalance {

@@ -21,7 +21,7 @@ static thread_local Fiber* t_fiber = nullptr;
 static thread_local Fiber::ptr t_threadFiber = nullptr;
 
 // 通过配置文件来设置大小
-static ConfigVar<uint32_t>::ptr g_fiber_stack_size = Config::Lookup<uint32_t>("fiber.stack_size", 128 * 1024, "fiber stack size");
+static ConfigVar<uint32_t>::ptr g_fiber_stack_size = Config::Lookup<uint32_t>("fiber.stack_size", 64 * 1024, "fiber stack size");
 
 // 为ucontext_t申请栈空间
 class MallocStackAllocator {
@@ -35,6 +35,7 @@ using StackAllocator = MallocStackAllocator;
 Fiber::Fiber()
 {
     m_state = EXEC;
+    m_isMain = true;
     SetThis(this);
     ++g_fiber_count;
     DEBUG(logger) << "Fiber::Fiber main";
@@ -249,6 +250,27 @@ uint64_t Fiber::GetFiberId()
         return t_fiber->getId();
     }
     return 0;
+}
+
+bool Fiber::CanYield()
+{
+    // 不在调度器线程里，没有可切换的目标
+    if (!Scheduler::GetThis()) {
+        return false;
+    }
+    Fiber* cur = t_fiber;
+    if (!cur) {
+        return false;
+    }
+    // 线程主协程：m_caller 为空，Yield 出去就回不来了
+    if (cur->m_isMain) {
+        return false;
+    }
+    // 调度器 root 协程（use_caller 时执行 run 循环的协程）同样不能 Yield
+    if (cur == Scheduler::GetMainFiber()) {
+        return false;
+    }
+    return true;
 }
 
 void Fiber::CleanupThread()

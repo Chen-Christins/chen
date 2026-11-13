@@ -2,6 +2,89 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Rock 协议接入（新增）
+
+- **新增** `TcpServerFactory` 注册 `rock` 类型，yml 中写 `type: rock` 即可启动 `RockServer`
+- **新增** `Module::handleRequest/handleNotify` 虚函数与 `RockModule` 实现，恢复 `RockServer` 对
+  `Module::ROCK` 模块的请求/通知分发（之前分发逻辑被注释，模块收不到消息）
+- **新增** `Module::registerService(server_type, domain, service)`：模块可把自己监听的地址注册进服务发现，
+  监听 `0.0.0.0` 时使用本机非回环 IPv4，回环地址会跳过；配套 `TcpServer::getSocks()`
+- **新增** `StaticServiceDiscovery`（`chen/streams/`）：从 `service_discovery.domains` 读取静态实例，
+  支持 `addServer/delServer` 运行时增量更新；`Application` 在配置非空时自动创建，并在模块
+  `onServerReady` 之后 `start()`、`onUnload` 之后 `stop()`
+- **新增** 静态服务发现支持 `{name, address, weight}` 实例结构、`service_discovery.domains` 配置热更新
+  （`ConfigVar` 监听），权重会传递到 `LoadBalanceItem`
+- **新增** `Module::onDeactivate()` 默认把 `registerService` 登记的地址从服务发现注销；
+  新增 `Module::unregisterService()` 与 `IServiceDiscovery::unregisterServer()`
+- **新增** `RockSDLoadBalance::request` 在未收到响应时换实例重试（`rock.request_max_retry`，默认 2，
+  `timeout_ms` 为包含重试的总预算）；收到响应后不重试，语义为 at-least-once
+- **新增** 被动健康检查：连续失败达到 `load_balance.fail_threshold` 后在
+  `load_balance.fail_cooldown_ms` 内摘除实例，冷却后 half-open 放行一次
+- **修复** `WeightLoadBalance::get` 在可用实例中按权重做前缀和选择，避免选中后再找可用项导致权重失真
+- **新增** `rock.service_worker` 配置：服务发现建连使用的 worker 调度器，留空使用当前 `IOManager`；
+  原写死的 `service_io` 在未配置时会直接丢任务
+- **新增** `tests/test_rock.cc`：覆盖请求/响应、gzip、通知、超时、坏帧断开、handler 返回 false 关闭连接
+- **修复** Rock 帧长度校验允许正好等于 `rock.protocol.max_length`，并限制 gzip 解压后大小
+- **修复** `ModuleManager::add/del` 未维护 `m_type2Modules`，导致 `foreach(Module::ROCK)` 永远为空、Rock 请求被当作未处理
+- **修复** `SchedulerSwitcher` 继承 `Scheduler` 后构造时隐式调用 `Scheduler(1, true)`，在协程中触发
+  `ASSERT(GetThis() == nullptr)`；改为普通 RAII 类，仅在调用方和目标调度器都存在时切换
+- **修复** `Address::GetInterfaceAddresses` 对没有地址/掩码的虚拟网卡解引用空指针（自动选择本机 IP 时会用到）
+
+### 时间工具单位显式化
+
+- **变更** `TimeUtil` 的秒/毫秒接口不再通过 `time_t`/`uint64_t` 重载区分：`Time2Str` 拆分为
+  `Time2StrSec` / `Time2StrMs`，`IsExpired` → `IsExpiredMs`、`FormatDuration` → `FormatDurationMs`、
+  `GetNextResetTime` → `GetNextResetTimeMs`；删除实现错误的 `IsZeroOfDay/Week/Month`
+- **修复** `LoadBalance::statusString` 把毫秒时间戳先 `/1000` 再传给毫秒接口，初始化时间被显示成 1970 年
+- **修复** `ProcessInfo` 启动时间字段声明为 `uint64_t` 却存秒值，`toString()` 按毫秒格式化后显示 1970 年
+
+### 连接复用 / RPC Future（新增）
+
+- **新增** `HttpClient` 连接池：按 `scheme://host:port` 复用 `HttpConnectionPool`，省掉每次请求的 TCP/TLS 握手；新增配置项
+  `http.client.pool_enable`（默认 true）、`http.client.pool_size`（8）、`http.client.max_alive_time`（30000ms）、
+  `http.client.max_request`（100），并提供 `HttpClient::clearPools()`
+- **新增** `HttpConnection::BuildRequest()`：由 URL + 参数构造请求对象（不发送），`DoRequest` 与连接池共用同一套请求构造逻辑
+- **变更** `HttpConnectionPool` 支持 https：构造函数新增 `bool ssl = false`，https 连接使用 `SSLSocket` 并携带 SNI；同时修正
+  `max_alive_time` 比较方向（原来把未过期连接丢掉了）、`max_size` 未生效（池满时直接关闭多余连接），`HttpConnection` 记录真实的创建时间
+- **新增** `SSLSocket::setServerName()`（SNI）与 `SSLSocket::sslHandshake()`：客户端 TLS 握手改为在非阻塞 socket 上多次往返（原来单次
+  `SSL_connect` 在非阻塞 fd 上必然返回 WANT_READ 而失败）
+- **重构** `RpcFutureState` 改为持有 `chen::Promise`，删除重复的 waiter 逻辑；`RpcFuture` 新增 `waitFor(ms)`，
+  `get()/getValue()/waitFor()` 改为 const
+- **修复** `HttpResponse` 没有解析 `connection` 头（`isClose()` 恒为构造默认值），导致连接池无法判断响应是否允许复用；新增
+  `HttpResponse::init()` 并在客户端解析响应后调用
+
+### 稳定性修复
+
+- **新增** `SSLSocket::setVerifyPeer()` / `isVerifyPeer()`：TLS 客户端 **默认校验证书链与主机名**（
+  `SSL_CTX_set_default_verify_paths`
+  + `SSL_set1_host`），自签名/内部服务可显式关闭；`HttpConnection` 增加配置 `http.client.ssl_verify`（默认 true），
+    `SmtpClient` 也会带上 SNI，避免开启校验后连虚拟主机失败
+- **修复** `Scheduler::stop()` 在还有任务要跑时也打印 `scheduler stopped`，误导排查（日志挪到真正的提前返回分支里）
+- **优化** `tests/test_rpc_server` 改为 `IOManager(2, false)` + main 保活，不再靠 `~IOManager` 驱动调度器，启动时序正常；
+  `test_rpc_client` 增加最多 30s 的连接重试，避免客户端抢在服务端 bind 之前连接
+- **修复** `IOManager::addEvent/delEvent/cancelEvent/cancelAll` 只检查 fd 上界，负 fd（socket 已关闭，`m_sock == -1`）会越界访问
+  `m_fdContexts[-1]` 导致段错误；现在统一拒绝 `fd < 0`
+- **修复** `Socket::cancelRead/cancelWrite/cancelAccept/cancelAll` 未判空 `IOManager::GetThis()` 且未校验 `isValid()`，
+  在非调度线程或已关闭 socket 上调用会空指针/越界崩溃；`RpcClient::close()` 改为只对有效 socket 取消事件
+- **新增** `tests/test_socket.cc` 回归用例：负 fd、已关闭 socket、无 IOManager 线程三种 cancel 场景
+- **新增** `tests/test_http_connection.cc` 的 https 用例：TLS 握手 + 证书校验 + 连接池复用（需外网，失败只打日志）
+- **修复** `IOManager::idle()` 的 `epoll_wait` 保底超时（3000ms）在进程停止期间仍生效，导致 `stop()` 最多多等 3 秒才能 join
+  工作线程；现在停止期间（`Scheduler::isStopping()`）把轮询间隔压到 10ms
+- **新增** `Scheduler::isStopping()`：判断是否已调用过 `stop()`，不等价于 `stopping()` 的完整停止条件
+
+### 异步等待（新增）
+
+- **新增** `chen/util/future.h`：`Promise`/`Future` 异步结果句柄，fiber 内挂起当前协程（不占线程）、普通线程内退化为
+  `std::condition_variable` 阻塞；支持 `waitFor` 超时、异常传递、多等待者、`void` 特化
+- **新增** `chen/http/http_client.h`：`HttpClient::submit/request` 及 `get/post/put/patch/del/head/options` 便捷方法，把
+  `HttpConnection::DoRequest` 提交到调度器执行；无可用调度器时 `submit` 返回 `false`、Future 形式返回已完成空值
+- **新增** `chen::ResolveScheduler(preferred)`：统一解析可用调度器（`IOManager` → `Scheduler`）
+- **新增** `Fiber::CanYield()` 与 `Fiber::isMain()`：判断当前上下文能否安全让出执行权（线程主协程、调度器 root 协程不可
+  Yield）
+- **新增** `tests/test_future.cc`、`tests/test_http_client.cc`
+
 ## v1.6.0 (2026-10-18)
 
 ### 指标系统（新增）

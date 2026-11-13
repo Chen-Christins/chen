@@ -220,6 +220,6 @@ private:
 };
 
 /// 指标注册表单例
-typedef Singleton<Registry> RegistryMgr;
+typedef LeakySingleton<Registry> RegistryMgr;
 
 } // namespace chen::metrics

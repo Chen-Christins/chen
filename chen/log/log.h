@@ -185,6 +185,12 @@ public:
      * @param pattern 通过string的方式
      */
     void setFormatter(const std::string& val);
+
+    /**
+     * @brief 恢复默认日志格式器
+     */
+    void resetFormatter();
+
     /**
      * @brief 返回日志格式器
      */

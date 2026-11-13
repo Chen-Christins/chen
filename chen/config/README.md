@@ -38,7 +38,7 @@ Config::LoadFromFile("/path/to/conf/a.yml"); // 加载单个文件（内部按 m
 
 框架通过 inotify 监听配置目录，`.yml` / `.xml` 文件变更后调用 `Config::LoadFromFile()`
 只重新加载该文件，并触发对应 `ConfigVar` 的变更回调。业务模块如何声明配置项、注册回调
-以及热重载时移除回调的注意事项，见 [`chen/watcher/README.md`](../watcher/README.md)。
+以及 worker 退出 / 显式卸载模块时移除回调的注意事项，见 [`chen/watcher/README.md`](../watcher/README.md)。
 
 ## XML 配置
 

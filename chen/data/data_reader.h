@@ -16,7 +16,6 @@
 #include <variant>
 #include <vector>
 
-#include <openssl/md5.h>
 #include <zlib.h>
 
 #include "../log/log.h"

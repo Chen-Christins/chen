@@ -55,17 +55,17 @@
 
 ### 网络协议支持
 
-| 协议 | 说明 |
-|------|------|
-| TCP | 通用 TCP 服务器，自定义协议支持 |
-| UDP | 独立 UDP 服务器，`recvfrom` 数据报循环 |
-| Rock | 私有二进制协议（magic + version + flag + length） |
-| HTTP/1.1 | HTTP 请求解析、路由、中间件 |
-| HTTP/2 | 基于 nghttp2 的 HTTP/2 服务器 |
-| WebSocket | WS 协议升级与帧处理 |
-| SSE | Server-Sent Events 流式推送 |
-| RPC | 模板驱动的 RPC 框架，自动序列化/反序列化，无需 IDL；支持同步与回调式异步调用 |
-| Game | 自定义二进制游戏协议（magic + cmd + seq + len） |
+| 协议      | 说明                                                                                             |
+|-----------|--------------------------------------------------------------------------------------------------|
+| TCP       | 通用 TCP 服务器，自定义协议支持                                                                  |
+| UDP       | 独立 UDP 服务器，`recvfrom` 数据报循环                                                           |
+| Rock      | 私有二进制协议（magic + version + flag + length），`type: rock` 启动，模块通过 `RockModule` 扩展 |
+| HTTP/1.1  | HTTP 请求解析、路由、中间件                                                                      |
+| HTTP/2    | 基于 nghttp2 的 HTTP/2 服务器                                                                    |
+| WebSocket | WS 协议升级与帧处理                                                                              |
+| SSE       | Server-Sent Events 流式推送                                                                      |
+| RPC       | 模板驱动的 RPC 框架，自动序列化/反序列化，无需 IDL；支持同步与回调式异步调用                     |
+| Game      | 自定义二进制游戏协议（magic + cmd + seq + len）                                                  |
 
 ### 定时器
 
@@ -196,25 +196,25 @@ chen/
 
 ```bash
 # 前台运行
-bin/main -s -c /path/to/conf
+bin/server -s -c /path/to/conf
 
 # 后台守护进程
-bin/main -d -c /path/to/conf
+bin/server -d -c /path/to/conf
 ```
 
 ### 版本号
 
 ```bash
-bin/main -v            # 输出 chen/1.5.5
-bin/main --version     # 同上
+bin/server -v            # 输出版本号
+bin/server --version     # 同上
 ```
 
 ### 信号命令
 
 ```bash
-bin/main -s reload    # 热重载 .so 模块（SIGHUP）；配置变更由 inotify 自动加载
-bin/main -s stop      # 优雅关闭（SIGTERM）
-bin/main -s quit      # 优雅关闭（SIGTERM）
+bin/server -s reload    # 热重载 .so 模块（SIGHUP）；配置变更由 inotify 自动加载
+bin/server -s stop      # 优雅关闭（SIGTERM）
+bin/server -s quit      # 优雅关闭（SIGTERM）
 ```
 
 ### 手动发信号
@@ -287,7 +287,7 @@ public:
     }
 
     bool onDeactivate() override {
-        // 热重载旧模块被替换 / 关机前：停定时器、flush 脏数据
+        // worker drain（热重载/关机）：flush 脏数据，tick 定时器已由框架取消
         return true;
     }
 };

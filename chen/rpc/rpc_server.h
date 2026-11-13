@@ -77,7 +77,7 @@ public:
     }
 
     /**
-     * @brief 注销 RPC 方法（热重载时避免旧 .so 的 lambda 残留导致 SEGV）
+     * @brief 注销 RPC 方法（显式卸载模块时避免旧 .so 的 lambda 残留导致 SEGV）
      * @param name 方法名
      */
     void unregisterMethod(const std::string& name);

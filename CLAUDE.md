@@ -41,10 +41,10 @@ No test framework — tests are ad-hoc programs that exercise the corresponding 
 ## Running the App
 
 ```bash
-bin/main -s -c /path/to/conf         # foreground
-bin/main -d -c /path/to/conf         # daemon (background)
-bin/main -s reload                   # hot reload (SIGHUP)
-bin/main -s stop                     # graceful shutdown (SIGTERM)
+bin/server -s -c /path/to/conf        # foreground
+bin/server -d -c /path/to/conf        # daemon (background)
+bin/server -s reload                  # hot reload (SIGHUP)
+bin/server -s stop                    # graceful shutdown (SIGTERM)
 ```
 
 The main config entry point is `bin/conf/system.yml`. Config is a directory, not a single file — all `.yml` files under it are loaded.

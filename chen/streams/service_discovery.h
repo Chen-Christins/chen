@@ -19,7 +19,7 @@ class ServiceItemInfo {
 public:
     typedef std::shared_ptr<ServiceItemInfo> ptr;
 
-    static ServiceItemInfo::ptr Create(const std::string& addr, const std::string& data);
+    static ServiceItemInfo::ptr Create(const std::string& addr, const std::string& data, uint32_t weight = 10000);
 
     uint64_t getId() const { return m_id; }
 
@@ -29,6 +29,10 @@ public:
 
     const std::string& getData() const { return m_data; }
 
+    uint32_t getWeight() const { return m_weight; }
+
+    void setWeight(uint32_t v) { m_weight = v; }
+
     std::string toString() const;
 
 public:
@@ -36,6 +40,7 @@ public:
     uint16_t m_port;
     std::string m_ip;
     std::string m_data;
+    uint32_t m_weight = 10000;
 };
 
 class IServiceDiscovery {
@@ -51,6 +56,13 @@ public:
     virtual ~IServiceDiscovery();
 
     void registerServer(const std::string& domain, const std::string& service, const std::string& addr, const std::string& data);
+
+    /**
+     * @brief 注销本进程注册的服务实例
+     * @details 具体实现可在重写时同步通知订阅者
+     * @return bool 是否找到并删除
+     */
+    virtual bool unregisterServer(const std::string& domain, const std::string& service, const std::string& addr);
 
     void queryServer(const std::string& domain, const std::string& service);
 

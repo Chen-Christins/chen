@@ -1,11 +1,19 @@
 #include "load_balance.h"
 
+#include "../config/config.h"
 #include "../iomanager/worker.h"
 #include "../log/log.h"
+#include "../util/random_util.h"
 
 namespace chen {
 
 static chen::Logger::ptr logger = LOG_NAME("system");
+
+static ConfigVar<uint32_t>::ptr g_load_balance_fail_threshold =
+    Config::Lookup("load_balance.fail_threshold", (uint32_t)3, "consecutive request failures before an instance is marked unhealthy, 0 disables");
+
+static ConfigVar<uint32_t>::ptr g_load_balance_fail_cooldown_ms =
+    Config::Lookup("load_balance.fail_cooldown_ms", (uint32_t)5000, "unhealthy instance cooldown in ms");
 
 LoadBalanceItem::~LoadBalanceItem()
 {
@@ -47,17 +55,59 @@ std::string HolderStats::toString()
 
 void LoadBalanceItem::close()
 {
-    if (m_stream) {
-        auto stream = m_stream;
-        WorkerMgr::GetInstance()->schedule("service_io", [stream]() {
+    if (!m_stream) {
+        return;
+    }
+    auto stream = m_stream;
+
+    // 优先使用配置的 service_io 调度器；未配置时回退当前调度器，避免 close 任务被丢弃
+    if (auto sched = WorkerMgr::GetInstance()->get("service_io")) {
+        sched->schedule([stream]() {
             stream->close();
         });
+        return;
     }
+    if (auto sched = Scheduler::GetThis()) {
+        sched->schedule([stream]() {
+            stream->close();
+        });
+        return;
+    }
+    stream->close();
 }
 
 bool LoadBalanceItem::isValid()
 {
-    return m_stream && m_stream->isConnected();
+    if (!m_stream || !m_stream->isConnected()) {
+        return false;
+    }
+
+    uint32_t threshold = g_load_balance_fail_threshold->getValue();
+    if (threshold == 0) {
+        return true;
+    }
+    if (m_consecutiveFails.load() < threshold) {
+        return true;
+    }
+
+    // 冷却期外放行一次，给实例恢复的机会（half-open）
+    uint64_t cooldown = g_load_balance_fail_cooldown_ms->getValue();
+    if (TimeUtil::GetCurrentMs() - m_lastFailMs.load() >= cooldown) {
+        m_consecutiveFails.store(0);
+        return true;
+    }
+    return false;
+}
+
+void LoadBalanceItem::incFail()
+{
+    m_consecutiveFails.fetch_add(1);
+    m_lastFailMs.store(TimeUtil::GetCurrentMs());
+}
+
+void LoadBalanceItem::resetFail()
+{
+    m_consecutiveFails.store(0);
 }
 
 std::string LoadBalanceItem::toString()
@@ -146,7 +196,7 @@ std::string LoadBalance::statusString(const std::string& prefix)
     decltype(m_datas) datas = m_datas;
     lock.unlock();
     std::stringstream ss;
-    ss << prefix << "init_time: " << TimeUtil::Time2Str(m_lastInitTime / 1000) << std::endl;
+    ss << prefix << "init_time: " << TimeUtil::Time2StrMs(m_lastInitTime, "%Y-%m-%d %H:%M:%S") << std::endl;
     for (auto& i : datas) {
         ss << prefix << i.second->toString() << std::endl;
     }
@@ -203,19 +253,36 @@ LoadBalanceItem::ptr WeightLoadBalance::get(uint64_t v)
 {
     checkInit();
     std::shared_lock lock(m_mutex);
-    int32_t idx = getIdx(v);
-    if (idx == -1) {
+    if (m_items.empty()) {
         return nullptr;
     }
 
-    // TODO fix weight
-    for (size_t i = 0; i < m_items.size(); ++i) {
-        auto& h = m_items[(idx + i) % m_items.size()];
-        if (h->isValid()) {
-            return h;
+    // 只在可用实例中按权重做前缀和随机，避免“选中后再找下一个可用项”导致权重失真
+    std::vector<std::pair<LoadBalanceItem::ptr, int64_t>> items;
+    int64_t total = 0;
+    for (auto& item : m_items) {
+        if (!item->isValid()) {
+            continue;
         }
+        int64_t weight = item->getWeight();
+        if (weight < 1) {
+            weight = 1;
+        }
+        items.emplace_back(item, weight);
+        total += weight;
     }
-    return nullptr;
+    if (items.empty() || total <= 0) {
+        return nullptr;
+    }
+
+    uint64_t dis = (v == (uint64_t)-1 ? RandomUtil::RandUint64(0, (uint64_t)total - 1) : v % (uint64_t)total);
+    for (auto& [item, weight] : items) {
+        if (dis < (uint64_t)weight) {
+            return item;
+        }
+        dis -= (uint64_t)weight;
+    }
+    return items.back().first;
 }
 
 void WeightLoadBalance::initNolock()
@@ -227,25 +294,6 @@ void WeightLoadBalance::initNolock()
         }
     }
     items.swap(m_items);
-
-    int64_t total = 0;
-    m_weights.resize(m_items.size());
-    for (size_t i = 0; i < m_items.size(); ++i) {
-        total += m_items[i]->getWeight();
-        m_weights[i] = total;
-    }
-}
-
-int32_t WeightLoadBalance::getIdx(uint64_t v)
-{
-    if (m_weights.empty()) {
-        return -1;
-    }
-    int64_t total = *m_weights.rbegin();
-    uint64_t dis = (v == (uint64_t)-1 ? rand() : v) % total;
-    auto it = std::upper_bound(m_weights.begin(), m_weights.end(), dis);
-    ASSERT(it != m_weights.end());
-    return std::distance(m_weights.begin(), it);
 }
 
 void HolderStats::clear()
@@ -470,7 +518,8 @@ void SDLoadBalance::onServiceChange(
         LoadBalanceItem::ptr lditem = createLoadBalanceItem(type);
         lditem->setId(i.first);
         lditem->setStream(stream);
-        lditem->setWeight(10000);
+        int32_t weight = (int32_t)i.second->getWeight();
+        lditem->setWeight(weight > 0 ? weight : 1);
 
         add_infos[i.first] = lditem;
     }

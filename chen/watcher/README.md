@@ -20,7 +20,7 @@
 ```
 
 > 注意：热加载只重新加载 **发生变更的那个文件**，不是全量重扫目录。
-> SIGHUP / `bin/main -s reload` 现在只重载 `.so` 业务模块，配置由 inotify 自动处理。
+> SIGHUP / `bin/server -s reload` 现在只重载 `.so` 业务模块，配置由 inotify 自动处理。
 
 ---
 
@@ -71,7 +71,7 @@ public:
         return true;
     }
 
-    // 热重载：旧模块被替换时，必须移除回调（见下文「安全」）
+    // worker drain / 显式卸载模块时必须移除回调（见下文「安全」）
     bool onDeactivate() override {
         removeListener();
         return true;
@@ -118,11 +118,11 @@ int n = g_max_conn->getValue();   // 每次都拿到最新值
 
 > 这与 EventBus listener 的规则相同： **谁注册，谁移除。**
 
-| 时机                                | 操作                                  |
-|-------------------------------------|---------------------------------------|
-| `onServerReady()`                   | `addListener` 注册回调，保存返回的 id |
-| `onDeactivate()`（旧 worker drain） | `delListener(id)` 移除回调            |
-| `onUnload()`（优雅关闭）            | `delListener(id)` 移除回调            |
+| 时机                             | 操作                                  |
+|----------------------------------|---------------------------------------|
+| `onServerReady()`                | `addListener` 注册回调，保存返回的 id |
+| `onDeactivate()`（worker drain） | `delListener(id)` 移除回调            |
+| `onUnload()`（worker 退出）      | `delListener(id)` 移除回调            |
 
 ### 回调注意事项
 
