@@ -43,7 +43,8 @@
 
 - **动态加载**：`.so` 共享库 `dlopen` 加载，进程退出时由内核回收地址空间
 - **热重载（多进程）**：`kill -HUP` 或 `-s reload` 触发。master 持有监听端口，fork 新 worker 加载新模块并接管新连接，旧 worker 停止 accept、限时 drain 遗留连接后退出（无 404 窗口）
-- **配置热加载**：inotify 监听配置目录，`.yml` / `.xml` 变更后立即重载对应文件并触发变更回调（见 [`chen/watcher/README.md`](chen/watcher/README.md)）
+- **配置热加载**：inotify 监听配置目录，`.yml` / `.xml` 变更后立即重载对应文件并触发变更回调（见 [
+  `src/Watcher/README.md`](src/Watcher/README.md)）
 - **生命周期回调**：
   ```
   启动:    onLoad → onServerReady → onServerUp → [onTick 周期]
@@ -160,34 +161,34 @@ make sdk
 
 ```
 chen/
-├── chen/                   # 核心库
-│   ├── fiber/              # 协程
-│   ├── schedule/           # 调度器
-│   ├── iomanager/          # I/O 管理器
-│   ├── timer/              # 定时器
-│   ├── tcp/                # TCP 服务器
-│   ├── udp/                # UDP 服务器
-│   ├── http/               # HTTP/HTTP2/WS/SSE
-│   ├── rpc/                # RPC 框架（同步 + 异步）
-│   ├── game/               # 游戏协议服务器
-│   ├── rock/               # Rock 二进制协议
-│   ├── socket/             # Socket 封装
-│   ├── module/             # 模块系统 + 动态库加载
-│   ├── rate_limiter/       # 连接限流器
-│   ├── ds/                 # Dispatcher / EventBus / 缓存
-│   ├── streams/            # 流抽象 + 负载均衡
-│   ├── application.*       # 应用主控
-│   ├── log/                # 日志系统
-│   ├── config/             # 配置系统 (YAML/XML)
-│   ├── db/                 # 数据库 (Redis/MySQL/SQLite)
-│   ├── orm/                # ORM 与 QueryBuilder
-│   ├── util/               # 工具 (字符串/时间/加密/环境)
-│   ├── bytearray/          # 字节流
-│   ├── hook/               # 系统调用 Hook
-│   └── thread/             # 线程封装
+├── src/                    # 核心库
+│   ├── Fiber/              # 协程
+│   ├── Schedule/           # 调度器
+│   ├── IOManager/          # I/O 管理器
+│   ├── Timer/              # 定时器
+│   ├── Tcp/                # TCP 服务器
+│   ├── Udp/                # UDP 服务器
+│   ├── Http/               # HTTP/HTTP2/WS/SSE
+│   ├── Rpc/                # RPC 框架（同步 + 异步）
+│   ├── Game/               # 游戏协议服务器
+│   ├── Rock/               # Rock 二进制协议
+│   ├── Socket/             # Socket 封装
+│   ├── Module/             # 模块系统 + 动态库加载
+│   ├── RateLimiter/       # 连接限流器
+│   ├── Ds/                 # Dispatcher / EventBus / 缓存
+│   ├── Streams/            # 流抽象 + 负载均衡
+│   ├── Application.*       # 应用主控
+│   ├── Log/                # 日志系统
+│   ├── Config/             # 配置系统 (YAML/XML)
+│   ├── DB/                 # 数据库 (Redis/MySQL/SQLite)
+│   ├── Orm/                # ORM 与 QueryBuilder
+│   ├── Util/               # 工具 (字符串/时间/加密/环境)
+│   ├── ByteArray/          # 字节流
+│   ├── Hook/               # 系统调用 Hook
+│   └── Thread/             # 线程封装
 ├── tests/                  # 测试与示例模块
-│   ├── game/               # 游戏模块示例
-│   └── module_test/        # 生命周期测试模块
+│   ├── Game/               # 游戏模块示例
+│   └── ModuleTest/        # 生命周期测试模块
 ├── servers/                # 主程序入口
 ├── template/               # 模块模板
 └── cmake/                  # CMake 工具函数
@@ -252,7 +253,7 @@ fiber:
 | `module.path` | module | 模块 .so 搜索路径 |
 
 配置文件变更由 inotify 事件驱动自动重载（改完即生效，无轮询延迟），业务模块如何声明配置项
-并响应变更见 [`chen/watcher/README.md`](chen/watcher/README.md)。
+并响应变更见 [`src/Watcher/README.md`](src/Watcher/README.md)。
 
 Redis / MySQL / SQLite3 / PostgreSQL 的配置字段与业务侧用法见
 [`docs/db-configuration.md`](docs/db-configuration.md)。
@@ -262,8 +263,8 @@ Redis / MySQL / SQLite3 / PostgreSQL 的配置字段与业务侧用法见
 ### 最小模块示例
 
 ```cpp
-#include <chen/module/module.h>
-#include <chen/log/log.h>
+#include <Chen/Module/Module.hpp>
+#include <Chen/Log/Log.hpp>
 
 class MyModule : public chen::Module {
 public:

@@ -1,5 +1,5 @@
 #include <iostream>
-#include "chen/log/log.h"
+#include "src/Log/Log.hpp"
 
 static chen::Logger::ptr logger1 = LOG_ROOT();
 static chen::Logger::ptr logger2 = LOG_NAME("system");

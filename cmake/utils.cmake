@@ -88,12 +88,18 @@ function(ragelmaker src_rl outputlist outputdir)
     #because the results are local scope only
     set(${outputlist} ${${outputlist}} ${rl_out} PARENT_SCOPE)
 
+    # 优先使用 deps/bin/ragel（由 deps.py 下载），找不到再回退到 PATH
+    find_program(RAGEL_EXECUTABLE ragel HINTS "${DEPS_ROOT}/bin")
+    if (NOT RAGEL_EXECUTABLE)
+        set(RAGEL_EXECUTABLE ragel)
+    endif ()
+
     #Warning: The " -S -M -l -C -T0  --error-format=msvc" are added to match existing window invocation
     #we might want something different for mac and linux
     add_custom_command(
             OUTPUT ${rl_out}
             COMMAND cd ${outputdir}
-            COMMAND ragel ${CMAKE_CURRENT_SOURCE_DIR}/${src_rl} -o ${rl_out} -l -C -G2 --error-format=msvc
+            COMMAND "${RAGEL_EXECUTABLE}" ${CMAKE_CURRENT_SOURCE_DIR}/${src_rl} -o ${rl_out} -l -C -G2 --error-format=msvc
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${src_rl}
     )
     set_source_files_properties(${rl_out} PROPERTIES GENERATED TRUE)

@@ -3,26 +3,26 @@ project(chen VERSION 1.6.0)
 
 set(ROOT_DIR ${PROJECT_SOURCE_DIR})
 
-configure_file(cmake/version.h.in ${PROJECT_SOURCE_DIR}/chen/version.h @ONLY)
+configure_file(cmake/Version.hpp.in ${PROJECT_SOURCE_DIR}/src/Version.hpp @ONLY)
 
 include(cmake/common.cmake)
 include(cmake/utils.cmake)
 include(cmake/dependencies.cmake)
 
 # 收集源文件
-chen_set_sources(${PROJECT_SOURCE_DIR}/chen SOURCES orm)
+chen_set_sources(${PROJECT_SOURCE_DIR}/src SOURCES Orm)
 
 set(LIB_SRC
         ${SOURCES}
 )
 
 # 生成ragel文件
-ragelmaker(chen/http/http11_parser.rl LIB_SRC ${CMAKE_CURRENT_SOURCE_DIR}/chen/http)
-ragelmaker(chen/http/httpclient_parser.rl LIB_SRC ${CMAKE_CURRENT_SOURCE_DIR}/chen/http)
-ragelmaker(chen/http/uri.rl LIB_SRC ${CMAKE_CURRENT_SOURCE_DIR}/chen/http)
+ragelmaker(src/Http/http11_parser.rl LIB_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/Http)
+ragelmaker(src/Http/httpclient_parser.rl LIB_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/Http)
+ragelmaker(src/Http/uri.rl LIB_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/Http)
 
 # 生成protobuf文件
-protobuf_maker(chen/rpc/rpc.proto LIB_SRC ${CMAKE_CURRENT_SOURCE_DIR}/chen/rpc)
+protobuf_maker(src/Rpc/rpc.proto LIB_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/Rpc)
 
 add_library(chen SHARED ${LIB_SRC})
 
@@ -56,17 +56,17 @@ set(LIBS
 add_subdirectory(tests)
 
 set(ORM_SRC
-        chen/orm/column.cc
-        chen/orm/index.cc
-        chen/orm/orm.cc
-        chen/orm/table.cc
-        chen/orm/util.cc
+        src/Orm/Column.cc
+        src/Orm/Index.cc
+        src/Orm/Orm.cc
+        src/Orm/Table.cc
+        src/Orm/Util.cc
 )
 chen_add_executable(orm "${ORM_SRC}" "" "${LIBS}")
 
-chen_add_executable(server "servers/main.cc" chen "${LIBS}")
+chen_add_executable(server "servers/Main.cc" chen "${LIBS}")
 
-chen_add_executable(converter "tools/scripts/xml_converter.cc" chen "${LIBS}")
+chen_add_executable(converter "tools/scripts/XmlConverter.cc" chen "${LIBS}")
 chen_set_target_output_dir(converter ${PROJECT_SOURCE_DIR}/tools/bin)
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)

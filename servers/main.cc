@@ -1,5 +1,5 @@
-#include "../chen/application.h"
-#include "../chen/log/log.h"
+#include "../src/Application.hpp"
+#include "../src/Log/Log.hpp"
 
 static chen::Logger::ptr logger = LOG_ROOT();
 

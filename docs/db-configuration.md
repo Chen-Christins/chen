@@ -90,7 +90,7 @@ fox_thread:
 Redis 连接由使用方 module 负责建连与释放：
 
 ```cpp
-#include <chen/db/redis.h>
+#include <Chen/DB/Redis.hpp>
 
 bool MyModule::onServerUp() {
     // 首次使用即按 redis.config 建立连接池（FoxThread 随之懒启动）
@@ -154,7 +154,7 @@ mysql:
 ### 使用
 
 ```cpp
-#include <chen/db/mysql.h>
+#include <Chen/DB/MySQL.hpp>
 
 // 直接取连接（可做事务）
 auto conn = chen::MySQLMgr::GetInstance()->get("blog");
@@ -215,7 +215,7 @@ postgresql:
 ### 使用
 
 ```cpp
-#include <chen/db/postgresql.h>
+#include <Chen/DB/PostgreSQL.hpp>
 
 // 直接取连接（可做事务）
 auto conn = chen::PostgreSQLMgr::GetInstance()->get("blog");
@@ -276,7 +276,7 @@ sqlite3:
 ### 使用
 
 ```cpp
-#include <chen/db/sqlite3.h>
+#include <Chen/DB/SQLite3.hpp>
 
 auto db = chen::SQLite3Mgr::GetInstance()->get("blog");
 db->execute("insert into t(a) values(?)", 1);
@@ -327,4 +327,4 @@ chen::PostgreSQLMgr::GetInstance()->registerPostgreSQL("tmp",
 
 - 模块生命周期：[`docs/module-lifecycle.md`](module-lifecycle.md)
 - 模块开发指南：[`docs/module-development.md`](module-development.md)
-- 数据库模块说明：[`chen/db/README.md`](../chen/db/README.md)
+- 数据库模块说明：[`src/DB/README.md`](../chen/db/README.md)

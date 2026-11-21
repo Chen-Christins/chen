@@ -27,12 +27,12 @@ BraceWrapping:
 
 SpaceBeforeParens: ControlStatementsExceptControlMacros
 
-AlignAfterOpenBracket: AlwaysBreak
+AlignAfterOpenBracket: false
 
 AllowAllParametersOfDeclarationOnNextLine: false
 
 # 控制行宽，避免行太长
-ColumnLimit: 150
+ColumnLimit: 120
 
 BreakConstructorInitializers: BeforeComma
 
@@ -51,7 +51,7 @@ SpaceBeforeAssignmentOperators: true
 PointerAlignment: Left
 
 # 模板声明总是换行
-AlwaysBreakTemplateDeclarations: true
+BreakTemplateDeclarations: Yes
 
 # 使用4个空格缩进
 IndentWidth: 4
@@ -66,13 +66,10 @@ AccessModifierOffset: -4
 MaxEmptyLinesToKeep: 1
 
 # 启用注释对齐，注释前保留一个空格
-AlignTrailingComments: true  
+AlignTrailingComments: true
 
 # 启用注释前空格
 SpacesBeforeTrailingComments: 1
-
-# 对齐转义的换行符到左侧
-AlignEscapedNewlinesLeft: true
 
 # 枚举禁止单行
 AllowShortEnumsOnASingleLine: false
