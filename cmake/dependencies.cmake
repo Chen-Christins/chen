@@ -97,3 +97,12 @@ if (NGHTTP2_FOUND)
     include_directories(${NGHTTP2_INCLUDE_DIRS})
     message(STATUS "NGHTTP2_INCLUDE_DIRS = ${NGHTTP2_INCLUDE_DIRS}")
 endif ()
+
+# PostgreSQL（libpq）：运行时 PostgreSQL 驱动依赖
+find_package(PostgreSQL REQUIRED)
+if (NOT PostgreSQL_FOUND)
+    message(FATAL_ERROR "libpq 未找到（Debian/Ubuntu: apt install libpq-dev）")
+endif ()
+include_directories(${PostgreSQL_INCLUDE_DIRS})
+message(STATUS "PostgreSQL_INCLUDE_DIRS = ${PostgreSQL_INCLUDE_DIRS}")
+message(STATUS "PostgreSQL_LIBRARIES = ${PostgreSQL_LIBRARIES}")

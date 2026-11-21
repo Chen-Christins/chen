@@ -6,7 +6,7 @@ C++20 协程服务器框架 Chen 的 SDK 包。
 
 | 路径         | 说明                                |
 |--------------|-------------------------------------|
-| `include/`   | 框架头文件（保持 `chen/...` 结构）  |
+| `include/`   | 框架头文件（保持 `Chen/...` 结构）  |
 | `lib/`       | `libchen.so`                        |
 | `bin/`       | 可执行程序                          |
 | `protocol/`  | 协议定义与转换工具                  |
@@ -23,17 +23,17 @@ C++20 协程服务器框架 Chen 的 SDK 包。
 
 模块入口的声明（`CreateModule` / `DestroyModule`）、生命周期
 （`onLoad` → `onServerReady` → `onServerUp` → `onTick` → `onDeactivate` → `onUnload`）
-与热重载约定见 `include/chen/module/README.md`。
+与热重载约定见 `include/Chen/Module/README.md`。
 
 各模块的使用方法见对应模块目录下的 `README.md`，例如：
 
-- `include/chen/log/README.md` — 日志
-- `include/chen/config/README.md` — 配置
-- `include/chen/http/README.md` — HTTP / WebSocket
-- `include/chen/rpc/README.md` — RPC
-- `include/chen/orm/README.md` — ORM
+- `include/Chen/Log/README.md` — 日志
+- `include/Chen/Config/README.md` — 配置
+- `include/Chen/Http/README.md` — HTTP / WebSocket
+- `include/Chen/Rpc/README.md` — RPC
+- `include/Chen/Orm/README.md` — ORM
 
-> SDK 打包时会把 `chen/**/README.md` 复制到 `include/` 下对应的模块目录。
+> SDK 打包时会把 `src/**/README.md` 复制到 `include/Chen/` 下对应的模块目录。
 
 ## 系统依赖
 
@@ -43,9 +43,12 @@ C++20 协程服务器框架 Chen 的 SDK 包。
 - libsqlite3
 - libevent
 - libmysqlclient
+- libpq（PostgreSQL 客户端库）
 - libnghttp2
 - libboost-context
 - openssl
+
+> 编译包含 `src/DB/PostgreSQL.hpp` 的代码需要安装 `libpq-dev`（Debian/Ubuntu）。
 
 > 三方依赖不随 SDK 分发。下游工程在自己的 `dependencies.json` 中声明
 > `deps-<arch>.zip` 并下载到本地 `deps/`，用于编译模块和程序。

@@ -19,14 +19,14 @@
   - 用户回报编译错误时，依据日志修改代码，再重新给出验证命令。
 
 1. [`docs/framework-first.md`](docs/framework-first.md) — **优先使用框架封装，不要重复造轮子**
-2. 对应模块的 README：`chen/<module>/README.md`（log / config / db / http / rpc / orm ...）
+2. 对应模块的 README：`src/<Module>/README.md`（Log / Config / DB / Http / Rpc / Orm ...）
 3. [`CLAUDE.md`](CLAUDE.md) — 构建命令、架构、代码风格
 
 ## 硬性要求
 
-- 先查框架 API（`grep -rn "class .*Util\|class .*Mgr\|typedef Singleton" chen/`），再考虑标准库 / 自研
+- 先查框架 API（`grep -rn "class .*Util\|class .*Mgr\|typedef Singleton" src/`），再考虑标准库 / 自研
 - 日志、配置、时间、字符串、文件、DB、网络、协程、指标一律走框架封装
-- 新增通用能力放 `chen/<module>/`，补 README 与测试
+- 新增通用能力放 `src/<Module>/`，补 README 与测试
 - 代码风格遵循 `.clang-format` 与 `CLAUDE.md`
 - 不要用 `node.as<bool>()`（yaml-cpp 的 `convert<bool>` 未随 `libchen.so` 导出）
 

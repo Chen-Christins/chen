@@ -15,7 +15,7 @@ uri.cc
 *.log
 *.pb.cc
 *.pb.h
-/chen/version.h
+/src/Version.hpp
 *3rdparty*
 .idea
 *.pid

@@ -55,15 +55,20 @@ This is a C++20 coroutine-based async server framework. The heavy lifting is don
 
 ### IOManager = Scheduler + TimerManager + epoll
 
-- **Scheduler** (`chen/schedule/`): N:M fiber-to-thread scheduler. A pool of pthreads runs fibers from a shared task queue. `tickle()` wakes idle threads via pipe write.
-- **TimerManager** (`chen/timer/`): sorted timer set, dispatches expired timers in epoll idle.
-- **IOManager** (`chen/iomanager/`): inherits both. `epoll_wait` is the idle loop. Each fd has a `FdContext` storing the fiber waiting on it → when epoll fires, the waiting fiber is rescheduled. This makes all socket I/O fiber-transparent via hook.
+- **Scheduler** (`src/Schedule/`): N:M fiber-to-thread scheduler. A pool of pthreads runs fibers from a shared task
+  queue. `tickle()` wakes idle threads via pipe write.
+- **TimerManager** (`src/Timer/`): sorted timer set, dispatches expired timers in epoll idle.
+- **IOManager** (`src/IOManager/`): inherits both. `epoll_wait` is the idle loop. Each fd has a `FdContext` storing the
+  fiber waiting on it → when epoll fires, the waiting fiber is rescheduled. This makes all socket I/O fiber-transparent
+  via hook.
 
 The `Application` creates two IOManagers: `m_mainIOManager` (IO + business logic) and `m_tickIOManager` (periodic module `onTick()` calls).
 
 ### Fiber (coroutine)
 
-`chen/fiber/fiber.h` — uses `boost::context::fcontext_t` for user-space context switching. Each fiber has its own stack (default 128KB). The system call hooks (`chen/hook/`) make blocking syscalls (read/write/accept/connect/sleep) fiber-aware: they register the fd with the IOManager and yield, so the thread can run other fibers.
+`src/Fiber/Fiber.hpp` — uses `boost::context::fcontext_t` for user-space context switching. Each fiber has its own stack
+(default 128KB). The system call hooks (`src/Hook/`) make blocking syscalls (read/write/accept/connect/sleep)
+fiber-aware: they register the fd with the IOManager and yield, so the thread can run other fibers.
 
 ### Server hierarchy
 
@@ -80,7 +85,8 @@ Servers are created by `TcpServerFactory` from YAML config. Each server gets thr
 
 ### Module system (hot reload)
 
-`chen/module.h` — Modules are `.so` files loaded via `dlopen`. `ModuleManager` scans `bin/module/`, loads each, calls lifecycle methods.
+`src/Module.hpp` — Modules are `.so` files loaded via `dlopen`. `ModuleManager` scans `bin/module/`, loads each, calls
+lifecycle methods.
 
 Hot reload uses a **master/worker multi-process model**: the master owns the listening
 sockets and pidfile, and forks a fresh worker to load the new modules. Old workers stop
@@ -99,11 +105,16 @@ Module lifecycle methods (all optional, have defaults):
 
 ### Config system
 
-`chen/config/config.h` — Typed YAML-backed config with change listeners. `Config::Lookup<T>(name, default, desc)` creates/retrieves a `ConfigVar<T>`. Listeners fire on value change (used for hot reload of log config, server config, etc.). Name must match `[a-z0-9_.]+`.
+`src/Config/Config.hpp` — Typed YAML-backed config with change listeners. `Config::Lookup<T>(name, default, desc)`
+creates/retrieves a `ConfigVar<T>`. Listeners fire on value change (used for hot reload of log config, server config,
+etc.). Name must match `[a-z0-9_.]+`.
 
 ### Log system
 
-`chen/log/log.h` — `Logger` → `LogAppender` chain. `FileLogAppender` supports time-based rotation (`30min`/`hour`/`12hour`/`day`/`week`/`month`) and `retention_days` cleanup. Log macros: `DEBUG(logger)`, `INFO(logger)`, `WARN(logger)`, `ERROR(logger)`, `FATAL(logger)`. C++20 `std::format`-style: `INFO(LOG_ROOT()) << std::format("{} connections", n)`.
+`src/Log/Log.hpp` — `Logger` → `LogAppender` chain. `FileLogAppender` supports time-based rotation (`30min`/`hour`/
+`12hour`/`day`/`week`/`month`) and `retention_days` cleanup. Log macros: `DEBUG(logger)`, `INFO(logger)`,
+`WARN(logger)`, `ERROR(logger)`, `FATAL(logger)`. C++20 `std::format`-style:
+`INFO(LOG_ROOT()) << std::format("{} connections", n)`.
 
 Full configuration guide: `docs/log-configuration.md`.
 
@@ -130,22 +141,22 @@ Follow `cpp-code-style` skill (`.claude/skills/cpp-code-style/SKILL.md`). Key po
 
 ## Key Files to Know
 
-| File | Role |
-|------|------|
-| `chen/application.h` | App orchestrator, signal handling, graceful shutdown / hot reload |
-| `chen/iomanager/iomanager.h` | epoll + fiber scheduler + timer manager |
-| `chen/schedule/schedule.h` | N:M fiber thread pool |
-| `chen/fiber/fiber.h` | boost.context coroutine |
-| `chen/hook/hook.h` | Syscall interception for fiber-friendly IO |
-| `chen/module.h` | Module base class, lifecycle |
-| `chen/library.h` | dlopen/dlclose wrapper |
-| `chen/config/config.h` | Typed YAML config with change listeners |
-| `chen/log/log.h` | Logger, appenders, formatters |
-| `chen/tcp/tcp_server.h` | TcpServer base + TcpServerFactory |
-| `chen/http/servlet.h` | ServletDispatch, HTTP routing |
-| `chen/rpc/rpc_server.h` | Protobuf RPC server |
-| `chen/thread/thread.h` | pthread wrapper |
-| `servers/main.cc` | Entry point |
-| `bin/conf/system.yml` | Main runtime config |
-| `CMakeLists.txt` | Root build file |
-| `cmake/utils.cmake` | Build helper functions |
+| File                          | Role                                                              |
+|-------------------------------|-------------------------------------------------------------------|
+| `src/Application.hpp`         | App orchestrator, signal handling, graceful shutdown / hot reload |
+| `src/IOManager/IOManager.hpp` | epoll + fiber scheduler + timer manager                           |
+| `src/Schedule/Schedule.hpp`   | N:M fiber thread pool                                             |
+| `src/Fiber/Fiber.hpp`         | boost.context coroutine                                           |
+| `src/Hook/Hook.hpp`           | Syscall interception for fiber-friendly IO                        |
+| `src/Module.hpp`              | Module base class, lifecycle                                      |
+| `src/Library.hpp`             | dlopen/dlclose wrapper                                            |
+| `src/Config/Config.hpp`       | Typed YAML config with change listeners                           |
+| `src/Log/Log.hpp`             | Logger, appenders, formatters                                     |
+| `src/Tcp/TcpServer.hpp`       | TcpServer base + TcpServerFactory                                 |
+| `src/Http/Servlet.hpp`        | ServletDispatch, HTTP routing                                     |
+| `src/Rpc/RpcServer.hpp`       | Protobuf RPC server                                               |
+| `src/Thread/Thread.hpp`       | pthread wrapper                                                   |
+| `servers/main.cc`             | Entry point                                                       |
+| `bin/conf/system.yml`         | Main runtime config                                               |
+| `CMakeLists.txt`              | Root build file                                                   |
+| `cmake/utils.cmake`           | Build helper functions                                            |

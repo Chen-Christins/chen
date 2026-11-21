@@ -20,10 +20,10 @@ v1.6.0 已发布（2026-10-18），交付内容是 Metrics 采集能力和 maste
 
 ### Metrics
 
-- `chen/metrics/`：`Counter` / `Gauge` / `GaugeFunc` / `Histogram`，支持标签、同名同标签复用、类型冲突检测
+- `src/Metrics/`：`Counter` / `Gauge` / `GaugeFunc` / `Histogram`，支持标签、同名同标签复用、类型冲突检测
 - `RegistryMgr` 进程级注册表，线程安全；Counter / Histogram 每线程分片
 - Prometheus / OpenMetrics / JSON 渲染
-- `chen/http/metrics_servlet.h`：业务模块在 `onServerReady()` 里挂采集接口
+- `src/Http/MetricsServlet.hpp`：业务模块在 `onServerReady()` 里挂采集接口
 
 ### 热重载与优雅 draining
 

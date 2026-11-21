@@ -28,6 +28,7 @@ if command -v apt-get >/dev/null 2>&1; then
         libssl-dev \
         libevent-dev \
         libmysqlclient-dev \
+        libpq-dev \
         redis \
         libnghttp2-dev \
         git \
@@ -46,6 +47,7 @@ elif command -v yum >/dev/null 2>&1; then
         openssl-devel \
         libevent-devel \
         nghttp2-devel \
+        postgresql-devel \
         git \
         wget \
         zip

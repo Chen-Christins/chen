@@ -120,22 +120,21 @@ cp -r "${DIST_DIR}/${PROTOCOL_DIR}" "${DIST_DIR}/${RESOURCES_DIR}"
 
 # 复制头文件（保持目录结构）
 echo "复制头文件..."
-find chen -name "*.h" -o -name "*.hh" -o -name "*.hpp" | while read file; do
-    # 获取相对路径
+find src -name "*.h" -o -name "*.hh" -o -name "*.hpp" | while read file; do
     rel_path=$(dirname "$file")
-    # 创建目标目录
-    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/$rel_path"
-    # 复制文件
-    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/$rel_path/"
+    rel_path="${rel_path#src/}"
+    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/Chen/$rel_path"
+    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/Chen/$rel_path/"
     echo "复制: $file"
 done
 
 # 复制各模块 README.md（保留目录结构，开发者用）
 echo "复制模块文档..."
-find chen -name "README.md" | while read file; do
+find src -name "README.md" | while read file; do
     rel_path=$(dirname "$file")
-    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/$rel_path"
-    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/$rel_path/"
+    rel_path="${rel_path#src/}"
+    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/Chen/$rel_path"
+    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/Chen/$rel_path/"
     echo "复制文档: $file"
 done
 
@@ -219,6 +218,8 @@ find_library(nghttp2 nghttp2 REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(Protobuf REQUIRED)
 find_package(Boost REQUIRED COMPONENTS context)
+find_package(PostgreSQL REQUIRED)
+include_directories(${PostgreSQL_INCLUDE_DIRS})
 
 set(CHEN_SDK_DEP_LIBS
     ${PTHREAD}
@@ -231,6 +232,7 @@ set(CHEN_SDK_DEP_LIBS
     ${Protobuf_LIBRARIES}
     ${MySQLClient}
     ${nghttp2}
+    ${PostgreSQL_LIBRARIES}
 )
 
 # Append the resolved Boost libraries (paths or linker names).
@@ -253,7 +255,7 @@ else()
 endif()
 
 # Expose Boost include directories to consumers of this SDK
-set(CHEN_SDK_DEP_INCLUDE_DIRS ${Boost_INCLUDE_DIRS} PARENT_SCOPE)
+set(CHEN_SDK_DEP_INCLUDE_DIRS ${Boost_INCLUDE_DIRS} ${PostgreSQL_INCLUDE_DIRS} PARENT_SCOPE)
 
 set(CHEN_SDK_DEP_LIBS ${CHEN_SDK_DEP_LIBS} PARENT_SCOPE)
 

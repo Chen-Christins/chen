@@ -34,8 +34,8 @@ done
 
 # 3. README
 echo "=== 同步 README ==="
-find chen -name "README.md" | while read src; do
-    dst="$SDK/include/$src"
+find src -name "README.md" | while read src; do
+    dst="$SDK/include/Chen/${src#src/}"
     if [ -f "$dst" ]; then
         if ! diff -q "$src" "$dst" > /dev/null 2>&1; then
             cp "$src" "$dst"

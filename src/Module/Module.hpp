@@ -1,0 +1,360 @@
+/**
+ * @file Module.hpp
+ * @brief module模块
+ * @author Christins
+ * @date 2025-03-30
+ * @copyright GPL-3.0
+ */
+#pragma once
+
+#include <map>
+#include <mutex>
+#include <shared_mutex>
+#include <vector>
+
+#include "../Game/GameServer.hpp"
+#include "../Http/HttpServer.hpp"
+#include "../Http/WSServer.hpp"
+#include "../Rock/RockStream.hpp"
+#include "../Rpc/RpcServer.hpp"
+#include "../Socket/SocketStream.hpp"
+#include "../Util/Singleton.hpp"
+
+namespace chen {
+
+class Module {
+public:
+    typedef std::shared_ptr<Module> ptr;
+
+    enum Type {
+        MODULE = 0,
+        ROCK = 1,
+    };
+
+    /**
+     * @brief 构造函数
+     * @param name 模块名称
+     * @param version 模块版本
+     * @param filename 模块文件名
+     * @param type 模块类型
+     */
+    Module(const std::string& name, const std::string& version, const std::string& filename, uint32_t type = MODULE);
+
+    /**
+     * @brief 析构函数
+     */
+    virtual ~Module();
+
+    /**
+     * @brief 在参数解析之前调用
+     * @param argc 参数个数
+     * @param argv 参数值
+     */
+    virtual void onBeforeArgsParse(int argc, char** argv);
+
+    /**
+     * @brief 在参数解析之后调用
+     * @param argc 参数个数
+     * @param argv 参数值
+     */
+    virtual void onAfterArgsParse(int argc, char** argv);
+
+    /**
+     * @brief 模块加载时调用
+     * @return bool
+     */
+    virtual bool onLoad();
+
+    /**
+     * @brief 模块卸载时调用
+     * @return bool
+     */
+    virtual bool onUnload();
+
+    /**
+     * @brief 模块停用：worker 进入 drain 时调用（热重载/关机）
+     * @details 热重载场景下新 worker 已接管监听，当前 worker 已停止 accept。
+     *          用于 flush 数据、关闭本进程的长连接等收尾工作。
+     *          多进程模型下本方法只影响当前 worker。默认实现返回 true。
+     * @return bool
+     */
+    virtual bool onDeactivate();
+
+    /**
+     * @brief 连接时调用
+     * @param stream 连接流
+     * @return bool
+     */
+    virtual bool onConnect(Stream::ptr stream);
+
+    /**
+     * @brief 断开连接时调用
+     * @param stream 连接流
+     * @return bool
+     */
+    virtual bool onDisconnect(Stream::ptr stream);
+
+    /**
+     * @brief 服务器准备就绪时调用
+     * @return bool
+     */
+    virtual bool onServerReady();
+
+    /**
+     * @brief 服务器启动时调用
+     * @return bool
+     */
+    virtual bool onServerUp();
+
+    /**
+     * @brief 处理自定义协议请求
+     * @details 由 RockServer 等协议服务器分发，基类默认只记录日志并返回 true
+     * @param[in] req 请求消息
+     * @param[in] rsp 响应消息
+     * @param[in] stream 连接流
+     * @return bool 返回 false 时服务器会关闭该连接
+     */
+    virtual bool handleRequest(Message::ptr req, Message::ptr rsp, Stream::ptr stream);
+
+    /**
+     * @brief 处理自定义协议通知
+     * @details 由 RockServer 等协议服务器分发，基类默认只记录日志并返回 true
+     * @param[in] notify 通知消息
+     * @param[in] stream 连接流
+     * @return bool 返回 false 时服务器会关闭该连接
+     */
+    virtual bool handleNotify(Message::ptr notify, Stream::ptr stream);
+
+    /**
+     * @brief 模块定时 tick 回调，由框架按 getTickIntervalMs() 的间隔周期性调用
+     * @details 默认实现为空，子类按需覆写
+     */
+    virtual void onTick();
+
+    /**
+     * @brief 获取模块期望的 tick 间隔（毫秒）
+     * @return 返回 0 表示不需要 tick，大于 0 表示每隔该毫秒数调用一次 onTick()
+     */
+    virtual uint64_t getTickIntervalMs();
+
+    /**
+     * @brief 获取模块状态字符串
+     * @return std::string
+     */
+    virtual std::string statusString();
+
+    /**
+     * @brief 获取模块信息
+     */
+    const std::string& getName() const { return name_; }
+
+    /**
+     * @brief 获取模块版本
+     */
+    const std::string& getVersion() const { return version_; }
+
+    /**
+     * @brief 获取模块文件名
+     */
+    const std::string& getFilename() const { return filename_; }
+
+    /**
+     * @brief 获取模块ID
+     */
+    const std::string& getId() const { return id_; }
+
+    /**
+     * @brief 获取模块类型
+     */
+    uint32_t getType() const { return type_; }
+
+    /**
+     * @brief 设置文件名称
+     * @param v 文件名称
+     */
+    void setFilename(const std::string& v) { filename_ = v; }
+
+    /**
+     * @brief 把当前模块监听的服务器地址注册到服务发现
+     * @details 需要 Application 已设置 IServiceDiscovery 实例；会跳过回环地址，
+     *          监听 0.0.0.0 时使用本机非回环 IPv4 地址
+     * @param[in] server_type 服务器类型（对应 yml 中的 type，如 rock/rpc）
+     * @param[in] domain 服务域名
+     * @param[in] service 服务名称
+     */
+    void registerService(const std::string& server_type, const std::string& domain, const std::string& service);
+
+    /**
+     * @brief 注销本模块注册的服务地址
+     * @param[in] server_type 服务器类型
+     * @param[in] domain 服务域名
+     * @param[in] service 服务名称
+     */
+    void unregisterService(const std::string& server_type, const std::string& domain, const std::string& service);
+
+protected:
+    /**
+     * @brief 获取所有 HTTP 服务器
+     * @param[out] servers 接收 HTTP 服务器指针的向量
+     */
+    void getAllHttpServer(std::vector<std::shared_ptr<http::HttpServer>>& servers);
+
+    /**
+     * @brief 获取所有 WebSocket 服务器
+     * @param[out] servers 接收 WebSocket 服务器指针的向量
+     */
+    void getAllWSServer(std::vector<std::shared_ptr<http::WSServer>>& servers);
+
+    /**
+     * @brief 获取所有 RPC 服务器
+     * @param[out] servers 接收 RPC 服务器指针的向量
+     */
+    void getAllRpcServer(std::vector<std::shared_ptr<rpc::RpcServer>>& servers);
+
+    /**
+     * @brief 获取所有 Game 服务器
+     * @param[out] servers 接收 Game 服务器指针的向量
+     */
+    void getAllGameServer(std::vector<std::shared_ptr<game::GenericProtocolServer>>& servers);
+
+private:
+    /**
+     * @brief 已注册到服务发现的地址
+     */
+    struct RegisteredService {
+        std::string server_type;
+        std::string domain;
+        std::string service;
+        std::string addr;
+    };
+
+    /**
+     * @brief 注销全部已注册服务（onDeactivate 自动调用）
+     */
+    void unregisterAllServices();
+
+    /// 模块名称
+    std::string name_;
+    /// 模块版本
+    std::string version_;
+    /// 模块文件名
+    std::string filename_;
+    /// 模块ID
+    std::string id_;
+    /// 模块类型
+    uint32_t type_;
+    /// 已注册到服务发现的地址
+    std::vector<RegisteredService> registered_services_;
+    /// 保护 registered_services_
+    std::mutex registered_services_mutex_;
+};
+
+class RockModule : public Module {
+public:
+    typedef std::shared_ptr<RockModule> ptr;
+    RockModule(const std::string& name, const std::string& version, const std::string& filename);
+
+    virtual bool handleRockRequest(RockRequest::ptr request, RockResponse::ptr response, RockStream::ptr stream) = 0;
+    virtual bool handleRockNotify(RockNotify::ptr notify, RockStream::ptr stream) = 0;
+
+    virtual bool handleRequest(Message::ptr req, Message::ptr rsp, Stream::ptr stream) override;
+    virtual bool handleNotify(Message::ptr notify, Stream::ptr stream) override;
+};
+
+class ModuleManager {
+public:
+    typedef std::shared_ptr<ModuleManager> ptr;
+
+    /**
+     * @brief 构造函数
+     */
+    ModuleManager();
+
+    /**
+     * @brief 添加模块
+     * @param mod 模块指针
+     */
+    void add(Module::ptr mod);
+
+    /**
+     * @brief 删除模块
+     * @param name 模块名称
+     */
+    void del(const std::string& name);
+
+    /**
+     * @brief 删除所有模块
+     */
+    void delAll();
+
+    /**
+     * @brief 初始化模块
+     */
+    void init();
+
+    /**
+     * @brief 获取模块
+     * @param name 模块名称
+     * @return Module::ptr 模块的指针
+     */
+    Module::ptr get(const std::string& name);
+
+    /**
+     * @brief 连接时调用
+     * @param stream 连接流
+     */
+    void onConnect(Stream::ptr stream);
+
+    /**
+     * @brief 断开连接时调用
+     * @param stream 连接流
+     */
+    void onDisconnect(Stream::ptr stream);
+
+    /**
+     * @brief 列出所有模块
+     * @param ms 模块指针的向量
+     */
+    void listAll(std::vector<Module::ptr>& ms);
+    /**
+     * @brief 列出指定类型的模块
+     * @param type 模块类型
+     * @param ms 模块指针的向量
+     */
+    void listByType(uint32_t type, std::vector<Module::ptr>& ms);
+
+    /**
+     * @brief 遍历模块
+     * @param type 模块类型
+     * @param cb 回调函数，参数为模块指针
+     */
+    void foreach(uint32_t type, std::function<void(Module::ptr)> cb);
+
+private:
+    /**
+     * @brief 初始化单个模块
+     * @param path 模块路径
+     */
+    void initModule(const std::string& path);
+
+private:
+    /// 读写锁
+    std::shared_mutex mutex_;
+    /// 模块集合
+    std::map<std::string, Module::ptr> modules_;
+    /// 模块类型到模块集合的映射
+    std::unordered_map<uint32_t, std::unordered_map<std::string, Module::ptr>> type2_modules_;
+};
+
+// 泄漏单例：进程退出时不析构，避免 std::exit 期间 dlclose 模块 .so
+// （多进程模型下 worker 退出时由内核回收地址空间，同时保护指向 .so 的
+//  EventBus/Config listener 不因静态析构而悬空）
+typedef LeakySingleton<ModuleManager> ModuleMgr;
+
+/**
+ * @brief 获取模块目录（module.path 配置值）
+ * @return std::string
+ */
+std::string GetModulePath();
+
+} // namespace chen
