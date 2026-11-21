@@ -208,7 +208,7 @@ std::string Column::getSetFunImpl(const std::string& class_name, int idx) const
     ss << "void " << GetAsClassName(class_name) << "::" << GetAsSetFunName(name_) << "(const " << TypeToString(dtype_)
        << "& v) {" << std::endl;
     ss << "    " << GetAsMemberName(name_) << " = v;" << std::endl;
-    ss << "    m_flags |= (1ull << " << idx << ");" << std::endl;
+    ss << "    flags_ |= (1ull << " << idx << ");" << std::endl;
     ss << "}" << std::endl;
     return ss.str();
 }

@@ -45,15 +45,15 @@ bin/orm -i /path/to/xml -o /path/to/output # 指定输入输出目录
 
 生成文件：
 
-- `category_info.h` — 业务结构体 `CategoryInfo` 及 DAO 声明 `CategoryInfoDao`
-- `category_info.cc` — DAO 实现
+- `CategoryInfo.hpp` — 业务结构体 `CategoryInfo` 及 DAO 声明 `CategoryInfoDao`
+- `CategoryInfo.cc` — DAO 实现
 
 ### 3. 使用生成的代码
 
 ```cpp
-#include "blog/data/category_info.h"
+#include "db/CategoryInfo.hpp"
 
-using namespace blog::data;
+using namespace db;
 
 // 插入
 auto info = std::make_shared<CategoryInfo>();
@@ -160,7 +160,7 @@ if (data) {
 CategoryInfoDao::Migrate(conn);
 
 // 版本间数据迁移：覆盖生成的 onMigrate_vN 钩子
-// 在 category_info.cc 中：
+// 在 CategoryInfo.cc 中：
 int CategoryInfoDao::onMigrate_v2(IDB::ptr conn) {
     // v1 → v2：拆分 name 为 first_name + last_name
     conn->execute("UPDATE category SET first_name = ...");
@@ -174,14 +174,14 @@ int CategoryInfoDao::onMigrate_v2(IDB::ptr conn) {
 
 ## 脏字段追踪
 
-每个 Info 对象维护 `m_flags` 位图，通过 setter 自动标记变更：
+每个 Info 对象维护 `flags_` 位图，通过 setter 自动标记变更：
 
 ```cpp
-auto info = CategoryInfoDao::Query(1, conn);   // m_flags = 0
-info->setName("新名称");                         // m_flags |= bit(1)
-info->setStatus(0);                              // m_flags |= bit(3)
+auto info = CategoryInfoDao::Query(1, conn);   // flags_ = 0
+info->setName("新名称");                         // flags_ |= bit(1)
+info->setStatus(0);                              // flags_ |= bit(3)
 CategoryInfoDao::Update(info, conn);             // 只 UPDATE name, status
-// m_flags 自动归零
+// flags_ 自动归零
 
 info->isDirty();   // 是否有未保存修改
 info->markClean(); // 手动清除标记

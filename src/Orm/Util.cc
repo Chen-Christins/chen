@@ -1,6 +1,7 @@
 #include "Util.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <sstream>
 
 #include "../Util/Util.hpp"
@@ -21,9 +22,20 @@ std::string GetAsClassName(const std::string& v)
 
 std::string GetAsMemberName(const std::string& v)
 {
-    auto class_name = GetAsClassName(v);
-    class_name[0] = std::tolower(class_name[0]);
-    return "m_" + class_name;
+    std::string s;
+    s.reserve(v.size() + 4);
+    for (size_t i = 0; i < v.size(); ++i) {
+        char c = v[i];
+        if (std::isupper(static_cast<unsigned char>(c))) {
+            if (i != 0 && v[i - 1] != '_') {
+                s += '_';
+            }
+            s += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        } else {
+            s += c;
+        }
+    }
+    return s + "_";
 }
 
 std::string GetAsGetFunName(const std::string& v)

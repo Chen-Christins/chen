@@ -3,6 +3,7 @@
 #include "../Log/Log.hpp"
 #include "../Util/Util.hpp" // IWYU pragma: keep
 #include "Table.hpp"
+#include "Util.hpp"
 
 static chen::Logger::ptr logger = LOG_NAME("orm");
 
@@ -14,7 +15,7 @@ void gen_cmake(const std::string& path, const std::map<std::string, chen::orm::T
     ofs << std::endl;
     ofs << "set(LIB_SRC" << std::endl;
     for (auto& i : tbs) {
-        ofs << "    " << chen::StringUtil::Replace(i.second->getNamespace(), ".", "/") << "/" << chen::StringUtil::ToLower(i.second->getFileName())
+        ofs << "    " << chen::StringUtil::Replace(i.second->getNamespace(), ".", "/") << "/" << i.second->getFileName()
             << ".cc" << std::endl;
     }
     ofs << ")" << std::endl;
