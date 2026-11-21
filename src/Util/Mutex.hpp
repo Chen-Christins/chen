@@ -32,7 +32,7 @@ public:
 
 private:
     /// 信号量
-    sem_t m_semaphore;
+    sem_t semaphore_;
 };
 
 /**
@@ -42,33 +42,33 @@ template <class T>
 class ScopedLockImpl {
 public:
     ScopedLockImpl(T& mutex)
-        : m_mutex(mutex)
+        : mutex_(mutex)
     {
-        m_mutex.lock();
-        m_locked = true;
+        mutex_.lock();
+        locked_ = true;
     }
 
     ~ScopedLockImpl() { unlock(); }
 
     void lock()
     {
-        if (!m_locked) {
-            m_mutex.lock();
-            m_locked = true;
+        if (!locked_) {
+            mutex_.lock();
+            locked_ = true;
         }
     }
 
     void unlock()
     {
-        if (m_locked) {
-            m_mutex.unlock();
-            m_locked = false;
+        if (locked_) {
+            mutex_.unlock();
+            locked_ = false;
         }
     }
 
 private:
-    T& m_mutex;
-    bool m_locked;
+    T& mutex_;
+    bool locked_;
 };
 
 /**
@@ -81,12 +81,12 @@ public:
     SpinLock();
     ~SpinLock();
 
-    void lock() { pthread_spin_lock(&m_mutex); }
+    void lock() { pthread_spin_lock(&mutex_); }
 
-    void unlock() { pthread_spin_unlock(&m_mutex); }
+    void unlock() { pthread_spin_unlock(&mutex_); }
 
 private:
-    pthread_spinlock_t m_mutex;
+    pthread_spinlock_t mutex_;
 };
 
 class Scheduler;
@@ -101,14 +101,14 @@ public:
     void wait();
     void notify();
 
-    size_t getConcurrency() const { return m_concurrency; }
+    size_t getConcurrency() const { return concurrency_; }
 
-    void reset() { m_concurrency = 0; }
+    void reset() { concurrency_ = 0; }
 
 private:
-    MutexType m_mutex;
-    std::list<std::pair<Scheduler*, Fiber::ptr>> m_waiters;
-    size_t m_concurrency;
+    MutexType mutex_;
+    std::list<std::pair<Scheduler*, Fiber::ptr>> waiters_;
+    size_t concurrency_;
 };
 
 } // namespace chen

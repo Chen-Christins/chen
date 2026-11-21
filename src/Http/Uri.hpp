@@ -27,20 +27,20 @@ public:
     Uri();
 
     const std::string& getPath() const;
-    const std::string& getScheme() const { return m_scheme; }
-    const std::string& getHost() const { return m_host; }
-    const std::string& getUserinfo() const { return m_userinfo; }
-    const std::string& getQuery() const { return m_query; }
-    const std::string& getFragment() const { return m_fragment; }
+    const std::string& getScheme() const { return scheme_; }
+    const std::string& getHost() const { return host_; }
+    const std::string& getUserinfo() const { return userinfo_; }
+    const std::string& getQuery() const { return query_; }
+    const std::string& getFragment() const { return fragment_; }
     int32_t getPort() const;
 
-    void setScheme(const std::string& v) { m_scheme = v; }
-    void setUserinfo(const std::string& v) { m_userinfo = v; }
-    void setHost(const std::string& v) { m_host = v; }
-    void setPath(const std::string& v) { m_path = v; }
-    void setQuery(const std::string& v) { m_query = v; }
-    void setFragment(const std::string& v) { m_fragment = v; }
-    void setPort(int32_t v) { m_port = v; }
+    void setScheme(const std::string& v) { scheme_ = v; }
+    void setUserinfo(const std::string& v) { userinfo_ = v; }
+    void setHost(const std::string& v) { host_ = v; }
+    void setPath(const std::string& v) { path_ = v; }
+    void setQuery(const std::string& v) { query_ = v; }
+    void setFragment(const std::string& v) { fragment_ = v; }
+    void setPort(int32_t v) { port_ = v; }
 
     std::ostream& dump(std::ostream& os) const;
     std::string toString() const;
@@ -48,13 +48,13 @@ public:
 private:
     bool isDefaultPort() const;
 private:
-    std::string m_scheme;
-    std::string m_host;
-    std::string m_path;
-    std::string m_query;
-    std::string m_fragment;
-    std::string m_userinfo;
-    int32_t m_port;
+    std::string scheme_;
+    std::string host_;
+    std::string path_;
+    std::string query_;
+    std::string fragment_;
+    std::string userinfo_;
+    int32_t port_;
 };
 
 }

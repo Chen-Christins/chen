@@ -17,17 +17,17 @@ static const size_t H2_PREFACE_LEN = 24;
 
 HttpServer::HttpServer(bool keepalive, IOManager* worker, IOManager* io_worker, IOManager* accept_worker)
     : TcpServer(worker, io_worker, accept_worker)
-    , m_isKeepAlive(keepalive)
+    , is_keep_alive_(keepalive)
 {
-    m_dispatch.reset(new ServletDispatch);
+    dispatch_.reset(new ServletDispatch);
 
-    m_type = "http";
+    type_ = "http";
 }
 
 void HttpServer::setName(const std::string& v)
 {
     TcpServer::setName(v);
-    m_dispatch->setDefault(std::make_shared<NotFoundServlet>(v));
+    dispatch_->setDefault(std::make_shared<NotFoundServlet>(v));
 }
 
 static bool detectH2Preface(Socket::ptr client)
@@ -47,13 +47,13 @@ void HttpServer::handleClient(Socket::ptr client)
     // If this is a dedicated HTTP/2 server (type="http2"), always use HTTP/2.
     // If negotiateH2 is true on a type="http" server, try to detect H2 preface.
     bool use_h2 = (getType() == "http2");
-    if (!use_h2 && m_negotiateH2) {
+    if (!use_h2 && negotiate_h2_) {
         use_h2 = detectH2Preface(client);
     }
 
     if (use_h2) {
         DEBUG(logger) << "Starting HTTP/2 session";
-        auto h2 = std::make_shared<H2Session>(client, m_worker, m_dispatch);
+        auto h2 = std::make_shared<H2Session>(client, worker_, dispatch_);
         if (h2->init()) {
             h2->run();
         }
@@ -73,20 +73,19 @@ void HttpServer::handleClient(Socket::ptr client)
             // 可能泄漏至此。这不是真正的错误，降级为 DEBUG 避免日志噪声。
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 DEBUG(logger) << "recv request EAGAIN (normal for non-blocking socket)"
-                              << " client:" << *client << " keep-alive=" << m_isKeepAlive;
+                              << " client:" << *client << " keep-alive=" << is_keep_alive_;
             } else {
-                WARN(logger) << "recv http request fail, errno=" << errno << " errstr=" << strerror(errno) << " client:" << *client
-                             << " keep-alive=" << m_isKeepAlive;
+                WARN(logger) << "recv http request fail, errno=" << errno << " errstr=" << strerror(errno) << " client:" << *client << " keep-alive=" << is_keep_alive_;
             }
             break;
         }
 
         req->init();
 
-        HttpResponse::ptr rsp(new HttpResponse(req->getVersion(), req->isClose() || !m_isKeepAlive));
+        HttpResponse::ptr rsp(new HttpResponse(req->getVersion(), req->isClose() || !is_keep_alive_));
         rsp->setHeader("Server", getName());
 
-        auto slt = m_dispatch->matchForRequest(req);
+        auto slt = dispatch_->matchForRequest(req);
         if (slt && slt->isStreamingBody()) {
             session->setPendingBody(leftover);
             session->setBodyRemaining(req->getHeaderAs<uint64_t>("content-length", 0));
@@ -111,7 +110,7 @@ void HttpServer::handleClient(Socket::ptr client)
 
         session->sendResponse(rsp);
 
-        if (!m_isKeepAlive || req->isClose()) {
+        if (!is_keep_alive_ || req->isClose()) {
             break;
         }
     } while (true);

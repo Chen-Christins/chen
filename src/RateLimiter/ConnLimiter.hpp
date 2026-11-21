@@ -73,15 +73,15 @@ public:
 
 private:
     /// 互斥锁
-    mutable std::mutex m_mutex;
+    mutable std::mutex mutex_;
     /// 令牌桶速率限制
-    RateLimiter m_rateLimiter;
+    RateLimiter rate_limiter_;
     /// 最大并发连接数（<= 0 不限）
-    uint32_t m_maxConn;
+    uint32_t max_conn_;
     /// 当前并发连接数
-    uint32_t m_current = 0;
+    uint32_t current_ = 0;
     /// 被拒绝的连接总数
-    uint64_t m_rejected = 0;
+    uint64_t rejected_ = 0;
 };
 
 } // namespace chen

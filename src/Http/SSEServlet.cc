@@ -8,7 +8,7 @@ static Logger::ptr logger = LOG_NAME("system");
 
 SSEServlet::SSEServlet(const std::string& name)
     : Servlet(name)
-    , m_name(name)
+    , name_(name)
 {
 }
 
@@ -35,23 +35,23 @@ int32_t SSEServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response,
 
 FunctionSSEServlet::FunctionSSEServlet(on_connect_cb connect_cb, on_close_cb close_cb)
     : SSEServlet("FunctionSSEServlet")
-    , m_onConnect(connect_cb)
-    , m_onClose(close_cb)
+    , on_connect_(connect_cb)
+    , on_close_(close_cb)
 {
 }
 
 int32_t FunctionSSEServlet::onConnect(HttpRequest::ptr request, SSESession::ptr session)
 {
-    if (m_onConnect) {
-        return m_onConnect(request, session);
+    if (on_connect_) {
+        return on_connect_(request, session);
     }
     return 0;
 }
 
 int32_t FunctionSSEServlet::onClose(HttpRequest::ptr request, SSESession::ptr session)
 {
-    if (m_onClose) {
-        return m_onClose(request, session);
+    if (on_close_) {
+        return on_close_(request, session);
     }
     return 0;
 }

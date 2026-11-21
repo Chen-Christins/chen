@@ -48,11 +48,11 @@ std::string GetModulePath()
 }
 
 Module::Module(const std::string& name, const std::string& version, const std::string& filename, uint32_t type)
-    : m_name(name)
-    , m_version(version)
-    , m_filename(filename)
-    , m_id(name + "/" + version)
-    , m_type(type)
+    : name_(name)
+    , version_(version)
+    , filename_(filename)
+    , id_(name + "/" + version)
+    , type_(type)
 {
 }
 
@@ -107,13 +107,15 @@ bool Module::onServerUp()
 
 bool Module::handleRequest(Message::ptr req, Message::ptr rsp, Stream::ptr stream)
 {
-    DEBUG(g_logger) << "Module::handleRequest name=" << m_name << " req=" << (req ? req->toString() : "null") << " stream=" << stream;
+    DEBUG(g_logger) << "Module::handleRequest name=" << name_ << " req=" << (req ? req->toString() : "null")
+                    << " stream=" << stream;
     return true;
 }
 
 bool Module::handleNotify(Message::ptr notify, Stream::ptr stream)
 {
-    DEBUG(g_logger) << "Module::handleNotify name=" << m_name << " notify=" << (notify ? notify->toString() : "null") << " stream=" << stream;
+    DEBUG(g_logger) << "Module::handleNotify name=" << name_ << " notify=" << (notify ? notify->toString() : "null")
+                    << " stream=" << stream;
     return true;
 }
 
@@ -157,8 +159,9 @@ void Module::registerService(const std::string& server_type, const std::string& 
 
             sd->registerServer(domain, service, ip + ":" + std::to_string(addr->getPort()), server_type);
             {
-                std::lock_guard lock(m_registeredServicesMutex);
-                m_registeredServices.push_back(RegisteredService{server_type, domain, service, ip + ":" + std::to_string(addr->getPort())});
+                std::lock_guard lock(registered_services_mutex_);
+                registered_services_.push_back(
+                    RegisteredService{server_type, domain, service, ip + ":" + std::to_string(addr->getPort())});
             }
             INFO(g_logger) << "registerService domain=" << domain << " service=" << service << " addr=" << ip << ":" << addr->getPort()
                            << " type=" << server_type;
@@ -170,12 +173,13 @@ void Module::unregisterService(const std::string& server_type, const std::string
 {
     std::vector<RegisteredService> removed;
     {
-        std::lock_guard lock(m_registeredServicesMutex);
-        auto it = std::remove_if(m_registeredServices.begin(), m_registeredServices.end(), [&](const RegisteredService& item) {
-            return item.server_type == server_type && item.domain == domain && item.service == service;
+        std::lock_guard lock(registered_services_mutex_);
+        auto it = std::remove_if(
+            registered_services_.begin(), registered_services_.end(), [&](const RegisteredService& item) {
+                return item.server_type == server_type && item.domain == domain && item.service == service;
         });
-        removed.assign(it, m_registeredServices.end());
-        m_registeredServices.erase(it, m_registeredServices.end());
+        removed.assign(it, registered_services_.end());
+        registered_services_.erase(it, registered_services_.end());
     }
 
     if (removed.empty()) {
@@ -198,8 +202,8 @@ void Module::unregisterAllServices()
 {
     std::vector<RegisteredService> removed;
     {
-        std::lock_guard lock(m_registeredServicesMutex);
-        removed.swap(m_registeredServices);
+        std::lock_guard lock(registered_services_mutex_);
+        removed.swap(registered_services_);
     }
 
     if (removed.empty()) {
@@ -327,28 +331,28 @@ ModuleManager::ModuleManager()
 void ModuleManager::add(Module::ptr mod)
 {
     del(mod->getId());
-    std::unique_lock lock(m_mutex);
+    std::unique_lock lock(mutex_);
     const auto& id = mod->getId();
-    m_modules[id] = mod;
-    m_type2Modules[mod->getType()][id] = mod;
+    modules_[id] = mod;
+    type2_modules_[mod->getType()][id] = mod;
 }
 
 void ModuleManager::del(const std::string& name)
 {
     Module::ptr module;
-    std::unique_lock lock(m_mutex);
-    auto it = m_modules.find(name);
-    if (it == m_modules.end()) {
+    std::unique_lock lock(mutex_);
+    auto it = modules_.find(name);
+    if (it == modules_.end()) {
         return;
     }
     module = it->second;
-    m_modules.erase(it);
+    modules_.erase(it);
 
-    auto type_it = m_type2Modules.find(module->getType());
-    if (type_it != m_type2Modules.end()) {
+    auto type_it = type2_modules_.find(module->getType());
+    if (type_it != type2_modules_.end()) {
         type_it->second.erase(module->getId());
         if (type_it->second.empty()) {
-            m_type2Modules.erase(type_it);
+            type2_modules_.erase(type_it);
         }
     }
     lock.unlock();
@@ -357,8 +361,8 @@ void ModuleManager::del(const std::string& name)
 
 void ModuleManager::delAll()
 {
-    std::unique_lock lock(m_mutex);
-    auto tmp = m_modules;
+    std::unique_lock lock(mutex_);
+    auto tmp = modules_;
     lock.unlock();
 
     for (auto& i : tmp) {
@@ -390,9 +394,9 @@ void ModuleManager::init()
 
 Module::ptr ModuleManager::get(const std::string& name)
 {
-    std::shared_lock lock(m_mutex);
-    auto it = m_modules.find(name);
-    return it == m_modules.end() ? nullptr : it->second;
+    std::shared_lock lock(mutex_);
+    auto it = modules_.find(name);
+    return it == modules_.end() ? nullptr : it->second;
 }
 
 void ModuleManager::onConnect(Stream::ptr stream)
@@ -417,8 +421,8 @@ void ModuleManager::onDisconnect(Stream::ptr stream)
 
 void ModuleManager::listAll(std::vector<Module::ptr>& ms)
 {
-    std::shared_lock lock(m_mutex);
-    for (auto& i : m_modules) {
+    std::shared_lock lock(mutex_);
+    for (auto& i : modules_) {
         ms.push_back(i.second);
     }
 }
@@ -433,9 +437,9 @@ void ModuleManager::initModule(const std::string& path)
 
 void ModuleManager::listByType(uint32_t type, std::vector<Module::ptr>& ms)
 {
-    std::shared_lock lock(m_mutex);
-    auto it = m_type2Modules.find(type);
-    if (it == m_type2Modules.end()) {
+    std::shared_lock lock(mutex_);
+    auto it = type2_modules_.find(type);
+    if (it == type2_modules_.end()) {
         return;
     }
     for (auto& i : it->second) {

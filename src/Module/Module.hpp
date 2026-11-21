@@ -146,33 +146,33 @@ public:
     /**
      * @brief 获取模块信息
      */
-    const std::string& getName() const { return m_name; }
+    const std::string& getName() const { return name_; }
 
     /**
      * @brief 获取模块版本
      */
-    const std::string& getVersion() const { return m_version; }
+    const std::string& getVersion() const { return version_; }
 
     /**
      * @brief 获取模块文件名
      */
-    const std::string& getFilename() const { return m_filename; }
+    const std::string& getFilename() const { return filename_; }
 
     /**
      * @brief 获取模块ID
      */
-    const std::string& getId() const { return m_id; }
+    const std::string& getId() const { return id_; }
 
     /**
      * @brief 获取模块类型
      */
-    uint32_t getType() const { return m_type; }
+    uint32_t getType() const { return type_; }
 
     /**
      * @brief 设置文件名称
      * @param v 文件名称
      */
-    void setFilename(const std::string& v) { m_filename = v; }
+    void setFilename(const std::string& v) { filename_ = v; }
 
     /**
      * @brief 把当前模块监听的服务器地址注册到服务发现
@@ -234,19 +234,19 @@ private:
     void unregisterAllServices();
 
     /// 模块名称
-    std::string m_name;
+    std::string name_;
     /// 模块版本
-    std::string m_version;
+    std::string version_;
     /// 模块文件名
-    std::string m_filename;
+    std::string filename_;
     /// 模块ID
-    std::string m_id;
+    std::string id_;
     /// 模块类型
-    uint32_t m_type;
+    uint32_t type_;
     /// 已注册到服务发现的地址
-    std::vector<RegisteredService> m_registeredServices;
-    /// 保护 m_registeredServices
-    std::mutex m_registeredServicesMutex;
+    std::vector<RegisteredService> registered_services_;
+    /// 保护 registered_services_
+    std::mutex registered_services_mutex_;
 };
 
 class RockModule : public Module {
@@ -339,11 +339,11 @@ private:
 
 private:
     /// 读写锁
-    std::shared_mutex m_mutex;
+    std::shared_mutex mutex_;
     /// 模块集合
-    std::map<std::string, Module::ptr> m_modules;
+    std::map<std::string, Module::ptr> modules_;
     /// 模块类型到模块集合的映射
-    std::unordered_map<uint32_t, std::unordered_map<std::string, Module::ptr>> m_type2Modules;
+    std::unordered_map<uint32_t, std::unordered_map<std::string, Module::ptr>> type2_modules_;
 };
 
 // 泄漏单例：进程退出时不析构，避免 std::exit 期间 dlclose 模块 .so

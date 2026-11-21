@@ -15,9 +15,9 @@
 namespace chen::rpc {
 
 // 协议魔数
-constexpr uint8_t RPC_PROTOCOL_MAGIC = 0xCC;
+constexpr uint8_t kRpcProtocolMagic = 0xCC;
 // 协议版本号
-constexpr uint8_t RPC_PROTOCOL_VERSION = 0x03;
+constexpr uint8_t kRpcProtocolVersion = 0x03;
 
 /**
  * @brief RPC 消息类型
@@ -50,8 +50,8 @@ enum class RoutingMethod : uint8_t {
  * BASE_LENGTH 由此推导，与字段定义始终保持一致。
  */
 struct ProtocolHeader {
-    uint8_t magic = RPC_PROTOCOL_MAGIC;
-    uint8_t version = RPC_PROTOCOL_VERSION;
+    uint8_t magic = kRpcProtocolMagic;
+    uint8_t version = kRpcProtocolVersion;
     MessageType type = MessageType::REQUEST;
     uint8_t routing = 0;     ///< RoutingMethod
     uint8_t real_random = 0; ///< GROUPID: 固定拓扑(0) / 动态拓扑(1)

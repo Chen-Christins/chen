@@ -38,23 +38,23 @@ public:
     int32_t sendMessage(Message::ptr msg);
     RockResult::ptr request(RockRequest::ptr req, uint32_t timeout_ms);
 
-    request_handler getRequestHandler() const { return m_requestHandler; }
-    notify_handler getNotifyHandler() const { return m_notifyHandler; }
+    request_handler getRequestHandler() const { return request_handler_; }
+    notify_handler getNotifyHandler() const { return notify_handler_; }
 
-    void setRequestHandler(request_handler v) { m_requestHandler = v; }
-    void setNotifyHandler(notify_handler v) { m_notifyHandler = v; }
+    void setRequestHandler(request_handler v) { request_handler_ = v; }
+    void setNotifyHandler(notify_handler v) { notify_handler_ = v; }
 
     template <class T>
     void setData(const T& v)
     {
-        m_data = v;
+        data_ = v;
     }
 
     template <class T>
     T getData()
     {
         try {
-            return boost::any_cast<T>(m_data);
+            return boost::any_cast<T>(data_);
         } catch (...) {
         }
         return T();
@@ -82,10 +82,10 @@ protected:
     void handleNotify(RockNotify::ptr nty);
 
 private:
-    RockMessageDecoder::ptr m_decoder;
-    request_handler m_requestHandler;
-    notify_handler m_notifyHandler;
-    boost::any m_data;
+    RockMessageDecoder::ptr decoder_;
+    request_handler request_handler_;
+    notify_handler notify_handler_;
+    boost::any data_;
 };
 
 class RockSession : public RockStream {

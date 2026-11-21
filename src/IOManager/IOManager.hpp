@@ -69,11 +69,11 @@ private:
 public:
     /**
      * @brief 构造函数
-     * @param threadCount 创建的线程数量
+     * @param thread_count 创建的线程数量
      * @param use_caller 是否将当前的调度线程纳入工作线程中
      * @param name 线程名称/调度器名称
      */
-    IOManager(size_t threadCount = 1, bool use_caller = true, const std::string& name = "");
+    IOManager(size_t thread_count = 1, bool use_caller = true, const std::string& name = "");
 
     /**
      * @brief 析构函数
@@ -154,15 +154,15 @@ protected:
 
 private:
     /// Epollfd
-    int m_epfd = 0;
+    int epfd_ = 0;
     /// 管道的读写端 [0]读 [1]写
-    int m_tickleFds[2];
+    int tickle_fds_[2];
     /// 等待执行的事件数量
-    std::atomic<size_t> m_penddingEventCount = {0};
+    std::atomic<size_t> pendding_event_count_ = {0};
     /// 读写锁
-    std::shared_mutex m_mutex;
+    std::shared_mutex mutex_;
     /// socket上下文容器
-    std::vector<FdContext*> m_fdContexts;
+    std::vector<FdContext*> fd_contexts_;
 };
 
 /**

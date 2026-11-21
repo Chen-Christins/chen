@@ -11,13 +11,13 @@ static chen::Logger::ptr g_logger = LOG_NAME("system");
 QueryBuilder::ptr QueryBuilder::Create(const std::string& table)
 {
     QueryBuilder::ptr qb(new QueryBuilder);
-    qb->m_table = table;
+    qb->table_ = table;
     return qb;
 }
 
 QueryBuilder::ptr QueryBuilder::select(const std::string& cols)
 {
-    m_selectCols = cols;
+    select_cols_ = cols;
     return shared_from_this();
 }
 
@@ -25,15 +25,15 @@ QueryBuilder::ptr QueryBuilder::select(const std::string& cols)
 
 void QueryBuilder::addWhereClause(const std::string& conjunction, const std::string& clause, Param p)
 {
-    m_whereClauses.push_back(clause);
-    m_whereConjunctions.push_back(conjunction);
-    m_whereParams.push_back(std::move(p));
+    where_clauses_.push_back(clause);
+    where_conjunctions_.push_back(conjunction);
+    where_params_.push_back(std::move(p));
 }
 
 void QueryBuilder::addHavingClause(const std::string& clause, Param p)
 {
-    m_havingClauses.push_back(clause);
-    m_havingParams.push_back(std::move(p));
+    having_clauses_.push_back(clause);
+    having_params_.push_back(std::move(p));
 }
 
 void QueryBuilder::bindParamArray(chen::IStmt::ptr stmt, const std::vector<Param>& params, int& idx) const
@@ -45,19 +45,19 @@ void QueryBuilder::bindParamArray(chen::IStmt::ptr stmt, const std::vector<Param
     for (auto& p : params) {
         switch (p.type) {
         case Param::INT32_VAL:
-            stmt->bindInt32(idx, static_cast<int32_t>(p.intVal));
+            stmt->bindInt32(idx, static_cast<int32_t>(p.int_val));
             break;
         case Param::INT64_VAL:
-            stmt->bindInt64(idx, p.intVal);
+            stmt->bindInt64(idx, p.int_val);
             break;
         case Param::STRING_VAL:
-            stmt->bindString(idx, p.strVal);
+            stmt->bindString(idx, p.str_val);
             break;
         case Param::FLOAT_VAL:
-            stmt->bindFloat(idx, static_cast<float>(p.dblVal));
+            stmt->bindFloat(idx, static_cast<float>(p.dbl_val));
             break;
         case Param::DOUBLE_VAL:
-            stmt->bindDouble(idx, p.dblVal);
+            stmt->bindDouble(idx, p.dbl_val);
             break;
         }
         ++idx;
@@ -66,13 +66,13 @@ void QueryBuilder::bindParamArray(chen::IStmt::ptr stmt, const std::vector<Param
 
 void QueryBuilder::buildWhereClause(std::stringstream& ss) const
 {
-    if (!m_whereClauses.empty()) {
+    if (!where_clauses_.empty()) {
         ss << " WHERE ";
-        for (size_t i = 0; i < m_whereClauses.size(); ++i) {
+        for (size_t i = 0; i < where_clauses_.size(); ++i) {
             if (i > 0) {
-                ss << " " << m_whereConjunctions[i] << " ";
+                ss << " " << where_conjunctions_[i] << " ";
             }
-            ss << m_whereClauses[i];
+            ss << where_clauses_[i];
         }
     }
 }
@@ -252,10 +252,10 @@ QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, const std::vecto
         ss << "?";
     }
     ss << ")";
-    m_whereClauses.push_back(ss.str());
-    m_whereConjunctions.push_back("AND");
+    where_clauses_.push_back(ss.str());
+    where_conjunctions_.push_back("AND");
     for (auto v : vals) {
-        m_whereParams.push_back({Param::INT64_VAL, v, 0.0, ""});
+        where_params_.push_back({Param::INT64_VAL, v, 0.0, ""});
     }
     return shared_from_this();
 }
@@ -273,10 +273,10 @@ QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, const std::vecto
         ss << "?";
     }
     ss << ")";
-    m_whereClauses.push_back(ss.str());
-    m_whereConjunctions.push_back("AND");
+    where_clauses_.push_back(ss.str());
+    where_conjunctions_.push_back("AND");
     for (auto& v : vals) {
-        m_whereParams.push_back({Param::STRING_VAL, 0, 0.0, v});
+        where_params_.push_back({Param::STRING_VAL, 0, 0.0, v});
     }
     return shared_from_this();
 }
@@ -286,15 +286,15 @@ QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, QueryBuilder::pt
     if (!sub)
         return shared_from_this();
     // Build subquery SQL without pagination (subquery in IN clause shouldn't have LIMIT/OFFSET)
-    std::string subSql = sub->buildQuerySQL(sub->m_selectCols, false);
-    m_whereClauses.push_back(col + " IN (" + subSql + ")");
-    m_whereConjunctions.push_back("AND");
+    std::string sub_sql = sub->buildQuerySQL(sub->select_cols_, false);
+    where_clauses_.push_back(col + " IN (" + sub_sql + ")");
+    where_conjunctions_.push_back("AND");
     // Merge subquery's WHERE + HAVING params into parent
-    for (auto& p : sub->m_whereParams) {
-        m_whereParams.push_back(p);
+    for (auto& p : sub->where_params_) {
+        where_params_.push_back(p);
     }
-    for (auto& p : sub->m_havingParams) {
-        m_whereParams.push_back(p);
+    for (auto& p : sub->having_params_) {
+        where_params_.push_back(p);
     }
     return shared_from_this();
 }
@@ -303,15 +303,15 @@ QueryBuilder::ptr QueryBuilder::whereIn(const std::string& col, QueryBuilder::pt
 
 QueryBuilder::ptr QueryBuilder::whereNull(const std::string& col)
 {
-    m_whereClauses.push_back(col + " IS NULL");
-    m_whereConjunctions.push_back("AND");
+    where_clauses_.push_back(col + " IS NULL");
+    where_conjunctions_.push_back("AND");
     return shared_from_this();
 }
 
 QueryBuilder::ptr QueryBuilder::whereNotNull(const std::string& col)
 {
-    m_whereClauses.push_back(col + " IS NOT NULL");
-    m_whereConjunctions.push_back("AND");
+    where_clauses_.push_back(col + " IS NOT NULL");
+    where_conjunctions_.push_back("AND");
     return shared_from_this();
 }
 
@@ -343,10 +343,10 @@ QueryBuilder::ptr QueryBuilder::whereNotIn(const std::string& col, const std::ve
         ss << "?";
     }
     ss << ")";
-    m_whereClauses.push_back(ss.str());
-    m_whereConjunctions.push_back("AND");
+    where_clauses_.push_back(ss.str());
+    where_conjunctions_.push_back("AND");
     for (auto v : vals) {
-        m_whereParams.push_back({Param::INT64_VAL, v, 0.0, ""});
+        where_params_.push_back({Param::INT64_VAL, v, 0.0, ""});
     }
     return shared_from_this();
 }
@@ -363,10 +363,10 @@ QueryBuilder::ptr QueryBuilder::whereNotIn(const std::string& col, const std::ve
         ss << "?";
     }
     ss << ")";
-    m_whereClauses.push_back(ss.str());
-    m_whereConjunctions.push_back("AND");
+    where_clauses_.push_back(ss.str());
+    where_conjunctions_.push_back("AND");
     for (auto& v : vals) {
-        m_whereParams.push_back({Param::STRING_VAL, 0, 0.0, v});
+        where_params_.push_back({Param::STRING_VAL, 0, 0.0, v});
     }
     return shared_from_this();
 }
@@ -389,19 +389,19 @@ QueryBuilder::ptr QueryBuilder::whereNotInIf(bool cond, const std::string& col, 
 
 QueryBuilder::ptr QueryBuilder::whereBetween(const std::string& col, int64_t lo, int64_t hi)
 {
-    m_whereClauses.push_back(col + " BETWEEN ? AND ?");
-    m_whereConjunctions.push_back("AND");
-    m_whereParams.push_back({Param::INT64_VAL, lo, 0.0, ""});
-    m_whereParams.push_back({Param::INT64_VAL, hi, 0.0, ""});
+    where_clauses_.push_back(col + " BETWEEN ? AND ?");
+    where_conjunctions_.push_back("AND");
+    where_params_.push_back({Param::INT64_VAL, lo, 0.0, ""});
+    where_params_.push_back({Param::INT64_VAL, hi, 0.0, ""});
     return shared_from_this();
 }
 
 QueryBuilder::ptr QueryBuilder::whereBetween(const std::string& col, const std::string& lo, const std::string& hi)
 {
-    m_whereClauses.push_back(col + " BETWEEN ? AND ?");
-    m_whereConjunctions.push_back("AND");
-    m_whereParams.push_back({Param::STRING_VAL, 0, 0.0, lo});
-    m_whereParams.push_back({Param::STRING_VAL, 0, 0.0, hi});
+    where_clauses_.push_back(col + " BETWEEN ? AND ?");
+    where_conjunctions_.push_back("AND");
+    where_params_.push_back({Param::STRING_VAL, 0, 0.0, lo});
+    where_params_.push_back({Param::STRING_VAL, 0, 0.0, hi});
     return shared_from_this();
 }
 
@@ -451,15 +451,15 @@ QueryBuilder::ptr QueryBuilder::whereLeftLikeIf(bool cond, const std::string& co
 
 QueryBuilder::ptr QueryBuilder::orWhereNull(const std::string& col)
 {
-    m_whereClauses.push_back(col + " IS NULL");
-    m_whereConjunctions.push_back("OR");
+    where_clauses_.push_back(col + " IS NULL");
+    where_conjunctions_.push_back("OR");
     return shared_from_this();
 }
 
 QueryBuilder::ptr QueryBuilder::orWhereNotNull(const std::string& col)
 {
-    m_whereClauses.push_back(col + " IS NOT NULL");
-    m_whereConjunctions.push_back("OR");
+    where_clauses_.push_back(col + " IS NOT NULL");
+    where_conjunctions_.push_back("OR");
     return shared_from_this();
 }
 
@@ -522,7 +522,7 @@ QueryBuilder::ptr QueryBuilder::havingIf(bool condition, const std::string& col,
 
 QueryBuilder::ptr QueryBuilder::join(const std::string& type, const std::string& table, const std::string& on)
 {
-    m_joins.push_back(type + " JOIN " + table + " ON " + on);
+    joins_.push_back(type + " JOIN " + table + " ON " + on);
     return shared_from_this();
 }
 
@@ -535,27 +535,27 @@ QueryBuilder::ptr QueryBuilder::join(const std::string& table, const std::string
 
 QueryBuilder::ptr QueryBuilder::orderBy(const std::string& col, const std::string& dir)
 {
-    m_orderBy = col + " " + dir;
+    order_by_ = col + " " + dir;
     return shared_from_this();
 }
 
 QueryBuilder::ptr QueryBuilder::limit(int32_t n)
 {
-    m_hasLimit = true;
-    m_limit = n;
+    has_limit_ = true;
+    limit_ = n;
     return shared_from_this();
 }
 
 QueryBuilder::ptr QueryBuilder::offset(int32_t n)
 {
-    m_hasOffset = true;
-    m_offset = n;
+    has_offset_ = true;
+    offset_ = n;
     return shared_from_this();
 }
 
 QueryBuilder::ptr QueryBuilder::groupBy(const std::string& col)
 {
-    m_groupBy = col;
+    group_by_ = col;
     return shared_from_this();
 }
 
@@ -563,22 +563,22 @@ QueryBuilder::ptr QueryBuilder::groupBy(const std::string& col)
 
 QueryBuilder::ptr QueryBuilder::set(const std::string& col, int64_t val)
 {
-    m_setClauses.push_back(col + " = ?");
-    m_setParams.push_back({Param::INT64_VAL, val, 0.0, ""});
+    set_clauses_.push_back(col + " = ?");
+    set_params_.push_back({Param::INT64_VAL, val, 0.0, ""});
     return shared_from_this();
 }
 
 QueryBuilder::ptr QueryBuilder::set(const std::string& col, const std::string& val)
 {
-    m_setClauses.push_back(col + " = ?");
-    m_setParams.push_back({Param::STRING_VAL, 0, 0.0, val});
+    set_clauses_.push_back(col + " = ?");
+    set_params_.push_back({Param::STRING_VAL, 0, 0.0, val});
     return shared_from_this();
 }
 
 QueryBuilder::ptr QueryBuilder::set(const std::string& col, double val)
 {
-    m_setClauses.push_back(col + " = ?");
-    m_setParams.push_back({Param::DOUBLE_VAL, 0, val, ""});
+    set_clauses_.push_back(col + " = ?");
+    set_params_.push_back({Param::DOUBLE_VAL, 0, val, ""});
     return shared_from_this();
 }
 
@@ -607,22 +607,22 @@ QueryBuilder::ptr QueryBuilder::setIf(bool condition, const std::string& col, do
 
 QueryBuilder::ptr QueryBuilder::insert(const std::string& col, int64_t val)
 {
-    m_insertCols.push_back(col);
-    m_insertParams.push_back({Param::INT64_VAL, val, 0.0, ""});
+    insert_cols_.push_back(col);
+    insert_params_.push_back({Param::INT64_VAL, val, 0.0, ""});
     return shared_from_this();
 }
 
 QueryBuilder::ptr QueryBuilder::insert(const std::string& col, const std::string& val)
 {
-    m_insertCols.push_back(col);
-    m_insertParams.push_back({Param::STRING_VAL, 0, 0.0, val});
+    insert_cols_.push_back(col);
+    insert_params_.push_back({Param::STRING_VAL, 0, 0.0, val});
     return shared_from_this();
 }
 
 QueryBuilder::ptr QueryBuilder::insert(const std::string& col, double val)
 {
-    m_insertCols.push_back(col);
-    m_insertParams.push_back({Param::DOUBLE_VAL, 0, val, ""});
+    insert_cols_.push_back(col);
+    insert_params_.push_back({Param::DOUBLE_VAL, 0, val, ""});
     return shared_from_this();
 }
 
@@ -631,41 +631,41 @@ QueryBuilder::ptr QueryBuilder::insert(const std::string& col, double val)
 std::string QueryBuilder::buildCountSQL() const
 {
     std::stringstream ss;
-    ss << "SELECT COUNT(*) FROM " << m_table;
-    for (auto& j : m_joins) {
+    ss << "SELECT COUNT(*) FROM " << table_;
+    for (auto& j : joins_) {
         ss << " " << j;
     }
     buildWhereClause(ss);
     return ss.str();
 }
 
-std::string QueryBuilder::buildQuerySQL(const std::string& selectCols, bool withPagination) const
+std::string QueryBuilder::buildQuerySQL(const std::string& select_cols, bool with_pagination) const
 {
     std::stringstream ss;
-    ss << "SELECT " << selectCols << " FROM " << m_table;
-    for (auto& j : m_joins) {
+    ss << "SELECT " << select_cols << " FROM " << table_;
+    for (auto& j : joins_) {
         ss << " " << j;
     }
     buildWhereClause(ss);
-    if (!m_groupBy.empty()) {
-        ss << " GROUP BY " << m_groupBy;
+    if (!group_by_.empty()) {
+        ss << " GROUP BY " << group_by_;
     }
-    if (!m_havingClauses.empty()) {
+    if (!having_clauses_.empty()) {
         ss << " HAVING ";
-        for (size_t i = 0; i < m_havingClauses.size(); ++i) {
+        for (size_t i = 0; i < having_clauses_.size(); ++i) {
             if (i)
                 ss << " AND ";
-            ss << m_havingClauses[i];
+            ss << having_clauses_[i];
         }
     }
-    if (!m_orderBy.empty()) {
-        ss << " ORDER BY " << m_orderBy;
+    if (!order_by_.empty()) {
+        ss << " ORDER BY " << order_by_;
     }
-    if (withPagination) {
-        if (m_hasLimit) {
+    if (with_pagination) {
+        if (has_limit_) {
             ss << " LIMIT ?";
         }
-        if (m_hasOffset) {
+        if (has_offset_) {
             ss << " OFFSET ?";
         }
     }
@@ -674,20 +674,20 @@ std::string QueryBuilder::buildQuerySQL(const std::string& selectCols, bool with
 
 std::string QueryBuilder::buildQuerySQL() const
 {
-    return buildQuerySQL(m_selectCols, true);
+    return buildQuerySQL(select_cols_, true);
 }
 
 std::string QueryBuilder::buildUpdateSQL() const
 {
     std::stringstream ss;
-    ss << "UPDATE " << m_table << " SET ";
-    for (size_t i = 0; i < m_setClauses.size(); ++i) {
+    ss << "UPDATE " << table_ << " SET ";
+    for (size_t i = 0; i < set_clauses_.size(); ++i) {
         if (i)
             ss << ", ";
-        ss << m_setClauses[i];
+        ss << set_clauses_[i];
     }
     buildWhereClause(ss);
-    if (m_hasLimit) {
+    if (has_limit_) {
         ss << " LIMIT ?";
     }
     return ss.str();
@@ -696,7 +696,7 @@ std::string QueryBuilder::buildUpdateSQL() const
 std::string QueryBuilder::buildDeleteSQL() const
 {
     std::stringstream ss;
-    ss << "DELETE FROM " << m_table;
+    ss << "DELETE FROM " << table_;
     buildWhereClause(ss);
     return ss.str();
 }
@@ -704,14 +704,14 @@ std::string QueryBuilder::buildDeleteSQL() const
 std::string QueryBuilder::buildInsertSQL() const
 {
     std::stringstream ss;
-    ss << "INSERT INTO " << m_table << " (";
-    for (size_t i = 0; i < m_insertCols.size(); ++i) {
+    ss << "INSERT INTO " << table_ << " (";
+    for (size_t i = 0; i < insert_cols_.size(); ++i) {
         if (i)
             ss << ", ";
-        ss << m_insertCols[i];
+        ss << insert_cols_[i];
     }
     ss << ") VALUES (";
-    for (size_t i = 0; i < m_insertParams.size(); ++i) {
+    for (size_t i = 0; i < insert_params_.size(); ++i) {
         if (i)
             ss << ", ";
         ss << "?";
@@ -725,14 +725,14 @@ std::string QueryBuilder::buildInsertSQL() const
 void QueryBuilder::bindParams(chen::IStmt::ptr stmt) const
 {
     int idx = 1;
-    bindParamArray(stmt, m_whereParams, idx);
-    bindParamArray(stmt, m_havingParams, idx);
-    if (m_hasLimit) {
-        stmt->bindInt32(idx, m_limit);
+    bindParamArray(stmt, where_params_, idx);
+    bindParamArray(stmt, having_params_, idx);
+    if (has_limit_) {
+        stmt->bindInt32(idx, limit_);
         ++idx;
     }
-    if (m_hasOffset) {
-        stmt->bindInt32(idx, m_offset);
+    if (has_offset_) {
+        stmt->bindInt32(idx, offset_);
         ++idx;
     }
 }
@@ -740,17 +740,17 @@ void QueryBuilder::bindParams(chen::IStmt::ptr stmt) const
 void QueryBuilder::bindQueryParams(chen::IStmt::ptr stmt) const
 {
     int idx = 1;
-    bindParamArray(stmt, m_whereParams, idx);
-    bindParamArray(stmt, m_havingParams, idx);
+    bindParamArray(stmt, where_params_, idx);
+    bindParamArray(stmt, having_params_, idx);
 }
 
 void QueryBuilder::bindUpdateParams(chen::IStmt::ptr stmt) const
 {
     int idx = 1;
-    bindParamArray(stmt, m_setParams, idx);
-    bindParamArray(stmt, m_whereParams, idx);
-    if (m_hasLimit) {
-        stmt->bindInt32(idx, m_limit);
+    bindParamArray(stmt, set_params_, idx);
+    bindParamArray(stmt, where_params_, idx);
+    if (has_limit_) {
+        stmt->bindInt32(idx, limit_);
         ++idx;
     }
 }
@@ -758,7 +758,7 @@ void QueryBuilder::bindUpdateParams(chen::IStmt::ptr stmt) const
 void QueryBuilder::bindInsertParams(chen::IStmt::ptr stmt) const
 {
     int idx = 1;
-    bindParamArray(stmt, m_insertParams, idx);
+    bindParamArray(stmt, insert_params_, idx);
 }
 
 // ---- Executors ----
@@ -792,7 +792,7 @@ int QueryBuilder::executeDelete(chen::IDB::ptr conn)
         return conn->getErrno();
     }
     int idx = 1;
-    bindParamArray(stmt, m_whereParams, idx);
+    bindParamArray(stmt, where_params_, idx);
     return stmt->execute();
 }
 
@@ -802,7 +802,7 @@ int QueryBuilder::executeInsert(chen::IDB::ptr conn)
     return executeInsert(conn, unused);
 }
 
-int QueryBuilder::executeInsert(chen::IDB::ptr conn, int64_t& lastInsertId)
+int QueryBuilder::executeInsert(chen::IDB::ptr conn, int64_t& last_insert_id)
 {
     if (!conn) {
         ERROR(g_logger) << "QueryBuilder::executeInsert conn is null";
@@ -817,7 +817,7 @@ int QueryBuilder::executeInsert(chen::IDB::ptr conn, int64_t& lastInsertId)
     bindInsertParams(stmt);
     int rt = stmt->execute();
     if (rt == 0) {
-        lastInsertId = stmt->getLastInsertId();
+        last_insert_id = stmt->getLastInsertId();
     }
     return rt;
 }

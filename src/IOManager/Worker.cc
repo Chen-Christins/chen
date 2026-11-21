@@ -10,10 +10,10 @@ static ConfigVar<std::map<std::string, std::map<std::string, std::string>>>::ptr
     Config::Lookup("workers", std::map<std::string, std::map<std::string, std::string>>(), "woker config");
 
 WorkerGroup::WorkerGroup(uint32_t batch_size, Scheduler* s)
-    : m_batchSize(batch_size)
-    , m_finish(false)
-    , m_scheduler(s)
-    , m_sem(batch_size)
+    : batch_size_(batch_size)
+    , finish_(false)
+    , scheduler_(s)
+    , sem_(batch_size)
 {
 }
 
@@ -24,16 +24,16 @@ WorkerGroup::~WorkerGroup()
 
 void WorkerGroup::schedule(std::function<void()> cb, int thread)
 {
-    m_sem.wait();
-    m_scheduler->schedule(std::bind(&WorkerGroup::doWork, shared_from_this(), cb), thread);
+    sem_.wait();
+    scheduler_->schedule(std::bind(&WorkerGroup::doWork, shared_from_this(), cb), thread);
 }
 
 void WorkerGroup::waitAll()
 {
-    if (!m_finish) {
-        m_finish = true;
-        for (uint32_t i = 0; i < m_batchSize; ++i) {
-            m_sem.wait();
+    if (!finish_) {
+        finish_ = true;
+        for (uint32_t i = 0; i < batch_size_; ++i) {
+            sem_.wait();
         }
     }
 }
@@ -41,23 +41,23 @@ void WorkerGroup::waitAll()
 void WorkerGroup::doWork(std::function<void()> cb)
 {
     cb();
-    m_sem.notify();
+    sem_.notify();
 }
 
 WorkerManager::WorkerManager()
-    : m_stop(false)
+    : stop_(false)
 {
 }
 
 void WorkerManager::add(Scheduler::ptr s)
 {
-    m_datas[s->getName()].push_back(s);
+    datas_[s->getName()].push_back(s);
 }
 
 Scheduler::ptr WorkerManager::get(const std::string& name)
 {
-    auto it = m_datas.find(name);
-    if (it == m_datas.end()) {
+    auto it = datas_.find(name);
+    if (it == datas_.end()) {
         return nullptr;
     }
     if (it->second.size() == 1) {
@@ -87,7 +87,7 @@ bool WorkerManager::init(const std::map<std::string, std::map<std::string, std::
             add(s);
         }
     }
-    m_stop = m_datas.empty();
+    stop_ = datas_.empty();
     return true;
 }
 
@@ -99,10 +99,10 @@ bool WorkerManager::init()
 
 void WorkerManager::stop()
 {
-    if (m_stop) {
+    if (stop_) {
         return;
     }
-    for (auto& i : m_datas) {
+    for (auto& i : datas_) {
         for (auto& x : i.second) {
             // 取消 worker 上的残留定时器（如 do_io 的条件超时器），
             // 确保 IOManager::stopping() 中 getNextTimer() 返回 ~0ull
@@ -115,13 +115,13 @@ void WorkerManager::stop()
             x->stop();
         }
     }
-    m_datas.clear();
-    m_stop = true;
+    datas_.clear();
+    stop_ = true;
 }
 
 std::ostream& WorkerManager::dump(std::ostream& os)
 {
-    for (auto& i : m_datas) {
+    for (auto& i : datas_) {
         for (auto& x : i.second) {
             x->dump(os) << std::endl;
         }
@@ -131,7 +131,7 @@ std::ostream& WorkerManager::dump(std::ostream& os)
 
 uint32_t WorkerManager::getCount()
 {
-    return m_datas.size();
+    return datas_.size();
 }
 
 } // namespace chen

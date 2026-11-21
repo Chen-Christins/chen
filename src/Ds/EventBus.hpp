@@ -112,9 +112,9 @@ private:
     {
         std::vector<EventCallback> cbs;
         {
-            std::shared_lock lock(m_mutex);
-            auto it = m_listeners.find(event);
-            if (it == m_listeners.end()) {
+            std::shared_lock lock(mutex_);
+            auto it = listeners_.find(event);
+            if (it == listeners_.end()) {
                 return;
             }
             for (auto& entry : it->second) {
@@ -130,9 +130,9 @@ private:
     void doEmitAsync(EventKey event, std::any data);
 
 private:
-    std::shared_mutex m_mutex;
-    std::unordered_map<EventKey, std::vector<ListenerEntry>> m_listeners;
-    uint64_t m_nextId = 1;
+    std::shared_mutex mutex_;
+    std::unordered_map<EventKey, std::vector<ListenerEntry>> listeners_;
+    uint64_t next_id_ = 1;
 };
 
 typedef chen::Singleton<EventBus> EventBusMgr;

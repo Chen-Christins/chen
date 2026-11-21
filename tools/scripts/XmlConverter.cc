@@ -12,10 +12,10 @@ static Logger::ptr logger = LOG_NAME("converter");
 std::string XMLToHeaderConverter::convertType(const std::string& type)
 {
     if (type.empty()) {
-        if (m_reportedUnknownType.insert(type).second) {
+        if (reported_unknown_type_.insert(type).second) {
             ERROR(logger) << COLOR_RED << locationStr() << " Empty type (missing 'type' attribute)" << COLOR_RESET;
         }
-        m_hasError = true;
+        has_error_ = true;
         return type;
     }
     // Handle square bracket syntax [type] -> <type>
@@ -26,7 +26,7 @@ std::string XMLToHeaderConverter::convertType(const std::string& type)
     }
 
     // Basic types mapping
-    static const std::map<std::string, std::string> basicTypes = {
+    static const std::map<std::string, std::string> basic_types = {
         {"int8", "int8_t"},
         {"uint8", "uint8_t"},
         {"int16", "int16_t"},
@@ -62,63 +62,63 @@ std::string XMLToHeaderConverter::convertType(const std::string& type)
         {"blob", "std::vector<uint8_t>"},
     };
 
-    auto it = basicTypes.find(type);
-    if (it != basicTypes.end()) {
-        static const std::set<std::string> cstdintBasedTypes = {"int",      "uint",     "short",     "ushort",  "char",   "byte",   "ubyte",
-                                                                "tinyint",  "tinyuint", "bigint",    "biguint", "number", "varint", "timestamp",
+    auto it = basic_types.find(type);
+    if (it != basic_types.end()) {
+        static const std::set<std::string> cstdint_based_types = {"int", "uint", "short", "ushort", "char", "byte",
+            "ubyte", "tinyint",  "tinyuint", "bigint",    "biguint", "number", "varint", "timestamp",
                                                                 "datetime", "smallint", "smalluint", "int8",    "uint8",  "int16",  "uint16",
                                                                 "int32",    "uint32",   "int64",     "uint64"};
 
         if (type == "string" || type == "stringvar") {
-            requiredHeaders.insert("<string>");
-        } else if (cstdintBasedTypes.count(type) > 0) {
-            requiredHeaders.insert("<cstdint>");
+            required_headers_.insert("<string>");
+        } else if (cstdint_based_types.count(type) > 0) {
+            required_headers_.insert("<cstdint>");
         }
 
         // Add headers for specific types
         if (type == "bool") {
-            // requiredHeaders.insert("<stdbool.h>");
+            // required_headers_.insert("<stdbool.h>");
         } else if (type == "bytes" || type == "blob") {
-            requiredHeaders.insert("<vector>");
+            required_headers_.insert("<vector>");
         }
         return it->second;
     }
 
     // Template types
     if (type.substr(0, 6) == "array<") {
-        requiredHeaders.insert("<array>");
+        required_headers_.insert("<array>");
         return processTemplateType("std::array", type);
     }
     if (type.substr(0, 4) == "map<") {
-        requiredHeaders.insert("<map>");
+        required_headers_.insert("<map>");
         return processTemplateType("std::map", type);
     }
     if (type.substr(0, 4) == "set<") {
-        requiredHeaders.insert("<set>");
+        required_headers_.insert("<set>");
         return processTemplateType("std::set", type);
     }
     if (type.substr(0, 5) == "pair<") {
-        requiredHeaders.insert("<utility>");
+        required_headers_.insert("<utility>");
         return processTemplateType("std::pair", type);
     }
     if (type.substr(0, 5) == "list<") {
-        requiredHeaders.insert("<list>");
+        required_headers_.insert("<list>");
         return processTemplateType("std::list", type);
     }
     if (type.substr(0, 6) == "tuple<") {
-        requiredHeaders.insert("<tuple>");
+        required_headers_.insert("<tuple>");
         return processTupleType(type);
     }
     if (type.substr(0, 9) == "optional<") {
-        requiredHeaders.insert("<optional>");
+        required_headers_.insert("<optional>");
         return processTemplateType("std::optional", type);
     }
     if (type.substr(0, 8) == "variant<") {
-        requiredHeaders.insert("<variant>");
+        required_headers_.insert("<variant>");
         return processVariantType(type);
     }
     if (type.substr(0, 7) == "vector<") {
-        requiredHeaders.insert("<vector>");
+        required_headers_.insert("<vector>");
         return processTemplateType("std::vector", type);
     }
 
@@ -127,68 +127,68 @@ std::string XMLToHeaderConverter::convertType(const std::string& type)
         return "tag" + toCamelCase(type);
     }
 
-    for (const auto& group : macroGroupList) {
+    for (const auto& group : macro_group_list_) {
         if (group.name == type) {
             return "tag" + toCamelCase(type);
         }
     }
-    for (const auto& structInfo : structList) {
-        if (structInfo.name == type) {
+    for (const auto& struct_info : struct_list_) {
+        if (struct_info.name == type) {
             return "tag" + toCamelCase(type);
         }
     }
-    for (const auto& unionInfo : unionList) {
-        if (unionInfo.name == type) {
+    for (const auto& union_info : union_list_) {
+        if (union_info.name == type) {
             return "tag" + toCamelCase(type);
         }
     }
 
     // Default fallback - try to convert basic types again for edge cases
-    std::string trimmedType = trim(type);
-    auto basicIt = basicTypes.find(trimmedType);
-    if (basicIt != basicTypes.end()) {
-        static const std::set<std::string> cstdintBasedTypes = {"int",     "uint",      "short",    "ushort",    "char",   "byte",    "ubyte",
-                                                                "tinyint", "tinyuint",  "smallint", "smalluint", "bigint", "biguint", "number",
+    std::string trimmed_type = trim(type);
+    auto basic_it = basic_types.find(trimmed_type);
+    if (basic_it != basic_types.end()) {
+        static const std::set<std::string> cstdint_based_types = {"int", "uint", "short", "ushort", "char", "byte",
+            "ubyte", "tinyint", "tinyuint",  "smallint", "smalluint", "bigint", "biguint", "number",
                                                                 "varint",  "timestamp", "datetime", "int8",      "uint8",  "int16",   "uint16",
                                                                 "int32",   "uint32",    "int64",    "uint64"};
 
-        if (trimmedType == "string" || trimmedType == "stringvar") {
-            requiredHeaders.insert("<string>");
-        } else if (cstdintBasedTypes.count(trimmedType) > 0) {
-            requiredHeaders.insert("<cstdint>");
+        if (trimmed_type == "string" || trimmed_type == "stringvar") {
+            required_headers_.insert("<string>");
+        } else if (cstdint_based_types.count(trimmed_type) > 0) {
+            required_headers_.insert("<cstdint>");
         }
 
-        if (trimmedType == "bool") {
-            requiredHeaders.insert("<stdbool.h>");
-        } else if (trimmedType == "bytes" || trimmedType == "blob") {
-            requiredHeaders.insert("<vector>");
+        if (trimmed_type == "bool") {
+            required_headers_.insert("<stdbool.h>");
+        } else if (trimmed_type == "bytes" || trimmed_type == "blob") {
+            required_headers_.insert("<vector>");
         }
-        return basicIt->second;
+        return basic_it->second;
     }
 
-    if (m_reportedUnknownType.insert(type).second) {
+    if (reported_unknown_type_.insert(type).second) {
         ERROR(logger) << COLOR_RED << locationStr() << " Unknown type: " << type << COLOR_RESET;
     }
-    m_hasError = true;
+    has_error_ = true;
     return type;
 }
 
-std::string XMLToHeaderConverter::processTemplateType(const std::string& templateName, const std::string& type)
+std::string XMLToHeaderConverter::processTemplateType(const std::string& template_name, const std::string& type)
 {
     std::string content = type.substr(type.find('<') + 1, type.rfind('>') - type.find('<') - 1);
     std::vector<std::string> params = splitTemplateParams(content);
 
-    std::string result = templateName + "<";
+    std::string result = template_name + "<";
     for (size_t i = 0; i < params.size(); ++i) {
         if (i > 0) {
             result += ", ";
         }
         std::string param = convertType(trim(params[i]));
-        if (m_hasError) {
+        if (has_error_) {
             break;
         }
         // Check if this parameter is a macro name
-        for (const auto& macro : macroList) {
+        for (const auto& macro : macro_list_) {
             if (macro.name == trim(params[i])) {
                 param = toUpper(macro.name);
                 break;
@@ -211,11 +211,11 @@ std::string XMLToHeaderConverter::processTupleType(const std::string& type)
             result += ", ";
         }
         std::string param = convertType(trim(params[i]));
-        if (m_hasError) {
+        if (has_error_) {
             break;
         }
         // Check if this parameter is a macro name
-        for (const auto& macro : macroList) {
+        for (const auto& macro : macro_list_) {
             if (macro.name == trim(params[i])) {
                 param = toUpper(macro.name);
                 break;
@@ -238,10 +238,10 @@ std::string XMLToHeaderConverter::processVariantType(const std::string& type)
             result += ", ";
         }
         std::string param = convertType(trim(params[i]));
-        if (m_hasError) {
+        if (has_error_) {
             break;
         }
-        for (const auto& macro : macroList) {
+        for (const auto& macro : macro_list_) {
             if (macro.name == trim(params[i])) {
                 param = toUpper(macro.name);
                 break;
@@ -257,17 +257,17 @@ std::vector<std::string> XMLToHeaderConverter::splitTemplateParams(const std::st
 {
     std::vector<std::string> params;
     std::string current;
-    int bracketCount = 0;
+    int bracket_count = 0;
 
     for (char c : content) {
         if (c == '<') {
-            bracketCount++;
+            bracket_count++;
         } else if (c == '>') {
-            bracketCount--;
-            if (bracketCount < 0) {
-                bracketCount = 0; // Prevent negative count
+            bracket_count--;
+            if (bracket_count < 0) {
+                bracket_count = 0; // Prevent negative count
             }
-        } else if (c == ',' && bracketCount == 0) {
+        } else if (c == ',' && bracket_count == 0) {
             params.push_back(trim(current));
             current.clear();
             continue;
@@ -284,21 +284,21 @@ std::vector<std::string> XMLToHeaderConverter::splitTemplateParams(const std::st
 
 std::string XMLToHeaderConverter::locationStr() const
 {
-    return m_currentFile + ":" + std::to_string(m_currentLine);
+    return current_file_ + ":" + std::to_string(current_line_);
 }
 
 std::string XMLToHeaderConverter::toCamelCase(const std::string& input) const
 {
     std::string result;
-    bool capitalizeNext = false;
+    bool capitalize_next = false;
 
     for (char c : input) {
         if (c == '_') {
-            capitalizeNext = true;
+            capitalize_next = true;
         } else {
-            if (capitalizeNext) {
+            if (capitalize_next) {
                 result += toupper(c);
-                capitalizeNext = false;
+                capitalize_next = false;
             } else {
                 result += c;
             }
@@ -333,157 +333,159 @@ std::string XMLToHeaderConverter::replaceAll(const std::string& str, const std::
     return result;
 }
 
-bool XMLToHeaderConverter::parseBoolAttr(const char* attrValue) const
+bool XMLToHeaderConverter::parseBoolAttr(const char* attr_value) const
 {
-    if (!attrValue) {
+    if (!attr_value) {
         return false;
     }
 
-    std::string value = trim(attrValue);
+    std::string value = trim(attr_value);
     std::ranges::transform(value, value.begin(), [](unsigned char c) {
         return static_cast<char>(std::tolower(c));
     });
     return value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
-std::string XMLToHeaderConverter::getScalarWriteExpr(const std::string& cppType, const std::string& valueExpr) const
+std::string XMLToHeaderConverter::getScalarWriteExpr(const std::string& cpp_type, const std::string& value_expr) const
 {
-    if (cppType.rfind("std::vector<", 0) == 0 || cppType.rfind("std::list<", 0) == 0 || cppType.rfind("std::set<", 0) == 0
-        || cppType.rfind("std::unordered_set<", 0) == 0 || cppType.rfind("std::map<", 0) == 0 || cppType.rfind("std::unordered_map<", 0) == 0
-        || cppType.rfind("std::array<", 0) == 0) {
-        return "chen::rpc::Serializer::Write(ba, " + valueExpr + ");";
+    if (cpp_type.rfind("std::vector<", 0) == 0 || cpp_type.rfind("std::list<", 0) == 0
+        || cpp_type.rfind("std::set<", 0) == 0 || cpp_type.rfind("std::unordered_set<", 0) == 0
+        || cpp_type.rfind("std::map<", 0) == 0 || cpp_type.rfind("std::unordered_map<", 0) == 0
+        || cpp_type.rfind("std::array<", 0) == 0) {
+        return "chen::rpc::Serializer::Write(ba, " + value_expr + ");";
     }
-    if (cppType == "int8_t") {
-        return "ba->writeFint8(" + valueExpr + ");";
+    if (cpp_type == "int8_t") {
+        return "ba->writeFint8(" + value_expr + ");";
     }
-    if (cppType == "uint8_t") {
-        return "ba->writeFuint8(" + valueExpr + ");";
+    if (cpp_type == "uint8_t") {
+        return "ba->writeFuint8(" + value_expr + ");";
     }
-    if (cppType == "int16_t") {
-        return "ba->writeFint16(" + valueExpr + ");";
+    if (cpp_type == "int16_t") {
+        return "ba->writeFint16(" + value_expr + ");";
     }
-    if (cppType == "uint16_t") {
-        return "ba->writeFuint16(" + valueExpr + ");";
+    if (cpp_type == "uint16_t") {
+        return "ba->writeFuint16(" + value_expr + ");";
     }
-    if (cppType == "int32_t") {
-        return "ba->writeFint32(" + valueExpr + ");";
+    if (cpp_type == "int32_t") {
+        return "ba->writeFint32(" + value_expr + ");";
     }
-    if (cppType == "uint32_t") {
-        return "ba->writeFuint32(" + valueExpr + ");";
+    if (cpp_type == "uint32_t") {
+        return "ba->writeFuint32(" + value_expr + ");";
     }
-    if (cppType == "int64_t") {
-        return "ba->writeFint64(" + valueExpr + ");";
+    if (cpp_type == "int64_t") {
+        return "ba->writeFint64(" + value_expr + ");";
     }
-    if (cppType == "uint64_t") {
-        return "ba->writeFuint64(" + valueExpr + ");";
+    if (cpp_type == "uint64_t") {
+        return "ba->writeFuint64(" + value_expr + ");";
     }
-    if (cppType == "float") {
-        return "ba->writeFloat(" + valueExpr + ");";
+    if (cpp_type == "float") {
+        return "ba->writeFloat(" + value_expr + ");";
     }
-    if (cppType == "double") {
-        return "ba->writeDouble(" + valueExpr + ");";
+    if (cpp_type == "double") {
+        return "ba->writeDouble(" + value_expr + ");";
     }
-    if (cppType == "bool") {
-        return "ba->writeFint8(" + valueExpr + " ? 1 : 0);";
+    if (cpp_type == "bool") {
+        return "ba->writeFint8(" + value_expr + " ? 1 : 0);";
     }
-    if (cppType == "std::string") {
-        return "ba->writeStringVint(" + valueExpr + ");";
+    if (cpp_type == "std::string") {
+        return "ba->writeStringVint(" + value_expr + ");";
     }
-    return "chen::rpc::Serialization<" + cppType + ">::write(ba, " + valueExpr + ");";
+    return "chen::rpc::Serialization<" + cpp_type + ">::write(ba, " + value_expr + ");";
 }
 
-std::string XMLToHeaderConverter::getScalarReadExpr(const std::string& cppType, const std::string& valueExpr) const
+std::string XMLToHeaderConverter::getScalarReadExpr(const std::string& cpp_type, const std::string& value_expr) const
 {
-    if (cppType.rfind("std::vector<", 0) == 0 || cppType.rfind("std::list<", 0) == 0 || cppType.rfind("std::set<", 0) == 0
-        || cppType.rfind("std::unordered_set<", 0) == 0 || cppType.rfind("std::map<", 0) == 0 || cppType.rfind("std::unordered_map<", 0) == 0
-        || cppType.rfind("std::array<", 0) == 0) {
-        return "chen::rpc::Serializer::Read(ba, " + valueExpr + ");";
+    if (cpp_type.rfind("std::vector<", 0) == 0 || cpp_type.rfind("std::list<", 0) == 0
+        || cpp_type.rfind("std::set<", 0) == 0 || cpp_type.rfind("std::unordered_set<", 0) == 0
+        || cpp_type.rfind("std::map<", 0) == 0 || cpp_type.rfind("std::unordered_map<", 0) == 0
+        || cpp_type.rfind("std::array<", 0) == 0) {
+        return "chen::rpc::Serializer::Read(ba, " + value_expr + ");";
     }
-    if (cppType == "int8_t") {
-        return valueExpr + " = ba->readFint8();";
+    if (cpp_type == "int8_t") {
+        return value_expr + " = ba->readFint8();";
     }
-    if (cppType == "uint8_t") {
-        return valueExpr + " = ba->readFuint8();";
+    if (cpp_type == "uint8_t") {
+        return value_expr + " = ba->readFuint8();";
     }
-    if (cppType == "int16_t") {
-        return valueExpr + " = ba->readFint16();";
+    if (cpp_type == "int16_t") {
+        return value_expr + " = ba->readFint16();";
     }
-    if (cppType == "uint16_t") {
-        return valueExpr + " = ba->readFuint16();";
+    if (cpp_type == "uint16_t") {
+        return value_expr + " = ba->readFuint16();";
     }
-    if (cppType == "int32_t") {
-        return valueExpr + " = ba->readFint32();";
+    if (cpp_type == "int32_t") {
+        return value_expr + " = ba->readFint32();";
     }
-    if (cppType == "uint32_t") {
-        return valueExpr + " = ba->readFuint32();";
+    if (cpp_type == "uint32_t") {
+        return value_expr + " = ba->readFuint32();";
     }
-    if (cppType == "int64_t") {
-        return valueExpr + " = ba->readFint64();";
+    if (cpp_type == "int64_t") {
+        return value_expr + " = ba->readFint64();";
     }
-    if (cppType == "uint64_t") {
-        return valueExpr + " = ba->readFuint64();";
+    if (cpp_type == "uint64_t") {
+        return value_expr + " = ba->readFuint64();";
     }
-    if (cppType == "float") {
-        return valueExpr + " = ba->readFloat();";
+    if (cpp_type == "float") {
+        return value_expr + " = ba->readFloat();";
     }
-    if (cppType == "double") {
-        return valueExpr + " = ba->readDouble();";
+    if (cpp_type == "double") {
+        return value_expr + " = ba->readDouble();";
     }
-    if (cppType == "bool") {
-        return valueExpr + " = ba->readFint8() != 0;";
+    if (cpp_type == "bool") {
+        return value_expr + " = ba->readFint8() != 0;";
     }
-    if (cppType == "std::string") {
-        return valueExpr + " = ba->readStringVint();";
+    if (cpp_type == "std::string") {
+        return value_expr + " = ba->readStringVint();";
     }
-    return "chen::rpc::Serialization<" + cppType + ">::read(ba, " + valueExpr + ");";
+    return "chen::rpc::Serialization<" + cpp_type + ">::read(ba, " + value_expr + ");";
 }
 
-void XMLToHeaderConverter::generateStructSerialization(std::ofstream& out, const StructInfo& structInfo)
+void XMLToHeaderConverter::generateStructSerialization(std::ofstream& out, const StructInfo& struct_info)
 {
-    std::string structTag = "tag" + toCamelCase(structInfo.name);
+    std::string struct_tag = "tag" + toCamelCase(struct_info.name);
 
     out << "/**" << std::endl;
     out << " * @brief RPC序列化适配器 - 自动生成" << std::endl;
     out << " */" << std::endl;
     out << "template <>" << std::endl;
-    out << "struct chen::rpc::Serialization<" << structTag << "> {" << std::endl;
-    out << "    static void write(ByteArray::ptr ba, const " << structTag << "& u) {" << std::endl;
+    out << "struct chen::rpc::Serialization<" << struct_tag << "> {" << std::endl;
+    out << "    static void write(ByteArray::ptr ba, const " << struct_tag << "& u) {" << std::endl;
 
-    for (const EntryInfo& entry : structInfo.entries) {
-        m_currentLine = entry.lineNum;
-        std::string cppType = convertType(entry.type);
-        if (m_hasError) {
+    for (const EntryInfo& entry : struct_info.entries) {
+        current_line_ = entry.line_num;
+        std::string cpp_type = convertType(entry.type);
+        if (has_error_) {
             return;
         }
-        if (entry.isArray) {
+        if (entry.is_array) {
             out << "        ba->writeUint32(static_cast<uint32_t>(u." << entry.name << ".size()));" << std::endl;
             out << "        for (const auto& item : u." << entry.name << ") {" << std::endl;
-            out << "            " << getScalarWriteExpr(cppType, "item") << std::endl;
+            out << "            " << getScalarWriteExpr(cpp_type, "item") << std::endl;
             out << "        }" << std::endl;
         } else {
-            out << "        " << getScalarWriteExpr(cppType, "u." + entry.name) << std::endl;
+            out << "        " << getScalarWriteExpr(cpp_type, "u." + entry.name) << std::endl;
         }
     }
 
     out << "    }" << std::endl;
     out << std::endl;
-    out << "    static void read(ByteArray::ptr ba, " << structTag << "& u) {" << std::endl;
+    out << "    static void read(ByteArray::ptr ba, " << struct_tag << "& u) {" << std::endl;
 
-    for (const EntryInfo& entry : structInfo.entries) {
-        m_currentLine = entry.lineNum;
-        std::string cppType = convertType(entry.type);
-        if (m_hasError) {
+    for (const EntryInfo& entry : struct_info.entries) {
+        current_line_ = entry.line_num;
+        std::string cpp_type = convertType(entry.type);
+        if (has_error_) {
             return;
         }
-        if (entry.isArray) {
+        if (entry.is_array) {
             if (entry.size.empty()) {
                 out << "        {" << std::endl;
                 out << "            uint32_t count = ba->readUint32();" << std::endl;
                 out << "            u." << entry.name << ".clear();" << std::endl;
                 out << "            u." << entry.name << ".reserve(count);" << std::endl;
                 out << "            for (uint32_t i = 0; i < count; ++i) {" << std::endl;
-                out << "                " << cppType << " item{};" << std::endl;
-                out << "                " << getScalarReadExpr(cppType, "item") << std::endl;
+                out << "                " << cpp_type << " item{};" << std::endl;
+                out << "                " << getScalarReadExpr(cpp_type, "item") << std::endl;
                 out << "                u." << entry.name << ".push_back(item);" << std::endl;
                 out << "            }" << std::endl;
                 out << "        }" << std::endl;
@@ -493,18 +495,18 @@ void XMLToHeaderConverter::generateStructSerialization(std::ofstream& out, const
                 out << "            uint32_t fixed_size = static_cast<uint32_t>(u." << entry.name << ".size());" << std::endl;
                 out << "            uint32_t fill = count < fixed_size ? count : fixed_size;" << std::endl;
                 out << "            for (uint32_t i = 0; i < fill; ++i) {" << std::endl;
-                out << "                " << cppType << " item{};" << std::endl;
-                out << "                " << getScalarReadExpr(cppType, "item") << std::endl;
+                out << "                " << cpp_type << " item{};" << std::endl;
+                out << "                " << getScalarReadExpr(cpp_type, "item") << std::endl;
                 out << "                u." << entry.name << "[i] = item;" << std::endl;
                 out << "            }" << std::endl;
                 out << "            for (uint32_t i = fill; i < count; ++i) {" << std::endl;
-                out << "                " << cppType << " item{};" << std::endl;
-                out << "                " << getScalarReadExpr(cppType, "item") << std::endl;
+                out << "                " << cpp_type << " item{};" << std::endl;
+                out << "                " << getScalarReadExpr(cpp_type, "item") << std::endl;
                 out << "            }" << std::endl;
                 out << "        }" << std::endl;
             }
         } else {
-            out << "        " << getScalarReadExpr(cppType, "u." + entry.name) << std::endl;
+            out << "        " << getScalarReadExpr(cpp_type, "u." + entry.name) << std::endl;
         }
     }
 
@@ -516,8 +518,8 @@ void XMLToHeaderConverter::generateStructSerialization(std::ofstream& out, const
 bool XMLToHeaderConverter::parseXML(const std::string& filename)
 {
     // Store the current XML file directory for resolving relative includes
-    size_t lastSlash = filename.find_last_of("/\\");
-    currentXMLDir = (lastSlash != std::string::npos) ? filename.substr(0, lastSlash) : "";
+    size_t last_slash = filename.find_last_of("/\\");
+    current_xml_dir_ = (last_slash != std::string::npos) ? filename.substr(0, last_slash) : "";
 
     tinyxml2::XMLDocument doc;
     if (doc.LoadFile(filename.c_str()) != tinyxml2::XML_SUCCESS) {
@@ -525,7 +527,7 @@ bool XMLToHeaderConverter::parseXML(const std::string& filename)
         return false;
     }
 
-    m_currentFile = filename;
+    current_file_ = filename;
 
     tinyxml2::XMLElement* metalib = doc.FirstChildElement("metalib");
     if (!metalib) {
@@ -534,7 +536,7 @@ bool XMLToHeaderConverter::parseXML(const std::string& filename)
     }
 
     // Get metalib description
-    metalibDesc = metalib->Attribute("desc") ? metalib->Attribute("desc") : "";
+    metalib_desc_ = metalib->Attribute("desc") ? metalib->Attribute("desc") : "";
 
     tinyxml2::XMLElement* header = metalib->FirstChildElement("header");
     if (!header) {
@@ -543,29 +545,29 @@ bool XMLToHeaderConverter::parseXML(const std::string& filename)
     }
 
     // Get header info
-    headerName = header->Attribute("name") ? header->Attribute("name") : "PROTOCOL";
-    headerDesc = header->Attribute("desc") ? header->Attribute("desc") : "";
-    m_headerPack = parseBoolAttr(header->Attribute("pack"));
+    header_name_ = header->Attribute("name") ? header->Attribute("name") : "PROTOCOL";
+    header_desc_ = header->Attribute("desc") ? header->Attribute("desc") : "";
+    header_pack_ = parseBoolAttr(header->Attribute("pack"));
 
     // Parse includes first
     for (tinyxml2::XMLElement* include = header->FirstChildElement("include"); include; include = include->NextSiblingElement("include")) {
-        std::string includeFile = include->Attribute("file") ? include->Attribute("file") : "";
-        std::string includePrefix = include->Attribute("prefix") ? include->Attribute("prefix") : "";
+        std::string include_file = include->Attribute("file") ? include->Attribute("file") : "";
+        std::string include_prefix = include->Attribute("prefix") ? include->Attribute("prefix") : "";
 
-        if (!includeFile.empty()) {
-            parseIncludeFile(includeFile, includePrefix);
+        if (!include_file.empty()) {
+            parseIncludeFile(include_file, include_prefix);
         }
     }
 
     // Walk elements in original order to preserve declaration ordering for structs/unions/enums
     for (tinyxml2::XMLElement* child = header->FirstChildElement(); child; child = child->NextSiblingElement()) {
-        const char* tagName = child->Name();
-        if (!tagName) {
+        const char* tag_name = child->Name();
+        if (!tag_name) {
             continue;
         }
-        m_currentLine = child->GetLineNum();
+        current_line_ = child->GetLineNum();
 
-        std::string tag = tagName;
+        std::string tag = tag_name;
 
         if (tag == "macro" && child->Parent() == header) {
             MacroInfo info;
@@ -575,208 +577,208 @@ bool XMLToHeaderConverter::parseXML(const std::string& filename)
             info.desc = child->Attribute("desc") ? child->Attribute("desc") : "";
             if (info.name.empty()) {
                 ERROR(logger) << COLOR_RED << locationStr() << " Macro is missing required 'name' attribute" << COLOR_RESET;
-                m_hasError = true;
+                has_error_ = true;
             }
             if (info.value.empty()) {
                 ERROR(logger) << COLOR_RED << locationStr() << " Macro '" << info.name << "' is missing required 'value' attribute" << COLOR_RESET;
-                m_hasError = true;
+                has_error_ = true;
             }
             if (info.type.empty()) {
                 ERROR(logger) << COLOR_RED << locationStr() << " Macro '" << info.name << "' is missing required 'type' attribute" << COLOR_RESET;
-                m_hasError = true;
+                has_error_ = true;
             }
-            macroList.push_back(info);
+            macro_list_.push_back(info);
             continue;
         }
 
         if (tag == "macrogroup") {
-            MacroGroupInfo groupInfo;
-            groupInfo.name = child->Attribute("name") ? child->Attribute("name") : "";
-            groupInfo.desc = child->Attribute("desc") ? child->Attribute("desc") : "";
-            if (groupInfo.name.empty()) {
+            MacroGroupInfo group_info;
+            group_info.name = child->Attribute("name") ? child->Attribute("name") : "";
+            group_info.desc = child->Attribute("desc") ? child->Attribute("desc") : "";
+            if (group_info.name.empty()) {
                 ERROR(logger) << COLOR_RED << locationStr() << " Macrogroup is missing required 'name' attribute" << COLOR_RESET;
-                m_hasError = true;
+                has_error_ = true;
             }
 
             for (tinyxml2::XMLElement* macro = child->FirstChildElement("macro"); macro; macro = macro->NextSiblingElement("macro")) {
                 MacroInfo info;
-                m_currentLine = macro->GetLineNum();
+                current_line_ = macro->GetLineNum();
                 info.name = macro->Attribute("name") ? macro->Attribute("name") : "";
                 info.value = macro->Attribute("value") ? macro->Attribute("value") : "";
                 info.desc = macro->Attribute("desc") ? macro->Attribute("desc") : "";
                 if (info.name.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Macrogroup '" << groupInfo.name
+                    ERROR(logger) << COLOR_RED << locationStr() << " Macrogroup '" << group_info.name
                                   << "' contains a macro with missing 'name' attribute" << COLOR_RESET;
-                    m_hasError = true;
+                    has_error_ = true;
                 }
                 if (info.value.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Macrogroup '" << groupInfo.name << "' macro '" << info.name
-                                  << "' is missing required 'value' attribute" << COLOR_RESET;
-                    m_hasError = true;
+                    ERROR(logger) << COLOR_RED << locationStr() << " Macrogroup '" << group_info.name << "' macro '"
+                                  << info.name << "' is missing required 'value' attribute" << COLOR_RESET;
+                    has_error_ = true;
                 }
-                groupInfo.macros.push_back(info);
+                group_info.macros.push_back(info);
             }
 
-            macroGroupList.push_back(groupInfo);
-            elementOrder.push_back({ElementKind::MacroGroup, macroGroupList.size() - 1});
+            macro_group_list_.push_back(group_info);
+            element_order_.push_back({ElementKind::MacroGroup, macro_group_list_.size() - 1});
             continue;
         }
 
         if (tag == "struct") {
-            StructInfo structInfo;
-            structInfo.name = child->Attribute("name") ? child->Attribute("name") : "";
-            structInfo.desc = child->Attribute("desc") ? child->Attribute("desc") : "";
-            structInfo.needSerialization = parseBoolAttr(child->Attribute("serialize")) || parseBoolAttr(child->Attribute("serialization"))
-                || parseBoolAttr(child->Attribute("rpc"));
-            structInfo.pack = parseBoolAttr(child->Attribute("pack"));
-            if (structInfo.name.empty()) {
+            StructInfo struct_info;
+            struct_info.name = child->Attribute("name") ? child->Attribute("name") : "";
+            struct_info.desc = child->Attribute("desc") ? child->Attribute("desc") : "";
+            struct_info.need_serialization = parseBoolAttr(child->Attribute("serialize"))
+                || parseBoolAttr(child->Attribute("serialization")) || parseBoolAttr(child->Attribute("rpc"));
+            struct_info.pack = parseBoolAttr(child->Attribute("pack"));
+            if (struct_info.name.empty()) {
                 ERROR(logger) << COLOR_RED << locationStr() << " Struct is missing required 'name' attribute" << COLOR_RESET;
-                m_hasError = true;
+                has_error_ = true;
             }
 
             for (tinyxml2::XMLElement* entry = child->FirstChildElement("entry"); entry; entry = entry->NextSiblingElement("entry")) {
-                EntryInfo entryInfo;
-                m_currentLine = entry->GetLineNum();
-                entryInfo.lineNum = m_currentLine;
-                entryInfo.name = entry->Attribute("name") ? entry->Attribute("name") : "";
-                entryInfo.type = entry->Attribute("type") ? decodeHTMLEntities(entry->Attribute("type")) : "";
-                entryInfo.desc = entry->Attribute("desc") ? entry->Attribute("desc") : "";
+                EntryInfo entry_info;
+                current_line_ = entry->GetLineNum();
+                entry_info.line_num = current_line_;
+                entry_info.name = entry->Attribute("name") ? entry->Attribute("name") : "";
+                entry_info.type = entry->Attribute("type") ? decodeHTMLEntities(entry->Attribute("type")) : "";
+                entry_info.desc = entry->Attribute("desc") ? entry->Attribute("desc") : "";
 
-                if (entryInfo.name.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Struct '" << structInfo.name
+                if (entry_info.name.empty()) {
+                    ERROR(logger) << COLOR_RED << locationStr() << " Struct '" << struct_info.name
                                   << "' contains an entry with missing 'name' attribute" << COLOR_RESET;
-                    m_hasError = true;
+                    has_error_ = true;
                 }
-                if (entryInfo.type.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Struct '" << structInfo.name << "' entry '" << entryInfo.name
-                                  << "' is missing required 'type' attribute" << COLOR_RESET;
-                    m_hasError = true;
+                if (entry_info.type.empty()) {
+                    ERROR(logger) << COLOR_RED << locationStr() << " Struct '" << struct_info.name << "' entry '"
+                                  << entry_info.name << "' is missing required 'type' attribute" << COLOR_RESET;
+                    has_error_ = true;
                 }
 
-                const char* arrayAttr = entry->Attribute("array");
-                entryInfo.isArray = (arrayAttr && std::string(arrayAttr) == "true");
+                const char* array_attr = entry->Attribute("array");
+                entry_info.is_array = (array_attr && std::string(array_attr) == "true");
 
-                if (entryInfo.isArray) {
-                    entryInfo.size = entry->Attribute("size") ? entry->Attribute("size") : "";
-                    if (entryInfo.size.empty()) {
-                        requiredHeaders.insert("<vector>");
+                if (entry_info.is_array) {
+                    entry_info.size = entry->Attribute("size") ? entry->Attribute("size") : "";
+                    if (entry_info.size.empty()) {
+                        required_headers_.insert("<vector>");
                     } else {
-                        requiredHeaders.insert("<array>");
+                        required_headers_.insert("<array>");
                     }
                 }
 
-                if (!entryInfo.type.empty()) {
-                    convertType(entryInfo.type);
+                if (!entry_info.type.empty()) {
+                    convertType(entry_info.type);
                 }
 
-                structInfo.entries.push_back(entryInfo);
+                struct_info.entries.push_back(entry_info);
             }
 
-            structList.push_back(structInfo);
-            elementOrder.push_back({ElementKind::Struct, structList.size() - 1});
+            struct_list_.push_back(struct_info);
+            element_order_.push_back({ElementKind::Struct, struct_list_.size() - 1});
             continue;
         }
 
         if (tag == "union") {
-            UnionInfo unionInfo;
-            unionInfo.name = child->Attribute("name") ? child->Attribute("name") : "";
-            unionInfo.desc = child->Attribute("desc") ? child->Attribute("desc") : "";
-            if (unionInfo.name.empty()) {
+            UnionInfo union_info;
+            union_info.name = child->Attribute("name") ? child->Attribute("name") : "";
+            union_info.desc = child->Attribute("desc") ? child->Attribute("desc") : "";
+            if (union_info.name.empty()) {
                 ERROR(logger) << COLOR_RED << locationStr() << " Union is missing required 'name' attribute" << COLOR_RESET;
-                m_hasError = true;
+                has_error_ = true;
             }
 
             for (tinyxml2::XMLElement* entry = child->FirstChildElement("entry"); entry; entry = entry->NextSiblingElement("entry")) {
-                EntryInfo entryInfo;
-                m_currentLine = entry->GetLineNum();
-                entryInfo.lineNum = m_currentLine;
-                entryInfo.name = entry->Attribute("name") ? entry->Attribute("name") : "";
-                entryInfo.type = entry->Attribute("type") ? decodeHTMLEntities(entry->Attribute("type")) : "";
-                entryInfo.desc = entry->Attribute("desc") ? entry->Attribute("desc") : "";
+                EntryInfo entry_info;
+                current_line_ = entry->GetLineNum();
+                entry_info.line_num = current_line_;
+                entry_info.name = entry->Attribute("name") ? entry->Attribute("name") : "";
+                entry_info.type = entry->Attribute("type") ? decodeHTMLEntities(entry->Attribute("type")) : "";
+                entry_info.desc = entry->Attribute("desc") ? entry->Attribute("desc") : "";
 
-                if (entryInfo.name.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Union '" << unionInfo.name << "' contains an entry with missing 'name' attribute"
-                                  << COLOR_RESET;
-                    m_hasError = true;
+                if (entry_info.name.empty()) {
+                    ERROR(logger) << COLOR_RED << locationStr() << " Union '" << union_info.name
+                                  << "' contains an entry with missing 'name' attribute" << COLOR_RESET;
+                    has_error_ = true;
                 }
-                if (entryInfo.type.empty()) {
-                    ERROR(logger) << COLOR_RED << locationStr() << " Union '" << unionInfo.name << "' entry '" << entryInfo.name
-                                  << "' is missing required 'type' attribute" << COLOR_RESET;
-                    m_hasError = true;
+                if (entry_info.type.empty()) {
+                    ERROR(logger) << COLOR_RED << locationStr() << " Union '" << union_info.name << "' entry '"
+                                  << entry_info.name << "' is missing required 'type' attribute" << COLOR_RESET;
+                    has_error_ = true;
                 }
 
-                const char* arrayAttr = entry->Attribute("array");
-                entryInfo.isArray = (arrayAttr && std::string(arrayAttr) == "true");
+                const char* array_attr = entry->Attribute("array");
+                entry_info.is_array = (array_attr && std::string(array_attr) == "true");
 
-                if (entryInfo.isArray) {
-                    entryInfo.size = entry->Attribute("size") ? entry->Attribute("size") : "";
-                    if (entryInfo.size.empty()) {
-                        requiredHeaders.insert("<vector>");
+                if (entry_info.is_array) {
+                    entry_info.size = entry->Attribute("size") ? entry->Attribute("size") : "";
+                    if (entry_info.size.empty()) {
+                        required_headers_.insert("<vector>");
                     } else {
-                        requiredHeaders.insert("<array>");
+                        required_headers_.insert("<array>");
                     }
                 }
 
-                if (!entryInfo.type.empty()) {
-                    convertType(entryInfo.type);
+                if (!entry_info.type.empty()) {
+                    convertType(entry_info.type);
                 }
 
-                unionInfo.entries.push_back(entryInfo);
+                union_info.entries.push_back(entry_info);
             }
 
-            unionList.push_back(unionInfo);
-            elementOrder.push_back({ElementKind::Union, unionList.size() - 1});
+            union_list_.push_back(union_info);
+            element_order_.push_back({ElementKind::Union, union_list_.size() - 1});
         }
     }
 
     return true;
 }
 
-void XMLToHeaderConverter::generateHeader(const std::string& outputFile)
+void XMLToHeaderConverter::generateHeader(const std::string& output_file)
 {
-    std::ofstream out(outputFile);
+    std::ofstream out(output_file);
     if (!out.is_open()) {
-        ERROR(logger) << COLOR_RED << m_currentFile << ":0"
-                      << " Error opening output file: " << outputFile << COLOR_RESET;
+        ERROR(logger) << COLOR_RED << current_file_ << ":0"
+                      << " Error opening output file: " << output_file << COLOR_RESET;
         return;
     }
 
-    bool hasSerializableStruct = false;
-    for (const auto& structInfo : structList) {
-        if (structInfo.needSerialization) {
-            hasSerializableStruct = true;
+    bool has_serializable_struct = false;
+    for (const auto& struct_info : struct_list_) {
+        if (struct_info.need_serialization) {
+            has_serializable_struct = true;
             break;
         }
     }
-    if (hasSerializableStruct) {
-        requiredHeaders.insert("<chen/rpc/serializer.h>");
+    if (has_serializable_struct) {
+        required_headers_.insert("<chen/rpc/serializer.h>");
     }
 
     // Generate header guard
-    std::string guardName = "__" + toUpper(headerName) + "_H__";
+    std::string guard_name = "__" + toUpper(header_name_) + "_H__";
 
     // Write header
     out << "/**" << std::endl;
-    out << " * @brief " << headerDesc << std::endl;
-    out << " * @note " << metalibDesc << std::endl;
+    out << " * @brief " << header_desc_ << std::endl;
+    out << " * @note " << metalib_desc_ << std::endl;
     out << " */" << std::endl;
-    out << "#ifndef " << guardName << std::endl;
-    out << "#define " << guardName << std::endl;
+    out << "#ifndef " << guard_name << std::endl;
+    out << "#define " << guard_name << std::endl;
     out << std::endl;
     // Write required headers
-    for (const std::string& header : requiredHeaders) {
+    for (const std::string& header : required_headers_) {
         out << "#include " << header << std::endl;
     }
     out << std::endl;
 
-    if (m_headerPack) {
+    if (header_pack_) {
         out << "#pragma pack(push, 1)" << std::endl;
     }
     out << std::endl;
 
     // Write standalone macros (defines)
-    for (const auto& macro : macroList) {
-        std::string defineName = toUpper(macro.name);
+    for (const auto& macro : macro_list_) {
+        std::string define_name = toUpper(macro.name);
         std::string value = macro.value;
 
         if (macro.type == "string") {
@@ -784,18 +786,18 @@ void XMLToHeaderConverter::generateHeader(const std::string& outputFile)
         }
 
         if (!macro.desc.empty()) {
-            out << "#define " << defineName << " " << value << " /* " << macro.desc << " */" << std::endl;
+            out << "#define " << define_name << " " << value << " /* " << macro.desc << " */" << std::endl;
         } else {
-            out << "#define " << defineName << " " << value << std::endl;
+            out << "#define " << define_name << " " << value << std::endl;
         }
     }
     out << std::endl;
 
     // Write remaining elements following XML order (macros already emitted above)
-    for (const auto& element : elementOrder) {
+    for (const auto& element : element_order_) {
         switch (element.kind) {
         case ElementKind::MacroGroup: {
-            const auto& group = macroGroupList[element.index];
+            const auto& group = macro_group_list_[element.index];
             if (isExternalType(group.name)) {
                 break;
             }
@@ -810,18 +812,20 @@ void XMLToHeaderConverter::generateHeader(const std::string& outputFile)
 
             for (size_t i = 0; i < group.macros.size(); ++i) {
                 const MacroInfo& macro = group.macros[i];
-                std::string enumName = toUpper(macro.name);
+                std::string enum_name = toUpper(macro.name);
                 if (!macro.desc.empty()) {
                     if (i == group.macros.size() - 1) {
-                        out << "    " << enumName << " = " << macro.value << " /* " << macro.desc << " */" << std::endl;
+                        out << "    " << enum_name << " = " << macro.value << " /* " << macro.desc << " */"
+                            << std::endl;
                     } else {
-                        out << "    " << enumName << " = " << macro.value << ", /* " << macro.desc << " */" << std::endl;
+                        out << "    " << enum_name << " = " << macro.value << ", /* " << macro.desc << " */"
+                            << std::endl;
                     }
                 } else {
                     if (i == group.macros.size() - 1) {
-                        out << "    " << enumName << " = " << macro.value << std::endl;
+                        out << "    " << enum_name << " = " << macro.value << std::endl;
                     } else {
-                        out << "    " << enumName << " = " << macro.value << "," << std::endl;
+                        out << "    " << enum_name << " = " << macro.value << "," << std::endl;
                     }
                 }
             }
@@ -831,112 +835,112 @@ void XMLToHeaderConverter::generateHeader(const std::string& outputFile)
             break;
         }
         case ElementKind::Struct: {
-            const auto& structInfo = structList[element.index];
-            if (isExternalType(structInfo.name)) {
+            const auto& struct_info = struct_list_[element.index];
+            if (isExternalType(struct_info.name)) {
                 break;
             }
 
-            if (structInfo.pack) {
+            if (struct_info.pack) {
                 out << "#pragma pack(push, 1)" << std::endl;
             }
 
-            if (!structInfo.desc.empty()) {
+            if (!struct_info.desc.empty()) {
                 out << "/**" << std::endl;
-                out << " * @brief " << structInfo.desc << std::endl;
+                out << " * @brief " << struct_info.desc << std::endl;
                 out << " */" << std::endl;
             }
 
-            out << "struct tag" << toCamelCase(structInfo.name) << " {" << std::endl;
+            out << "struct tag" << toCamelCase(struct_info.name) << " {" << std::endl;
 
-            for (const EntryInfo& entry : structInfo.entries) {
-                m_currentLine = entry.lineNum;
-                std::string cppType = convertType(entry.type);
-                if (m_hasError) {
+            for (const EntryInfo& entry : struct_info.entries) {
+                current_line_ = entry.line_num;
+                std::string cpp_type = convertType(entry.type);
+                if (has_error_) {
                     break;
                 }
 
-                if (entry.isArray) {
+                if (entry.is_array) {
                     if (!entry.size.empty()) {
                         bool found = false;
-                        for (const auto& macro : macroList) {
+                        for (const auto& macro : macro_list_) {
                             if (macro.name == entry.size) {
-                                std::string sizeConst = toUpper(entry.size);
-                                cppType = "std::array<" + cppType + ", " + sizeConst + ">";
+                                std::string size_const = toUpper(entry.size);
+                                cpp_type = "std::array<" + cpp_type + ", " + size_const + ">";
                                 found = true;
                                 break;
                             }
                         }
                         if (!found) {
-                            cppType = "std::array<" + cppType + ", " + entry.size + ">";
+                            cpp_type = "std::array<" + cpp_type + ", " + entry.size + ">";
                         }
                     } else {
-                        cppType = "std::vector<" + cppType + ">";
+                        cpp_type = "std::vector<" + cpp_type + ">";
                     }
                 }
 
                 if (!entry.desc.empty()) {
-                    out << "    " << cppType << " " << entry.name << "; /* " << entry.desc << " */" << std::endl;
+                    out << "    " << cpp_type << " " << entry.name << "; /* " << entry.desc << " */" << std::endl;
                 } else {
-                    out << "    " << cppType << " " << entry.name << ";" << std::endl;
+                    out << "    " << cpp_type << " " << entry.name << ";" << std::endl;
                 }
             }
 
             out << "};" << std::endl;
 
-            if (structInfo.pack) {
+            if (struct_info.pack) {
                 out << "#pragma pack(pop)" << std::endl;
             }
             out << std::endl;
 
-            if (structInfo.needSerialization) {
-                generateStructSerialization(out, structInfo);
+            if (struct_info.need_serialization) {
+                generateStructSerialization(out, struct_info);
             }
             break;
         }
         case ElementKind::Union: {
-            const auto& unionInfo = unionList[element.index];
-            if (isExternalType(unionInfo.name)) {
+            const auto& union_info = union_list_[element.index];
+            if (isExternalType(union_info.name)) {
                 break;
             }
 
-            if (!unionInfo.desc.empty()) {
+            if (!union_info.desc.empty()) {
                 out << "/**" << std::endl;
-                out << " * @brief " << unionInfo.desc << std::endl;
+                out << " * @brief " << union_info.desc << std::endl;
                 out << " */" << std::endl;
             }
 
-            out << "union tag" << toCamelCase(unionInfo.name) << " {" << std::endl;
+            out << "union tag" << toCamelCase(union_info.name) << " {" << std::endl;
 
-            for (const EntryInfo& entry : unionInfo.entries) {
-                m_currentLine = entry.lineNum;
-                std::string cppType = convertType(entry.type);
-                if (m_hasError) {
+            for (const EntryInfo& entry : union_info.entries) {
+                current_line_ = entry.line_num;
+                std::string cpp_type = convertType(entry.type);
+                if (has_error_) {
                     break;
                 }
 
-                if (entry.isArray) {
+                if (entry.is_array) {
                     if (!entry.size.empty()) {
                         bool found = false;
-                        for (const auto& macro : macroList) {
+                        for (const auto& macro : macro_list_) {
                             if (macro.name == entry.size) {
-                                std::string sizeConst = toUpper(entry.size);
-                                cppType = "std::array<" + cppType + ", " + sizeConst + ">";
+                                std::string size_const = toUpper(entry.size);
+                                cpp_type = "std::array<" + cpp_type + ", " + size_const + ">";
                                 found = true;
                                 break;
                             }
                         }
                         if (!found) {
-                            cppType = "std::array<" + cppType + ", " + entry.size + ">";
+                            cpp_type = "std::array<" + cpp_type + ", " + entry.size + ">";
                         }
                     } else {
-                        cppType = "std::vector<" + cppType + ">";
+                        cpp_type = "std::vector<" + cpp_type + ">";
                     }
                 }
 
                 if (!entry.desc.empty()) {
-                    out << "    " << cppType << " " << entry.name << "; /* " << entry.desc << " */" << std::endl;
+                    out << "    " << cpp_type << " " << entry.name << "; /* " << entry.desc << " */" << std::endl;
                 } else {
-                    out << "    " << cppType << " " << entry.name << ";" << std::endl;
+                    out << "    " << cpp_type << " " << entry.name << ";" << std::endl;
                 }
             }
 
@@ -947,16 +951,16 @@ void XMLToHeaderConverter::generateHeader(const std::string& outputFile)
         }
     }
 
-    if (m_headerPack) {
+    if (header_pack_) {
         out << "#pragma pack(pop)" << std::endl;
     }
 
-    out << "#endif // " << guardName << std::endl;
+    out << "#endif // " << guard_name << std::endl;
 
     out.close();
 
     if (!hasError()) {
-        INFO(logger) << "Header file generated successfully: " << outputFile;
+        INFO(logger) << "Header file generated successfully: " << output_file;
     } else {
         ERROR(logger) << COLOR_RED << "Errors occurred during header generation. Please check the logs." << COLOR_RESET;
     }
@@ -969,90 +973,92 @@ std::string XMLToHeaderConverter::toUpper(const std::string& str)
     return result;
 }
 
-void XMLToHeaderConverter::parseIncludeFile(const std::string& includeFile, const std::string& prefix)
+void XMLToHeaderConverter::parseIncludeFile(const std::string& include_file, const std::string& prefix)
 {
     tinyxml2::XMLDocument doc;
-    std::string fullPath = includeFile;
+    std::string full_path = include_file;
 
     // Resolve relative path
-    if (includeFile[0] != '/' && includeFile[0] != '.') {
+    if (include_file[0] != '/' && include_file[0] != '.') {
         // Relative path without leading ./
         // Combine with current XML directory
-        if (!currentXMLDir.empty()) {
-            fullPath = currentXMLDir + "/" + includeFile;
+        if (!current_xml_dir_.empty()) {
+            full_path = current_xml_dir_ + "/" + include_file;
         } else {
-            fullPath = includeFile;
+            full_path = include_file;
         }
-    } else if (includeFile[0] == '.' && includeFile[1] == '/') {
+    } else if (include_file[0] == '.' && include_file[1] == '/') {
         // Relative path with ./
-        if (!currentXMLDir.empty()) {
-            fullPath = currentXMLDir + includeFile.substr(1);
+        if (!current_xml_dir_.empty()) {
+            full_path = current_xml_dir_ + include_file.substr(1);
         } else {
-            fullPath = includeFile.substr(2);
+            full_path = include_file.substr(2);
         }
     }
 
-    if (doc.LoadFile(fullPath.c_str()) != tinyxml2::XML_SUCCESS) {
-        WARN(logger) << fullPath << " Could not load include file";
+    if (doc.LoadFile(full_path.c_str()) != tinyxml2::XML_SUCCESS) {
+        WARN(logger) << full_path << " Could not load include file";
         return;
     }
 
     tinyxml2::XMLElement* metalib = doc.FirstChildElement("metalib");
     if (!metalib) {
-        WARN(logger) << fullPath << " Include file missing metalib";
+        WARN(logger) << full_path << " Include file missing metalib";
         return;
     }
 
     tinyxml2::XMLElement* header = metalib->FirstChildElement("header");
     if (!header) {
-        WARN(logger) << fullPath << " Include file missing header";
+        WARN(logger) << full_path << " Include file missing header";
         return;
     }
 
     // Collect macro groups from included file
     for (tinyxml2::XMLElement* group = header->FirstChildElement("macrogroup"); group; group = group->NextSiblingElement("macrogroup")) {
-        std::string groupName = group->Attribute("name") ? group->Attribute("name") : "";
-        if (!groupName.empty()) {
-            includedTypes.insert(groupName);
-            std::string headerFile = extractHeaderName(fullPath);
-            externalTypeMapping[groupName] = headerFile;
-            requiredHeaders.insert("\"" + headerFile + "\"");
+        std::string group_name = group->Attribute("name") ? group->Attribute("name") : "";
+        if (!group_name.empty()) {
+            included_types_.insert(group_name);
+            std::string header_file = extractHeaderName(full_path);
+            external_type_mapping_[group_name] = header_file;
+            required_headers_.insert("\"" + header_file + "\"");
         }
     }
 
     // Collect structs from included file
-    for (tinyxml2::XMLElement* structElem = header->FirstChildElement("struct"); structElem; structElem = structElem->NextSiblingElement("struct")) {
-        std::string structName = structElem->Attribute("name") ? structElem->Attribute("name") : "";
-        if (!structName.empty()) {
-            includedTypes.insert(structName);
-            std::string headerFile = extractHeaderName(fullPath);
-            externalTypeMapping[structName] = headerFile;
-            requiredHeaders.insert("\"" + headerFile + "\"");
+    for (tinyxml2::XMLElement* struct_elem = header->FirstChildElement("struct"); struct_elem;
+        struct_elem = struct_elem->NextSiblingElement("struct")) {
+        std::string struct_name = struct_elem->Attribute("name") ? struct_elem->Attribute("name") : "";
+        if (!struct_name.empty()) {
+            included_types_.insert(struct_name);
+            std::string header_file = extractHeaderName(full_path);
+            external_type_mapping_[struct_name] = header_file;
+            required_headers_.insert("\"" + header_file + "\"");
         }
     }
 
     // Collect unions from included file
-    for (tinyxml2::XMLElement* unionElem = header->FirstChildElement("union"); unionElem; unionElem = unionElem->NextSiblingElement("union")) {
-        std::string unionName = unionElem->Attribute("name") ? unionElem->Attribute("name") : "";
-        if (!unionName.empty()) {
-            includedTypes.insert(unionName);
-            std::string headerFile = extractHeaderName(fullPath);
-            externalTypeMapping[unionName] = headerFile;
-            requiredHeaders.insert("\"" + headerFile + "\"");
+    for (tinyxml2::XMLElement* union_elem = header->FirstChildElement("union"); union_elem;
+        union_elem = union_elem->NextSiblingElement("union")) {
+        std::string union_name = union_elem->Attribute("name") ? union_elem->Attribute("name") : "";
+        if (!union_name.empty()) {
+            included_types_.insert(union_name);
+            std::string header_file = extractHeaderName(full_path);
+            external_type_mapping_[union_name] = header_file;
+            required_headers_.insert("\"" + header_file + "\"");
         }
     }
 }
 
-std::string XMLToHeaderConverter::extractHeaderName(const std::string& xmlPath)
+std::string XMLToHeaderConverter::extractHeaderName(const std::string& xml_path)
 {
     // Convert XML file path to header file name
     // e.g., "resources.xml" -> "resources.h"
-    size_t lastSlash = xmlPath.find_last_of("/\\");
-    std::string filename = (lastSlash != std::string::npos) ? xmlPath.substr(lastSlash + 1) : xmlPath;
+    size_t last_slash = xml_path.find_last_of("/\\");
+    std::string filename = (last_slash != std::string::npos) ? xml_path.substr(last_slash + 1) : xml_path;
 
-    size_t lastDot = filename.find_last_of(".");
-    if (lastDot != std::string::npos) {
-        filename = filename.substr(0, lastDot);
+    size_t last_dot = filename.find_last_of(".");
+    if (last_dot != std::string::npos) {
+        filename = filename.substr(0, last_dot);
     }
 
     return filename + ".h";
@@ -1060,12 +1066,12 @@ std::string XMLToHeaderConverter::extractHeaderName(const std::string& xmlPath)
 
 bool XMLToHeaderConverter::isExternalType(const std::string& type)
 {
-    return includedTypes.find(type) != includedTypes.end();
+    return included_types_.find(type) != included_types_.end();
 }
 
 bool XMLToHeaderConverter::hasError() const
 {
-    return m_hasError;
+    return has_error_;
 }
 
 std::string XMLToHeaderConverter::decodeHTMLEntities(const std::string& str) const
@@ -1123,30 +1129,30 @@ int main(int argc, char* argv[])
 
         chen::FSUtil::Mkdir(output);
 
-        bool allSuccess = true;
+        bool all_success = true;
         for (const auto& file : files) {
             std::string basename = chen::FSUtil::Basename(file);
-            size_t lastDot = basename.find_last_of('.');
-            if (lastDot != std::string::npos) {
-                basename = basename.substr(0, lastDot);
+            size_t last_dot = basename.find_last_of('.');
+            if (last_dot != std::string::npos) {
+                basename = basename.substr(0, last_dot);
             }
-            std::string outputFile = output + "/" + basename + ".h";
+            std::string output_file = output + "/" + basename + ".h";
 
             XMLToHeaderConverter converter;
             if (!converter.parseXML(file)) {
                 ERROR(logger) << COLOR_RED << file << ":0 Failed to parse XML file" << COLOR_RESET;
-                allSuccess = false;
+                all_success = false;
                 continue;
             }
-            converter.generateHeader(outputFile);
+            converter.generateHeader(output_file);
             if (converter.hasError()) {
                 ERROR(logger) << COLOR_RED << "Failed to generate header due to type conversion errors in " << file << COLOR_RESET;
-                allSuccess = false;
+                all_success = false;
                 return 1;
             }
         }
 
-        return allSuccess ? 0 : 1;
+        return all_success ? 0 : 1;
     }
 
     // Single file mode

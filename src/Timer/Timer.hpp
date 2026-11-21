@@ -64,15 +64,15 @@ private:
 
 private:
     /// 是否循环定时器
-    bool m_recurring = false;
+    bool recurring_ = false;
     /// 执行周期
-    uint64_t m_ms = 0;
+    uint64_t ms_ = 0;
     /// 精确的执行时间
-    uint64_t m_next = 0;
+    uint64_t next_ = 0;
     /// 回调函数
-    std::function<void()> m_cb;
+    std::function<void()> cb_;
     /// 定时器管理类
-    TimerManager* m_manager = nullptr;
+    TimerManager* manager_ = nullptr;
 };
 
 class TimerManager {
@@ -161,13 +161,13 @@ private:
 
 private:
     /// 读写锁
-    std::shared_mutex m_mutex;
+    std::shared_mutex mutex_;
     /// 定时器集合
-    std::set<Timer::ptr, Timer::Comparator> m_timers;
+    std::set<Timer::ptr, Timer::Comparator> timers_;
     /// 是否触发onTimerInsertedAtFront
-    bool m_tickled = false;
+    bool tickled_ = false;
     /// 上次执行的时间
-    uint64_t m_previouseTime = 0;
+    uint64_t previouse_time_ = 0;
 };
 
 } // namespace chen

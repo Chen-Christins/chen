@@ -37,12 +37,12 @@ public:
      * @brief 获取线程id
      * @return 返回线程的pid
      */
-    pid_t getId() const { return m_id; }
+    pid_t getId() const { return id_; }
 
     /**
      * @brief 返回线程名称
      */
-    const std::string& getName() const { return m_name; }
+    const std::string& getName() const { return name_; }
 
     /**
      * @brief 等待子线程执行完成
@@ -76,15 +76,15 @@ private:
 
 private:
     /// 线程执行函数
-    std::function<void()> m_task;
+    std::function<void()> task_;
     /// 线程名称
-    std::string m_name;
+    std::string name_;
     /// 线程结构
-    pthread_t m_thread = 0;
+    pthread_t thread_ = 0;
     /// 线程号
-    pid_t m_id = -1;
+    pid_t id_ = -1;
     /// 信号量
-    Semaphore m_semaphore;
+    Semaphore semaphore_;
 };
 
 } // namespace chen

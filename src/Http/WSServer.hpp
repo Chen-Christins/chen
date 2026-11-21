@@ -18,14 +18,14 @@ public:
 
     WSServer(IOManager* worker = IOManager::GetThis(), IOManager* io_worker = IOManager::GetThis(), IOManager* accept_worker = IOManager::GetThis());
 
-    WSServletDispatch::ptr getWSServletDispatch() const { return m_dispatch; }
-    void setWSServletDispatch(WSServletDispatch::ptr v) { m_dispatch = v; }
+    WSServletDispatch::ptr getWSServletDispatch() const { return dispatch_; }
+    void setWSServletDispatch(WSServletDispatch::ptr v) { dispatch_ = v; }
 
 protected:
     virtual void handleClient(Socket::ptr client) override;
 
 protected:
-    WSServletDispatch::ptr m_dispatch;
+    WSServletDispatch::ptr dispatch_;
 };
 
 } // namespace chen::http

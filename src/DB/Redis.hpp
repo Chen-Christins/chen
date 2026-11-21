@@ -41,19 +41,19 @@ public:
     virtual ReplyPtr cmd(const char* fmt, va_list ap) = 0;
     virtual ReplyPtr cmd(const std::vector<std::string>& argv) = 0;
 
-    const std::string& getName() const { return m_name; }
-    void setName(const std::string& v) { m_name = v; }
+    const std::string& getName() const { return name_; }
+    void setName(const std::string& v) { name_ = v; }
 
-    const std::string& getPasswd() const { return m_passwd; }
-    void setPasswd(const std::string& v) { m_passwd = v; }
+    const std::string& getPasswd() const { return passwd_; }
+    void setPasswd(const std::string& v) { passwd_ = v; }
 
-    Type getType() const { return m_type; }
+    Type getType() const { return type_; }
 
 protected:
-    std::string m_name;
-    std::string m_passwd;
-    Type m_type;
-    bool m_logEnable;
+    std::string name_;
+    std::string passwd_;
+    Type type_;
+    bool log_enable_;
 };
 
 class ISyncRedis : public IRedis {
@@ -72,11 +72,11 @@ public:
 
     virtual ReplyPtr getReply() = 0;
 
-    uint64_t getLastActiveTime() const { return m_lastActiveTime; }
-    void setLastActiveTime(uint64_t v) { m_lastActiveTime = v; }
+    uint64_t getLastActiveTime() const { return last_active_time_; }
+    void setLastActiveTime(uint64_t v) { last_active_time_ = v; }
 
 protected:
-    uint64_t m_lastActiveTime = 0;
+    uint64_t last_active_time_ = 0;
 };
 
 class Redis : public ISyncRedis {
@@ -101,11 +101,11 @@ public:
     virtual ReplyPtr getReply();
 
 private:
-    std::string m_host;
-    uint32_t m_port;
-    uint32_t m_connectMs;
-    struct timeval m_cmdTimeout;
-    std::shared_ptr<redisContext> m_context;
+    std::string host_;
+    uint32_t port_;
+    uint32_t connect_ms_;
+    struct timeval cmd_timeout_;
+    std::shared_ptr<redisContext> context_;
 };
 
 class RedisCluster : public ISyncRedis {
@@ -130,11 +130,11 @@ public:
     virtual ReplyPtr getReply();
 
 private:
-    std::string m_host;
-    uint32_t m_port;
-    uint32_t m_connectMs;
-    struct timeval m_cmdTimeout;
-    std::shared_ptr<redisClusterContext> m_context;
+    std::string host_;
+    uint32_t port_;
+    uint32_t connect_ms_;
+    struct timeval cmd_timeout_;
+    std::shared_ptr<redisClusterContext> context_;
 };
 
 class FoxRedis : public IRedis {
@@ -163,7 +163,7 @@ public:
     virtual ReplyPtr cmd(const std::vector<std::string>& argv);
 
     bool init();
-    int getCtxCount() const { return m_ctxCount; }
+    int getCtxCount() const { return ctx_count_; }
 
 private:
     static void OnAuthCb(redisAsyncContext* c, void* rp, void* priv);
@@ -205,18 +205,18 @@ private:
     static void TimeCb(int fd, short event, void* d);
 
 private:
-    /// 拥有 m_thread 的线程/线程池，保证其生命周期不早于本连接
-    IFoxThread::ptr m_threadOwner;
-    FoxThread* m_thread;
-    std::shared_ptr<redisAsyncContext> m_context;
-    std::string m_host;
-    uint16_t m_port;
-    STATUS m_status;
-    int m_ctxCount;
+    /// 拥有 thread_ 的线程/线程池，保证其生命周期不早于本连接
+    IFoxThread::ptr thread_owner_;
+    FoxThread* thread_;
+    std::shared_ptr<redisAsyncContext> context_;
+    std::string host_;
+    uint16_t port_;
+    STATUS status_;
+    int ctx_count_;
 
-    struct timeval m_cmdTimeout;
-    std::string m_err;
-    struct event* m_event;
+    struct timeval cmd_timeout_;
+    std::string err_;
+    struct event* event_;
 };
 
 class FoxRedisCluster : public IRedis {
@@ -244,7 +244,7 @@ public:
     virtual ReplyPtr cmd(const char* fmt, va_list ap);
     virtual ReplyPtr cmd(const std::vector<std::string>& argv);
 
-    int getCtxCount() const { return m_ctxCount; }
+    int getCtxCount() const { return ctx_count_; }
 
     bool init();
 
@@ -285,16 +285,16 @@ private:
     static void TimeCb(int fd, short event, void* d);
 
 private:
-    /// 拥有 m_thread 的线程/线程池，保证其生命周期不早于本连接
-    IFoxThread::ptr m_threadOwner;
-    FoxThread* m_thread;
-    std::shared_ptr<redisClusterAsyncContext> m_context;
-    std::string m_host;
-    STATUS m_status;
-    int m_ctxCount;
-    timeval m_cmdTimeout;
-    std::string m_err;
-    event* m_event;
+    /// 拥有 thread_ 的线程/线程池，保证其生命周期不早于本连接
+    IFoxThread::ptr thread_owner_;
+    FoxThread* thread_;
+    std::shared_ptr<redisClusterAsyncContext> context_;
+    std::string host_;
+    STATUS status_;
+    int ctx_count_;
+    timeval cmd_timeout_;
+    std::string err_;
+    event* event_;
 };
 
 class RedisManager {
@@ -311,14 +311,14 @@ private:
     void freeRedis(IRedis* r);
 
 private:
-    /// 保护 m_datas 的读写锁
-    std::shared_mutex m_mutex;
+    /// 保护 datas_ 的读写锁
+    std::shared_mutex mutex_;
     /// 保护初始化状态的互斥锁
-    std::mutex m_initMutex;
+    std::mutex init_mutex_;
     /// 是否已初始化（进程内仅一次，避免热重载销毁在用连接）
-    bool m_inited = false;
-    std::map<std::string, std::list<IRedis*>> m_datas;
-    std::map<std::string, std::map<std::string, std::string>> m_config;
+    bool inited_ = false;
+    std::map<std::string, std::list<IRedis*>> datas_;
+    std::map<std::string, std::map<std::string, std::string>> config_;
 };
 
 typedef Singleton<RedisManager> RedisMgr;

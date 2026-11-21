@@ -12,35 +12,35 @@
 
 namespace chen {
 
-std::string StringUtil::Replace(const std::string& str1, char find, char replaceWith)
+std::string StringUtil::Replace(const std::string& str1, char find, char replace_with)
 {
     std::string str = str1;
     size_t index = str.find(find);
     while (index != std::string::npos) {
-        str[index] = replaceWith;
+        str[index] = replace_with;
         index = str.find(find, index + 1);
     }
     return str;
 }
 
-std::string StringUtil::Replace(const std::string& str1, char find, const std::string& replaceWith)
+std::string StringUtil::Replace(const std::string& str1, char find, const std::string& replace_with)
 {
     std::string str = str1;
     size_t index = str.find(find);
     while (index != std::string::npos) {
-        str = str.substr(0, index) + replaceWith + str.substr(index + 1);
-        index = str.find(find, index + replaceWith.size());
+        str = str.substr(0, index) + replace_with + str.substr(index + 1);
+        index = str.find(find, index + replace_with.size());
     }
     return str;
 }
 
-std::string StringUtil::Replace(const std::string& str1, const std::string& find, const std::string& replaceWith)
+std::string StringUtil::Replace(const std::string& str1, const std::string& find, const std::string& replace_with)
 {
     std::string str = str1;
     size_t index = str.find(find);
     while (index != std::string::npos) {
-        str = str.substr(0, index) + replaceWith + str.substr(index + find.size());
-        index = str.find(find, index + replaceWith.size());
+        str = str.substr(0, index) + replace_with + str.substr(index + find.size());
+        index = str.find(find, index + replace_with.size());
     }
     return str;
 }
@@ -255,11 +255,11 @@ std::string StringUtil::WStringToString(const std::wstring& ws)
 std::wstring StringUtil::StringToWString(const std::string& s)
 {
     std::string str_locale = setlocale(LC_ALL, "");
-    const char* chSrc = s.c_str();
-    size_t n_dest_size = mbstowcs(NULL, chSrc, 0) + 1;
+    const char* ch_src = s.c_str();
+    size_t n_dest_size = mbstowcs(NULL, ch_src, 0) + 1;
     wchar_t* wch_dest = new wchar_t[n_dest_size];
     wmemset(wch_dest, 0, n_dest_size);
-    mbstowcs(wch_dest, chSrc, n_dest_size);
+    mbstowcs(wch_dest, ch_src, n_dest_size);
     std::wstring wstr_result = wch_dest;
     delete[] wch_dest;
     setlocale(LC_ALL, str_locale.c_str());
@@ -418,24 +418,24 @@ std::string StringUtil::Base64UrlDecode(const std::string& input)
 
     for (size_t i = 0; i < normalized.size(); i += 4) {
         // 计算这组有几个有效字节（排除 padding）
-        int validBytes = 3;
+        int valid_bytes = 3;
         if (normalized[i + 2] == '=') {
-            validBytes = 1;
+            valid_bytes = 1;
         } else if (normalized[i + 3] == '=') {
-            validBytes = 2;
+            valid_bytes = 2;
         }
 
-        if (validBytes < 1) {
+        if (valid_bytes < 1) {
             continue;
         }
 
         unsigned char c0 = kBase64DecodeTable[static_cast<unsigned char>(normalized[i])];
         unsigned char c1 = kBase64DecodeTable[static_cast<unsigned char>(normalized[i + 1])];
-        unsigned char c2 = validBytes >= 2 ? kBase64DecodeTable[static_cast<unsigned char>(normalized[i + 2])] : 0;
-        unsigned char c3 = validBytes >= 3 ? kBase64DecodeTable[static_cast<unsigned char>(normalized[i + 3])] : 0;
+        unsigned char c2 = valid_bytes >= 2 ? kBase64DecodeTable[static_cast<unsigned char>(normalized[i + 2])] : 0;
+        unsigned char c3 = valid_bytes >= 3 ? kBase64DecodeTable[static_cast<unsigned char>(normalized[i + 3])] : 0;
 
         // 检查无效字符
-        if (c0 == 0x80 || c1 == 0x80 || (validBytes >= 2 && c2 == 0x80) || (validBytes >= 3 && c3 == 0x80)) {
+        if (c0 == 0x80 || c1 == 0x80 || (valid_bytes >= 2 && c2 == 0x80) || (valid_bytes >= 3 && c3 == 0x80)) {
             return "";
         }
 
@@ -443,10 +443,10 @@ std::string StringUtil::Base64UrlDecode(const std::string& input)
             | static_cast<unsigned int>(c3);
 
         result += static_cast<char>((triple >> 16) & 0xff);
-        if (validBytes >= 2) {
+        if (valid_bytes >= 2) {
             result += static_cast<char>((triple >> 8) & 0xff);
         }
-        if (validBytes >= 3) {
+        if (valid_bytes >= 3) {
             result += static_cast<char>(triple & 0xff);
         }
     }

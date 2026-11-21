@@ -41,7 +41,7 @@ struct TcpServerConf {
     std::string accept_worker;
     std::string io_worker;
     std::string process_worker;
-    int negotiateH2 = 0;
+    int negotiate_h2 = 0;
     std::map<std::string, std::string> args;
 
     bool isValid() const { return !address.empty(); }
@@ -71,7 +71,7 @@ public:
         conf.accept_worker = node["accept_worker"].as<std::string>();
         conf.io_worker = node["io_worker"].as<std::string>();
         conf.process_worker = node["process_worker"].as<std::string>();
-        conf.negotiateH2 = node["negotiateH2"].as<int>(conf.negotiateH2);
+        conf.negotiate_h2 = node["negotiateH2"].as<int>(conf.negotiate_h2);
         if (node["args"].IsDefined()) {
             std::stringstream aa;
             aa << node["args"];
@@ -107,7 +107,7 @@ public:
         node["accept_worker"] = conf.accept_worker;
         node["io_worker"] = conf.io_worker;
         node["process_worker"] = conf.process_worker;
-        node["negotiateH2"] = conf.negotiateH2;
+        node["negotiateH2"] = conf.negotiate_h2;
         node["args"] = YAML::Load(LexicalCast<std::map<std::string, std::string>, std::string>()(conf.args));
         for (auto& i : conf.address) {
             node["address"].push_back(i);
@@ -172,55 +172,55 @@ public:
     /**
      * @brief 获取接收的超时时间
      */
-    uint64_t getRecvTimeout() const { return m_recvTimeout; }
+    uint64_t getRecvTimeout() const { return recv_timeout_; }
 
     /**
      * @brief 获取当前server的名称
      */
-    std::string getName() const { return m_name; }
+    std::string getName() const { return name_; }
 
     /**
      * @brief 设置当前的接收超时时间
      */
-    void setRecvTimeout(uint64_t v) { m_recvTimeout = v; }
+    void setRecvTimeout(uint64_t v) { recv_timeout_ = v; }
 
     /**
      * @brief 设置server名称
      */
-    virtual void setName(const std::string& v) { m_name = v; }
+    virtual void setName(const std::string& v) { name_ = v; }
 
     /**
      * @brief 获取server类型
      */
-    const std::string& getType() const { return m_type; }
-    void setType(const std::string& v) { m_type = v; }
+    const std::string& getType() const { return type_; }
+    void setType(const std::string& v) { type_ = v; }
 
     /**
      * @brief 当前server是否停止运行
      */
-    bool isStop() const { return m_isStop; }
+    bool isStop() const { return is_stop_; }
 
     /**
      * @brief 获取当前的TcpServerConf
      */
-    TcpServerConf::ptr getConf() { return m_conf; }
+    TcpServerConf::ptr getConf() { return conf_; }
 
     /**
      * @brief 获取所有监听 socket
      * @details 用于服务发现注册等场景读取实际绑定的地址；返回拷贝避免与 stop() 并发
      */
-    std::vector<Socket::ptr> getSocks() const { return m_socks; }
+    std::vector<Socket::ptr> getSocks() const { return socks_; }
 
     /**
      * @brief 获取连接准入限流器
      * @return ConnLimiter::ptr 未启用限流时返回 nullptr
      */
-    ConnLimiter::ptr getConnLimiter() const { return m_connLimiter; }
+    ConnLimiter::ptr getConnLimiter() const { return conn_limiter_; }
 
     /**
      * @brief 设置配置文件对象
      */
-    void setConf(TcpServerConf::ptr v) { m_conf = v; }
+    void setConf(TcpServerConf::ptr v) { conf_ = v; }
     void setConf(const TcpServerConf& v);
 
     /**
@@ -267,30 +267,30 @@ protected:
 
 protected:
     /// 工作线程池
-    IOManager* m_worker;
-    IOManager* m_ioWorker;
+    IOManager* worker_;
+    IOManager* io_worker_;
     /// 接收连接线程池
-    IOManager* m_acceptWorker;
+    IOManager* accept_worker_;
     /// 存储socket信息, 让这个server可以同时监听多地址
-    std::vector<Socket::ptr> m_socks;
+    std::vector<Socket::ptr> socks_;
     /// 为session设置超时
-    uint64_t m_recvTimeout;
+    uint64_t recv_timeout_;
     /// 这个 server 的名称
-    std::string m_name;
+    std::string name_;
     /// 描述这server是不是停止了
-    bool m_isStop;
+    bool is_stop_;
     /// https服务是否开启
-    bool m_ssl = false;
+    bool ssl_ = false;
     /// 服务器类型
-    std::string m_type = "tcp";
+    std::string type_ = "tcp";
     /// TcpServerConf
-    TcpServerConf::ptr m_conf;
+    TcpServerConf::ptr conf_;
     /// 当前活跃的客户端连接集合（用于优雅关闭时遍历关闭所有连接）
-    std::set<Socket::ptr> m_activeClients;
-    /// 保护 m_activeClients 的互斥锁
-    std::mutex m_clientsMutex;
+    std::set<Socket::ptr> active_clients_;
+    /// 保护 active_clients_ 的互斥锁
+    std::mutex clients_mutex_;
     /// 连接准入限流器（qps + 并发上限）
-    ConnLimiter::ptr m_connLimiter;
+    ConnLimiter::ptr conn_limiter_;
 };
 
 class TcpServerFactory {

@@ -7,57 +7,57 @@ namespace chen {
 
 Semaphore::Semaphore(uint32_t count)
 {
-    if (sem_init(&m_semaphore, 0, count)) {
+    if (sem_init(&semaphore_, 0, count)) {
         throw std::logic_error("sem_init error");
     }
 }
 
 Semaphore::~Semaphore()
 {
-    sem_destroy(&m_semaphore);
+    sem_destroy(&semaphore_);
 }
 
 void Semaphore::wait()
 {
-    if (sem_wait(&m_semaphore)) {
+    if (sem_wait(&semaphore_)) {
         throw std::logic_error("sem_wait error");
     }
 }
 
 void Semaphore::notify()
 {
-    if (sem_post(&m_semaphore)) {
+    if (sem_post(&semaphore_)) {
         throw std::logic_error("sem_post error");
     }
 }
 
 SpinLock::SpinLock()
 {
-    pthread_spin_init(&m_mutex, 0);
+    pthread_spin_init(&mutex_, 0);
 }
 
 SpinLock::~SpinLock()
 {
-    pthread_spin_destroy(&m_mutex);
+    pthread_spin_destroy(&mutex_);
 }
 
 FiberSemaphore::FiberSemaphore(size_t initail_concurrency)
-    : m_concurrency(initail_concurrency)
+    : concurrency_(initail_concurrency)
 {
 }
 
 FiberSemaphore::~FiberSemaphore()
 {
-    ASSERT(m_waiters.empty());
+    ASSERT(waiters_.empty());
 }
 
 bool FiberSemaphore::tryWait()
 {
     ASSERT(Scheduler::GetThis());
     {
-        MutexType::Lock lock(m_mutex);
-        if (m_concurrency > 0u) {
-            --m_concurrency;
+        MutexType::Lock lock(mutex_);
+        if (concurrency_ > 0u) {
+            --concurrency_;
             return true;
         }
         return false;
@@ -68,25 +68,25 @@ void FiberSemaphore::wait()
 {
     ASSERT(Scheduler::GetThis());
     {
-        MutexType::Lock lock(m_mutex);
-        if (m_concurrency > 0u) {
-            --m_concurrency;
+        MutexType::Lock lock(mutex_);
+        if (concurrency_ > 0u) {
+            --concurrency_;
             return;
         }
-        m_waiters.push_back(std::pair(Scheduler::GetThis(), Fiber::GetThis()));
+        waiters_.push_back(std::pair(Scheduler::GetThis(), Fiber::GetThis()));
     }
     Fiber::YieldToHold();
 }
 
 void FiberSemaphore::notify()
 {
-    MutexType::Lock lock(m_mutex);
-    if (!m_waiters.empty()) {
-        auto next = m_waiters.front();
-        m_waiters.pop_front();
+    MutexType::Lock lock(mutex_);
+    if (!waiters_.empty()) {
+        auto next = waiters_.front();
+        waiters_.pop_front();
         next.first->schedule(next.second);
     } else {
-        ++m_concurrency;
+        ++concurrency_;
     }
 }
 

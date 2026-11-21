@@ -10,10 +10,10 @@ namespace chen::data {
 static Logger::ptr logger = LOG_NAME("data");
 
 // 文件头标识
-const char DataReader::FILE_HEADER[4] = {'C', 'H', 'G', 'D'};
+const char DataReader::kFileHeader[4] = {'C', 'H', 'G', 'D'};
 
 DataReader::DataReader(const std::string& encryption_type, const std::string& password)
-    : m_decryptor(createDecryptor(encryption_type, password))
+    : decryptor_(createDecryptor(encryption_type, password))
 {
 }
 
@@ -54,9 +54,9 @@ bool DataReader::loadFromMemory(const uint8_t* data, size_t size)
         std::vector<uint8_t> decrypted_data;
 
         // 使用新的解密器
-        if (m_decryptor) {
+        if (decryptor_) {
             try {
-                decrypted_data = m_decryptor->parseAndDecrypt(data, size);
+                decrypted_data = decryptor_->parseAndDecrypt(data, size);
             } catch (const std::exception& e) {
                 ERROR(logger) << "Decryption failed: " << e.what();
                 return false;
@@ -96,8 +96,8 @@ bool DataReader::loadFromMemory(const uint8_t* data, size_t size)
 
 TableData::ptr DataReader::getTable(const std::string& table_name) const
 {
-    auto it = m_tables.find(table_name);
-    if (it != m_tables.end()) {
+    auto it = tables_.find(table_name);
+    if (it != tables_.end()) {
         return it->second;
     }
     return nullptr;
@@ -106,9 +106,9 @@ TableData::ptr DataReader::getTable(const std::string& table_name) const
 std::vector<std::string> DataReader::getAllTableNames() const
 {
     std::vector<std::string> names;
-    names.reserve(m_tables.size());
+    names.reserve(tables_.size());
 
-    for (const auto& pair : m_tables) {
+    for (const auto& pair : tables_) {
         names.push_back(pair.first);
     }
 
@@ -117,18 +117,18 @@ std::vector<std::string> DataReader::getAllTableNames() const
 
 bool DataReader::hasTable(const std::string& table_name) const
 {
-    return m_tables.find(table_name) != m_tables.end();
+    return tables_.find(table_name) != tables_.end();
 }
 
 void DataReader::clear()
 {
-    m_tables.clear();
+    tables_.clear();
 }
 
 std::vector<uint8_t> DataReader::_xorDecrypt(const uint8_t* data, size_t size)
 {
     std::vector<uint8_t> result(size);
-    uint32_t key = ENCRYPT_KEY;
+    uint32_t key = kEncryptKey;
 
     for (size_t i = 0; i < size; ++i) {
         result[i] = data[i] ^ ((key >> (8 * (i % 4))) & 0xFF);
@@ -204,7 +204,7 @@ bool DataReader::_parseTableData(const uint8_t* data, size_t size)
     }
 
     // 检查文件头
-    if (memcmp(ptr, FILE_HEADER, 4) != 0) {
+    if (memcmp(ptr, kFileHeader, 4) != 0) {
         ERROR(logger) << "Invalid file header";
         return false;
     }
@@ -266,7 +266,7 @@ bool DataReader::_parseTableData(const uint8_t* data, size_t size)
 
         // 创建表数据对象
         auto table = std::make_shared<TableData>();
-        table->m_name = table_name;
+        table->name_ = table_name;
 
         // 读取字段数量
         if (ptr + 4 > table_end) {
@@ -277,7 +277,7 @@ bool DataReader::_parseTableData(const uint8_t* data, size_t size)
         ptr += 4;
 
         // 读取字段名
-        table->m_headers.reserve(field_count);
+        table->headers_.reserve(field_count);
         for (uint32_t j = 0; j < field_count; ++j) {
             if (ptr + 4 > table_end) {
                 ERROR(logger) << "Unexpected end of table data while reading field name length";
@@ -293,7 +293,7 @@ bool DataReader::_parseTableData(const uint8_t* data, size_t size)
             std::string field_name(reinterpret_cast<const char*>(ptr), field_name_len);
             ptr += field_name_len;
 
-            table->m_headers.push_back(field_name);
+            table->headers_.push_back(field_name);
         }
 
         // 读取行数
@@ -305,12 +305,12 @@ bool DataReader::_parseTableData(const uint8_t* data, size_t size)
         ptr += 4;
 
         // 读取行数据
-        table->m_rows.reserve(row_count);
+        table->rows_.reserve(row_count);
         for (uint32_t j = 0; j < row_count; ++j) {
             RowData row;
 
             // 读取每个字段
-            for (const auto& field_name : table->m_headers) {
+            for (const auto& field_name : table->headers_) {
                 if (ptr >= table_end) {
                     ERROR(logger) << "Unexpected end of table data while reading field value";
                     return false;
@@ -320,11 +320,11 @@ bool DataReader::_parseTableData(const uint8_t* data, size_t size)
                 row[field_name] = value;
             }
 
-            table->m_rows.push_back(std::move(row));
+            table->rows_.push_back(std::move(row));
         }
 
         // 添加到表映射
-        m_tables[table_name] = table;
+        tables_[table_name] = table;
 
         // 移动到下一个表
         ptr = table_end;
@@ -421,46 +421,46 @@ FieldValue DataReader::_readFieldValue(const uint8_t*& ptr, const uint8_t* end)
 
 const RowData* TableData::getRow(size_t row_index) const
 {
-    if (row_index >= m_rows.size()) {
+    if (row_index >= rows_.size()) {
         return nullptr;
     }
-    return &m_rows[row_index];
+    return &rows_[row_index];
 }
 
 void TableData::forEachRow(std::function<void(size_t, const RowData&)> callback) const
 {
-    for (size_t i = 0; i < m_rows.size(); ++i) {
-        callback(i, m_rows[i]);
+    for (size_t i = 0; i < rows_.size(); ++i) {
+        callback(i, rows_[i]);
     }
 }
 
 FieldAccessor::FieldAccessor(const RowData* row, const std::string& field_name)
-    : m_row(row)
-    , m_field_name(field_name)
+    : row_(row)
+    , field_name_(field_name)
 {
 }
 
 bool FieldAccessor::isNull() const
 {
-    if (!m_row)
+    if (!row_)
         return true;
 
-    auto it = m_row->find(m_field_name);
-    if (it == m_row->end())
+    auto it = row_->find(field_name_);
+    if (it == row_->end())
         return true;
 
     return std::holds_alternative<std::nullptr_t>(it->second);
 }
 
 RowAccessor::RowAccessor(const TableData* table, size_t row_index)
-    : m_table(table)
-    , m_row_index(row_index)
+    : table_(table)
+    , row_index_(row_index)
 {
 }
 
 FieldAccessor RowAccessor::operator[](const std::string& field_name) const
 {
-    const RowData* row = m_table ? m_table->getRow(m_row_index) : nullptr;
+    const RowData* row = table_ ? table_->getRow(row_index_) : nullptr;
     return FieldAccessor(row, field_name);
 }
 

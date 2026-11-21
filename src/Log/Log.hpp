@@ -163,17 +163,17 @@ public:
     /**
      * @brief 返会日志级别
      */
-    LogLevel::Level getLevel() const { return m_level; }
+    LogLevel::Level getLevel() const { return level_; }
 
     /**
      * @brief 设置日志级别
      */
-    void setLevel(LogLevel::Level val) { m_level = val; }
+    void setLevel(LogLevel::Level val) { level_ = val; }
 
     /**
      * @brief 返回日志名称
      */
-    const std::string& getName() const { return m_name; }
+    const std::string& getName() const { return name_; }
 
     /**
      * @brief 设置日志格式器
@@ -203,17 +203,17 @@ public:
 
 private:
     /// 日志名称
-    std::string m_name;
+    std::string name_;
     /// 日志级别
-    LogLevel::Level m_level;
+    LogLevel::Level level_;
     /// 日志目标集合
-    std::list<std::shared_ptr<LogAppender>> m_appenders;
+    std::list<std::shared_ptr<LogAppender>> appenders_;
     /// 日志格式器
-    std::shared_ptr<LogFormatter> m_formatter;
+    std::shared_ptr<LogFormatter> formatter_;
     /// 主日志器
-    Logger::ptr m_root;
+    Logger::ptr root_;
     /// Mutex
-    MutexType m_mutex;
+    MutexType mutex_;
 };
 
 /**
@@ -229,10 +229,10 @@ public:
      * @param file 文件名称
      * @param line 行号
      * @param elapse 程序启动到现在的耗时
-     * @param threadId 线程号
-     * @param fiberId 协程号
+     * @param thread_id 线程号
+     * @param fiber_id 协程号
      * @param time 日志事件(秒)
-     * @param threadName 线程名称
+     * @param thread_name 线程名称
      */
     LogEvent(
         Logger::ptr logger,
@@ -240,97 +240,97 @@ public:
         const char* file,
         int32_t line,
         uint32_t elapse,
-        uint32_t threadId,
-        uint32_t fiberId,
+        uint32_t thread_id,
+        uint32_t fiber_id,
         uint64_t time,
-        const std::string& threadName);
+        const std::string& thread_name);
 
     /**
      * @brief 获取文件名称
      */
-    const char* getFile() const { return m_file; }
+    const char* getFile() const { return file_; }
 
     /**
      * @brief 获取日志当前的行号
      */
-    int32_t getLine() const { return m_line; }
+    int32_t getLine() const { return line_; }
 
     /**
      * @brief 返回程序启动到现在的时间
      */
-    uint32_t getElapse() const { return m_elapse; }
+    uint32_t getElapse() const { return elapse_; }
 
     /**
      * @brief 返回线程号
      */
-    uint32_t getThreadId() const { return m_threadId; }
+    uint32_t getThreadId() const { return thread_id_; }
 
     /**
      * @brief 返回协程号
      */
-    uint32_t getFiberId() const { return m_fiberId; }
+    uint32_t getFiberId() const { return fiber_id_; }
 
     /**
      * @brief 返回时间（微秒时间戳）
      */
-    uint64_t getTime() const { return m_time; }
+    uint64_t getTime() const { return time_; }
 
     /**
      * @brief 返回时间的秒部分
      */
-    time_t getTimeSec() const { return m_time / 1000000; }
+    time_t getTimeSec() const { return time_ / 1000000; }
 
     /**
      * @brief 返回时间的微秒部分
      */
-    uint32_t getTimeUs() const { return m_time % 1000000; }
+    uint32_t getTimeUs() const { return time_ % 1000000; }
 
     /**
      * @brief 返回线程名称
      */
-    const std::string& getThreadName() const { return m_threadName; }
+    const std::string& getThreadName() const { return thread_name_; }
 
     /**
      * @brief 返回日志消息体
      */
-    std::stringbuf* getContent() const { return m_ss.rdbuf(); }
+    std::stringbuf* getContent() const { return ss_.rdbuf(); }
 
     /**
      * @brief 返回日志器
      */
-    Logger::ptr getLogger() const { return m_logger; }
+    Logger::ptr getLogger() const { return logger_; }
 
     /**
      * @brief 返回日志级别
      */
-    LogLevel::Level getLevel() const { return m_level; }
+    LogLevel::Level getLevel() const { return level_; }
 
     /**
      * @brief 返回日志内容字符串流
      */
-    std::stringstream& getSS() { return m_ss; }
+    std::stringstream& getSS() { return ss_; }
 
 private:
     /// 日志器
-    Logger::ptr m_logger;
+    Logger::ptr logger_;
     /// 日志等级
-    LogLevel::Level m_level;
+    LogLevel::Level level_;
     /// 文件名称
-    const char* m_file = nullptr;
+    const char* file_ = nullptr;
     /// 行号
-    int32_t m_line = 0;
+    int32_t line_ = 0;
     /// 程序启动到现在的秒数
-    uint32_t m_elapse = 0;
+    uint32_t elapse_ = 0;
     /// 线程id
-    uint32_t m_threadId = 0;
+    uint32_t thread_id_ = 0;
     /// 协程id
-    uint32_t m_fiberId = 0;
+    uint32_t fiber_id_ = 0;
     /// 时间戳
-    uint64_t m_time = 0;
+    uint64_t time_ = 0;
     /// 线程名称
-    std::string m_threadName;
+    std::string thread_name_;
     /// 日志内容
-    std::stringstream m_ss;
+    std::stringstream ss_;
 };
 
 /**
@@ -350,8 +350,8 @@ public:
     template <typename T>
     LogEventWrap& operator<<(const T& val)
     {
-        if (m_event) {
-            m_event->getSS() << val;
+        if (event_) {
+            event_->getSS() << val;
         }
         return *this;
     }
@@ -367,7 +367,7 @@ public:
     /**
      * @brief 获取日志事件器
      */
-    LogEvent::ptr getEvent() const { return m_event; }
+    LogEvent::ptr getEvent() const { return event_; }
 
     /**
      * @brief 给当前日志的字符流
@@ -376,7 +376,7 @@ public:
 
 private:
     /// 日志事件器
-    LogEvent::ptr m_event;
+    LogEvent::ptr event_;
 };
 
 /**
@@ -435,20 +435,20 @@ public:
     /**
      * @brief 是否存在错误
      */
-    bool isError() const { return m_error; }
+    bool isError() const { return error_; }
 
     /**
      * @brief 返回日志格式模板
      */
-    const std::string getPattern() const { return m_pattern; }
+    const std::string getPattern() const { return pattern_; }
 
 private:
     /// 日志格式模板
-    std::string m_pattern;
+    std::string pattern_;
     /// 日志格式解析后格式
-    std::vector<FormatItem::ptr> m_items;
+    std::vector<FormatItem::ptr> items_;
     /// 是否有错误
-    bool m_error = false;
+    bool error_ = false;
 };
 
 /**
@@ -493,12 +493,12 @@ public:
     /**
      * @brief 获取当前日志级别
      */
-    LogLevel::Level getLevel() const { return m_level; }
+    LogLevel::Level getLevel() const { return level_; }
 
     /**
      * @brief 更改日志级别
      */
-    void setLevel(LogLevel::Level val) { m_level = val; }
+    void setLevel(LogLevel::Level val) { level_ = val; }
 
     /**
      * @brief 转换为YamlString
@@ -507,13 +507,13 @@ public:
 
 protected:
     /// 日志级别
-    LogLevel::Level m_level = LogLevel::TRACE;
+    LogLevel::Level level_ = LogLevel::TRACE;
     /// 是否有自己的日志格式器
-    bool m_hasFormatter = false;
+    bool has_formatter_ = false;
     /// 日志格式器
-    LogFormatter::ptr m_formatter;
+    LogFormatter::ptr formatter_;
     /// 自旋锁
-    MutexType m_mutex;
+    MutexType mutex_;
 };
 
 /**
@@ -592,43 +592,43 @@ public:
      * @brief 设置时间分文件类型
      * @param type 分文件类型
      */
-    void setTimeRotateType(TimeRotateType type) { m_rotateType = type; }
+    void setTimeRotateType(TimeRotateType type) { rotate_type_ = type; }
 
     /**
      * @brief 获取时间分文件类型
      * @return TimeRotateType
      */
-    TimeRotateType getTimeRotateType() const { return m_rotateType; }
+    TimeRotateType getTimeRotateType() const { return rotate_type_; }
 
     /**
      * @brief 设置日志保留天数
      * @param days 保留天数，0表示不限制
      */
-    void setRetentionDays(int days) { m_retentionDays = days; }
+    void setRetentionDays(int days) { retention_days_ = days; }
 
     /**
      * @brief 获取日志保留天数
      * @return int 保留天数，0表示不限制
      */
-    int getRetentionDays() const { return m_retentionDays; }
+    int getRetentionDays() const { return retention_days_; }
 
     /**
      * @brief 设置单文件最大字节数
      * @param max_size 最大字节数，0表示不限制
      */
-    void setMaxSize(uint64_t max_size) { m_maxSize = max_size; }
+    void setMaxSize(uint64_t max_size) { max_size_ = max_size; }
 
     /**
      * @brief 获取单文件最大字节数
      * @return uint64_t 最大字节数，0表示不限制
      */
-    uint64_t getMaxSize() const { return m_maxSize; }
+    uint64_t getMaxSize() const { return max_size_; }
 
     /**
      * @brief 检查当前文件是否因大小超限需要分片
      * @return bool
      */
-    bool shouldRotateBySize() const { return m_maxSize > 0 && m_currentSize >= m_maxSize; }
+    bool shouldRotateBySize() const { return max_size_ > 0 && current_size_ >= max_size_; }
 
     /**
      * @brief 根据时间获取新的文件名
@@ -676,25 +676,25 @@ private:
 
 private:
     /// 文件名称
-    std::string m_filename;
+    std::string filename_;
     /// 文件输出流
-    std::ofstream m_filestream;
+    std::ofstream filestream_;
     /// 上次打开这个日志文件的时间戳
-    uint64_t m_lastTime = 0;
+    uint64_t last_time_ = 0;
     /// 时间分文件类型
-    TimeRotateType m_rotateType = NONE;
+    TimeRotateType rotate_type_ = NONE;
     /// 日志保留天数，0表示不限制
-    int m_retentionDays = 0;
+    int retention_days_ = 0;
     /// 上次文件名
-    std::string m_lastFileName;
+    std::string last_file_name_;
     /// 当前时间周期的基础文件名（不含分片序号）
-    std::string m_periodFileName;
+    std::string period_file_name_;
     /// 当前时间周期内的分片序号，0表示基础文件
-    uint64_t m_shardIndex = 0;
+    uint64_t shard_index_ = 0;
     /// 单文件最大字节数，0表示不限制
-    uint64_t m_maxSize = 0;
+    uint64_t max_size_ = 0;
     /// 当前文件已写入字节数
-    uint64_t m_currentSize = 0;
+    uint64_t current_size_ = 0;
 };
 
 /**
@@ -719,7 +719,7 @@ public:
      * @brief 获取根日志器
      * @return Logger::ptr
      */
-    Logger::ptr getRoot() const { return m_root; }
+    Logger::ptr getRoot() const { return root_; }
 
     /**
      * @brief 刷新所有日志器的输出缓冲
@@ -734,11 +734,11 @@ public:
 
 private:
     /// 日志器集合
-    std::map<std::string, Logger::ptr> m_loggers;
+    std::map<std::string, Logger::ptr> loggers_;
     /// 根日志器
-    Logger::ptr m_root;
+    Logger::ptr root_;
     /// Mutex
-    MutexType m_mutex;
+    MutexType mutex_;
 };
 
 /**
@@ -773,12 +773,12 @@ inline void LogByFormatWithLogger(
         new LogEvent(logger, level, file, line, 0, chen::GetThreadId(), chen::GetFiberId(), TimeUtil::GetCurrentUs(), chen::Thread::GetName()));
 
     try {
-        auto formatArgs = std::make_tuple(NormalizeFormatArg(std::forward<Args>(args))...);
+        auto format_args = std::make_tuple(NormalizeFormatArg(std::forward<Args>(args))...);
         std::apply(
             [&](auto&... vals) {
                 event->getSS() << std::vformat(pattern, std::make_format_args(vals...));
             },
-            formatArgs);
+            format_args);
     } catch (const std::format_error& e) {
         event->getSS() << "[format_error: " << e.what() << "] " << pattern;
     }

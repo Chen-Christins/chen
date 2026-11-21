@@ -39,11 +39,11 @@ public:
 
     /**
      * @brief 以流式方式读取请求 body
-     * @param totalLen 期望读取的总字节数（Content-Length）
+     * @param total_len 期望读取的总字节数（Content-Length）
      * @param cb 每收到一块数据时回调；返回 false 提前终止
      * @return 0 成功 | -1 失败
      */
-    virtual int readBodyStreaming(uint64_t totalLen, BodyCallback cb);
+    virtual int readBodyStreaming(uint64_t total_len, BodyCallback cb);
 
     /**
      * @brief 将请求 body 全量读入 request（普通请求用）
@@ -56,14 +56,14 @@ public:
     /**
      * @brief 保存 header 之后已多读到的 body 字节，供流式 servlet 回放
      */
-    void setPendingBody(const std::string& v) { m_pendingBody = v; }
-    const std::string& getPendingBody() const { return m_pendingBody; }
+    void setPendingBody(const std::string& v) { pending_body_ = v; }
+    const std::string& getPendingBody() const { return pending_body_; }
 
     /**
      * @brief 设置当前请求剩余的 body 字节数（流式请求用，用于兜底排空）
      */
-    void setBodyRemaining(uint64_t v) { m_bodyRemaining = v; }
-    uint64_t getBodyRemaining() const { return m_bodyRemaining; }
+    void setBodyRemaining(uint64_t v) { body_remaining_ = v; }
+    uint64_t getBodyRemaining() const { return body_remaining_; }
 
     /**
      * @brief 丢弃尚未消费的 body 字节（servlet 提前返回时兜底排空，保持 keep-alive 一致性）
@@ -84,9 +84,9 @@ public:
 
 private:
     /// header 之后已多读到的 body 字节
-    std::string m_pendingBody;
+    std::string pending_body_;
     /// 流式请求尚未消费的 body 字节数
-    uint64_t m_bodyRemaining = 0;
+    uint64_t body_remaining_ = 0;
 };
 
 } // namespace chen::http

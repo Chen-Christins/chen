@@ -60,7 +60,7 @@ public:
     template <typename Func>
     void registerMethod(const std::string& name, Func func)
     {
-        m_handlers[HandlerKey{name}] = MakeRpcHandler(func);
+        handlers_[HandlerKey{name}] = MakeRpcHandler(func);
     }
 
     /**
@@ -73,7 +73,7 @@ public:
     template <typename Func>
     void registerMethod(uint32_t cmd, Func func)
     {
-        m_handlers[HandlerKey{cmd}] = MakeRpcHandler(func);
+        handlers_[HandlerKey{cmd}] = MakeRpcHandler(func);
     }
 
     /**
@@ -96,20 +96,20 @@ public:
      */
     void setRelay(bool v);
 
-    bool isRelay() const { return m_relay; }
+    bool isRelay() const { return relay_; }
 
     /**
      * @brief 设置中继超时时间（毫秒）
      * @param v 超时毫秒数，0 表示不设超时
      */
-    void setRelayTimeout(uint64_t v) { m_relayTimeout = v; }
+    void setRelayTimeout(uint64_t v) { relay_timeout_ = v; }
 
-    uint64_t getRelayTimeout() const { return m_relayTimeout; }
+    uint64_t getRelayTimeout() const { return relay_timeout_; }
 
     /**
      * @brief 获取服务注册表（relay 模式）
      */
-    RpcHubRegistry::ptr getRegistry() const { return m_registry; }
+    RpcHubRegistry::ptr getRegistry() const { return registry_; }
 
 protected:
     /**
@@ -190,17 +190,17 @@ private:
     };
 
     // k: 方法名或 CmdID（见 HandlerKey） -> v: 接收 (ByteArray, Protocol.sequence) 并返回响应协议帧
-    std::unordered_map<HandlerKey, RpcHandler, HandlerKeyHash> m_handlers;
+    std::unordered_map<HandlerKey, RpcHandler, HandlerKeyHash> handlers_;
     /// 是否中心转发模式
-    bool m_relay = false;
+    bool relay_ = false;
     /// 中继超时（毫秒）
-    uint64_t m_relayTimeout = 3000;
+    uint64_t relay_timeout_ = 3000;
     /// 服务注册表
-    RpcHubRegistry::ptr m_registry;
+    RpcHubRegistry::ptr registry_;
     /// conn -> 中继状态（出站 seq + 中继子表 + 写信号量）
-    std::unordered_map<RpcConnection::ptr, std::shared_ptr<ConnRelayState>> m_connRelay;
-    /// 保护 m_connRelay 的互斥锁（仅 map 查找，短临界区）
-    std::mutex m_connRelayMutex;
+    std::unordered_map<RpcConnection::ptr, std::shared_ptr<ConnRelayState>> conn_relay_;
+    /// 保护 conn_relay_ 的互斥锁（仅 map 查找，短临界区）
+    std::mutex conn_relay_mutex_;
 };
 
 } // namespace chen::rpc

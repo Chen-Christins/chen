@@ -16,9 +16,9 @@ EMailEntity::ptr EMailEntity::CreateAttach(const std::string& filename)
     EMailEntity::ptr entity(new EMailEntity);
     while (!ifs.eof()) {
         ifs.read(&buf[0], buf.size());
-        entity->m_content.append(buf.c_str(), ifs.gcount());
+        entity->content_.append(buf.c_str(), ifs.gcount());
     }
-    entity->m_content = StringUtil::Base64Encode(entity->m_content);
+    entity->content_ = StringUtil::Base64Encode(entity->content_);
     entity->addHeader("Content-Transfer-Encoding", "base64");
     entity->addHeader("Content-Disposition", "attachment");
     entity->addHeader("Content-Type", "application/octet-stream;name=" + FSUtil::Basename(filename));
@@ -27,22 +27,22 @@ EMailEntity::ptr EMailEntity::CreateAttach(const std::string& filename)
 
 void EMailEntity::addHeader(const std::string& key, const std::string& val)
 {
-    m_headers[key] = val;
+    headers_[key] = val;
 }
 
 std::string EMailEntity::getHeader(const std::string& key, const std::string& def)
 {
-    auto it = m_headers.find(key);
-    return it == m_headers.end() ? def : it->second;
+    auto it = headers_.find(key);
+    return it == headers_.end() ? def : it->second;
 }
 
 std::string EMailEntity::toString() const
 {
     std::stringstream ss;
-    for (auto& i : m_headers) {
+    for (auto& i : headers_) {
         ss << i.first << ": " << i.second << "\r\n";
     }
-    ss << m_content << "\r\n";
+    ss << content_ << "\r\n";
     return ss.str();
 }
 
@@ -68,7 +68,7 @@ EMail::ptr EMail::Create(
 
 void EMail::addEntity(EMailEntity::ptr entity)
 {
-    m_entitys.push_back(entity);
+    entitys_.push_back(entity);
 }
 
 } // namespace chen

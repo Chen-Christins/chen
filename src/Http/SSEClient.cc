@@ -3,7 +3,7 @@
 namespace chen::http {
 
 SSEClient::SSEClient()
-    : m_callback(nullptr)
+    : callback_(nullptr)
 {
 }
 
@@ -13,21 +13,21 @@ size_t SSEClient::feed(const char* data, size_t len)
         return 0;
     }
 
-    m_buffer.append(data, len);
+    buffer_.append(data, len);
     size_t consumed = len;
 
     // SSE events are separated by double newline: "\n\n"
     // Lines can end with \n or \r\n, normalize \r\n to \n for simplicity
     size_t pos = 0;
-    while (pos < m_buffer.size()) {
+    while (pos < buffer_.size()) {
         // Find end of event: \n\n
-        size_t delim = m_buffer.find("\n\n", pos);
+        size_t delim = buffer_.find("\n\n", pos);
         if (delim == std::string::npos) {
             break;
         }
 
         // Extract event text (from pos to delim)
-        std::string event_text = m_buffer.substr(pos, delim - pos);
+        std::string event_text = buffer_.substr(pos, delim - pos);
         pos = delim + 2; // skip \n\n
 
         // Parse event fields
@@ -89,12 +89,12 @@ size_t SSEClient::feed(const char* data, size_t len)
         }
 
         // Trigger callback if event has any content
-        if (!event.empty() && m_callback) {
-            if (!m_callback(event)) {
+        if (!event.empty() && callback_) {
+            if (!callback_(event)) {
                 // Caller requested stop
                 consumed = pos;
                 // Remove consumed data from buffer
-                m_buffer.erase(0, pos);
+                buffer_.erase(0, pos);
                 return consumed;
             }
         }
@@ -102,7 +102,7 @@ size_t SSEClient::feed(const char* data, size_t len)
 
     // Remove consumed data from buffer
     if (pos > 0) {
-        m_buffer.erase(0, pos);
+        buffer_.erase(0, pos);
     }
 
     return consumed;
@@ -110,7 +110,7 @@ size_t SSEClient::feed(const char* data, size_t len)
 
 void SSEClient::reset()
 {
-    m_buffer.clear();
+    buffer_.clear();
 }
 
 } // namespace chen::http

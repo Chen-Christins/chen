@@ -11,19 +11,19 @@ bool RpcHubRegistry::registerService(
     const std::vector<uint32_t>& bind_ids,
     RpcConnection::ptr conn)
 {
-    std::unique_lock lock(m_mutex);
+    std::unique_lock lock(mutex_);
 
     // 连接重复注册：先注销旧记录，支持重注册更新
-    auto old = m_connToPeer.find(conn);
-    if (old != m_connToPeer.end()) {
+    auto old = conn_to_peer_.find(conn);
+    if (old != conn_to_peer_.end()) {
         if (old->second != peer_id) {
             removePeerLocked(old->second);
         }
     }
 
     // peer_id 已被其它连接占用：拒绝
-    auto exist = m_peers.find(peer_id);
-    if (exist != m_peers.end() && exist->second.conn != conn) {
+    auto exist = peers_.find(peer_id);
+    if (exist != peers_.end() && exist->second.conn != conn) {
         return false;
     }
 
@@ -34,39 +34,39 @@ bool RpcHubRegistry::registerService(
     entry.bind_ids = std::set<uint32_t>(bind_ids.begin(), bind_ids.end());
     entry.conn = conn;
 
-    m_peers[peer_id] = entry;
-    m_connToPeer[conn] = peer_id;
-    m_funcInstances[func_id][instance_id] = peer_id;
+    peers_[peer_id] = entry;
+    conn_to_peer_[conn] = peer_id;
+    func_instances_[func_id][instance_id] = peer_id;
     for (auto bind_id : bind_ids) {
-        m_bindings[(uint64_t)func_id << 32 | bind_id] = peer_id;
+        bindings_[(uint64_t)func_id << 32 | bind_id] = peer_id;
     }
     return true;
 }
 
 void RpcHubRegistry::removePeerLocked(uint32_t peer_id)
 {
-    auto it = m_peers.find(peer_id);
-    if (it == m_peers.end()) {
+    auto it = peers_.find(peer_id);
+    if (it == peers_.end()) {
         return;
     }
     const ServiceEntry& entry = it->second;
-    auto& inst_map = m_funcInstances[entry.func_id];
+    auto& inst_map = func_instances_[entry.func_id];
     inst_map.erase(entry.instance_id);
     if (inst_map.empty()) {
-        m_funcInstances.erase(entry.func_id);
+        func_instances_.erase(entry.func_id);
     }
     for (auto bind_id : entry.bind_ids) {
-        m_bindings.erase((uint64_t)entry.func_id << 32 | bind_id);
+        bindings_.erase((uint64_t)entry.func_id << 32 | bind_id);
     }
-    m_connToPeer.erase(entry.conn);
-    m_peers.erase(it);
+    conn_to_peer_.erase(entry.conn);
+    peers_.erase(it);
 }
 
 void RpcHubRegistry::unregisterByConn(RpcConnection::ptr conn)
 {
-    std::unique_lock lock(m_mutex);
-    auto it = m_connToPeer.find(conn);
-    if (it == m_connToPeer.end()) {
+    std::unique_lock lock(mutex_);
+    auto it = conn_to_peer_.find(conn);
+    if (it == conn_to_peer_.end()) {
         return;
     }
     removePeerLocked(it->second);
@@ -74,9 +74,9 @@ void RpcHubRegistry::unregisterByConn(RpcConnection::ptr conn)
 
 RpcConnection::ptr RpcHubRegistry::getByPeerId(uint32_t peer_id) const
 {
-    std::shared_lock lock(m_mutex);
-    auto it = m_peers.find(peer_id);
-    if (it == m_peers.end()) {
+    std::shared_lock lock(mutex_);
+    auto it = peers_.find(peer_id);
+    if (it == peers_.end()) {
         return nullptr;
     }
     return it->second.conn;
@@ -84,13 +84,13 @@ RpcConnection::ptr RpcHubRegistry::getByPeerId(uint32_t peer_id) const
 
 RpcConnection::ptr RpcHubRegistry::getByBindId(uint32_t func_id, uint32_t bind_id) const
 {
-    std::shared_lock lock(m_mutex);
-    auto it = m_bindings.find((uint64_t)func_id << 32 | bind_id);
-    if (it == m_bindings.end()) {
+    std::shared_lock lock(mutex_);
+    auto it = bindings_.find((uint64_t)func_id << 32 | bind_id);
+    if (it == bindings_.end()) {
         return nullptr;
     }
-    auto peer_it = m_peers.find(it->second);
-    if (peer_it == m_peers.end()) {
+    auto peer_it = peers_.find(it->second);
+    if (peer_it == peers_.end()) {
         return nullptr;
     }
     return peer_it->second.conn;
@@ -98,9 +98,9 @@ RpcConnection::ptr RpcHubRegistry::getByBindId(uint32_t func_id, uint32_t bind_i
 
 RpcConnection::ptr RpcHubRegistry::getByGroupId(uint32_t func_id, uint32_t group_id, bool real_random) const
 {
-    std::shared_lock lock(m_mutex);
-    auto func_it = m_funcInstances.find(func_id);
-    if (func_it == m_funcInstances.end() || func_it->second.empty()) {
+    std::shared_lock lock(mutex_);
+    auto func_it = func_instances_.find(func_id);
+    if (func_it == func_instances_.end() || func_it->second.empty()) {
         return nullptr;
     }
 
@@ -122,8 +122,8 @@ RpcConnection::ptr RpcHubRegistry::getByGroupId(uint32_t func_id, uint32_t group
         if (inst_it == func_it->second.end()) {
             return nullptr;
         }
-        auto peer_it = m_peers.find(inst_it->second);
-        if (peer_it == m_peers.end()) {
+        auto peer_it = peers_.find(inst_it->second);
+        if (peer_it == peers_.end()) {
             return nullptr;
         }
         return peer_it->second.conn;
@@ -144,8 +144,8 @@ RpcConnection::ptr RpcHubRegistry::getByGroupId(uint32_t func_id, uint32_t group
     if (inst_it == func_it->second.end()) {
         return nullptr;
     }
-    auto peer_it = m_peers.find(inst_it->second);
-    if (peer_it == m_peers.end()) {
+    auto peer_it = peers_.find(inst_it->second);
+    if (peer_it == peers_.end()) {
         return nullptr;
     }
     return peer_it->second.conn;
@@ -153,15 +153,15 @@ RpcConnection::ptr RpcHubRegistry::getByGroupId(uint32_t func_id, uint32_t group
 
 std::vector<RpcConnection::ptr> RpcHubRegistry::getByFuncId(uint32_t func_id) const
 {
-    std::shared_lock lock(m_mutex);
+    std::shared_lock lock(mutex_);
     std::vector<RpcConnection::ptr> conns;
-    auto func_it = m_funcInstances.find(func_id);
-    if (func_it == m_funcInstances.end()) {
+    auto func_it = func_instances_.find(func_id);
+    if (func_it == func_instances_.end()) {
         return conns;
     }
     for (auto& [instance_id, peer_id] : func_it->second) {
-        auto peer_it = m_peers.find(peer_id);
-        if (peer_it != m_peers.end()) {
+        auto peer_it = peers_.find(peer_id);
+        if (peer_it != peers_.end()) {
             conns.push_back(peer_it->second.conn);
         }
     }
@@ -170,9 +170,9 @@ std::vector<RpcConnection::ptr> RpcHubRegistry::getByFuncId(uint32_t func_id) co
 
 size_t RpcHubRegistry::getInstanceCount(uint32_t func_id) const
 {
-    std::shared_lock lock(m_mutex);
-    auto func_it = m_funcInstances.find(func_id);
-    if (func_it == m_funcInstances.end()) {
+    std::shared_lock lock(mutex_);
+    auto func_it = func_instances_.find(func_id);
+    if (func_it == func_instances_.end()) {
         return 0;
     }
     return func_it->second.size();
@@ -180,15 +180,15 @@ size_t RpcHubRegistry::getInstanceCount(uint32_t func_id) const
 
 bool RpcHubRegistry::isRegistered(RpcConnection::ptr conn) const
 {
-    std::shared_lock lock(m_mutex);
-    return m_connToPeer.find(conn) != m_connToPeer.end();
+    std::shared_lock lock(mutex_);
+    return conn_to_peer_.find(conn) != conn_to_peer_.end();
 }
 
 uint32_t RpcHubRegistry::getPeerIdByConn(RpcConnection::ptr conn) const
 {
-    std::shared_lock lock(m_mutex);
-    auto it = m_connToPeer.find(conn);
-    if (it == m_connToPeer.end()) {
+    std::shared_lock lock(mutex_);
+    auto it = conn_to_peer_.find(conn);
+    if (it == conn_to_peer_.end()) {
         return 0;
     }
     return it->second;

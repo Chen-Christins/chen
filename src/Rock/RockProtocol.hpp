@@ -17,8 +17,8 @@ public:
     typedef std::shared_ptr<RockBody> ptr;
     virtual ~RockBody();
 
-    void setBody(const std::string& v) { m_body = v; }
-    const std::string& getBody() const { return m_body; }
+    void setBody(const std::string& v) { body_ = v; }
+    const std::string& getBody() const { return body_; }
 
     virtual bool serializeToByteArray(ByteArray::ptr bytearray);
     virtual bool parseFromByteArray(ByteArray::ptr bytearray);
@@ -28,7 +28,7 @@ public:
     {
         try {
             std::shared_ptr<T> data(new T);
-            if (data->ParseFromString(m_body)) {
+            if (data->ParseFromString(body_)) {
                 return data;
             }
         } catch (...) {
@@ -40,14 +40,14 @@ public:
     bool setAsPB(const T& v)
     {
         try {
-            return v.SerializeToString(&m_body);
+            return v.SerializeToString(&body_);
         } catch (...) {
         }
         return false;
     }
 
 protected:
-    std::string m_body;
+    std::string body_;
 };
 
 class RockResponse;

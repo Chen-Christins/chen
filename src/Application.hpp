@@ -27,7 +27,7 @@ public:
      * @brief 获取实例
      * @return Application*
      */
-    static Application* GetInstance() { return m_instance; }
+    static Application* GetInstance() { return kInstance; }
 
     /**
      * @brief 初始化传入参数
@@ -111,7 +111,7 @@ private:
 
     /**
      * @brief master fork 一个 worker 进程
-     * @return int 新 worker 在 m_workers 中的下标，失败返回 -1
+     * @return int 新 worker 在 workers_ 中的下标，失败返回 -1
      */
     int spawnWorker();
 
@@ -131,8 +131,8 @@ private:
 
     /**
      * @brief 可被信号打断的等待（用于崩溃重启 backoff）
-     * @details 在 m_masterSigset 上 sigtimedwait；收到 SIGTERM/SIGINT 立即置
-     *          m_isMasterStopping 并返回，SIGHUP/SIGCHLD 记为待处理
+     * @details 在 master_sigset_ 上 sigtimedwait；收到 SIGTERM/SIGINT 立即置
+     *          is_master_stopping_ 并返回，SIGHUP/SIGCHLD 记为待处理
      * @param ms 等待毫秒数
      */
     void sleepInterruptible(uint32_t ms);
@@ -203,48 +203,48 @@ private:
 
 private:
     /// 参数个数
-    int m_argc;
+    int argc_;
     /// 参数值
-    char** m_argv = nullptr;
+    char** argv_ = nullptr;
     /// 主协程调度器
-    IOManager::ptr m_mainIOManager;
+    IOManager::ptr main_iomanager_;
     /// tick 专用调度器（独立于主调度器，避免 tick 逻辑阻塞 IO 事件）
-    IOManager::ptr m_tickIOManager;
+    IOManager::ptr tick_iomanager_;
     /// tick 定时器列表（用于关闭时取消）
-    std::vector<Timer::ptr> m_tickTimers;
+    std::vector<Timer::ptr> tick_timers_;
     /// housekeeping 定时器
-    Timer::ptr m_housekeepingTimer;
+    Timer::ptr housekeeping_timer_;
     /// 配置文件 inotify 监听器
-    FileWatcher::ptr m_configWatcher;
+    FileWatcher::ptr config_watcher_;
     /// pid 文件路径
-    std::string m_pidfile;
+    std::string pidfile_;
     /// 是否正在关闭（防止重复执行）
-    bool m_isShuttingDown = false;
+    bool is_shutting_down_ = false;
     /// worker 进程列表（master 使用）
-    std::vector<WorkerProc> m_workers;
+    std::vector<WorkerProc> workers_;
     /// 当前进程是否为 worker
-    bool m_isWorker = false;
+    bool is_worker_ = false;
     /// master 是否正在停止（停止期间不再重启崩溃的 worker）
-    bool m_isMasterStopping = false;
+    bool is_master_stopping_ = false;
     /// master 屏蔽并统一处理的信号集（SIGHUP/SIGTERM/SIGINT/SIGCHLD）
-    sigset_t m_masterSigset;
+    sigset_t master_sigset_;
     /// 等待期间收到 SIGHUP，待主循环处理的重载请求
-    bool m_pendingReload = false;
+    bool pending_reload_ = false;
     /// 等待期间收到 SIGCHLD，待主循环处理的收割请求
-    bool m_pendingReap = false;
+    bool pending_reap_ = false;
     /// worker 就绪通知管道写端（worker 使用，-1 表示已关闭）
-    int m_readyFd = -1;
+    int ready_fd_ = -1;
     /// 所有server列表 — 必须声明在 IOManager 之后，确保 ~Application() 时
-    /// IOManager 比 m_servers 更晚析构，TcpServer::close() 调用时 FdMgr 等存活
-    std::map<std::string, std::vector<TcpServer::ptr>> m_servers;
+    /// IOManager 比 servers_ 更晚析构，TcpServer::close() 调用时 FdMgr 等存活
+    std::map<std::string, std::vector<TcpServer::ptr>> servers_;
     /// 服务发现实例（模块可注册/查询）
-    IServiceDiscovery::ptr m_serviceDiscovery;
-    /// 保护 m_serviceDiscovery
-    mutable std::mutex m_serviceDiscoveryMutex;
+    IServiceDiscovery::ptr service_discovery_;
+    /// 保护 service_discovery_
+    mutable std::mutex service_discovery_mutex_;
     /// 程序实例
-    static Application* m_instance;
+    static Application* kInstance;
     /// 优雅关闭信号标志
-    static std::atomic<bool> s_shutdownSignaled;
+    static std::atomic<bool> kShutdownSignaled;
 };
 
 } // namespace chen

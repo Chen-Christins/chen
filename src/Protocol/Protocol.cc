@@ -20,68 +20,68 @@ ByteArray::ptr Message::toByteArray()
 }
 
 Request::Request()
-    : m_sn(0)
-    , m_cmd(0)
+    : sn_(0)
+    , cmd_(0)
 {
 }
 
 bool Request::serializeToByteArray(ByteArray::ptr bytearray)
 {
     bytearray->writeFuint8(getType());
-    bytearray->writeUint32(m_sn);
-    bytearray->writeUint32(m_cmd);
+    bytearray->writeUint32(sn_);
+    bytearray->writeUint32(cmd_);
     return true;
 }
 
 bool Request::parseFromByteArray(ByteArray::ptr bytearray)
 {
-    m_sn = bytearray->readUint32();
-    m_cmd = bytearray->readUint32();
+    sn_ = bytearray->readUint32();
+    cmd_ = bytearray->readUint32();
     return true;
 }
 
 Response::Response()
-    : m_sn(0)
-    , m_cmd(0)
-    , m_result(404)
-    , m_resultStr("unhandle")
+    : sn_(0)
+    , cmd_(0)
+    , result_(404)
+    , result_str_("unhandle")
 {
 }
 
 bool Response::serializeToByteArray(ByteArray::ptr bytearray)
 {
     bytearray->writeFuint8(getType());
-    bytearray->writeUint32(m_sn);
-    bytearray->writeUint32(m_cmd);
-    bytearray->writeUint32(m_result);
-    bytearray->writeStringVint(m_resultStr);
+    bytearray->writeUint32(sn_);
+    bytearray->writeUint32(cmd_);
+    bytearray->writeUint32(result_);
+    bytearray->writeStringVint(result_str_);
     return true;
 }
 
 bool Response::parseFromByteArray(ByteArray::ptr bytearray)
 {
-    m_sn = bytearray->readUint32();
-    m_cmd = bytearray->readUint32();
-    m_result = bytearray->readUint32();
-    m_resultStr = bytearray->readStringVint();
+    sn_ = bytearray->readUint32();
+    cmd_ = bytearray->readUint32();
+    result_ = bytearray->readUint32();
+    result_str_ = bytearray->readStringVint();
     return true;
 }
 
 Notify::Notify()
-    : m_notify(0)
+    : notify_(0)
 {
 }
 
 bool Notify::serializeToByteArray(ByteArray::ptr bytearray)
 {
     bytearray->writeFuint8(getType());
-    bytearray->writeUint32(m_notify);
+    bytearray->writeUint32(notify_);
     return true;
 }
 
 bool Notify::parseFromByteArray(ByteArray::ptr bytearray)
 {
-    m_notify = bytearray->readUint32();
+    notify_ = bytearray->readUint32();
     return true;
 }
 

@@ -69,9 +69,9 @@ public:
 
     bool any() const;
 
-    uint32_t getSize() const { return m_size; }
-    uint32_t getDataSize() const { return m_dataSize; }
-    bool isCompress() const { return m_compress; }
+    uint32_t getSize() const { return size_; }
+    uint32_t getDataSize() const { return data_size_; }
+    bool isCompress() const { return compress_; }
 
     void resize(uint32_t size, bool v = false);
 
@@ -105,11 +105,11 @@ public:
         virtual void next() = 0;
 
     protected:
-        int32_t m_pos;
-        int32_t m_size;
-        int32_t m_dataSize;
-        bool m_compress;
-        base_type* m_data;
+        int32_t pos_;
+        int32_t size_;
+        int32_t data_size_;
+        bool compress_;
+        base_type* data_;
     };
 
     class iterator : public iterator_base {
@@ -140,17 +140,17 @@ private:
     Bitmap();
 
 private:
-    bool m_compress;
-    uint32_t m_size;
-    uint32_t m_dataSize;
-    base_type* m_data;
+    bool compress_;
+    uint32_t size_;
+    uint32_t data_size_;
+    base_type* data_;
 
 private:
     static const uint32_t VALUE_SIZE = sizeof(base_type) * 8 - 2;
     static const base_type COMPRESS_MASK = ((base_type)1 << (sizeof(base_type) * 8 - 1));
-    static const base_type VALUE_MASK = ((base_type)1 << (sizeof(base_type) * 8 - 2));
+    static const base_type kValueMask = ((base_type)1 << (sizeof(base_type) * 8 - 2));
     static const base_type COUNT_MASK = ((base_type)1 << (sizeof(base_type) * 8 - 2)) - 1;
-    static const base_type NOT_VALUE_MASK = ~VALUE_MASK;
+    static const base_type kNotValueMask = ~kValueMask;
     static const base_type U64_DIV_BASE = (sizeof(uint64_t) / sizeof(base_type));
     static const base_type U64_VALUE_SIZE = (VALUE_SIZE * U64_DIV_BASE);
 

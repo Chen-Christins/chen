@@ -43,54 +43,54 @@ public:
     /**
      * @brief 判断是否初始化成功
      */
-    bool isInit() const { return m_isInit; }
+    bool isInit() const { return is_init_; }
 
     /**
      * @brief 返回这个文件描述符是否是socket系列的
      */
-    bool isSocket() const { return m_isSocket; }
+    bool isSocket() const { return is_socket_; }
 
     /**
      * @brief 文件描述符是否关闭
      */
-    bool isClose() const { return m_isClosed; }
+    bool isClose() const { return is_closed_; }
 
     /**
      * @brief 设置文件描述符关闭状态
      */
-    void setClose(bool v) { m_isClosed = v; }
+    void setClose(bool v) { is_closed_ = v; }
 
     /**
      * @brief 获取注册了此 fd 事件的 IOManager
      */
-    IOManager* getIOManager() const { return m_iom; }
+    IOManager* getIOManager() const { return iom_; }
 
     /**
      * @brief 设置注册了此 fd 事件的 IOManager
      */
-    void setIOManager(IOManager* iom) { m_iom = iom; }
+    void setIOManager(IOManager* iom) { iom_ = iom; }
 
     /**
      * @brief 设置是否是用户设置的非阻塞
      * @param v 新的状态
      */
-    void setUserNonblock(bool v) { m_userNonblock = v; }
+    void setUserNonblock(bool v) { user_nonblock_ = v; }
 
     /**
      * @brief 获取是否是用户设置的非阻塞
      */
-    bool getUserNonblock() const { return m_userNonblock; }
+    bool getUserNonblock() const { return user_nonblock_; }
 
     /**
      * @brief 设置是否是hook模块里设置的非阻塞
      * @param v 新的状态
      */
-    void setSysNonblock(bool v) { m_sysNonblock = v; }
+    void setSysNonblock(bool v) { sys_nonblock_ = v; }
 
     /**
      * @brief 获取是否是hook模块设置的状态
      */
-    bool getSysNonblock() const { return m_sysNonblock; }
+    bool getSysNonblock() const { return sys_nonblock_; }
 
     /**
      * @brief 设置对应类型[read/send]的超时时间
@@ -108,23 +108,23 @@ public:
 
 private:
     /// 是否初始化，这里的这个 :1 是位域的意思，一个
-    bool m_isInit : 1;
+    bool is_init_ : 1;
     /// 是不是socket系列的fd
-    bool m_isSocket : 1;
+    bool is_socket_ : 1;
     /// 是否hook非阻塞
-    bool m_sysNonblock : 1;
+    bool sys_nonblock_ : 1;
     /// 是否用户主动设置非阻塞
-    bool m_userNonblock : 1;
+    bool user_nonblock_ : 1;
     /// 是否关闭
-    bool m_isClosed : 1;
+    bool is_closed_ : 1;
     /// 文件描述符
-    int m_fd;
+    int fd_;
     /// 读超时时间
-    uint64_t m_recvTimout;
+    uint64_t recv_timout_;
     /// 写超时时间
-    uint64_t m_sendTimeout;
+    uint64_t send_timeout_;
     /// 注册了此 fd 事件的 IOManager（非拥有关系）
-    IOManager* m_iom = nullptr;
+    IOManager* iom_ = nullptr;
 };
 
 class FdManager {
@@ -149,9 +149,9 @@ public:
 
 private:
     /// 写锁
-    std::shared_mutex m_mutex;
+    std::shared_mutex mutex_;
     /// 管理的信息集合
-    std::vector<FdCtx::ptr> m_datas;
+    std::vector<FdCtx::ptr> datas_;
 };
 
 typedef Singleton<FdManager> FdMgr;

@@ -35,9 +35,9 @@ public:
     void run();
     void close();
 
-    Socket::ptr getSocket() const { return m_socket; }
-    ServletDispatch::ptr getDispatch() const { return m_dispatch; }
-    IOManager* getWorker() const { return m_worker; }
+    Socket::ptr getSocket() const { return socket_; }
+    ServletDispatch::ptr getDispatch() const { return dispatch_; }
+    IOManager* getWorker() const { return worker_; }
 
     // Command posting from stream fibers (thread-safe)
     struct Command {
@@ -87,20 +87,20 @@ private:
         bool body_done = false;
     };
 
-    Socket::ptr m_socket;
-    IOManager* m_worker;
-    ServletDispatch::ptr m_dispatch;
-    nghttp2_session* m_session = nullptr;
+    Socket::ptr socket_;
+    IOManager* worker_;
+    ServletDispatch::ptr dispatch_;
+    nghttp2_session* session_ = nullptr;
 
-    std::unordered_map<int32_t, StreamCtx> m_streams;
-    std::shared_mutex m_streamMutex;
+    std::unordered_map<int32_t, StreamCtx> streams_;
+    std::shared_mutex stream_mutex_;
 
-    std::queue<Command> m_commands;
-    std::mutex m_cmdMutex;
+    std::queue<Command> commands_;
+    std::mutex cmd_mutex_;
 
-    std::vector<uint8_t> m_sendBuffer;
-    std::vector<std::shared_ptr<void>> m_pendingBodies;
-    std::atomic<bool> m_stopping{false};
+    std::vector<uint8_t> send_buffer_;
+    std::vector<std::shared_ptr<void>> pending_bodies_;
+    std::atomic<bool> stopping_{false};
 };
 
 } // namespace chen::http

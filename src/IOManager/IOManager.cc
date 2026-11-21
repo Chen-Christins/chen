@@ -45,16 +45,16 @@ void IOManager::FdContext::triggerEvent(Event event)
     ctx.scheduler = nullptr;
 }
 
-IOManager::IOManager(size_t threadCount, bool use_caller, const std::string& name)
-    : Scheduler(threadCount, use_caller, name)
+IOManager::IOManager(size_t thread_count, bool use_caller, const std::string& name)
+    : Scheduler(thread_count, use_caller, name)
 {
     // 创建epoll文件描述符
-    m_epfd = epoll_create(5);
+    epfd_ = epoll_create(5);
     // 成功epoll会返回非负文件描述符，出错就会返回-1
-    ASSERT(m_epfd != -1);
+    ASSERT(epfd_ != -1);
 
     // 创建管道，用于进程间通信
-    int rt = pipe(m_tickleFds);
+    int rt = pipe(tickle_fds_);
     // 成功返回0，失败返回-1
     ASSERT(rt != -1);
 
@@ -63,15 +63,15 @@ IOManager::IOManager(size_t threadCount, bool use_caller, const std::string& nam
     // 注册读事件，设置边沿触发
     event.events = EPOLLIN | EPOLLET;
     // fd 关联管道的读端
-    event.data.fd = m_tickleFds[0];
+    event.data.fd = tickle_fds_[0];
 
     // 对一个打开的文件描述符执行控制操作
     // F_SETFL: 获取/设置文件状态标志
     // ON_NONBLOCK: 让文件描述符变成非阻塞模式，当读不到数据或者写缓冲区满了就马上return, 而不会阻塞等待
-    rt = fcntl(m_tickleFds[0], F_SETFL, O_NONBLOCK);
+    rt = fcntl(tickle_fds_[0], F_SETFL, O_NONBLOCK);
     ASSERT(rt != -1);
 
-    rt = epoll_ctl(m_epfd, EPOLL_CTL_ADD, m_tickleFds[0], &event);
+    rt = epoll_ctl(epfd_, EPOLL_CTL_ADD, tickle_fds_[0], &event);
     ASSERT(rt != -1);
 
     contextResize(32);
@@ -84,16 +84,16 @@ IOManager::~IOManager()
     // 停止调度器
     stop();
     // 关闭epoll文件描述符
-    close(m_epfd);
+    close(epfd_);
     // 关闭读管道的文件描述符
-    close(m_tickleFds[0]);
+    close(tickle_fds_[0]);
     // 关闭写管道的文件描述符
-    close(m_tickleFds[1]);
+    close(tickle_fds_[1]);
 
     // 释放所有的m_fdcontext的资源
-    for (size_t i = 0; i < m_fdContexts.size(); ++i) {
-        if (m_fdContexts[i]) {
-            delete m_fdContexts[i];
+    for (size_t i = 0; i < fd_contexts_.size(); ++i) {
+        if (fd_contexts_[i]) {
+            delete fd_contexts_[i];
         }
     }
 }
@@ -106,18 +106,18 @@ int IOManager::addEvent(int fd, Event event, std::function<void()> cb)
 
     FdContext* fd_ctx = nullptr;
     // 加读锁
-    std::shared_lock lock(m_mutex);
-    // 从 m_fdContexts 中拿到对应的 Fdcontext
-    if ((int)m_fdContexts.size() > fd) {
-        fd_ctx = m_fdContexts[fd];
+    std::shared_lock lock(mutex_);
+    // 从 fd_contexts_ 中拿到对应的 Fdcontext
+    if ((int)fd_contexts_.size() > fd) {
+        fd_ctx = fd_contexts_[fd];
         lock.unlock();
     } else {
         lock.unlock();
-        std::unique_lock lock2(m_mutex);
+        std::unique_lock lock2(mutex_);
         // 扩容
         contextResize(1.5 * fd);
         // 取注册的事件上下文信息
-        fd_ctx = m_fdContexts[fd];
+        fd_ctx = fd_contexts_[fd];
     }
 
     std::unique_lock lock2(fd_ctx->mutex);
@@ -129,13 +129,13 @@ int IOManager::addEvent(int fd, Event event, std::function<void()> cb)
         bool fd_reused = !ctx || ctx->isClose();
         if (fd_reused) {
             WARN(logger) << "addEvent: fd=" << fd << " FdContext has stale events=" << fd_ctx->events << " (fd reused after close), resetting";
-            // 修正 m_penddingEventCount: 残留的事件从未被 cancel 触发，需手动递减
+            // 修正 pendding_event_count_: 残留的事件从未被 cancel 触发，需手动递减
             if (fd_ctx->events & READ) {
-                --m_penddingEventCount;
+                --pendding_event_count_;
                 fd_ctx->resetContext(fd_ctx->read);
             }
             if (fd_ctx->events & WRITE) {
-                --m_penddingEventCount;
+                --pendding_event_count_;
                 fd_ctx->resetContext(fd_ctx->write);
             }
             fd_ctx->events = NONE;
@@ -154,15 +154,15 @@ int IOManager::addEvent(int fd, Event event, std::function<void()> cb)
     epevent.data.ptr = fd_ctx;
 
     // 注册事件
-    int rt = epoll_ctl(m_epfd, op, fd, &epevent);
+    int rt = epoll_ctl(epfd_, op, fd, &epevent);
     /* 成功0 失败-1 */
     if (rt) {
-        ERROR(logger) << "epoll_ctl(" << m_epfd << "," << op << ", " << fd << ", " << epevent.events << ") : " << rt << " (" << errno << ") ("
-                      << strerror(errno) << ")";
+        ERROR(logger) << "epoll_ctl(" << epfd_ << "," << op << ", " << fd << ", " << epevent.events << ") : " << rt
+                      << " (" << errno << ") (" << strerror(errno) << ")";
         return -1;
     }
     // 等待执行的事件数量+1
-    ++m_penddingEventCount;
+    ++pendding_event_count_;
     // 将 fd_ctx 的注册事件更新
     fd_ctx->events = (Event)(fd_ctx->events | event);
     // 记录注册此 fd 的 IOManager，确保其他线程 close(fd) 能找到正确的 IOManager
@@ -189,13 +189,13 @@ int IOManager::addEvent(int fd, Event event, std::function<void()> cb)
 
 bool IOManager::delEvent(int fd, Event event)
 {
-    std::shared_lock lock(m_mutex);
-    // fd 为负（socket 已关闭）时必须拒绝，否则 m_fdContexts[-1] 越界
-    if (fd < 0 || fd >= (int)m_fdContexts.size()) {
+    std::shared_lock lock(mutex_);
+    // fd 为负（socket 已关闭）时必须拒绝，否则 fd_contexts_[-1] 越界
+    if (fd < 0 || fd >= (int)fd_contexts_.size()) {
         return false;
     }
     // 拿到fd对应的context
-    FdContext* fd_ctx = m_fdContexts[fd];
+    FdContext* fd_ctx = fd_contexts_[fd];
     lock.unlock();
 
     std::unique_lock lock2(fd_ctx->mutex);
@@ -214,23 +214,23 @@ bool IOManager::delEvent(int fd, Event event)
     epevent.data.ptr = fd_ctx;
 
     // 注册事件
-    int rt = epoll_ctl(m_epfd, op, fd, &epevent);
+    int rt = epoll_ctl(epfd_, op, fd, &epevent);
     if (rt) {
         if (errno == ENOENT || errno == EBADF) {
             // fd 已不在 epoll 中（ENOENT: 内核移除，EBADF: fd 已关闭），清理残留的内存状态
             WARN(logger) << "delEvent epoll_ctl fd=" << fd << " errno=" << errno << ", cleaning stale events";
-            --m_penddingEventCount;
+            --pendding_event_count_;
             fd_ctx->events = new_events;
             FdContext::EventContext& event_ctx = fd_ctx->getContext(event);
             fd_ctx->resetContext(event_ctx);
             return true;
         }
-        ERROR(logger) << "epoll_ctl(" << m_epfd << "," << op << ", " << fd << ", " << epevent.events << ") : " << rt << " (" << errno << ") ("
-                      << strerror(errno) << ")";
+        ERROR(logger) << "epoll_ctl(" << epfd_ << "," << op << ", " << fd << ", " << epevent.events << ") : " << rt
+                      << " (" << errno << ") (" << strerror(errno) << ")";
         return false;
     }
     // 等待执行的事件数量-1
-    --m_penddingEventCount;
+    --pendding_event_count_;
     // 更新事件
     fd_ctx->events = new_events;
     // 拿到对应事件的EventContext
@@ -242,13 +242,13 @@ bool IOManager::delEvent(int fd, Event event)
 
 bool IOManager::cancelEvent(int fd, Event event)
 {
-    std::shared_lock lock(m_mutex);
-    // fd 为负（socket 已关闭）时必须拒绝，否则 m_fdContexts[-1] 越界
-    if (fd < 0 || fd >= (int)m_fdContexts.size()) {
+    std::shared_lock lock(mutex_);
+    // fd 为负（socket 已关闭）时必须拒绝，否则 fd_contexts_[-1] 越界
+    if (fd < 0 || fd >= (int)fd_contexts_.size()) {
         return false;
     }
     // 拿到fd对应的context
-    FdContext* fd_ctx = m_fdContexts[fd];
+    FdContext* fd_ctx = fd_contexts_[fd];
     lock.unlock();
 
     std::unique_lock lock2(fd_ctx->mutex);
@@ -267,35 +267,35 @@ bool IOManager::cancelEvent(int fd, Event event)
     epevent.data.ptr = fd_ctx;
 
     // 注册事件
-    int rt = epoll_ctl(m_epfd, op, fd, &epevent);
+    int rt = epoll_ctl(epfd_, op, fd, &epevent);
     if (rt) {
         if (errno == ENOENT || errno == EBADF) {
             // fd 已不在 epoll 中（ENOENT: 内核移除，EBADF: fd 已关闭），清理残留的内存状态
             WARN(logger) << "cancelEvent epoll_ctl fd=" << fd << " errno=" << errno << ", cleaning stale events";
             fd_ctx->triggerEvent(event);
-            --m_penddingEventCount;
+            --pendding_event_count_;
             return true;
         }
-        ERROR(logger) << "epoll_ctl(" << m_epfd << "," << op << ", " << fd << ", " << epevent.events << ") : " << rt << " (" << errno << ") ("
-                      << strerror(errno) << ")";
+        ERROR(logger) << "epoll_ctl(" << epfd_ << "," << op << ", " << fd << ", " << epevent.events << ") : " << rt
+                      << " (" << errno << ") (" << strerror(errno) << ")";
         return false;
     }
     // 触发事件
     fd_ctx->triggerEvent(event);
-    --m_penddingEventCount;
+    --pendding_event_count_;
 
     return true;
 }
 
 bool IOManager::cancelAll(int fd)
 {
-    std::shared_lock lock(m_mutex);
-    // fd 为负（socket 已关闭）时必须拒绝，否则 m_fdContexts[-1] 越界
-    if (fd < 0 || fd >= (int)m_fdContexts.size()) {
+    std::shared_lock lock(mutex_);
+    // fd 为负（socket 已关闭）时必须拒绝，否则 fd_contexts_[-1] 越界
+    if (fd < 0 || fd >= (int)fd_contexts_.size()) {
         return false;
     }
     // 拿到fd对应的context
-    FdContext* fd_ctx = m_fdContexts[fd];
+    FdContext* fd_ctx = fd_contexts_[fd];
     lock.unlock();
 
     std::unique_lock lock2(fd_ctx->mutex);
@@ -312,7 +312,7 @@ bool IOManager::cancelAll(int fd)
     epevent.data.ptr = fd_ctx;
 
     // 注册事件
-    int rt = epoll_ctl(m_epfd, op, fd, &epevent);
+    int rt = epoll_ctl(epfd_, op, fd, &epevent);
     if (rt) {
         // ENOENT/EBADF: fd 已不在 epoll 中（内核移除 / fd 已关闭），
         // FdContext 中的事件是残留的，需要清理内存状态，否则后续复用会反复报错
@@ -320,19 +320,19 @@ bool IOManager::cancelAll(int fd)
             WARN(logger) << "cancelAll epoll_ctl EPOLL_CTL_DEL fd=" << fd << " errno=" << errno
                          << " (fd not in epoll, cleaning stale FdContext events=" << fd_ctx->events << ")";
         } else {
-            ERROR(logger) << "epoll_ctl(" << m_epfd << "," << op << ", " << fd << ", " << epevent.events << ") : " << rt << " (" << errno << ") ("
-                          << strerror(errno) << ")";
+            ERROR(logger) << "epoll_ctl(" << epfd_ << "," << op << ", " << fd << ", " << epevent.events << ") : " << rt
+                          << " (" << errno << ") (" << strerror(errno) << ")";
             return false;
         }
     }
     // 触发事件
     if (fd_ctx->events & READ) {
         fd_ctx->triggerEvent(READ);
-        --m_penddingEventCount;
+        --pendding_event_count_;
     }
     if (fd_ctx->events & WRITE) {
         fd_ctx->triggerEvent(WRITE);
-        --m_penddingEventCount;
+        --pendding_event_count_;
     }
     // 确保清空了所有事件
     ASSERT(fd_ctx->events == 0)
@@ -363,7 +363,7 @@ void IOManager::tickle()
         return;
     }
     // 有任务来了，就往pipe里发送一个字节的数据，唤醒epoll_wait
-    int rt = write(m_tickleFds[1], "T", 1);
+    int rt = write(tickle_fds_[1], "T", 1);
     ASSERT(rt == 1);
 }
 
@@ -376,7 +376,7 @@ bool IOManager::stopping()
 bool IOManager::stopping(uint64_t& timeout)
 {
     timeout = getNextTimer();
-    return timeout == ~0ull && m_penddingEventCount == 0 && Scheduler::stopping();
+    return timeout == ~0ull && pendding_event_count_ == 0 && Scheduler::stopping();
 }
 
 void IOManager::idle()
@@ -419,7 +419,7 @@ void IOManager::idle()
              * 2. 关注的 soket 有数据来了
              * 3. 通过 tickle 往 pipe 里发数据，表明有任务来了
              */
-            rt = epoll_wait(m_epfd, events, MAX_EVNETS, (int)next_timeout);
+            rt = epoll_wait(epfd_, events, MAX_EVNETS, (int)next_timeout);
             // 如果由于操作系统中断，就继续执行epoll_wait，成功就跳出去执行任务
             if (rt < 0 && errno == EINTR) {
             } else {
@@ -441,10 +441,10 @@ void IOManager::idle()
             // 从 events 中拿一个 event
             epoll_event& event = events[i];
             // 如果获得的这个信息来自管道
-            if (event.data.fd == m_tickleFds[0]) {
+            if (event.data.fd == tickle_fds_[0]) {
                 uint8_t dumpy[256];
                 // 将管道发来的这一个字节的数据读取
-                while (read(m_tickleFds[0], &dumpy, sizeof(dumpy)) > 0)
+                while (read(tickle_fds_[0], &dumpy, sizeof(dumpy)) > 0)
                     ;
                 continue;
             }
@@ -478,36 +478,36 @@ void IOManager::idle()
             // 更新新的事件
             event.events = EPOLLET | left_events;
 
-            int rt2 = epoll_ctl(m_epfd, op, fd_ctx->fd, &event);
+            int rt2 = epoll_ctl(epfd_, op, fd_ctx->fd, &event);
             if (rt2) {
                 // EBADF/ENOENT: fd 已在其他线程被 close（例如优雅关闭路径），
                 // 内核已自动移除 epoll 事件，需清理用户态计数器，否则 idle 循环无法退出
                 if (errno == EBADF || errno == ENOENT) {
-                    WARN(logger) << "epoll_ctl(" << m_epfd << "," << op << ", " << fd_ctx->fd << ", " << event.events << ") errno=" << errno << " ("
-                                 << strerror(errno) << "), cleaning stale events";
+                    WARN(logger) << "epoll_ctl(" << epfd_ << "," << op << ", " << fd_ctx->fd << ", " << event.events
+                                 << ") errno=" << errno << " (" << strerror(errno) << "), cleaning stale events";
                     // 触发残留事件并递减计数器，使 stopping() 条件最终满足
                     if (fd_ctx->events & READ) {
                         fd_ctx->triggerEvent(READ);
-                        --m_penddingEventCount;
+                        --pendding_event_count_;
                     }
                     if (fd_ctx->events & WRITE) {
                         fd_ctx->triggerEvent(WRITE);
-                        --m_penddingEventCount;
+                        --pendding_event_count_;
                     }
                 } else {
-                    ERROR(logger) << "epoll_ctl(" << m_epfd << "," << op << ", " << fd_ctx->fd << ", " << event.events << ") : " << rt2 << " ("
-                                  << errno << ") (" << strerror(errno) << ")";
+                    ERROR(logger) << "epoll_ctl(" << epfd_ << "," << op << ", " << fd_ctx->fd << ", " << event.events
+                                  << ") : " << rt2 << " (" << errno << ") (" << strerror(errno) << ")";
                 }
                 continue;
             }
             // 触发真正的事件
             if (fd_ctx->events & READ) {
                 fd_ctx->triggerEvent(READ);
-                --m_penddingEventCount;
+                --pendding_event_count_;
             }
             if (fd_ctx->events & WRITE) {
                 fd_ctx->triggerEvent(WRITE);
-                --m_penddingEventCount;
+                --pendding_event_count_;
             }
         }
 
@@ -525,13 +525,13 @@ void IOManager::idle()
 
 void IOManager::contextResize(size_t v)
 {
-    m_fdContexts.resize(v);
+    fd_contexts_.resize(v);
 
-    for (size_t i = 0; i < m_fdContexts.size(); ++i) {
+    for (size_t i = 0; i < fd_contexts_.size(); ++i) {
         // 没有就加一个
-        if (!m_fdContexts[i]) {
-            m_fdContexts[i] = new FdContext;
-            m_fdContexts[i]->fd = i;
+        if (!fd_contexts_[i]) {
+            fd_contexts_[i] = new FdContext;
+            fd_contexts_[i]->fd = i;
         }
     }
 }

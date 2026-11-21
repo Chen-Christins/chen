@@ -30,12 +30,12 @@ SmtpClient::ptr SmtpClient::Create(const std::string& host, uint32_t port, bool 
     addr->setPort(port);
     Socket::ptr sock;
     if (ssl) {
-        SSLSocket::ptr sslSock = SSLSocket::CreateTCP(addr);
-        if (sslSock) {
+        SSLSocket::ptr ssl_sock = SSLSocket::CreateTCP(addr);
+        if (ssl_sock) {
             // SNI + 证书主机名校验都要用域名，而不是解析后的 IP
-            sslSock->setServerName(host);
+            ssl_sock->setServerName(host);
         }
-        sock = sslSock;
+        sock = ssl_sock;
     } else {
         sock = Socket::CreateTCP(addr);
     }
@@ -59,7 +59,7 @@ SmtpClient::ptr SmtpClient::Create(const std::string& host, uint32_t port, bool 
     if (TypeUtil::Atoi(buf) != 220) {
         return nullptr;
     }
-    rt->m_host = host;
+    rt->host_ = host;
     return rt;
 }
 
@@ -76,8 +76,8 @@ SmtpResult::ptr SmtpClient::doCmd(const std::string& cmd, bool debug)
     }
     buf.resize(len);
     if (debug) {
-        m_ss << "C: " << cmd;
-        m_ss << "S: " << buf;
+        ss_ << "C: " << cmd;
+        ss_ << "S: " << buf;
     }
 
     int code = TypeUtil::Atoi(buf);
@@ -102,9 +102,9 @@ SmtpResult::ptr SmtpClient::send(EMail::ptr email, int64_t timeout_ms, bool debu
     }
 
     SmtpResult::ptr result;
-    std::string cmd = "HELO " + m_host + "\r\n";
+    std::string cmd = "HELO " + host_ + "\r\n";
     DO_CMD();
-    if (!m_authed && !email->getFromEMailAddress().empty()) {
+    if (!authed_ && !email->getFromEMailAddress().empty()) {
         cmd = "AUTH LOGIN\r\n";
         DO_CMD();
         auto pos = email->getFromEMailAddress().find('@');
@@ -113,7 +113,7 @@ SmtpResult::ptr SmtpClient::send(EMail::ptr email, int64_t timeout_ms, bool debu
         cmd = StringUtil::Base64Encode(email->getFromEMailPasswd()) + "\r\n";
         DO_CMD();
 
-        m_authed = true;
+        authed_ = true;
     }
 
     cmd = "MAIL FROM: <" + email->getFromEMailAddress() + ">\r\n";
@@ -188,7 +188,7 @@ SmtpResult::ptr SmtpClient::send(EMail::ptr email, int64_t timeout_ms, bool debu
 
 std::string SmtpClient::getDebugInfo()
 {
-    return m_ss.str();
+    return ss_.str();
 }
 
 } // namespace chen

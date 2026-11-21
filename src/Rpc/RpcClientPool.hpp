@@ -50,31 +50,31 @@ public:
     /**
      * @brief Set heartbeat interval for newly created clients.
      */
-    void setHeartbeatIntervalMs(uint64_t ms) { m_heartbeatIntervalMs = ms; }
+    void setHeartbeatIntervalMs(uint64_t ms) { heartbeat_interval_ms_ = ms; }
 
     /**
      * @brief Set idle timeout for automatic prune in getClient().
      */
-    void setIdleTimeoutMs(uint64_t ms) { m_idleTimeoutMs = ms; }
+    void setIdleTimeoutMs(uint64_t ms) { idle_timeout_ms_ = ms; }
 
 private:
     struct ClientEntry {
         RpcClient::ptr client;
-        uint64_t lastUsedMs = 0;
+        uint64_t last_used_ms = 0;
     };
 
-    void pruneIdleUnlocked(uint64_t nowMs, uint64_t idleMs);
+    void pruneIdleUnlocked(uint64_t now_ms, uint64_t idle_ms);
     void ensurePruneTimerLocked();
 
-    // mutex to protect access to m_clients
-    std::mutex m_mutex;
+    // mutex to protect access to clients_
+    std::mutex mutex_;
     // map of address to strong pointer for long-lived connection reuse
-    std::unordered_map<std::string, ClientEntry> m_clients;
+    std::unordered_map<std::string, ClientEntry> clients_;
 
-    uint64_t m_heartbeatIntervalMs = 30000;
-    uint64_t m_idleTimeoutMs = 60000;
-    uint64_t m_pruneIntervalMs = 10000;
-    Timer::ptr m_pruneTimer;
+    uint64_t heartbeat_interval_ms_ = 30000;
+    uint64_t idle_timeout_ms_ = 60000;
+    uint64_t prune_interval_ms_ = 10000;
+    Timer::ptr prune_timer_;
 };
 
 using RpcClientPoolMgr = Singleton<RpcClientPool>;

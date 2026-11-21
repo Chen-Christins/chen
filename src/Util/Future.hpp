@@ -79,7 +79,7 @@ protected:
         /// 是否已经被唤醒过（避免重复 schedule 同一个协程）
         bool woken = false;
         /// 是否已经被自己的超时定时器标记（无需依赖墙钟比较）
-        bool timedOut = false;
+        bool timed_out = false;
         /// 所属调度器
         Scheduler* scheduler = nullptr;
         /// 等待中的协程
@@ -88,14 +88,14 @@ protected:
 
     /**
      * @brief 标记完成并取出所有未唤醒的等待者
-     * @pre 调用方必须持有 m_mutex
+     * @pre 调用方必须持有 mutex_
      * @return 需要唤醒的等待者（须在解锁后调用 wake）
      */
     std::vector<Waiter::ptr> completeLocked();
 
     /**
      * @brief 唤醒所有等待者但保留等待队列（用于超时让等待者重新检查）
-     * @pre 调用方必须持有 m_mutex
+     * @pre 调用方必须持有 mutex_
      */
     std::vector<Waiter::ptr> markAllLocked();
 
@@ -111,17 +111,17 @@ protected:
     static void warnDuplicate(const char* api);
 
     /// 保护状态与等待队列
-    mutable std::mutex m_mutex;
+    mutable std::mutex mutex_;
     /// 是否已经完成
-    bool m_done = false;
+    bool done_ = false;
     /// 异常（非空表示以异常完成）
-    std::exception_ptr m_exception;
+    std::exception_ptr exception_;
     /// 等待中的协程
-    std::vector<Waiter::ptr> m_waiters;
+    std::vector<Waiter::ptr> waiters_;
     /// 阻塞等待用的条件变量
-    std::condition_variable m_cond;
+    std::condition_variable cond_;
     /// 等待者编号分配
-    uint64_t m_nextWaiterId = 0;
+    uint64_t next_waiter_id_ = 0;
 
 private:
     /**
@@ -133,7 +133,7 @@ private:
 
     /**
      * @brief 摘除指定等待者
-     * @pre 调用方必须持有 m_mutex
+     * @pre 调用方必须持有 mutex_
      */
     void removeWaiterLocked(uint64_t id);
 
@@ -143,7 +143,7 @@ private:
      * @param self 相关 waiter 的信息
      * @param[out] timer 成功时返回定时器句柄
      * @return bool false 表示当前没有 IOManager（无法在挂起期间计时）
-     * @pre 调用方必须持有 m_mutex
+     * @pre 调用方必须持有 mutex_
      */
     bool armTimerLocked(uint64_t timeout_ms, const Waiter::ptr& self, Timer::ptr& timer);
 };
@@ -164,12 +164,12 @@ public:
     {
         std::vector<Waiter::ptr> waiters;
         {
-            std::lock_guard lock(m_mutex);
-            if (m_done) {
+            std::lock_guard lock(mutex_);
+            if (done_) {
                 warnDuplicate("setValue");
                 return;
             }
-            m_value = std::move(v);
+            value_ = std::move(v);
             waiters = completeLocked();
         }
         wake(waiters);
@@ -181,16 +181,16 @@ public:
     T get()
     {
         wait();
-        std::lock_guard lock(m_mutex);
-        if (m_exception) {
-            std::rethrow_exception(m_exception);
+        std::lock_guard lock(mutex_);
+        if (exception_) {
+            std::rethrow_exception(exception_);
         }
-        return m_value;
+        return value_;
     }
 
 private:
     /// 结果值
-    T m_value{};
+    T value_{};
 };
 
 /**
@@ -225,27 +225,27 @@ public:
     Future() = default;
 
     explicit Future(FutureState<T>::ptr state)
-        : m_state(std::move(state))
+        : state_(std::move(state))
     {
     }
 
     /**
      * @brief 句柄是否有效
      */
-    bool valid() const { return m_state != nullptr; }
+    bool valid() const { return state_ != nullptr; }
 
     /**
      * @brief 结果是否已经就绪
      */
-    bool ready() const { return m_state && m_state->ready(); }
+    bool ready() const { return state_ && state_->ready(); }
 
     /**
      * @brief 等待结果就绪
      */
     void wait() const
     {
-        if (m_state) {
-            m_state->wait();
+        if (state_) {
+            state_->wait();
         }
     }
 
@@ -253,22 +253,22 @@ public:
      * @brief 等待结果就绪，带超时
      * @return bool true 已就绪 | false 超时
      */
-    bool waitFor(uint64_t timeout_ms) const { return m_state ? m_state->waitFor(timeout_ms) : true; }
+    bool waitFor(uint64_t timeout_ms) const { return state_ ? state_->waitFor(timeout_ms) : true; }
 
     /**
      * @brief 等待并取出结果（异常则重新抛出）
      * @attention 无效句柄返回 T{}，调用方应先用 valid() 判断
      */
-    T get() const { return m_state ? m_state->get() : T{}; }
+    T get() const { return state_ ? state_->get() : T{}; }
 
     /**
      * @brief 取出共享状态（需要与回调配合时使用）
      */
-    const FutureState<T>::ptr& state() const { return m_state; }
+    const FutureState<T>::ptr& state() const { return state_; }
 
 private:
     /// 共享状态
-    FutureState<T>::ptr m_state;
+    FutureState<T>::ptr state_;
 };
 
 /**
@@ -317,7 +317,7 @@ public:
 
 private:
     /// 共享状态
-    StatePtr m_state;
+    StatePtr state_;
 };
 
 /**
@@ -328,33 +328,33 @@ template <typename T>
 class Promise {
 public:
     Promise()
-        : m_state(std::make_shared<FutureState<T>>())
+        : state_(std::make_shared<FutureState<T>>())
     {
     }
 
     /**
      * @brief 获取消费端句柄，可多次调用（共享同一状态）
      */
-    Future<T> getFuture() const { return Future<T>(m_state); }
+    Future<T> getFuture() const { return Future<T>(state_); }
 
     /**
      * @brief 写入结果并唤醒所有等待者（重复调用无效）
      */
-    void setValue(T v) { m_state->setValue(std::move(v)); }
+    void setValue(T v) { state_->setValue(std::move(v)); }
 
     /**
      * @brief 以异常完成（重复调用无效）
      */
-    void setException(std::exception_ptr e) { m_state->setException(std::move(e)); }
+    void setException(std::exception_ptr e) { state_->setException(std::move(e)); }
 
     /**
      * @brief 是否已经完成
      */
-    bool satisfied() const { return m_state->ready(); }
+    bool satisfied() const { return state_->ready(); }
 
 private:
     /// 共享状态
-    std::shared_ptr<FutureState<T>> m_state;
+    std::shared_ptr<FutureState<T>> state_;
 };
 
 /**
@@ -388,7 +388,7 @@ public:
 
 private:
     /// 共享状态
-    std::shared_ptr<FutureState<void>> m_state;
+    std::shared_ptr<FutureState<void>> state_;
 };
 
 } // namespace chen

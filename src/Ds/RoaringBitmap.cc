@@ -11,16 +11,16 @@ RoaringBitmap::RoaringBitmap()
 
 RoaringBitmap::RoaringBitmap(uint32_t size)
 {
-    m_bitmap.addRange(0, size);
+    bitmap_.addRange(0, size);
 }
 
 RoaringBitmap::RoaringBitmap(const RoaringBitmap& b)
 {
-    m_bitmap = b.m_bitmap;
+    bitmap_ = b.bitmap_;
 }
 
 RoaringBitmap::RoaringBitmap(const Roaring& bitmap)
-    : m_bitmap(bitmap)
+    : bitmap_(bitmap)
 {
 }
 
@@ -33,34 +33,34 @@ RoaringBitmap& RoaringBitmap::operator=(const RoaringBitmap& oth)
     if (this == &oth) {
         return *this;
     }
-    m_bitmap = oth.m_bitmap;
+    bitmap_ = oth.bitmap_;
     return *this;
 }
 
 std::string RoaringBitmap::toString() const
 {
     std::stringstream ss;
-    ss << "[RoaringBitmap count=" << getCount() << " size=" << m_bitmap.getSizeInBytes() << "]";
+    ss << "[RoaringBitmap count=" << getCount() << " size=" << bitmap_.getSizeInBytes() << "]";
     return ss.str();
 }
 
 void RoaringBitmap::set(uint32_t idx, bool v)
 {
     if (v) {
-        m_bitmap.add(idx);
+        bitmap_.add(idx);
     } else {
-        m_bitmap.remove(idx);
+        bitmap_.remove(idx);
     }
 }
 
 void RoaringBitmap::set(uint32_t from, uint32_t size, bool v)
 {
-    m_bitmap.addRange(from, from + size);
+    bitmap_.addRange(from, from + size);
 }
 
 bool RoaringBitmap::get(uint32_t idx) const
 {
-    return m_bitmap.contains(idx);
+    return bitmap_.contains(idx);
 }
 
 bool RoaringBitmap::get(uint32_t from, uint32_t size, bool v) const
@@ -70,46 +70,46 @@ bool RoaringBitmap::get(uint32_t from, uint32_t size, bool v) const
 
 RoaringBitmap& RoaringBitmap::operator&=(const RoaringBitmap& oth)
 {
-    m_bitmap &= oth.m_bitmap;
+    bitmap_ &= oth.bitmap_;
     return *this;
 }
 
 RoaringBitmap& RoaringBitmap::operator|=(const RoaringBitmap& oth)
 {
-    m_bitmap |= oth.m_bitmap;
+    bitmap_ |= oth.bitmap_;
     return *this;
 }
 
 RoaringBitmap& RoaringBitmap::operator-=(const RoaringBitmap& oth)
 {
-    m_bitmap -= oth.m_bitmap;
+    bitmap_ -= oth.bitmap_;
     return *this;
 }
 
 RoaringBitmap& RoaringBitmap::operator^=(const RoaringBitmap& oth)
 {
-    m_bitmap ^= oth.m_bitmap;
+    bitmap_ ^= oth.bitmap_;
     return *this;
 }
 
 RoaringBitmap RoaringBitmap::operator&(const RoaringBitmap& oth)
 {
-    return RoaringBitmap(m_bitmap & oth.m_bitmap);
+    return RoaringBitmap(bitmap_ & oth.bitmap_);
 }
 
 RoaringBitmap RoaringBitmap::operator|(const RoaringBitmap& oth)
 {
-    return RoaringBitmap(m_bitmap | oth.m_bitmap);
+    return RoaringBitmap(bitmap_ | oth.bitmap_);
 }
 
 RoaringBitmap RoaringBitmap::operator-(const RoaringBitmap& oth)
 {
-    return RoaringBitmap(m_bitmap - oth.m_bitmap);
+    return RoaringBitmap(bitmap_ - oth.bitmap_);
 }
 
 RoaringBitmap RoaringBitmap::operator^(const RoaringBitmap& oth)
 {
-    return RoaringBitmap(m_bitmap ^ oth.m_bitmap);
+    return RoaringBitmap(bitmap_ ^ oth.bitmap_);
 }
 
 bool RoaringBitmap::operator==(const RoaringBitmap& oth) const
@@ -117,7 +117,7 @@ bool RoaringBitmap::operator==(const RoaringBitmap& oth) const
     if (this == &oth) {
         return true;
     }
-    return m_bitmap == oth.m_bitmap;
+    return bitmap_ == oth.bitmap_;
 }
 
 bool RoaringBitmap::operator!=(const RoaringBitmap& oth) const
@@ -128,33 +128,33 @@ bool RoaringBitmap::operator!=(const RoaringBitmap& oth) const
 RoaringBitmap::ptr RoaringBitmap::compress() const
 {
     RoaringBitmap::ptr rt(new RoaringBitmap(*this));
-    rt->m_bitmap.shrinkToFit();
-    rt->m_bitmap.runOptimize();
+    rt->bitmap_.shrinkToFit();
+    rt->bitmap_.runOptimize();
     return rt;
 }
 
 RoaringBitmap::ptr RoaringBitmap::uncompress() const
 {
     RoaringBitmap::ptr rt(new RoaringBitmap(*this));
-    rt->m_bitmap.removeRunCompression();
+    rt->bitmap_.removeRunCompression();
     return rt;
 }
 
 bool RoaringBitmap::any() const
 {
-    return m_bitmap.begin() != m_bitmap.end();
+    return bitmap_.begin() != bitmap_.end();
 }
 
 void RoaringBitmap::listPosAsc(std::vector<uint32_t>& pos)
 {
-    for (auto it = m_bitmap.rbegin(); it != m_bitmap.rend(); ++it) {
+    for (auto it = bitmap_.rbegin(); it != bitmap_.rend(); ++it) {
         pos.push_back(*it);
     }
 }
 
 void RoaringBitmap::foreach(std::function<bool(uint32_t)> cb)
 {
-    for (auto it = m_bitmap.begin(); it != m_bitmap.end(); ++it) {
+    for (auto it = bitmap_.begin(); it != bitmap_.end(); ++it) {
         if (!cb(*it)) {
             break;
         }
@@ -163,7 +163,7 @@ void RoaringBitmap::foreach(std::function<bool(uint32_t)> cb)
 
 void RoaringBitmap::rforeach(std::function<bool(uint32_t)> cb)
 {
-    for (auto it = m_bitmap.rbegin(); it != m_bitmap.rend(); ++it) {
+    for (auto it = bitmap_.rbegin(); it != bitmap_.rend(); ++it) {
         if (!cb(*it)) {
             break;
         }
@@ -172,10 +172,10 @@ void RoaringBitmap::rforeach(std::function<bool(uint32_t)> cb)
 
 void RoaringBitmap::writeTo(ByteArray::ptr ba) const
 {
-    size_t size = m_bitmap.getSizeInBytes(false);
+    size_t size = bitmap_.getSizeInBytes(false);
     ba->writeFuint32(size);
     std::vector<char> buffer(size);
-    m_bitmap.write(buffer.data(), false);
+    bitmap_.write(buffer.data(), false);
     ba->write(buffer.data(), size);
 }
 
@@ -185,7 +185,7 @@ bool RoaringBitmap::writeFrom(ByteArray::ptr ba)
         size_t size = ba->readFuint32();
         std::vector<char> buffer(size);
         ba->read(buffer.data(), size);
-        m_bitmap = Roaring::read(buffer.data(), false);
+        bitmap_ = Roaring::read(buffer.data(), false);
         return true;
     } catch (...) {
     }
@@ -194,7 +194,7 @@ bool RoaringBitmap::writeFrom(ByteArray::ptr ba)
 
 bool RoaringBitmap::cross(const RoaringBitmap& b) const
 {
-    return m_bitmap.intersect(b.m_bitmap);
+    return bitmap_.intersect(b.bitmap_);
 }
 
 float RoaringBitmap::getCompressRate() const
@@ -204,7 +204,7 @@ float RoaringBitmap::getCompressRate() const
 
 uint32_t RoaringBitmap::getCount() const
 {
-    return m_bitmap.cardinality();
+    return bitmap_.cardinality();
 }
 
 } // namespace ds

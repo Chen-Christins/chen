@@ -31,13 +31,13 @@ void run() {
     }
     std::cout << "basic query value=" << basic->getInt32(0) << std::endl;
 
-    int stmtValue = 7;
-    auto stmtRes = mysql->queryStmt("SELECT ? + 1 AS v", stmtValue);
-    if (!stmtRes || !stmtRes->next()) {
+    int stmt_value = 7;
+    auto stmt_res = mysql->queryStmt("SELECT ? + 1 AS v", stmt_value);
+    if (!stmt_res || !stmt_res->next()) {
         std::cout << "queryStmt failed" << std::endl;
         return;
     }
-    std::cout << "queryStmt value=" << stmtRes->getInt32(0) << std::endl;
+    std::cout << "queryStmt value=" << stmt_res->getInt32(0) << std::endl;
 
     if (mysql->execute("DROP TEMPORARY TABLE IF EXISTS test_mysql_wrapper") != 0) {
         std::cout << "drop temp table failed: " << mysql->getErrStr() << std::endl;
@@ -54,12 +54,12 @@ void run() {
         return;
     }
 
-    auto queryOne = mysql->query("SELECT name FROM test_mysql_wrapper WHERE id = 1");
-    if (!queryOne || !queryOne->next()) {
+    auto query_one = mysql->query("SELECT name FROM test_mysql_wrapper WHERE id = 1");
+    if (!query_one || !query_one->next()) {
         std::cout << "query inserted row failed" << std::endl;
         return;
     }
-    std::cout << "inserted row name=" << queryOne->getString(0) << std::endl;
+    std::cout << "inserted row name=" << query_one->getString(0) << std::endl;
 
     auto tx = mysql->openTransaction(false);
     if (!tx) {
@@ -77,12 +77,12 @@ void run() {
         return;
     }
 
-    auto countRes = mysql->query("SELECT COUNT(*) FROM test_mysql_wrapper WHERE id = 2");
-    if (!countRes || !countRes->next()) {
+    auto count_res = mysql->query("SELECT COUNT(*) FROM test_mysql_wrapper WHERE id = 2");
+    if (!count_res || !count_res->next()) {
         std::cout << "query rollback result failed" << std::endl;
         return;
     }
-    std::cout << "rollback check count=" << countRes->getInt32(0) << std::endl;
+    std::cout << "rollback check count=" << count_res->getInt32(0) << std::endl;
     std::cout << "mysql wrapper interface test done" << std::endl;
 }
 

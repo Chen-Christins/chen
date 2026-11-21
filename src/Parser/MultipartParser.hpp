@@ -40,14 +40,14 @@ public:
     /**
      * @brief 是否已收到结束边界（--boundary--）
      */
-    bool isComplete() const { return m_complete; }
+    bool isComplete() const { return complete_; }
 
     /// 文本字段
     struct FormField {
         std::string name;
         std::string value;
     };
-    const std::vector<FormField>& getFields() const { return m_fields; }
+    const std::vector<FormField>& getFields() const { return fields_; }
 
     /// 已保存到磁盘的文件信息
     struct SavedFileInfo {
@@ -57,7 +57,7 @@ public:
         std::string path;         ///< 磁盘完整路径
         int64_t size;             ///< 文件字节数
     };
-    const std::vector<SavedFileInfo>& getSavedFiles() const { return m_files; }
+    const std::vector<SavedFileInfo>& getSavedFiles() const { return files_; }
 
     // ============ 旧接口（向后兼容） ============
 
@@ -87,23 +87,23 @@ private:
         COMPLETE  ///< 已收到结束边界
     };
 
-    std::string m_boundary;
-    std::string m_buffer;
-    State m_state = PREAMBLE;
-    bool m_complete = false;
+    std::string boundary_;
+    std::string buffer_;
+    State state_ = PREAMBLE;
+    bool complete_ = false;
 
     // 当前 part
-    bool m_curIsFile = false;
-    std::string m_curFieldName;
-    std::string m_curFileName;
-    std::string m_curContentType;
-    std::ofstream m_curFileStream;
-    std::string m_curFieldValue;
-    int64_t m_curFileSize = 0;
+    bool cur_is_file_ = false;
+    std::string cur_field_name_;
+    std::string cur_file_name_;
+    std::string cur_content_type_;
+    std::ofstream cur_file_stream_;
+    std::string cur_field_value_;
+    int64_t cur_file_size_ = 0;
 
     // 结果
-    std::vector<FormField> m_fields;
-    std::vector<SavedFileInfo> m_files;
+    std::vector<FormField> fields_;
+    std::vector<SavedFileInfo> files_;
 };
 
 } // namespace chen

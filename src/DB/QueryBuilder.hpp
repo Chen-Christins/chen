@@ -35,7 +35,7 @@ public:
      * @brief 获取 SELECT 列表达式的列
      * @return SELECT 列表达式
      */
-    const std::string& getSelectCols() const { return m_selectCols; }
+    const std::string& getSelectCols() const { return select_cols_; }
 
     // ---- WHERE (AND) ----
 
@@ -128,7 +128,7 @@ public:
     // ---- ORDER BY / LIMIT / OFFSET / GROUP BY ----
 
     QueryBuilder::ptr orderBy(const std::string& col, const std::string& dir);
-    bool hasOrderBy() const { return !m_orderBy.empty(); }
+    bool hasOrderBy() const { return !order_by_.empty(); }
     QueryBuilder::ptr limit(int32_t n);
     QueryBuilder::ptr offset(int32_t n);
     QueryBuilder::ptr groupBy(const std::string& col);
@@ -154,11 +154,11 @@ public:
 
     /**
      * @brief 构建 SELECT SQL
-     * @param selectCols 要查询的列表达式，覆盖 select() 设置的列
-     * @param withPagination 是否包含 LIMIT/OFFSET 子句，默认 true。
+     * @param select_cols 要查询的列表达式，覆盖 select() 设置的列
+     * @param with_pagination 是否包含 LIMIT/OFFSET 子句，默认 true。
      *                       QueryByBuilderPages 需要传 false 以自行追加分页。
      */
-    std::string buildQuerySQL(const std::string& selectCols, bool withPagination = true) const;
+    std::string buildQuerySQL(const std::string& select_cols, bool with_pagination = true) const;
     std::string buildQuerySQL() const;
 
     std::string buildUpdateSQL() const;
@@ -172,7 +172,7 @@ public:
     /// Bind WHERE + HAVING params only (no LIMIT/OFFSET, for COUNT queries)
     void bindQueryParams(chen::IStmt::ptr stmt) const;
     /// Get count of WHERE + HAVING params (for index calculation after bindQueryParams)
-    int getQueryParamCount() const { return static_cast<int>(m_whereParams.size() + m_havingParams.size()); }
+    int getQueryParamCount() const { return static_cast<int>(where_params_.size() + having_params_.size()); }
 
     /// Bind SET params then WHERE params (for UPDATE queries)
     void bindUpdateParams(chen::IStmt::ptr stmt) const;
@@ -184,7 +184,7 @@ public:
     int executeUpdate(chen::IDB::ptr conn);
     int executeDelete(chen::IDB::ptr conn);
     int executeInsert(chen::IDB::ptr conn);
-    int executeInsert(chen::IDB::ptr conn, int64_t& lastInsertId);
+    int executeInsert(chen::IDB::ptr conn, int64_t& last_insert_id);
     int executeCount(int64_t& total, chen::IDB::ptr conn) const;
 
     /**
@@ -239,9 +239,9 @@ private:
             DOUBLE_VAL
         };
         Type type;
-        int64_t intVal = 0;
-        double dblVal = 0.0;
-        std::string strVal;
+        int64_t int_val = 0;
+        double dbl_val = 0.0;
+        std::string str_val;
     };
 
     void addWhereClause(const std::string& conjunction, const std::string& clause, Param p);
@@ -249,24 +249,24 @@ private:
     void bindParamArray(chen::IStmt::ptr stmt, const std::vector<Param>& params, int& idx) const;
     void buildWhereClause(std::stringstream& ss) const;
 
-    std::string m_table;
-    std::string m_selectCols = "*";
-    std::vector<std::string> m_whereClauses;
-    std::vector<std::string> m_whereConjunctions; // AND or OR, same size as m_whereClauses (first entry unused)
-    std::vector<Param> m_whereParams;
-    std::vector<std::string> m_setClauses;
-    std::vector<Param> m_setParams;
-    std::vector<std::string> m_insertCols;
-    std::vector<Param> m_insertParams;
-    std::vector<std::string> m_joins;
-    std::string m_orderBy;
-    bool m_hasLimit = false;
-    int32_t m_limit = 0;
-    bool m_hasOffset = false;
-    int32_t m_offset = 0;
-    std::string m_groupBy;
-    std::vector<std::string> m_havingClauses;
-    std::vector<Param> m_havingParams;
+    std::string table_;
+    std::string select_cols_ = "*";
+    std::vector<std::string> where_clauses_;
+    std::vector<std::string> where_conjunctions_; // AND or OR, same size as where_clauses_ (first entry unused)
+    std::vector<Param> where_params_;
+    std::vector<std::string> set_clauses_;
+    std::vector<Param> set_params_;
+    std::vector<std::string> insert_cols_;
+    std::vector<Param> insert_params_;
+    std::vector<std::string> joins_;
+    std::string order_by_;
+    bool has_limit_ = false;
+    int32_t limit_ = 0;
+    bool has_offset_ = false;
+    int32_t offset_ = 0;
+    std::string group_by_;
+    std::vector<std::string> having_clauses_;
+    std::vector<Param> having_params_;
 };
 
 namespace detail {

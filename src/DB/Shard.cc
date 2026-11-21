@@ -11,24 +11,24 @@ static Logger::ptr g_logger = LOG_NAME("system");
 ShardKey ShardKey::Int64(int64_t v)
 {
     ShardKey k;
-    k.m_type = INT64;
-    k.m_intVal = v;
+    k.type_ = INT64;
+    k.int_val_ = v;
     return k;
 }
 
 ShardKey ShardKey::String(const std::string& v)
 {
     ShardKey k;
-    k.m_type = STRING;
-    k.m_strVal = v;
+    k.type_ = STRING;
+    k.str_val_ = v;
     return k;
 }
 
 ShardKey ShardKey::Time(time_t v)
 {
     ShardKey k;
-    k.m_type = TIME;
-    k.m_timeVal = v;
+    k.type_ = TIME;
+    k.time_val_ = v;
     return k;
 }
 
@@ -36,29 +36,29 @@ ShardKey ShardKey::Time(time_t v)
 // HashShardStrategy
 // ============================================================================
 
-HashShardStrategy::HashShardStrategy(const std::string& dbFormat, int shardCount, const std::string& tableFormat)
-    : m_dbFormat(dbFormat)
-    , m_tableFormat(tableFormat)
-    , m_shardCount(shardCount)
+HashShardStrategy::HashShardStrategy(const std::string& db_format, int shard_count, const std::string& table_format)
+    : db_format_(db_format)
+    , table_format_(table_format)
+    , shard_count_(shard_count)
 {
-    if (m_shardCount <= 0) {
-        ERROR(g_logger) << "HashShardStrategy: shardCount must be > 0, got " << m_shardCount;
-        m_shardCount = 1;
+    if (shard_count_ <= 0) {
+        ERROR(g_logger) << "HashShardStrategy: shardCount must be > 0, got " << shard_count_;
+        shard_count_ = 1;
     }
 }
 
-ShardTarget HashShardStrategy::route(const std::string& /*logicalTable*/, const ShardKey& key)
+ShardTarget HashShardStrategy::route(const std::string& /*logical_table*/, const ShardKey& key)
 {
     ShardTarget target;
 
-    int64_t hashVal = 0;
+    int64_t hash_val = 0;
     switch (key.getType()) {
     case ShardKey::INT64:
-        hashVal = key.getInt64();
+        hash_val = key.getInt64();
         break;
     case ShardKey::STRING: {
         // std::hash<std::string> for consistent hashing
-        hashVal = static_cast<int64_t>(std::hash<std::string>{}(key.getString()));
+        hash_val = static_cast<int64_t>(std::hash<std::string>{}(key.getString()));
         break;
     }
     default:
@@ -66,24 +66,24 @@ ShardTarget HashShardStrategy::route(const std::string& /*logicalTable*/, const 
         return target;
     }
 
-    int shard = static_cast<int>((hashVal % m_shardCount + m_shardCount) % m_shardCount);
+    int shard = static_cast<int>((hash_val % shard_count_ + shard_count_) % shard_count_);
 
     // Replace {shard} in db format
-    std::string dbName = m_dbFormat;
-    auto pos = dbName.find("{shard}");
+    std::string db_name = db_format_;
+    auto pos = db_name.find("{shard}");
     if (pos != std::string::npos) {
-        dbName.replace(pos, 7, std::to_string(shard));
+        db_name.replace(pos, 7, std::to_string(shard));
     }
-    target.dbName = dbName;
+    target.db_name = db_name;
 
     // Replace {shard} in table format if set
-    if (!m_tableFormat.empty()) {
-        std::string tableName = m_tableFormat;
-        pos = tableName.find("{shard}");
+    if (!table_format_.empty()) {
+        std::string table_name = table_format_;
+        pos = table_name.find("{shard}");
         if (pos != std::string::npos) {
-            tableName.replace(pos, 7, std::to_string(shard));
+            table_name.replace(pos, 7, std::to_string(shard));
         }
-        target.tableName = tableName;
+        target.table_name = table_name;
     }
 
     return target;
@@ -94,11 +94,11 @@ ShardTarget HashShardStrategy::route(const std::string& /*logicalTable*/, const 
 // ============================================================================
 
 DateShardStrategy::DateShardStrategy(const std::string& format)
-    : m_format(format)
+    : format_(format)
 {
 }
 
-ShardTarget DateShardStrategy::route(const std::string& /*logicalTable*/, const ShardKey& key)
+ShardTarget DateShardStrategy::route(const std::string& /*logical_table*/, const ShardKey& key)
 {
     ShardTarget target;
 
@@ -112,8 +112,8 @@ ShardTarget DateShardStrategy::route(const std::string& /*logicalTable*/, const 
     localtime_r(&t, &tm_buf);
 
     char buf[128] = {};
-    strftime(buf, sizeof(buf), m_format.c_str(), &tm_buf);
-    target.tableName = buf;
+    strftime(buf, sizeof(buf), format_.c_str(), &tm_buf);
+    target.table_name = buf;
 
     return target;
 }
@@ -122,44 +122,44 @@ ShardTarget DateShardStrategy::route(const std::string& /*logicalTable*/, const 
 // ShardRouter
 // ============================================================================
 
-void ShardRouter::addRule(const std::string& logicalTable, IShardStrategy::ptr strategy)
+void ShardRouter::addRule(const std::string& logical_table, IShardStrategy::ptr strategy)
 {
-    m_rules[logicalTable] = std::move(strategy);
+    rules_[logical_table] = std::move(strategy);
 }
 
-void ShardRouter::addDB(const std::string& dbName, IDB::ptr conn)
+void ShardRouter::addDB(const std::string& db_name, IDB::ptr conn)
 {
-    m_dbs[dbName] = std::move(conn);
+    dbs_[db_name] = std::move(conn);
 }
 
-ShardTarget ShardRouter::route(const std::string& logicalTable, const ShardKey& key)
+ShardTarget ShardRouter::route(const std::string& logical_table, const ShardKey& key)
 {
-    auto it = m_rules.find(logicalTable);
-    if (it == m_rules.end()) {
+    auto it = rules_.find(logical_table);
+    if (it == rules_.end()) {
         // No sharding rule — return unchanged (same DB, same table)
         return ShardTarget{};
     }
-    return it->second->route(logicalTable, key);
+    return it->second->route(logical_table, key);
 }
 
 IDB::ptr ShardRouter::getDB(const ShardTarget& target)
 {
-    if (target.dbName.empty()) {
+    if (target.db_name.empty()) {
         return nullptr;
     }
-    auto it = m_dbs.find(target.dbName);
-    if (it == m_dbs.end()) {
-        ERROR(g_logger) << "ShardRouter: DB '" << target.dbName << "' not registered";
+    auto it = dbs_.find(target.db_name);
+    if (it == dbs_.end()) {
+        ERROR(g_logger) << "ShardRouter: DB '" << target.db_name << "' not registered";
         return nullptr;
     }
     return it->second;
 }
 
-std::pair<IDB::ptr, std::string> ShardRouter::resolve(const std::string& logicalTable, const ShardKey& key)
+std::pair<IDB::ptr, std::string> ShardRouter::resolve(const std::string& logical_table, const ShardKey& key)
 {
-    auto target = route(logicalTable, key);
+    auto target = route(logical_table, key);
     auto db = target.hasDB() ? getDB(target) : nullptr;
-    return {db, target.tableName};
+    return {db, target.table_name};
 }
 
 } // namespace chen

@@ -63,23 +63,23 @@ int main(int argc, char** argv) {
     chen::Thread::SetName("main");
     chen::Fiber::GetThis(); // 创建 main fiber
 
-    const int64_t warmupRounds = 100000;
-    const int64_t benchRounds  = 2000000;
+    const int64_t warmup_rounds = 100000;
+    const int64_t bench_rounds = 2000000;
 
     // ---- mode 1: 单 fiber 往返 ----
-    benchSingleFiber(warmupRounds);
-    uint64_t t1 = benchSingleFiber(benchRounds);
+    benchSingleFiber(warmup_rounds);
+    uint64_t t1 = benchSingleFiber(bench_rounds);
 
     // 每次往返 = swapIn 切入 + YieldToHold 切回 = 2 次 jump_fcontext
-    int64_t switches1 = benchRounds * 2;
+    int64_t switches1 = bench_rounds * 2;
 
     // ---- mode 2: 双 fiber ping-pong ----
-    benchPingPong(warmupRounds);
-    uint64_t t2 = benchPingPong(benchRounds);
+    benchPingPong(warmup_rounds);
+    uint64_t t2 = benchPingPong(bench_rounds);
 
-    // mode2 双 fiber: 每轮 count 增加 2（A+1, B+1），主循环跑 benchRounds/2 轮
-    // 每轮 4 次 jump_fcontext，总数 = (benchRounds/2) * 4 = benchRounds * 2
-    int64_t switches2 = benchRounds * 2;
+    // mode2 双 fiber: 每轮 count 增加 2（A+1, B+1），主循环跑 bench_rounds/2 轮
+    // 每轮 4 次 jump_fcontext，总数 = (bench_rounds/2) * 4 = bench_rounds * 2
+    int64_t switches2 = bench_rounds * 2;
 
     std::cout << std::fixed << std::setprecision(2);
     std::cout << "\n";
@@ -87,12 +87,14 @@ int main(int argc, char** argv) {
     std::cout << "│       Fiber Context Switch Benchmark             │\n";
     std::cout << "├─────────────────────────────────────────────────┤\n";
     std::cout << "│ 模式1: 单 fiber 往返 (main ⇄ fiber)              │\n";
-    std::cout << "│   " << std::setw(10) << benchRounds << " 次往返 → " << std::setw(12) << switches1 << " 次 jump_fcontext\n";
+    std::cout << "│   " << std::setw(10) << bench_rounds << " 次往返 → " << std::setw(12) << switches1
+              << " 次 jump_fcontext\n";
     std::cout << "│   总耗时:    " << std::setw(8) << t1 / 1000 << " μs\n";
     std::cout << "│   每次切换:  " << std::setw(8) << (double)t1 / switches1 << " ns\n";
     std::cout << "│                                                 │\n";
     std::cout << "│ 模式2: 双 fiber ping-pong (A ⇄ B 交替)           │\n";
-    std::cout << "│   " << std::setw(10) << benchRounds << " 次递增 → " << std::setw(12) << switches2 << " 次 jump_fcontext\n";
+    std::cout << "│   " << std::setw(10) << bench_rounds << " 次递增 → " << std::setw(12) << switches2
+              << " 次 jump_fcontext\n";
     std::cout << "│   总耗时:    " << std::setw(8) << t2 / 1000 << " μs\n";
     std::cout << "│   每次切换:  " << std::setw(8) << (double)t2 / switches2 << " ns\n";
     std::cout << "└─────────────────────────────────────────────────┘\n\n";

@@ -48,16 +48,16 @@ public:
     typedef std::shared_ptr<WSFrameMessage> ptr;
     WSFrameMessage(int opcode = 0, const std::string& data = "");
 
-    int getOpcode() const { return m_opcode; }
-    void setOpcode(int v) { m_opcode = v; }
+    int getOpcode() const { return opcode_; }
+    void setOpcode(int v) { opcode_ = v; }
 
-    const std::string& getData() const { return m_data; }
-    std::string& getData() { return m_data; }
-    void setData(const std::string& v) { m_data = v; }
+    const std::string& getData() const { return data_; }
+    std::string& getData() { return data_; }
+    void setData(const std::string& v) { data_ = v; }
 
 private:
-    int m_opcode;
-    std::string m_data;
+    int opcode_;
+    std::string data_;
 };
 
 class WSSession : public HttpSession {

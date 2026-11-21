@@ -61,23 +61,23 @@ LogLevel::Level LogLevel::FromString(const std::string& str)
 
 // Logger
 Logger::Logger(const std::string& name)
-    : m_name(name)
-    , m_level(LogLevel::TRACE)
+    : name_(name)
+    , level_(LogLevel::TRACE)
 {
-    m_formatter.reset(new LogFormatter(kDefaultFormatterPattern));
+    formatter_.reset(new LogFormatter(kDefaultFormatterPattern));
 }
 
 void Logger::log(LogLevel::Level level, std::shared_ptr<LogEvent> event)
 {
-    if (level >= m_level) {
+    if (level >= level_) {
         auto self = shared_from_this();
-        MutexType::Lock lock(m_mutex);
-        if (!m_appenders.empty()) {
-            for (auto& i : m_appenders) {
+        MutexType::Lock lock(mutex_);
+        if (!appenders_.empty()) {
+            for (auto& i : appenders_) {
                 i->log(self, level, event);
             }
-        } else if (m_root) {
-            m_root->log(level, event);
+        } else if (root_) {
+            root_->log(level, event);
         }
     }
 }
@@ -114,20 +114,20 @@ void Logger::fatal(std::shared_ptr<LogEvent> event)
 
 void Logger::addAppender(std::shared_ptr<LogAppender> appender)
 {
-    MutexType::Lock lock(m_mutex);
+    MutexType::Lock lock(mutex_);
     if (!appender->getFormatter()) {
-        MutexType::Lock lock2(appender->m_mutex);
-        appender->m_formatter = m_formatter;
+        MutexType::Lock lock2(appender->mutex_);
+        appender->formatter_ = formatter_;
     }
-    m_appenders.push_back(appender);
+    appenders_.push_back(appender);
 }
 
 void Logger::delAppender(std::shared_ptr<LogAppender> appender)
 {
-    MutexType::Lock lock(m_mutex);
-    for (auto it = m_appenders.begin(); it != m_appenders.end(); ++it) {
+    MutexType::Lock lock(mutex_);
+    for (auto it = appenders_.begin(); it != appenders_.end(); ++it) {
         if (*it == appender) {
-            m_appenders.erase(it);
+            appenders_.erase(it);
             break;
         }
     }
@@ -135,12 +135,12 @@ void Logger::delAppender(std::shared_ptr<LogAppender> appender)
 
 void Logger::setFormatter(std::shared_ptr<LogFormatter> val)
 {
-    MutexType::Lock lock(m_mutex);
-    m_formatter = val;
-    for (auto& i : m_appenders) {
-        MutexType::Lock lock2(i->m_mutex);
-        if (!i->m_hasFormatter) {
-            i->m_formatter = m_formatter;
+    MutexType::Lock lock(mutex_);
+    formatter_ = val;
+    for (auto& i : appenders_) {
+        MutexType::Lock lock2(i->mutex_);
+        if (!i->has_formatter_) {
+            i->formatter_ = formatter_;
         }
     }
 }
@@ -149,7 +149,7 @@ void Logger::setFormatter(const std::string& val)
 {
     LogFormatter::ptr pattern(new LogFormatter(val));
     if (pattern->isError()) {
-        std::cout << "Logger setFormatter name=" << m_name << " value=" << val << " invalid formatter" << std::endl;
+        std::cout << "Logger setFormatter name=" << name_ << " value=" << val << " invalid formatter" << std::endl;
         return;
     }
     setFormatter(pattern);
@@ -163,14 +163,14 @@ void Logger::resetFormatter()
 
 void Logger::clearAppenders()
 {
-    MutexType::Lock lock(m_mutex);
-    m_appenders.clear();
+    MutexType::Lock lock(mutex_);
+    appenders_.clear();
 }
 
 void Logger::flush()
 {
-    MutexType::Lock lock(m_mutex);
-    for (auto& i : m_appenders) {
+    MutexType::Lock lock(mutex_);
+    for (auto& i : appenders_) {
         if (i) {
             i->flush();
         }
@@ -179,16 +179,16 @@ void Logger::flush()
 
 std::string Logger::toYamlString()
 {
-    MutexType::Lock lock(m_mutex);
+    MutexType::Lock lock(mutex_);
     YAML::Node node;
-    node["name"] = m_name;
-    if (m_level != LogLevel::UNKNOW) {
-        node["level"] = LogLevel::toString(m_level);
+    node["name"] = name_;
+    if (level_ != LogLevel::UNKNOW) {
+        node["level"] = LogLevel::toString(level_);
     }
-    if (m_formatter) {
-        node["formatter"] = m_formatter->getPattern();
+    if (formatter_) {
+        node["formatter"] = formatter_->getPattern();
     }
-    for (auto& i : m_appenders) {
+    for (auto& i : appenders_) {
         node["appender"].push_back(YAML::Load(i->toYamlString()));
     }
     std::stringstream ss;
@@ -198,8 +198,8 @@ std::string Logger::toYamlString()
 
 std::shared_ptr<LogFormatter> Logger::getFormatter()
 {
-    MutexType::Lock lock(m_mutex);
-    return m_formatter;
+    MutexType::Lock lock(mutex_);
+    return formatter_;
 }
 
 // LogEvent
@@ -209,25 +209,25 @@ LogEvent::LogEvent(
     const char* file,
     int32_t line,
     uint32_t elapse,
-    uint32_t threadId,
-    uint32_t fiberId,
+    uint32_t thread_id,
+    uint32_t fiber_id,
     uint64_t time,
-    const std::string& threadName)
-    : m_logger(logger)
-    , m_level(level)
-    , m_file(file)
-    , m_line(line)
-    , m_elapse(elapse)
-    , m_threadId(threadId)
-    , m_fiberId(fiberId)
-    , m_time(time)
-    , m_threadName(threadName)
+    const std::string& thread_name)
+    : logger_(logger)
+    , level_(level)
+    , file_(file)
+    , line_(line)
+    , elapse_(elapse)
+    , thread_id_(thread_id)
+    , fiber_id_(fiber_id)
+    , time_(time)
+    , thread_name_(thread_name)
 {
 }
 
 // LogFormatter
 LogFormatter::LogFormatter(const std::string& pattern)
-    : m_pattern(pattern)
+    : pattern_(pattern)
 {
     init();
 }
@@ -282,10 +282,10 @@ public:
 class DateTimeFormatItem : public LogFormatter::FormatItem {
 public:
     DateTimeFormatItem(const std::string format = "%Y-%m-%d %H:%M:%S")
-        : m_format(format)
+        : format_(format)
     {
-        if (m_format.empty()) {
-            m_format = "%Y-%m-%d %H:%M:%S";
+        if (format_.empty()) {
+            format_ = "%Y-%m-%d %H:%M:%S";
         }
     }
     void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event) override
@@ -295,7 +295,7 @@ public:
         localtime_r(&time, &tm);
 
         // 检查是否包含 %f 格式
-        std::string format = m_format;
+        std::string format = format_;
         size_t pos = format.find("%f");
 
         if (pos != std::string::npos) {
@@ -327,7 +327,7 @@ public:
     }
 
 private:
-    std::string m_format;
+    std::string format_;
 };
 
 class FileNameFormatItem : public LogFormatter::FormatItem {
@@ -351,13 +351,16 @@ public:
 class StringFormatItem : public LogFormatter::FormatItem {
 public:
     StringFormatItem(const std::string& str = "")
-        : m_string(str)
+        : string_(str)
     {
     }
-    void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event) override { os << m_string; }
+    void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event) override
+    {
+        os << string_;
+    }
 
 private:
-    std::string m_string;
+    std::string string_;
 };
 
 class TabFormatItem : public LogFormatter::FormatItem {
@@ -373,21 +376,21 @@ void LogFormatter::init()
     std::vector<std::tuple<std::string, std::string, int>> vec;
     std::string format = "";
 
-    bool vis = (m_pattern.find("{") != std::string::npos ? true : false);
-    for (size_t i = 0; i < m_pattern.size(); ++i) {
+    bool vis = (pattern_.find("{") != std::string::npos ? true : false);
+    for (size_t i = 0; i < pattern_.size(); ++i) {
         size_t j = i;
-        while (j < m_pattern.size() && m_pattern[j] == '%') {
+        while (j < pattern_.size() && pattern_[j] == '%') {
             ++j;
         }
         i = j;
-        std::string str = m_pattern.substr(j, 1);
-        if (str == "d" && vis && m_pattern[j + 1] == '{') {
+        std::string str = pattern_.substr(j, 1);
+        if (str == "d" && vis && pattern_[j + 1] == '{') {
             size_t n = j + 2, len = 0;
-            while (n < m_pattern.size() && m_pattern[n] != '}') {
+            while (n < pattern_.size() && pattern_[n] != '}') {
                 ++n;
                 ++len;
             }
-            format = m_pattern.substr(j + 2, len);
+            format = pattern_.substr(j + 2, len);
             i = n;
         }
         int type = !!std::isalpha(str[0]);
@@ -412,14 +415,14 @@ void LogFormatter::init()
 
     for (auto& [str, fmt, type] : vec) {
         if (!type) {
-            m_items.emplace_back(FormatItem::ptr(new StringFormatItem(str)));
+            items_.emplace_back(FormatItem::ptr(new StringFormatItem(str)));
         } else {
             auto it = format_items.find(str);
             if (it == format_items.end()) {
-                m_items.emplace_back(FormatItem::ptr(new StringFormatItem("<<error_format %" + str + ">>")));
-                m_error = true;
+                items_.emplace_back(FormatItem::ptr(new StringFormatItem("<<error_format %" + str + ">>")));
+                error_ = true;
             } else {
-                m_items.emplace_back(it->second(fmt));
+                items_.emplace_back(it->second(fmt));
             }
         }
     }
@@ -432,7 +435,7 @@ LogFormatter::FormatItem::~FormatItem()
 std::string LogFormatter::format(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event)
 {
     std::stringstream ss;
-    for (auto& i : m_items) {
+    for (auto& i : items_) {
         i->format(ss, logger, level, event);
     }
     return ss.str();
@@ -440,7 +443,7 @@ std::string LogFormatter::format(Logger::ptr logger, LogLevel::Level level, LogE
 
 std::ostream& LogFormatter::format(std::ostream& ofs, Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event)
 {
-    for (auto& i : m_items) {
+    for (auto& i : items_) {
         i->format(ofs, logger, level, event);
     }
     return ofs;
@@ -457,26 +460,26 @@ void LogAppender::flush()
 
 LogFormatter::ptr LogAppender::getFormatter()
 {
-    MutexType::Lock lock(m_mutex);
-    return m_formatter;
+    MutexType::Lock lock(mutex_);
+    return formatter_;
 }
 
 void LogAppender::setFormatter(LogFormatter::ptr val)
 {
-    MutexType::Lock lock(m_mutex);
-    m_formatter = val;
-    if (m_formatter) {
-        m_hasFormatter = true;
+    MutexType::Lock lock(mutex_);
+    formatter_ = val;
+    if (formatter_) {
+        has_formatter_ = true;
     } else {
-        m_hasFormatter = false;
+        has_formatter_ = false;
     }
 }
 
 // StdoutLogAppender
 void StdoutLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event)
 {
-    if (level >= m_level) {
-        MutexType::Lock lock(m_mutex);
+    if (level >= level_) {
+        MutexType::Lock lock(mutex_);
         // 获取日志级别对应的颜色
         const char* color = "";
         switch (level) {
@@ -503,7 +506,7 @@ void StdoutLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent:
         }
         std::stringstream ss;
         ss << color;
-        m_formatter->format(ss, logger, level, event);
+        formatter_->format(ss, logger, level, event);
         ss << "\033[0m";
         std::cout << ss.str() << std::flush;
     }
@@ -511,14 +514,14 @@ void StdoutLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent:
 
 std::string StdoutLogAppender::toYamlString()
 {
-    MutexType::Lock lock(m_mutex);
+    MutexType::Lock lock(mutex_);
     YAML::Node node;
     node["type"] = "StdoutLogAppender";
-    if (m_level != LogLevel::UNKNOW) {
-        node["level"] = LogLevel::toString(m_level);
+    if (level_ != LogLevel::UNKNOW) {
+        node["level"] = LogLevel::toString(level_);
     }
-    if (m_hasFormatter && m_formatter) {
-        node["formatter"] = m_formatter->getPattern();
+    if (has_formatter_ && formatter_) {
+        node["formatter"] = formatter_->getPattern();
     }
     std::stringstream ss;
     ss << node;
@@ -551,16 +554,16 @@ std::string AppendShardIndex(const std::string& filename, uint64_t index)
 } // namespace
 
 FileLogAppender::FileLogAppender(const std::string& filename, TimeRotateType rotate_type, int retention_days, uint64_t max_size)
-    : m_filename(filename)
-    , m_rotateType(rotate_type)
-    , m_retentionDays(retention_days)
-    , m_maxSize(max_size)
+    : filename_(filename)
+    , rotate_type_(rotate_type)
+    , retention_days_(retention_days)
+    , max_size_(max_size)
 {
-    if (m_rotateType != NONE) {
+    if (rotate_type_ != NONE) {
         // 如果设置了时间分文件，立即生成当前时间的文件名
-        m_periodFileName = getNewFileName(time(0));
+        period_file_name_ = getNewFileName(time(0));
     } else {
-        m_periodFileName = m_filename;
+        period_file_name_ = filename_;
     }
     openFitFile();
 }
@@ -568,42 +571,42 @@ FileLogAppender::FileLogAppender(const std::string& filename, TimeRotateType rot
 void FileLogAppender::openFitFile()
 {
     uint64_t index = 0;
-    std::string name = m_periodFileName;
-    if (m_maxSize > 0) {
+    std::string name = period_file_name_;
+    if (max_size_ > 0) {
         // 从基础名开始，跳过已写满的分片文件
         while (true) {
             int64_t size = FSUtil::FileSize(name);
             if (size < 0) {
                 size = 0;
             }
-            if (static_cast<uint64_t>(size) < m_maxSize) {
+            if (static_cast<uint64_t>(size) < max_size_) {
                 break;
             }
             ++index;
-            name = AppendShardIndex(m_periodFileName, index);
+            name = AppendShardIndex(period_file_name_, index);
         }
     }
-    MutexType::Lock lock(m_mutex);
-    if (m_filestream) {
-        m_filestream.close();
+    MutexType::Lock lock(mutex_);
+    if (filestream_) {
+        filestream_.close();
     }
-    FSUtil::OpenForWrite(m_filestream, name, std::ios::app);
-    m_lastFileName = name;
-    m_shardIndex = index;
+    FSUtil::OpenForWrite(filestream_, name, std::ios::app);
+    last_file_name_ = name;
+    shard_index_ = index;
     int64_t size = FSUtil::FileSize(name);
-    m_currentSize = (size > 0) ? static_cast<uint64_t>(size) : 0;
+    current_size_ = (size > 0) ? static_cast<uint64_t>(size) : 0;
 }
 
 void FileLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event)
 {
-    if (level >= m_level) {
+    if (level >= level_) {
         uint64_t now = event->getTimeSec();
-        if (now >= (m_lastTime + 3)) {
-            if (m_rotateType != NONE) {
+        if (now >= (last_time_ + 3)) {
+            if (rotate_type_ != NONE) {
                 if (shouldRotate(now)) {
-                    std::string newFileName = getNewFileName(now);
-                    if (m_periodFileName != newFileName) {
-                        m_periodFileName = newFileName;
+                    std::string new_file_name = getNewFileName(now);
+                    if (period_file_name_ != new_file_name) {
+                        period_file_name_ = new_file_name;
                         openFitFile();
                         cleanOldFiles();
                     }
@@ -611,7 +614,7 @@ void FileLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent::p
             } else {
                 reopen();
             }
-            m_lastTime = now;
+            last_time_ = now;
         }
 
         // 大小分片：每次写入前检查，超限则切换到下一个分片
@@ -619,14 +622,14 @@ void FileLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent::p
             openFitFile();
         }
 
-        MutexType::Lock lock(m_mutex);
-        std::streampos before = m_filestream.tellp();
-        if (!m_formatter->format(m_filestream, logger, level, event)) {
+        MutexType::Lock lock(mutex_);
+        std::streampos before = filestream_.tellp();
+        if (!formatter_->format(filestream_, logger, level, event)) {
             std::cout << "error" << std::endl;
         } else {
-            std::streampos after = m_filestream.tellp();
+            std::streampos after = filestream_.tellp();
             if (before >= 0 && after >= before) {
-                m_currentSize += static_cast<uint64_t>(after - before);
+                current_size_ += static_cast<uint64_t>(after - before);
             }
         }
     }
@@ -634,47 +637,47 @@ void FileLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent::p
 
 void FileLogAppender::flush()
 {
-    MutexType::Lock lock(m_mutex);
-    if (m_filestream) {
-        m_filestream.flush();
+    MutexType::Lock lock(mutex_);
+    if (filestream_) {
+        filestream_.flush();
     }
 }
 
 bool FileLogAppender::reopen()
 {
-    MutexType::Lock lock(m_mutex);
-    if (m_filestream) {
-        m_filestream.close();
+    MutexType::Lock lock(mutex_);
+    if (filestream_) {
+        filestream_.close();
     }
-    std::string name = m_lastFileName.empty() ? m_filename : m_lastFileName;
-    if (!FSUtil::OpenForWrite(m_filestream, name, std::ios::app)) {
+    std::string name = last_file_name_.empty() ? filename_ : last_file_name_;
+    if (!FSUtil::OpenForWrite(filestream_, name, std::ios::app)) {
         return false;
     }
     int64_t size = FSUtil::FileSize(name);
-    m_currentSize = (size > 0) ? static_cast<uint64_t>(size) : 0;
+    current_size_ = (size > 0) ? static_cast<uint64_t>(size) : 0;
     return true;
 }
 
 std::string FileLogAppender::toYamlString()
 {
-    MutexType::Lock lock(m_mutex);
+    MutexType::Lock lock(mutex_);
     YAML::Node node;
     node["type"] = "FileLogAppender";
-    node["file"] = m_filename;
-    if (m_rotateType != NONE) {
-        node["time_rotate"] = TimeRotateTypeToString(m_rotateType);
+    node["file"] = filename_;
+    if (rotate_type_ != NONE) {
+        node["time_rotate"] = TimeRotateTypeToString(rotate_type_);
     }
-    if (m_retentionDays > 0) {
-        node["retention_days"] = m_retentionDays;
+    if (retention_days_ > 0) {
+        node["retention_days"] = retention_days_;
     }
-    if (m_maxSize > 0) {
-        node["max_size"] = m_maxSize;
+    if (max_size_ > 0) {
+        node["max_size"] = max_size_;
     }
-    if (m_level != LogLevel::UNKNOW) {
-        node["level"] = LogLevel::toString(m_level);
+    if (level_ != LogLevel::UNKNOW) {
+        node["level"] = LogLevel::toString(level_);
     }
-    if (m_hasFormatter && m_formatter) {
-        node["formatter"] = m_formatter->getPattern();
+    if (has_formatter_ && formatter_) {
+        node["formatter"] = formatter_->getPattern();
     }
     std::stringstream ss;
     ss << node;
@@ -729,9 +732,9 @@ std::string FileLogAppender::getNewFileName(uint64_t timestamp)
 
     std::string pattern = "%Y-%m-%d";
 
-    switch (m_rotateType) {
+    switch (rotate_type_) {
     case NONE:
-        return m_filename;
+        return filename_;
     case MINUTE_30:
         pattern = "%Y-%m-%d_%H-%M";
         // 将分钟对齐到30分钟边界
@@ -783,33 +786,33 @@ std::string FileLogAppender::getNewFileName(uint64_t timestamp)
     strftime(buf, sizeof(buf), pattern.c_str(), &tm);
 
     // 提取文件名和扩展名
-    size_t dot_pos = m_filename.find_last_of('.');
+    size_t dot_pos = filename_.find_last_of('.');
     if (dot_pos != std::string::npos) {
-        std::string base = m_filename.substr(0, dot_pos);
-        std::string ext = m_filename.substr(dot_pos);
+        std::string base = filename_.substr(0, dot_pos);
+        std::string ext = filename_.substr(dot_pos);
         return base + "_" + buf + ext;
     } else {
-        return m_filename + "_" + buf;
+        return filename_ + "_" + buf;
     }
 }
 
 bool FileLogAppender::shouldRotate(uint64_t timestamp)
 {
-    if (m_rotateType == NONE) {
+    if (rotate_type_ == NONE) {
         return false;
     }
 
-    if (m_lastTime == 0) {
+    if (last_time_ == 0) {
         return true;
     }
 
     struct tm current_tm, last_tm;
     time_t current_time = timestamp;
-    time_t last_time = m_lastTime;
+    time_t last_time = last_time_;
     localtime_r(&current_time, &current_tm);
     localtime_r(&last_time, &last_tm);
 
-    switch (m_rotateType) {
+    switch (rotate_type_) {
     case MINUTE_30: {
         int current_30min = current_tm.tm_hour * 2 + (current_tm.tm_min >= 30 ? 1 : 0);
         int last_30min = last_tm.tm_hour * 2 + (last_tm.tm_min >= 30 ? 1 : 0);
@@ -839,45 +842,45 @@ bool FileLogAppender::shouldRotate(uint64_t timestamp)
 
 void FileLogAppender::cleanOldFiles()
 {
-    if (m_retentionDays <= 0 || m_rotateType == NONE) {
+    if (retention_days_ <= 0 || rotate_type_ == NONE) {
         return;
     }
 
     // 计算截止时间戳
     uint64_t now = time(0);
-    time_t cutoffTime = now - m_retentionDays * 86400;
+    time_t cutoff_time = now - retention_days_ * 86400;
 
     // 获取日期格式模板
-    const char* dateFormat = nullptr;
-    switch (m_rotateType) {
+    const char* date_format = nullptr;
+    switch (rotate_type_) {
     case MINUTE_30:
-        dateFormat = "%Y-%m-%d_%H-%M";
+        date_format = "%Y-%m-%d_%H-%M";
         break;
     case HOUR:
     case HOUR_12:
-        dateFormat = "%Y-%m-%d_%H";
+        date_format = "%Y-%m-%d_%H";
         break;
     case DAY:
     case WEEK:
-        dateFormat = "%Y-%m-%d";
+        date_format = "%Y-%m-%d";
         break;
     case MONTH:
-        dateFormat = "%Y-%m";
+        date_format = "%Y-%m";
         break;
     default:
         return;
     }
 
     // 提取文件名的基础部分和扩展名
-    std::string dir = FSUtil::Dirname(m_filename);
-    std::string basename = FSUtil::Basename(m_filename);
+    std::string dir = FSUtil::Dirname(filename_);
+    std::string basename = FSUtil::Basename(filename_);
 
-    size_t dotPos = basename.find_last_of('.');
+    size_t dot_pos = basename.find_last_of('.');
     std::string bare;
     std::string ext;
-    if (dotPos != std::string::npos) {
-        bare = basename.substr(0, dotPos);
-        ext = basename.substr(dotPos);
+    if (dot_pos != std::string::npos) {
+        bare = basename.substr(0, dot_pos);
+        ext = basename.substr(dot_pos);
     } else {
         bare = basename;
     }
@@ -887,11 +890,11 @@ void FileLogAppender::cleanOldFiles()
     FSUtil::ListAllFile(files, dir, ext);
 
     std::string prefix = bare + "_";
-    for (auto& fullPath : files) {
-        std::string fname = FSUtil::Basename(fullPath);
+    for (auto& full_path : files) {
+        std::string fname = FSUtil::Basename(full_path);
 
         // 跳过当前正在写入的文件
-        if (fname == basename || fullPath == m_lastFileName || fname == FSUtil::Basename(m_lastFileName)) {
+        if (fname == basename || full_path == last_file_name_ || fname == FSUtil::Basename(last_file_name_)) {
             continue;
         }
 
@@ -901,111 +904,111 @@ void FileLogAppender::cleanOldFiles()
         }
 
         // 提取日期字符串
-        size_t dateStart = prefix.size();
-        size_t dateLen = fname.size() - prefix.size();
-        if (!ext.empty() && dateLen > ext.size()) {
-            dateLen -= ext.size();
+        size_t date_start = prefix.size();
+        size_t date_len = fname.size() - prefix.size();
+        if (!ext.empty() && date_len > ext.size()) {
+            date_len -= ext.size();
         }
-        std::string dateStr = fname.substr(dateStart, dateLen);
+        std::string date_str = fname.substr(date_start, date_len);
 
         // 剥离分片序号后缀（形如 _1），便于解析日期
-        size_t last_underscore = dateStr.find_last_of('_');
-        if (last_underscore != std::string::npos && last_underscore + 1 < dateStr.size()) {
+        size_t last_underscore = date_str.find_last_of('_');
+        if (last_underscore != std::string::npos && last_underscore + 1 < date_str.size()) {
             bool all_digits = true;
-            for (size_t i = last_underscore + 1; i < dateStr.size(); ++i) {
-                if (!isdigit(static_cast<unsigned char>(dateStr[i]))) {
+            for (size_t i = last_underscore + 1; i < date_str.size(); ++i) {
+                if (!isdigit(static_cast<unsigned char>(date_str[i]))) {
                     all_digits = false;
                     break;
                 }
             }
             if (all_digits) {
-                dateStr = dateStr.substr(0, last_underscore);
+                date_str = date_str.substr(0, last_underscore);
             }
         }
 
         // 解析日期并检查是否过期
-        time_t fileTime = TimeUtil::Str2Time(dateStr.c_str(), dateFormat);
-        if (fileTime > 0 && fileTime < cutoffTime) {
-            FSUtil::Unlink(fullPath);
+        time_t file_time = TimeUtil::Str2Time(date_str.c_str(), date_format);
+        if (file_time > 0 && file_time < cutoff_time) {
+            FSUtil::Unlink(full_path);
         }
     }
 }
 
 // LogEventWrap
 LogEventWrap::LogEventWrap(LogEvent::ptr event)
-    : m_event(event)
+    : event_(event)
 {
 }
 
 LogEventWrap& LogEventWrap::operator<<(StreamManipulator manip)
 {
-    if (m_event) {
-        manip(m_event->getSS());
+    if (event_) {
+        manip(event_->getSS());
     }
     return *this;
 }
 
 LogEventWrap::~LogEventWrap()
 {
-    if (m_event) {
-        m_event->getLogger()->log(m_event->getLevel(), m_event);
+    if (event_) {
+        event_->getLogger()->log(event_->getLevel(), event_);
     }
 }
 
 std::stringstream& LogEventWrap::getSS()
 {
-    if (!m_event) {
+    if (!event_) {
         static thread_local std::stringstream s_null_ss;
         s_null_ss.str("");
         s_null_ss.clear();
         return s_null_ss;
     }
-    return m_event->getSS();
+    return event_->getSS();
 }
 
 LoggerManager::LoggerManager()
 {
-    m_root.reset(new Logger);
+    root_.reset(new Logger);
     // 配置加载前的默认级别：抑制 bootstrap/静态初始化日志；
     // 加载 logs 配置后会被覆盖。子日志器默认 TRACE，仍通过 root 级别过滤。
-    m_root->setLevel(LogLevel::WARN);
-    m_root->addAppender(LogAppender::ptr(new StdoutLogAppender));
+    root_->setLevel(LogLevel::WARN);
+    root_->addAppender(LogAppender::ptr(new StdoutLogAppender));
 
-    m_loggers[m_root->getName()] = m_root;
+    loggers_[root_->getName()] = root_;
 }
 
 Logger::ptr LoggerManager::getLogger(const std::string& name)
 {
-    MutexType::Lock lock(m_mutex);
-    auto it = m_loggers.find(name);
-    if (it != m_loggers.end()) {
+    MutexType::Lock lock(mutex_);
+    auto it = loggers_.find(name);
+    if (it != loggers_.end()) {
         return it->second;
     }
     Logger::ptr logger(new Logger(name));
-    logger->m_root = m_root;
-    m_loggers[name] = logger;
+    logger->root_ = root_;
+    loggers_[name] = logger;
     return logger;
 }
 
 void LoggerManager::flushAll()
 {
-    MutexType::Lock lock(m_mutex);
-    for (auto& [name, logger] : m_loggers) {
+    MutexType::Lock lock(mutex_);
+    for (auto& [name, logger] : loggers_) {
         if (logger) {
             logger->flush();
         }
     }
     // 非 root 日志器可能无自带 appender，实际输出在 root 上
-    if (m_root) {
-        m_root->flush();
+    if (root_) {
+        root_->flush();
     }
 }
 
 std::string LoggerManager::toYamlString()
 {
-    MutexType::Lock lock(m_mutex);
+    MutexType::Lock lock(mutex_);
     YAML::Node node;
-    for (auto& [name, logger] : m_loggers) {
+    for (auto& [name, logger] : loggers_) {
         node.push_back(YAML::Load(logger->toYamlString()));
     }
     std::stringstream ss;

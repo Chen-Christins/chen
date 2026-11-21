@@ -150,13 +150,13 @@ public:
      * @brief 检查底层连接是否还存活
      * @return true 连接正常
      */
-    bool isConnected() const { return m_session && m_session->isConnected(); }
+    bool isConnected() const { return session_ && session_->isConnected(); }
 
     /**
      * @brief 设置心跳间隔
      * @param ms 毫秒
      */
-    void setHeartbeatInterval(uint64_t ms) { m_heartbeat_ms = ms; }
+    void setHeartbeatInterval(uint64_t ms) { heartbeat_ms_ = ms; }
 
     /**
      * @brief 向中心转发服务（hub）注册本服务
@@ -558,8 +558,8 @@ public:
     template <typename Func>
     void registerMethod(const std::string& name, Func func)
     {
-        std::lock_guard lock(m_mutex);
-        m_requestHandlers[HandlerKey{name}] = MakeRpcHandler(func);
+        std::lock_guard lock(mutex_);
+        request_handlers_[HandlerKey{name}] = MakeRpcHandler(func);
     }
 
     /**
@@ -572,8 +572,8 @@ public:
     template <typename Func>
     void registerMethod(uint32_t cmd, Func func)
     {
-        std::lock_guard lock(m_mutex);
-        m_requestHandlers[HandlerKey{cmd}] = MakeRpcHandler(func);
+        std::lock_guard lock(mutex_);
+        request_handlers_[HandlerKey{cmd}] = MakeRpcHandler(func);
     }
 
     /**
@@ -624,7 +624,7 @@ private:
 
         Protocol::ptr req(new Protocol);
         req->type = MessageType::REQUEST;
-        req->sequence = ++m_seq;
+        req->sequence = ++seq_;
         req->body = Serializer::EncodeRequest(method, args...);
         return req;
     }
@@ -646,7 +646,7 @@ private:
         Protocol::ptr req(new Protocol);
         req->type = MessageType::REQUEST;
         req->cmd = cmd;
-        req->sequence = ++m_seq;
+        req->sequence = ++seq_;
         req->body = Serializer::SerializeArgs(args...);
         return req;
     }
@@ -790,31 +790,31 @@ private:
 
 private:
     /** 底层 Socket */
-    Socket::ptr m_sock;
+    Socket::ptr sock_;
     /** 封装的连接流（读写协议帧） */
-    RpcConnection::ptr m_session;
+    RpcConnection::ptr session_;
     /** 是否自动心跳 */
-    bool m_auto_heartbeat = true;
+    bool auto_heartbeat_ = true;
     /** 递增的请求序列号（从 1 开始，原子操作支持多协程/多线程并发） */
-    std::atomic<uint32_t> m_seq = 0;
+    std::atomic<uint32_t> seq_ = 0;
     /** 连续心跳丢失计数器 */
-    uint32_t m_hbMissed = 0;
+    uint32_t hb_missed_ = 0;
     /** 连续丢失多少次心跳后断开连接 */
-    static constexpr uint32_t MAX_HB_MISSED = 3;
+    static constexpr uint32_t kMaxHbMissed = 3;
     /** 最大待响应请求数，防止服务端宕机时内存无限增长 */
-    static constexpr uint32_t MAX_PENDING_REQUESTS = 65536;
+    static constexpr uint32_t kMaxPendingRequests = 65536;
     /** 保护等待队列与状态的互斥量 */
-    std::mutex m_mutex;
+    std::mutex mutex_;
     /** 写信号量（callInternal / 心跳 / recvLoop 回包并发写同一 socket，wait 让出协程） */
-    FiberSemaphore m_writeSem{1};
+    FiberSemaphore write_sem_{1};
     /* 待响应请求表：key 为序列号，value 为等待上下文。调用发出时登记，收到响应或超时后移除。*/
-    std::unordered_map<uint32_t, ResponseContext::ptr> m_pending_requests;
+    std::unordered_map<uint32_t, ResponseContext::ptr> pending_requests_;
     /** 本地请求处理器表（接收 hub 转发来的 REQUEST）：key 为方法名或 CmdID，见 HandlerKey */
-    std::unordered_map<HandlerKey, RpcHandler, HandlerKeyHash> m_requestHandlers;
+    std::unordered_map<HandlerKey, RpcHandler, HandlerKeyHash> request_handlers_;
     // 心跳定时器
-    Timer::ptr m_hb_timer;
+    Timer::ptr hb_timer_;
     // 心跳间隔
-    uint64_t m_heartbeat_ms = 30000;
+    uint64_t heartbeat_ms_ = 30000;
 };
 
 } // namespace chen::rpc

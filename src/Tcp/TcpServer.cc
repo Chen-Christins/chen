@@ -21,9 +21,7 @@ bool TcpServerConf::operator==(const TcpServerConf& oth) const
         && key_file == oth.key_file
         && accept_worker == oth.accept_worker
         && io_worker == oth.io_worker
-        && process_worker == oth.process_worker
-        && negotiateH2 == oth.negotiateH2
-        && args == oth.args;
+        && process_worker == oth.process_worker && negotiate_h2 == oth.negotiate_h2 && args == oth.args;
 }
 
 namespace {
@@ -59,21 +57,21 @@ static ConfigVar<uint64_t>::ptr g_tcp_server_read_timeout =
 static Logger::ptr logger = LOG_NAME("system");
 
 TcpServer::TcpServer(IOManager* worker, IOManager* io_worker, IOManager* accept_worker)
-    : m_worker(worker)
-    , m_ioWorker(io_worker)
-    , m_acceptWorker(accept_worker)
-    , m_recvTimeout(g_tcp_server_read_timeout->getValue())
-    , m_name("chen/1.0.0")
-    , m_isStop(true)
+    : worker_(worker)
+    , io_worker_(io_worker)
+    , accept_worker_(accept_worker)
+    , recv_timeout_(g_tcp_server_read_timeout->getValue())
+    , name_("chen/1.0.0")
+    , is_stop_(true)
 {
 }
 
 TcpServer::~TcpServer()
 {
-    for (auto& i : m_socks) {
+    for (auto& i : socks_) {
         i->close();
     }
-    m_socks.clear();
+    socks_.clear();
 }
 
 bool TcpServer::bind(Address::ptr addr, bool ssl)
@@ -86,7 +84,7 @@ bool TcpServer::bind(Address::ptr addr, bool ssl)
 
 bool TcpServer::bind(const std::vector<Address::ptr>& addrs, std::vector<Address::ptr>& fails, bool ssl)
 {
-    m_ssl = ssl;
+    ssl_ = ssl;
     for (auto& addr : addrs) {
         Socket::ptr sock = ssl ? SSLSocket::CreateTCP(addr) : Socket::CreateTCP(addr);
         if (!sock->bind(addr)) {
@@ -99,16 +97,16 @@ bool TcpServer::bind(const std::vector<Address::ptr>& addrs, std::vector<Address
             fails.push_back(addr);
             continue;
         }
-        m_socks.push_back(sock);
+        socks_.push_back(sock);
     }
 
     // 如果存在失败的，直接清空所有的socket
     if (!fails.empty()) {
-        m_socks.clear();
+        socks_.clear();
         return false;
     }
-    for (auto& i : m_socks) {
-        INFO(logger) << "type=" << m_type << " name=" << m_name << " ssl=" << m_ssl << " server bind success: " << *i;
+    for (auto& i : socks_) {
+        INFO(logger) << "type=" << type_ << " name=" << name_ << " ssl=" << ssl_ << " server bind success: " << *i;
     }
     return true;
 }
@@ -116,39 +114,39 @@ bool TcpServer::bind(const std::vector<Address::ptr>& addrs, std::vector<Address
 bool TcpServer::start()
 {
     // 是开启的，就不用操作了
-    if (!m_isStop) {
+    if (!is_stop_) {
         return true;
     }
-    m_isStop = false;
-    for (auto& sock : m_socks) {
-        m_acceptWorker->schedule(std::bind(&TcpServer::startAccept, shared_from_this(), sock));
+    is_stop_ = false;
+    for (auto& sock : socks_) {
+        accept_worker_->schedule(std::bind(&TcpServer::startAccept, shared_from_this(), sock));
     }
     return true;
 }
 
 void TcpServer::stop()
 {
-    m_isStop = true;
+    is_stop_ = true;
     auto self = shared_from_this();
     // 将this和self作为参数传递给异步任务的lambda函数，以确保异步任务执行期间当前对象的shared_ptr一直有效
     // 避免析构
-    m_acceptWorker->schedule([this, self]() {
-        for (auto& sock : m_socks) {
+    accept_worker_->schedule([this, self]() {
+        for (auto& sock : socks_) {
             // 取消socket上的所有事件
             sock->cancelAll();
             // 关闭socket
             sock->close();
         }
         // 清空
-        m_socks.clear();
+        socks_.clear();
     });
 }
 
 void TcpServer::setWorkers(IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker)
 {
-    m_worker = process_worker;
-    m_ioWorker = io_worker;
-    m_acceptWorker = accept_worker;
+    worker_ = process_worker;
+    io_worker_ = io_worker;
+    accept_worker_ = accept_worker;
 }
 
 void TcpServer::handleClient(Socket::ptr client)
@@ -158,18 +156,19 @@ void TcpServer::handleClient(Socket::ptr client)
 
 size_t TcpServer::getActiveClientCount()
 {
-    std::lock_guard lock(m_clientsMutex);
-    return m_activeClients.size();
+    std::lock_guard lock(clients_mutex_);
+    return active_clients_.size();
 }
 
 void TcpServer::closeAllClients()
 {
     std::set<Socket::ptr> clients;
     {
-        std::lock_guard lock(m_clientsMutex);
-        clients.swap(m_activeClients);
+        std::lock_guard lock(clients_mutex_);
+        clients.swap(active_clients_);
     }
-    INFO(logger) << "closeAllClients: closing " << clients.size() << " active connections for server " << m_name << " type=" << m_type;
+    INFO(logger) << "closeAllClients: closing " << clients.size() << " active connections for server " << name_
+                 << " type=" << type_;
     for (auto& client : clients) {
         if (client) {
             client->close();
@@ -179,34 +178,34 @@ void TcpServer::closeAllClients()
 
 void TcpServer::startAccept(Socket::ptr sock)
 {
-    while (!m_isStop) {
+    while (!is_stop_) {
         Socket::ptr client = sock->accept();
         if (client) {
-            if (m_connLimiter && !m_connLimiter->tryAcquire()) {
-                WARN(logger) << "rate limited, close client=" << *client << " current=" << m_connLimiter->current()
-                             << " rejected=" << m_connLimiter->getRejectedCount();
+            if (conn_limiter_ && !conn_limiter_->tryAcquire()) {
+                WARN(logger) << "rate limited, close client=" << *client << " current=" << conn_limiter_->current()
+                             << " rejected=" << conn_limiter_->getRejectedCount();
                 client->close();
                 continue;
             }
-            client->setRecvTimeout(m_recvTimeout);
+            client->setRecvTimeout(recv_timeout_);
             {
-                std::lock_guard lock(m_clientsMutex);
-                m_activeClients.insert(client);
+                std::lock_guard lock(clients_mutex_);
+                active_clients_.insert(client);
             }
-            m_ioWorker->schedule([this, self = shared_from_this(), client]() {
+            io_worker_->schedule([this, self = shared_from_this(), client]() {
                 handleClient(client);
                 {
-                    std::lock_guard lock(m_clientsMutex);
-                    m_activeClients.erase(client);
+                    std::lock_guard lock(clients_mutex_);
+                    active_clients_.erase(client);
                 }
-                if (m_connLimiter) {
-                    m_connLimiter->release();
+                if (conn_limiter_) {
+                    conn_limiter_->release();
                 }
             });
         } else {
             // stop() 关闭了监听 socket，accept 返回 EBADF 是预期行为，不打错误日志
             // EAGAIN/EWOULDBLOCK 在非阻塞 socket 上是正常行为
-            if (!m_isStop && errno != 0 && errno != EBADF && errno != EAGAIN && errno != EWOULDBLOCK) {
+            if (!is_stop_ && errno != 0 && errno != EBADF && errno != EAGAIN && errno != EWOULDBLOCK) {
                 ERROR(logger) << "accept errno=" << errno << " errstr=" << strerror(errno);
             }
         }
@@ -215,19 +214,19 @@ void TcpServer::startAccept(Socket::ptr sock)
 
 void TcpServer::setConf(const TcpServerConf& v)
 {
-    m_conf.reset(new TcpServerConf(v));
+    conf_.reset(new TcpServerConf(v));
     if (v.timeout > 0) {
-        m_recvTimeout = static_cast<uint64_t>(v.timeout);
+        recv_timeout_ = static_cast<uint64_t>(v.timeout);
     }
-    m_connLimiter = ConnLimiter::CreateFromArgs(v.args);
+    conn_limiter_ = ConnLimiter::CreateFromArgs(v.args);
     DEBUG(logger) << "apply server conf"
-                  << " name=" << (v.name.empty() ? m_name : v.name) << " type=" << v.type << " conf_timeout_ms=" << v.timeout
-                  << " effective_recv_timeout_ms=" << m_recvTimeout;
+                  << " name=" << (v.name.empty() ? name_ : v.name) << " type=" << v.type
+                  << " conf_timeout_ms=" << v.timeout << " effective_recv_timeout_ms=" << recv_timeout_;
 }
 
 bool TcpServer::loadCertificates(const std::string& cert_file, const std::string& key_file)
 {
-    for (auto& i : m_socks) {
+    for (auto& i : socks_) {
         auto ssl_sock = std::dynamic_pointer_cast<SSLSocket>(i);
         if (ssl_sock) {
             if (!ssl_sock->loadCertificates(cert_file, key_file)) {
@@ -241,21 +240,21 @@ bool TcpServer::loadCertificates(const std::string& cert_file, const std::string
 std::string TcpServer::toString(const std::string& prefix)
 {
     std::stringstream ss;
-    ss << prefix << "[type=" << m_type << " name=" << (m_name.empty() ? "-" : m_name) << " worker=" << WorkerName(m_worker)
-       << " io=" << WorkerName(m_ioWorker) << " accept=" << WorkerName(m_acceptWorker) << " recv_timeout=" << m_recvTimeout
-       << " ssl=" << (m_ssl ? 1 : 0);
+    ss << prefix << "[type=" << type_ << " name=" << (name_.empty() ? "-" : name_) << " worker=" << WorkerName(worker_)
+       << " io=" << WorkerName(io_worker_) << " accept=" << WorkerName(accept_worker_)
+       << " recv_timeout=" << recv_timeout_ << " ssl=" << (ssl_ ? 1 : 0);
 
-    if (m_connLimiter && m_connLimiter->isLimited()) {
-        ss << " conn=" << m_connLimiter->current() << "/" << (int64_t)m_connLimiter->getMaxConn()
-           << " rejected=" << m_connLimiter->getRejectedCount();
+    if (conn_limiter_ && conn_limiter_->isLimited()) {
+        ss << " conn=" << conn_limiter_->current() << "/" << (int64_t)conn_limiter_->getMaxConn()
+           << " rejected=" << conn_limiter_->getRejectedCount();
     }
-    if (!m_socks.empty()) {
+    if (!socks_.empty()) {
         ss << " listen=[";
-        for (size_t i = 0; i < m_socks.size(); ++i) {
+        for (size_t i = 0; i < socks_.size(); ++i) {
             if (i > 0) {
                 ss << ",";
             }
-            auto addr = m_socks[i]->getLocalAddress();
+            auto addr = socks_[i]->getLocalAddress();
             ss << (addr ? addr->toString() : "unknown");
         }
         ss << "]";

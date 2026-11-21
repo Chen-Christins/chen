@@ -43,11 +43,11 @@ public:
 
     virtual ~Metric();
 
-    const std::string& getName() const { return m_name; }
+    const std::string& getName() const { return name_; }
 
-    const std::string& getHelp() const { return m_help; }
+    const std::string& getHelp() const { return help_; }
 
-    const Labels& getLabels() const { return m_labels; }
+    const Labels& getLabels() const { return labels_; }
 
     /// Prometheus 类型名：counter / gauge / histogram
     virtual const char* getType() const = 0;
@@ -64,13 +64,13 @@ protected:
      */
     std::string formatLabels(const std::string& extra_key = "", const std::string& extra_value = "") const;
 
-    std::string m_name;
-    std::string m_help;
-    Labels m_labels;
+    std::string name_;
+    std::string help_;
+    Labels labels_;
     /// 预计算的 Prometheus 指标名（非法字符已替换）
-    std::string m_sanitizedName;
+    std::string sanitized_name_;
     /// 预计算的 label 串，形如 `{k="v"}`，无 label 时为空
-    std::string m_labelString;
+    std::string label_string_;
 };
 
 /**
@@ -93,7 +93,7 @@ private:
     struct alignas(64) Shard {
         std::atomic<uint64_t> value{0};
     };
-    std::unique_ptr<Shard[]> m_shards;
+    std::unique_ptr<Shard[]> shards_;
 };
 
 /**
@@ -118,7 +118,7 @@ public:
     std::string render() const override;
 
 private:
-    std::atomic<int64_t> m_value{0};
+    std::atomic<int64_t> value_{0};
 };
 
 /**
@@ -140,7 +140,7 @@ public:
     std::string render() const override;
 
 private:
-    Callback m_cb;
+    Callback cb_;
 };
 
 /**
@@ -174,11 +174,11 @@ public:
     static const std::vector<double>& DefaultBuckets();
 
 private:
-    std::vector<double> m_buckets;
+    std::vector<double> buckets_;
     /// 每线程分片：每片 [bucket_counts..., count, sum_ns, padding]
-    std::atomic<uint64_t>* m_shardData = nullptr;
+    std::atomic<uint64_t>* shard_data_ = nullptr;
     /// 每片占用的元素数（按 64 字节对齐）
-    size_t m_stride = 0;
+    size_t stride_ = 0;
 };
 
 /**
@@ -214,9 +214,9 @@ private:
 
 private:
     /// 注册表锁（临界区含 map 操作与内存分配，不适合 SpinLock）
-    std::mutex m_mutex;
+    std::mutex mutex_;
     /// key -> metric，key 由 name + 排序后的 label 组成
-    std::map<std::string, Metric::ptr> m_metrics;
+    std::map<std::string, Metric::ptr> metrics_;
 };
 
 /// 指标注册表单例

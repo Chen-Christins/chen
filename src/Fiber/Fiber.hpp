@@ -95,17 +95,17 @@ public:
     /**
      * @brief 设置当前协程的状态
      */
-    void setState(State v) { m_state = v; }
+    void setState(State v) { state_ = v; }
 
     /**
      * @brief 返回当前协程的状态
      */
-    State getState() const { return m_state; }
+    State getState() const { return state_; }
 
     /**
      * @brief 返回当前协程的id
      */
-    uint64_t getId() const { return m_id; }
+    uint64_t getId() const { return id_; }
 
 public:
     /**
@@ -169,7 +169,7 @@ public:
     /**
      * @brief 是否为主协程（线程原生栈，不能 Yield）
      */
-    bool isMain() const { return m_isMain; }
+    bool isMain() const { return is_main_; }
 
     /**
      * @brief 清理当前线程的协程资源
@@ -180,21 +180,21 @@ public:
 
 private:
     /// 协程id
-    uint64_t m_id = 0;
+    uint64_t id_ = 0;
     /// 协程栈大小
-    uint32_t m_stacksize = 0;
+    uint32_t stacksize_ = 0;
     /// 协程状态
-    State m_state = INIT;
+    State state_ = INIT;
     /// 协程上下文（目标/恢复点）
-    boost::context::detail::fcontext_t m_ctx = nullptr;
+    boost::context::detail::fcontext_t ctx_ = nullptr;
     /// 调用者上下文
-    boost::context::detail::fcontext_t m_caller = nullptr;
+    boost::context::detail::fcontext_t caller_ = nullptr;
     /// 协程运行栈指针
-    void* m_stack = nullptr;
+    void* stack_ = nullptr;
     /// 协程运行函数
-    std::function<void()> m_task;
+    std::function<void()> task_;
     /// 是否为主协程（线程原生栈）
-    bool m_isMain = false;
+    bool is_main_ = false;
 };
 
 } // namespace chen

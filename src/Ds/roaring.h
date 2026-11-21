@@ -449,16 +449,16 @@ bool intersect_skewed_uint16_nonempty(const uint16_t* smallarray, size_t size_s,
 /**
  * Generic intersection function.
  */
-int32_t intersect_uint16(const uint16_t* A, const size_t lenA, const uint16_t* B, const size_t lenB, uint16_t* out);
+int32_t intersect_uint16(const uint16_t* A, const size_t len_a, const uint16_t* B, const size_t len_b, uint16_t* out);
 /**
  * Compute the size of the intersection (generic).
  */
-int32_t intersect_uint16_cardinality(const uint16_t* A, const size_t lenA, const uint16_t* B, const size_t lenB);
+int32_t intersect_uint16_cardinality(const uint16_t* A, const size_t len_a, const uint16_t* B, const size_t len_b);
 
 /**
  * Checking whether the size of the intersection  is non-zero.
  */
-bool intersect_uint16_nonempty(const uint16_t* A, const size_t lenA, const uint16_t* B, const size_t lenB);
+bool intersect_uint16_nonempty(const uint16_t* A, const size_t len_a, const uint16_t* B, const size_t len_b);
 /**
  * Generic union function.
  */
@@ -477,12 +477,12 @@ int difference_uint16(const uint16_t* a1, int length1, const uint16_t* a2, int l
 /**
  * Generic intersection function.
  */
-size_t intersection_uint32(const uint32_t* A, const size_t lenA, const uint32_t* B, const size_t lenB, uint32_t* out);
+size_t intersection_uint32(const uint32_t* A, const size_t len_a, const uint32_t* B, const size_t len_b, uint32_t* out);
 
 /**
  * Generic intersection function, returns just the cardinality.
  */
-size_t intersection_uint32_card(const uint32_t* A, const size_t lenA, const uint32_t* B, const size_t lenB);
+size_t intersection_uint32_card(const uint32_t* A, const size_t len_a, const uint32_t* B, const size_t len_b);
 
 /**
  * Generic union function.

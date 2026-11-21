@@ -12,7 +12,7 @@ static Logger::ptr logger = LOG_NAME("system");
 RockServer::RockServer(const std::string& type, IOManager* worker, IOManager* io_worker, IOManager* accept_worker)
     : TcpServer(worker, io_worker, accept_worker)
 {
-    m_type = type;
+    type_ = type;
 }
 
 void RockServer::handleClient(Socket::ptr client)
@@ -20,7 +20,7 @@ void RockServer::handleClient(Socket::ptr client)
     DEBUG(logger) << "handleClient " << *client;
     RockSession::ptr session(new RockSession(client));
 
-    session->setWorker(m_worker);
+    session->setWorker(worker_);
     ModuleMgr::GetInstance()->foreach(Module::ROCK, [session](Module::ptr m) {
         m->onConnect(session);
     });

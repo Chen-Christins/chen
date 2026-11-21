@@ -22,21 +22,21 @@ class HolderStats {
     friend class HolderStatsSet;
 
 public:
-    uint32_t getUsedTime() const { return m_usedTime; }
-    uint32_t getTotal() const { return m_total; }
-    uint32_t getDoing() const { return m_doing; }
-    uint32_t getTimeouts() const { return m_timeouts; }
-    uint32_t getOks() const { return m_oks; }
-    uint32_t getErrs() const { return m_errs; }
+    uint32_t getUsedTime() const { return used_time_; }
+    uint32_t getTotal() const { return total_; }
+    uint32_t getDoing() const { return doing_; }
+    uint32_t getTimeouts() const { return timeouts_; }
+    uint32_t getOks() const { return oks_; }
+    uint32_t getErrs() const { return errs_; }
 
-    uint32_t incUsedTime(uint32_t v) { return Atomic::addFetch(m_usedTime, v); }
-    uint32_t incTotal(uint32_t v) { return Atomic::addFetch(m_total, v); }
-    uint32_t incDoing(uint32_t v) { return Atomic::addFetch(m_doing, v); }
-    uint32_t incTimeouts(uint32_t v) { return Atomic::addFetch(m_timeouts, v); }
-    uint32_t incOks(uint32_t v) { return Atomic::addFetch(m_oks, v); }
-    uint32_t incErrs(uint32_t v) { return Atomic::addFetch(m_errs, v); }
+    uint32_t incUsedTime(uint32_t v) { return Atomic::addFetch(used_time_, v); }
+    uint32_t incTotal(uint32_t v) { return Atomic::addFetch(total_, v); }
+    uint32_t incDoing(uint32_t v) { return Atomic::addFetch(doing_, v); }
+    uint32_t incTimeouts(uint32_t v) { return Atomic::addFetch(timeouts_, v); }
+    uint32_t incOks(uint32_t v) { return Atomic::addFetch(oks_, v); }
+    uint32_t incErrs(uint32_t v) { return Atomic::addFetch(errs_, v); }
 
-    uint32_t decDoing(uint32_t v) { return Atomic::subFetch(m_doing, v); }
+    uint32_t decDoing(uint32_t v) { return Atomic::subFetch(doing_, v); }
     void clear();
 
     float getWeight(float rate = 1.0f);
@@ -44,12 +44,12 @@ public:
     std::string toString();
 
 private:
-    uint32_t m_usedTime = 0;
-    uint32_t m_total = 0;
-    uint32_t m_doing = 0;
-    uint32_t m_timeouts = 0;
-    uint32_t m_oks = 0;
-    uint32_t m_errs = 0;
+    uint32_t used_time_ = 0;
+    uint32_t total_ = 0;
+    uint32_t doing_ = 0;
+    uint32_t timeouts_ = 0;
+    uint32_t oks_ = 0;
+    uint32_t errs_ = 0;
 };
 
 class HolderStatsSet {
@@ -65,8 +65,8 @@ private:
     void init(const uint32_t& now);
 
 private:
-    uint32_t m_lastUpdateTime = 0; // seconds
-    std::vector<HolderStats> m_stats;
+    uint32_t last_update_time_ = 0; // seconds
+    std::vector<HolderStats> stats_;
 };
 
 class LoadBalanceItem {
@@ -74,22 +74,22 @@ public:
     typedef std::shared_ptr<LoadBalanceItem> ptr;
     virtual ~LoadBalanceItem();
 
-    SocketStream::ptr getStream() const { return m_stream; }
-    void setStream(SocketStream::ptr v) { m_stream = v; }
+    SocketStream::ptr getStream() const { return stream_; }
+    void setStream(SocketStream::ptr v) { stream_ = v; }
 
-    void setId(uint64_t v) { m_id = v; }
-    uint64_t getId() const { return m_id; }
+    void setId(uint64_t v) { id_ = v; }
+    uint64_t getId() const { return id_; }
 
     HolderStats& get(const uint32_t& now = time(0));
 
     template <class T>
     std::shared_ptr<T> getStreamAs()
     {
-        return std::dynamic_pointer_cast<T>(m_stream);
+        return std::dynamic_pointer_cast<T>(stream_);
     }
 
-    virtual int32_t getWeight() { return m_weight; }
-    void setWeight(int32_t v) { m_weight = v; }
+    virtual int32_t getWeight() { return weight_; }
+    void setWeight(int32_t v) { weight_ = v; }
 
     virtual bool isValid();
     void close();
@@ -107,14 +107,14 @@ public:
     std::string toString();
 
 protected:
-    uint64_t m_id = 0;
-    SocketStream::ptr m_stream;
-    int32_t m_weight = 0;
-    HolderStatsSet m_stats;
+    uint64_t id_ = 0;
+    SocketStream::ptr stream_;
+    int32_t weight_ = 0;
+    HolderStatsSet stats_;
     /// 连续失败次数
-    std::atomic<uint32_t> m_consecutiveFails{0};
+    std::atomic<uint32_t> consecutive_fails_{0};
     /// 最近一次失败时间（毫秒）
-    std::atomic<uint64_t> m_lastFailMs{0};
+    std::atomic<uint64_t> last_fail_ms_{0};
 };
 
 class ILoadBalance {
@@ -152,9 +152,9 @@ protected:
     void checkInit();
 
 protected:
-    std::shared_mutex m_mutex;
-    std::unordered_map<uint64_t, LoadBalanceItem::ptr> m_datas;
-    uint64_t m_lastInitTime = 0;
+    std::shared_mutex mutex_;
+    std::unordered_map<uint64_t, LoadBalanceItem::ptr> datas_;
+    uint64_t last_init_time_ = 0;
 };
 
 class RoundRobinLoadBalance : public LoadBalance {
@@ -166,7 +166,7 @@ protected:
     virtual void initNolock() override;
 
 protected:
-    std::vector<LoadBalanceItem::ptr> m_items;
+    std::vector<LoadBalanceItem::ptr> items_;
 };
 
 // class FairLoadBalance;
@@ -190,7 +190,7 @@ protected:
     virtual void initNolock() override;
 
 protected:
-    std::vector<LoadBalanceItem::ptr> m_items;
+    std::vector<LoadBalanceItem::ptr> items_;
 };
 
 // class FairLoadBalance : public LoadBalance {
@@ -204,7 +204,7 @@ protected:
 // private:
 //     int32_t getIdx();
 // protected:
-//     std::vector<LoadBalanceItem::ptr> m_items;
+//     std::vector<LoadBalanceItem::ptr> items_;
 // private:
 //     std::vector<int32_t> m_weights;
 // };
@@ -220,8 +220,8 @@ public:
     virtual void start();
     virtual void stop();
 
-    stream_callback getCb() const { return m_cb; }
-    void setCb(stream_callback v) { m_cb = v; }
+    stream_callback getCb() const { return cb_; }
+    void setCb(stream_callback v) { cb_ = v; }
 
     LoadBalance::ptr get(const std::string& domain, const std::string& service, bool auto_create = false);
 
@@ -241,13 +241,13 @@ private:
     LoadBalanceItem::ptr createLoadBalanceItem(ILoadBalance::Type type);
 
 protected:
-    std::shared_mutex m_mutex;
-    IServiceDiscovery::ptr m_sd;
+    std::shared_mutex mutex_;
+    IServiceDiscovery::ptr sd_;
     // domain -> [ service -> [ LoadBalance ] ]
-    std::unordered_map<std::string, std::unordered_map<std::string, LoadBalance::ptr>> m_datas;
-    std::unordered_map<std::string, std::unordered_map<std::string, ILoadBalance::Type>> m_types;
-    ILoadBalance::Type m_defaultType = ILoadBalance::FAIR;
-    stream_callback m_cb;
+    std::unordered_map<std::string, std::unordered_map<std::string, LoadBalance::ptr>> datas_;
+    std::unordered_map<std::string, std::unordered_map<std::string, ILoadBalance::Type>> types_;
+    ILoadBalance::Type default_type_ = ILoadBalance::FAIR;
+    stream_callback cb_;
 };
 
 } // namespace chen

@@ -77,12 +77,12 @@ public:
     /**
      * @brief 获取可执行文件的名称
      */
-    const std::string& getExe() const { return m_exe; }
+    const std::string& getExe() const { return exe_; }
 
     /**
      * @brief 获取可执行文件所在的路径
      */
-    const std::string& getCwd() const { return m_cwd; }
+    const std::string& getCwd() const { return cwd_; }
 
     /**
      * @brief 设置环境变量
@@ -162,40 +162,40 @@ private:
     void initProcTitle(int argc, char** argv);
 
     /**
-     * @brief 按基础名 + 角色组合出当前标题（调用方需持有 m_mutex）
+     * @brief 按基础名 + 角色组合出当前标题（调用方需持有 mutex_）
      */
     std::string buildProcTitleLocked() const;
 
     /**
-     * @brief 把标题写入 argv 区域并清空剩余字节（调用方需持有 m_mutex）
+     * @brief 把标题写入 argv 区域并清空剩余字节（调用方需持有 mutex_）
      */
     void writeProcTitleLocked(const std::string& title);
 
 private:
     /// 读写锁
-    std::shared_mutex m_mutex;
+    std::shared_mutex mutex_;
     /// 参数信息
-    std::map<std::string, std::string> m_args;
+    std::map<std::string, std::string> args_;
     /// 程序的帮助信息
-    std::vector<std::pair<std::string, std::string>> m_helps;
+    std::vector<std::pair<std::string, std::string>> helps_;
     /// 可执行程序名称
-    std::string m_program;
+    std::string program_;
     /// 可执行文件
-    std::string m_exe;
+    std::string exe_;
     /// 可执行文件所在的路径
-    std::string m_cwd;
+    std::string cwd_;
     /// 可复写的进程标题区域起始地址（argv[0]）
-    char* m_titleBuf = nullptr;
+    char* title_buf_ = nullptr;
     /// 可复写的进程标题区域字节数
-    std::size_t m_titleMax = 0;
+    std::size_t title_max_ = 0;
     /// 可执行文件名，作为基础名的兜底
-    std::string m_titleDefault;
-    /// 用户设置的基础名，为空时使用 m_titleDefault
-    std::string m_titleBase;
+    std::string title_default_;
+    /// 用户设置的基础名，为空时使用 title_default_
+    std::string title_base_;
     /// 用户设置的角色名
-    std::string m_titleRole;
+    std::string title_role_;
     /// 当前完整进程标题
-    std::string m_title;
+    std::string title_;
 };
 
 typedef Singleton<Env> EnvMgr;

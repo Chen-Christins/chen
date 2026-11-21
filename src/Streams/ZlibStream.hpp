@@ -61,13 +61,13 @@ public:
 
     int flush();
 
-    bool isFree() const { return m_free; }
-    void setFree(bool v) { m_free = v; }
+    bool isFree() const { return free_; }
+    void setFree(bool v) { free_ = v; }
 
-    bool isEncode() const { return m_encode; }
-    void setEndcode(bool v) { m_encode = v; }
+    bool isEncode() const { return encode_; }
+    void setEndcode(bool v) { encode_ = v; }
 
-    std::vector<iovec>& getBuffers() { return m_buffs; }
+    std::vector<iovec>& getBuffers() { return buffs_; }
     std::string getResult() const;
     ByteArray::ptr getByteArray();
 
@@ -78,11 +78,11 @@ private:
     int decode(const iovec* v, const uint64_t& size, bool finish);
 
 private:
-    z_stream m_zstream;
-    uint32_t m_buffSize;
-    bool m_encode;
-    bool m_free;
-    std::vector<iovec> m_buffs;
+    z_stream zstream_;
+    uint32_t buff_size_;
+    bool encode_;
+    bool free_;
+    std::vector<iovec> buffs_;
 };
 
 } // namespace chen

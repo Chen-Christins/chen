@@ -31,7 +31,7 @@ int readExact(Socket::ptr sock, void* buffer, size_t length) {
 int main(int argc, char** argv) {
     const char* addr_str = (argc > 1) ? argv[1] : "127.0.0.1:9001";
     uint32_t magic = (argc > 2) ? static_cast<uint32_t>(strtoul(argv[2], nullptr, 0)) : 0xC0DECAFE;
-    uint32_t cmdId = (argc > 3) ? static_cast<uint32_t>(strtoul(argv[3], nullptr, 0)) : 1;
+    uint32_t cmd_id = (argc > 3) ? static_cast<uint32_t>(strtoul(argv[3], nullptr, 0)) : 1;
     uint32_t seq = (argc > 4) ? static_cast<uint32_t>(strtoul(argv[4], nullptr, 0)) : 1;
     std::string payload = (argc > 5) ? argv[5] : std::string("hello-game");
 
@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
     std::vector<uint8_t> packet;
     packet.resize(16 + payload.size());
     uint32_t magic_n = htonl(magic);
-    uint32_t cmd_n = htonl(cmdId);
+    uint32_t cmd_n = htonl(cmd_id);
     uint32_t seq_n = htonl(seq);
     uint32_t len_n = htonl(static_cast<uint32_t>(payload.size()));
     std::memcpy(packet.data(), &magic_n, 4);
@@ -66,11 +66,11 @@ int main(int argc, char** argv) {
         std::cerr << "send fail wn=" << wn << std::endl;
         return 1;
     }
-    std::cout << "sent cmd=" << cmdId << " seq=" << seq << " body_len=" << payload.size() << std::endl;
+    std::cout << "sent cmd=" << cmd_id << " seq=" << seq << " body_len=" << payload.size() << std::endl;
 
     // 尝试读取响应（如果服务端有回包）。若服务端未实现回包，可忽略。
-    uint8_t rspHeader[16];
-    int rn = sock->recv(rspHeader, sizeof(rspHeader));
+    uint8_t rsp_header[16];
+    int rn = sock->recv(rsp_header, sizeof(rsp_header));
     if (rn == 0) {
         std::cout << "server closed after send (no response)" << std::endl;
         return 0;
@@ -80,27 +80,27 @@ int main(int argc, char** argv) {
         return 1;
     }
     if (rn < 16) {
-        int remain = readExact(sock, rspHeader + rn, 16 - rn);
+        int remain = readExact(sock, rsp_header + rn, 16 - rn);
         if (remain <= 0) {
             std::cout << "no full response header; server likely does not echo" << std::endl;
             return 0;
         }
     }
-    uint32_t rspMagic = ntohl(*reinterpret_cast<uint32_t*>(rspHeader));
-    uint32_t rspCmd = ntohl(*reinterpret_cast<uint32_t*>(rspHeader + 4));
-    uint32_t rspSeq = ntohl(*reinterpret_cast<uint32_t*>(rspHeader + 8));
-    uint32_t rspLen = ntohl(*reinterpret_cast<uint32_t*>(rspHeader + 12));
+    uint32_t rsp_magic = ntohl(*reinterpret_cast<uint32_t*>(rsp_header));
+    uint32_t rsp_cmd = ntohl(*reinterpret_cast<uint32_t*>(rsp_header + 4));
+    uint32_t rsp_seq = ntohl(*reinterpret_cast<uint32_t*>(rsp_header + 8));
+    uint32_t rsp_len = ntohl(*reinterpret_cast<uint32_t*>(rsp_header + 12));
 
-    std::vector<uint8_t> rspBody(rspLen);
-    if (rspLen > 0) {
-        if (readExact(sock, rspBody.data(), rspLen) <= 0) {
+    std::vector<uint8_t> rspBody(rsp_len);
+    if (rsp_len > 0) {
+        if (readExact(sock, rspBody.data(), rsp_len) <= 0) {
             std::cerr << "read body failed" << std::endl;
             return 1;
         }
     }
 
-    std::cout << "recv rsp magic=0x" << std::hex << rspMagic << std::dec
-              << " cmd=" << rspCmd << " seq=" << rspSeq << " body_len=" << rspLen << std::endl;
+    std::cout << "recv rsp magic=0x" << std::hex << rsp_magic << std::dec << " cmd=" << rsp_cmd << " seq=" << rsp_seq
+              << " body_len=" << rsp_len << std::endl;
     if (!rspBody.empty()) {
         std::cout << "body(hex): ";
         for (auto b : rspBody) {

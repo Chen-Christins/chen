@@ -6,7 +6,10 @@ static chen::Logger::ptr logger = LOG_ROOT();
 
 class MyServer : public chen::TcpServer {
 public:
-    MyServer(int type) : m_type(type) {}
+    MyServer(int type)
+        : type_(type)
+    {
+    }
     void handleClient(chen::Socket::ptr client) override {
         INFO(logger) << "handleClient";
         chen::SocketStream::ptr tcp(new chen::SocketStream(client));
@@ -33,7 +36,7 @@ public:
                 break;
             }
             ba->setPosition(0);
-            if (m_type == 1) {
+            if (type_ == 1) {
                 INFO(logger) << "\n" << ba->toString();
             } else {
                 INFO(logger) << "\n" << ba->toHexString();
@@ -41,7 +44,7 @@ public:
         }
     }
 private:
-    int m_type = 0;
+    int type_ = 0;
 };
 
 void run() {

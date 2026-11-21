@@ -35,22 +35,22 @@ class MessageBus {
 public:
     void publish(const std::string& id, const std::string& event, const std::string& data)
     {
-        std::lock_guard lock(m_mutex);
-        m_queue.push({id, event, data});
-        if (m_queue.size() > 1024) {
-            m_queue.pop();
+        std::lock_guard lock(mutex_);
+        queue_.push({id, event, data});
+        if (queue_.size() > 1024) {
+            queue_.pop();
         }
     }
 
     bool consume(std::string& id, std::string& event, std::string& data)
     {
-        std::lock_guard lock(m_mutex);
-        if (!m_queue.empty()) {
-            auto& msg = m_queue.front();
+        std::lock_guard lock(mutex_);
+        if (!queue_.empty()) {
+            auto& msg = queue_.front();
             id = msg.id;
             event = msg.event;
             data = msg.data;
-            m_queue.pop();
+            queue_.pop();
             return true;
         }
         return false;
@@ -62,8 +62,8 @@ private:
         std::string event;
         std::string data;
     };
-    std::queue<Message> m_queue;
-    std::mutex m_mutex;
+    std::queue<Message> queue_;
+    std::mutex mutex_;
 };
 
 static MessageBus s_bus;
@@ -75,10 +75,10 @@ static int32_t on_sse_connect(chen::http::HttpRequest::ptr req, chen::http::SSES
 {
     INFO(logger) << "[SSE] 客户端连接: " << session->getRemoteAddressString() << " 路径=" << req->getPath();
 
-    std::string lastId = req->getHeader("Last-Event-Id");
-    if (!lastId.empty()) {
-        INFO(logger) << "[SSE] 客户端断线重连，Last-Event-ID=" << lastId;
-        session->sendComment("reconnect acknowledged, last-id=" + lastId);
+    std::string last_id = req->getHeader("Last-Event-Id");
+    if (!last_id.empty()) {
+        INFO(logger) << "[SSE] 客户端断线重连，Last-Event-ID=" << last_id;
+        session->sendComment("reconnect acknowledged, last-id=" + last_id);
     }
 
     session->sendEvent(R"({"status":"connected"})", "", "ready");

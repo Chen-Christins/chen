@@ -274,22 +274,22 @@ public:
     /**
      * @brief 获取协议族
      */
-    int getFamily() const { return m_family; }
+    int getFamily() const { return family_; }
 
     /**
      * @brief 获取协议类型
      */
-    int getType() const { return m_type; }
+    int getType() const { return type_; }
 
     /**
      * @brief 获取传输协议
      */
-    int getProtocol() const { return m_protocol; }
+    int getProtocol() const { return protocol_; }
 
     /**
      * @brief 是否连接成功
      */
-    bool isConnected() const { return m_isConnected; }
+    bool isConnected() const { return is_connected_; }
 
     /**
      * @brief 是否有效
@@ -310,7 +310,7 @@ public:
     /**
      * @brief 返回socket句柄
      */
-    int getSocket() const { return m_sock; }
+    int getSocket() const { return sock_; }
 
     /**
      * @brief 取消读事件
@@ -351,20 +351,20 @@ protected:
 
 protected:
     /// socket句柄
-    int m_sock;
+    int sock_;
     /// 协议族
-    int m_family;
+    int family_;
     /// 协议类型，TCP，UDP
-    int m_type;
+    int type_;
     /// 传输协议
-    int m_protocol;
+    int protocol_;
     /// 是否连接
-    bool m_isConnected;
+    bool is_connected_;
 
     /// 本地地址
-    Address::ptr m_localAddress;
+    Address::ptr local_address_;
     /// 远端地址
-    Address::ptr m_remoteAddress;
+    Address::ptr remote_address_;
 };
 
 class SSLSocket : public Socket {
@@ -519,18 +519,18 @@ public:
      * @details 客户端握手时作为 server_name 扩展发送，访问虚拟主机（如 CDN、webhook 域名）必需；
      *          服务端忽略该设置。设置后客户端还会用它做证书主机名校验。
      */
-    void setServerName(const std::string& v) { m_serverName = v; }
+    void setServerName(const std::string& v) { server_name_ = v; }
 
     /**
      * @brief 是否校验服务端证书（证书链 + 主机名），默认开启
      * @details 自签名 / 内部服务可关闭；关闭后与旧行为一致（不校验）
      */
-    void setVerifyPeer(bool v) { m_verifyPeer = v; }
+    void setVerifyPeer(bool v) { verify_peer_ = v; }
 
     /**
      * @brief 当前是否校验服务端证书
      */
-    bool isVerifyPeer() const { return m_verifyPeer; }
+    bool isVerifyPeer() const { return verify_peer_; }
 
     /**
      * @brief 打印Socket信息
@@ -558,19 +558,19 @@ private:
 
     /**
      * @brief SSL_read/SSL_write 返回 WANT_* 时等待 fd 就绪
-     * @param sslError SSL_get_error 的结果（必须是 WANT_READ/WANT_WRITE）
+     * @param ssl_error SSL_get_error 的结果（必须是 WANT_READ/WANT_WRITE）
      * @return bool true 可以重试 | false 等待失败或超时
      */
-    bool sslWaitIO(int sslError);
+    bool sslWaitIO(int ssl_error);
 
     /// SSL上下文
-    std::shared_ptr<SSL_CTX> m_ctx;
+    std::shared_ptr<SSL_CTX> ctx_;
     /// SSL实例
-    std::shared_ptr<SSL> m_ssl;
+    std::shared_ptr<SSL> ssl_;
     /// TLS SNI 主机名（客户端），同时用于证书主机名校验
-    std::string m_serverName;
+    std::string server_name_;
     /// 是否校验服务端证书（客户端）
-    bool m_verifyPeer = true;
+    bool verify_peer_ = true;
 };
 
 /**

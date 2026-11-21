@@ -30,16 +30,16 @@ struct MacroGroupInfo {
 struct EntryInfo {
     std::string name;
     std::string type;
-    bool isArray = false;
+    bool is_array = false;
     std::string size;
     std::string desc;
-    int lineNum = 0;
+    int line_num = 0;
 };
 
 struct StructInfo {
     std::string name;
     std::string desc;
-    bool needSerialization = false;
+    bool need_serialization = false;
     bool pack = false;
     std::vector<EntryInfo> entries;
 };
@@ -56,7 +56,7 @@ public:
 
     std::string convertType(const std::string& type);
 
-    std::string processTemplateType(const std::string& templateName, const std::string& type);
+    std::string processTemplateType(const std::string& template_name, const std::string& type);
 
     std::string processTupleType(const std::string& type);
 
@@ -72,23 +72,23 @@ public:
 
     std::string replaceAll(const std::string& str, const std::string& from, const std::string& to) const;
 
-    bool parseBoolAttr(const char* attrValue) const;
+    bool parseBoolAttr(const char* attr_value) const;
 
-    std::string getScalarWriteExpr(const std::string& cppType, const std::string& valueExpr) const;
+    std::string getScalarWriteExpr(const std::string& cpp_type, const std::string& value_expr) const;
 
-    std::string getScalarReadExpr(const std::string& cppType, const std::string& valueExpr) const;
+    std::string getScalarReadExpr(const std::string& cpp_type, const std::string& value_expr) const;
 
-    void generateStructSerialization(std::ofstream& out, const StructInfo& structInfo);
+    void generateStructSerialization(std::ofstream& out, const StructInfo& struct_info);
 
     bool parseXML(const std::string& filename);
 
-    void generateHeader(const std::string& outputFile);
+    void generateHeader(const std::string& output_file);
 
     std::string toUpper(const std::string& str);
 
-    void parseIncludeFile(const std::string& includeFile, const std::string& prefix);
+    void parseIncludeFile(const std::string& include_file, const std::string& prefix);
 
-    std::string extractHeaderName(const std::string& xmlPath);
+    std::string extractHeaderName(const std::string& xml_path);
 
     bool isExternalType(const std::string& type);
 
@@ -97,11 +97,11 @@ public:
     std::string decodeHTMLEntities(const std::string& str) const;
 
 private:
-    std::set<std::string> requiredHeaders;
-    std::vector<MacroInfo> macroList;
-    std::vector<MacroGroupInfo> macroGroupList;
-    std::vector<StructInfo> structList;
-    std::vector<UnionInfo> unionList;
+    std::set<std::string> required_headers_;
+    std::vector<MacroInfo> macro_list_;
+    std::vector<MacroGroupInfo> macro_group_list_;
+    std::vector<StructInfo> struct_list_;
+    std::vector<UnionInfo> union_list_;
     enum class ElementKind {
         MacroGroup,
         Struct,
@@ -111,18 +111,18 @@ private:
         ElementKind kind;
         size_t index;
     };
-    std::vector<ElementOrder> elementOrder; // Preserve declaration order for non-macro elements
-    std::string metalibDesc;
-    std::string headerName;
-    std::string headerDesc;
-    std::set<std::string> includedTypes;                    // 记录已包含的类型
-    std::map<std::string, std::string> externalTypeMapping; // 外部类型映射
-    std::string currentXMLDir;                              // 当前XML文件所在目录
-    bool m_headerPack = false;                              // 文件级别 pack 属性
-    bool m_hasError = false;                                // 转换是否出错
-    std::set<std::string> m_reportedUnknownType;            // 已报告过的未知类型，避免重复
-    std::string m_currentFile;
-    int m_currentLine = 0;
+    std::vector<ElementOrder> element_order_; // Preserve declaration order for non-macro elements
+    std::string metalib_desc_;
+    std::string header_name_;
+    std::string header_desc_;
+    std::set<std::string> included_types_;                     // 记录已包含的类型
+    std::map<std::string, std::string> external_type_mapping_; // 外部类型映射
+    std::string current_xml_dir_;                              // 当前XML文件所在目录
+    bool header_pack_ = false;                                 // 文件级别 pack 属性
+    bool has_error_ = false;                                   // 转换是否出错
+    std::set<std::string> reported_unknown_type_;              // 已报告过的未知类型，避免重复
+    std::string current_file_;
+    int current_line_ = 0;
 };
 
 } // namespace chen::converter

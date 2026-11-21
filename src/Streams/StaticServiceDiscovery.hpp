@@ -44,7 +44,7 @@ public:
      * @brief 单个实例的配置
      */
     struct ItemConf {
-        /// 实例别名（仅用于标识/日志，会写入 ServiceItemInfo::m_data）
+        /// 实例别名（仅用于标识/日志，会写入 ServiceItemInfo::data_）
         std::string name;
         /// 地址 ip:port
         std::string address;
@@ -71,7 +71,7 @@ public:
 
     /**
      * @brief 开始服务发现，构建实例列表并通知订阅者
-     * @details m_conf 为空时会读取 service_discovery.domains 配置；同时注册配置变更监听
+     * @details conf_ 为空时会读取 service_discovery.domains 配置；同时注册配置变更监听
      */
     virtual void start() override;
 
@@ -131,7 +131,7 @@ public:
 
 private:
     /**
-     * @brief 根据 m_conf + m_registerInfos 重建实例列表并发布
+     * @brief 根据 conf_ + register_infos_ 重建实例列表并发布
      * @param[in] notify 是否通知订阅者
      */
     void apply(bool notify);
@@ -142,12 +142,13 @@ private:
     bool shouldApply();
 
 private:
-    Conf m_conf;
+    Conf conf_;
     /// 运行时 addServer 指定的权重：domain -> [ service -> [ addr -> weight ] ]
-    std::unordered_map<std::string, std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>>> m_registerWeights;
+    std::unordered_map<std::string, std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>>>
+        register_weights_;
     /// 配置变更监听 id
-    uint64_t m_listenerId = 0;
-    bool m_started = false;
+    uint64_t listener_id_ = 0;
+    bool started_ = false;
 };
 
 /**

@@ -71,17 +71,17 @@ public:
     typedef RoaringSetBitForwardIterator iterator;
     typedef RoaringSetBitReverseIterator reverse_iterator;
 
-    iterator begin() const { return m_bitmap.begin(); }
-    iterator end() const { return m_bitmap.end(); }
+    iterator begin() const { return bitmap_.begin(); }
+    iterator end() const { return bitmap_.end(); }
 
-    reverse_iterator rbegin() const { return m_bitmap.rbegin(); }
-    reverse_iterator rend() const { return m_bitmap.rend(); }
+    reverse_iterator rbegin() const { return bitmap_.rbegin(); }
+    reverse_iterator rend() const { return bitmap_.rend(); }
 
 private:
     RoaringBitmap(const Roaring& b);
 
 private:
-    Roaring m_bitmap;
+    Roaring bitmap_;
 };
 
 } // namespace ds

@@ -19,12 +19,12 @@ namespace orm {
 class Table {
 public:
     typedef std::shared_ptr<Table> ptr;
-    const std::string& getName() const { return m_name; }
-    const std::string& getNamespace() const { return m_namespace; }
-    const std::string& getDesc() const { return m_desc; }
+    const std::string& getName() const { return name_; }
+    const std::string& getNamespace() const { return namespace_; }
+    const std::string& getDesc() const { return desc_; }
 
-    const std::vector<Column::ptr>& getCols() const { return m_cols; }
-    const std::vector<Index::ptr>& getIdxs() const { return m_idxs; }
+    const std::vector<Column::ptr>& getCols() const { return cols_; }
+    const std::vector<Index::ptr>& getIdxs() const { return idxs_; }
     bool init(const tinyxml2::XMLElement& node);
 
     void gen(const std::string& path);
@@ -45,7 +45,7 @@ private:
     std::string getToUpdateSQL(const std::string& class_name);
     std::string getToDeleteSQL(const std::string& class_name);
 
-    bool isPostgreSQL() const { return m_dbType == DB_POSTGRESQL; }
+    bool isPostgreSQL() const { return db_type_ == DB_POSTGRESQL; }
     /**
      * @brief 生成 SQL 标识符
      *
@@ -53,7 +53,7 @@ private:
      * 字面量转义，可直接拼进生成代码的 "..." 中。
      */
     std::string sqlIdent(const std::string& name) const;
-    std::string sqlTable() const { return sqlIdent(m_name); }
+    std::string sqlTable() const { return sqlIdent(name_); }
     std::string getIndexName(const Index::ptr& idx) const;
 
     std::vector<Column::ptr> getPKs() const;
@@ -68,17 +68,17 @@ private:
     void gen_pg_index_sql(std::ofstream& ofs, const std::string& indent, bool if_not_exists, bool drop_first);
 
 private:
-    std::string m_name;
-    std::string m_namespace;
-    std::string m_desc;
-    std::string m_subfix = "_info";
-    int m_version = 1;
-    DBType m_dbType = DB_SQLITE3;
-    std::string m_dbclass = "chen::IDB";
-    std::string m_queryclass = "chen::IDB";
-    std::string m_updateclass = "chen::IDB";
-    std::vector<Column::ptr> m_cols;
-    std::vector<Index::ptr> m_idxs;
+    std::string name_;
+    std::string namespace_;
+    std::string desc_;
+    std::string subfix_ = "_info";
+    int version_ = 1;
+    DBType db_type_ = DB_SQLITE3;
+    std::string dbclass_ = "chen::IDB";
+    std::string queryclass_ = "chen::IDB";
+    std::string updateclass_ = "chen::IDB";
+    std::vector<Column::ptr> cols_;
+    std::vector<Index::ptr> idxs_;
 };
 
 } // namespace orm

@@ -14,9 +14,9 @@ MultipartParser::MultipartParser(const std::string& content_type)
 {
     size_t pos = content_type.find("boundary=");
     if (pos != std::string::npos) {
-        m_boundary = content_type.substr(pos + 9);
-        if (!m_boundary.empty() && m_boundary[0] == '"') {
-            m_boundary = m_boundary.substr(1, m_boundary.length() - 2);
+        boundary_ = content_type.substr(pos + 9);
+        if (!boundary_.empty() && boundary_[0] == '"') {
+            boundary_ = boundary_.substr(1, boundary_.length() - 2);
         }
     }
 }
@@ -25,18 +25,18 @@ MultipartParser::MultipartParser(const std::string& content_type)
 
 bool MultipartParser::feed(const std::string& data, const std::string& save_dir)
 {
-    if (m_state == COMPLETE) {
+    if (state_ == COMPLETE) {
         return true;
     }
 
-    m_buffer += data;
+    buffer_ += data;
 
-    while (!m_buffer.empty() && m_state != COMPLETE) {
+    while (!buffer_.empty() && state_ != COMPLETE) {
         size_t consumed = tryParsePart(save_dir);
         if (consumed == 0) {
             break; // 数据不够，等下一块
         }
-        m_buffer.erase(0, consumed);
+        buffer_.erase(0, consumed);
     }
 
     return true;
@@ -44,35 +44,35 @@ bool MultipartParser::feed(const std::string& data, const std::string& save_dir)
 
 size_t MultipartParser::tryParsePart(const std::string& save_dir)
 {
-    switch (m_state) {
+    switch (state_) {
     case PREAMBLE: {
         // 跳过第一个 --boundary 之前的所有数据（理论上没有）
-        std::string delim = "--" + m_boundary;
-        size_t pos = m_buffer.find(delim);
+        std::string delim = "--" + boundary_;
+        size_t pos = buffer_.find(delim);
         if (pos == std::string::npos) {
             return 0;
         }
         size_t consumed = pos + delim.length();
-        if (m_buffer.size() >= consumed + 2 && m_buffer.substr(consumed, 2) == "\r\n") {
+        if (buffer_.size() >= consumed + 2 && buffer_.substr(consumed, 2) == "\r\n") {
             consumed += 2;
         }
-        m_state = HEADERS;
+        state_ = HEADERS;
         return consumed;
     }
     case HEADERS: {
         // 查找 header 结束位置 \r\n\r\n
-        size_t header_end = m_buffer.find("\r\n\r\n");
+        size_t header_end = buffer_.find("\r\n\r\n");
         if (header_end == std::string::npos) {
             return 0;
         }
 
-        std::string headers = m_buffer.substr(0, header_end);
-        m_curFileName = extractFilename(headers);
-        m_curFieldName = extractFieldName(headers);
-        m_curContentType = "";
-        m_curIsFile = !m_curFileName.empty();
-        m_curFileSize = 0;
-        m_curFieldValue.clear();
+        std::string headers = buffer_.substr(0, header_end);
+        cur_file_name_ = extractFilename(headers);
+        cur_field_name_ = extractFieldName(headers);
+        cur_content_type_ = "";
+        cur_is_file_ = !cur_file_name_.empty();
+        cur_file_size_ = 0;
+        cur_field_value_.clear();
 
         // 提取 Content-Type
         std::string ct_key = "Content-Type: ";
@@ -81,31 +81,31 @@ size_t MultipartParser::tryParsePart(const std::string& save_dir)
             ct_pos += ct_key.length();
             size_t ct_end = headers.find("\r\n", ct_pos);
             if (ct_end != std::string::npos) {
-                m_curContentType = headers.substr(ct_pos, ct_end - ct_pos);
+                cur_content_type_ = headers.substr(ct_pos, ct_end - ct_pos);
             }
         }
 
-        if (m_curIsFile) {
+        if (cur_is_file_) {
             std::filesystem::create_directories(save_dir);
-            m_curFileStream.open(save_dir + "/" + m_curFileName, std::ios::binary);
+            cur_file_stream_.open(save_dir + "/" + cur_file_name_, std::ios::binary);
         }
 
-        m_state = BODY;
+        state_ = BODY;
         return header_end + 4; // 包括 \r\n\r\n
     }
     case BODY: {
-        std::string boundary_str = "--" + m_boundary;
-        size_t pos = m_buffer.find(boundary_str);
+        std::string boundary_str = "--" + boundary_;
+        size_t pos = buffer_.find(boundary_str);
 
         if (pos == std::string::npos) {
             // 还没找到下一个 boundary
-            if (m_curIsFile && m_curFileStream.is_open()) {
+            if (cur_is_file_ && cur_file_stream_.is_open()) {
                 // 文件数据：安全地写大部分到磁盘（保留 boundary 长度的尾部以免截断）
-                size_t safe = m_buffer.size() > m_boundary.size() ? m_buffer.size() - m_boundary.size() : 0;
+                size_t safe = buffer_.size() > boundary_.size() ? buffer_.size() - boundary_.size() : 0;
                 if (safe > 0) {
-                    m_curFileStream.write(m_buffer.data(), safe);
-                    m_curFileSize += safe;
-                    m_buffer.erase(0, safe);
+                    cur_file_stream_.write(buffer_.data(), safe);
+                    cur_file_size_ += safe;
+                    buffer_.erase(0, safe);
                 }
             }
             // 文本字段：数据留在 buffer 里，等找到 boundary 再一起提取
@@ -114,44 +114,45 @@ size_t MultipartParser::tryParsePart(const std::string& save_dir)
 
         // 找到 boundary，提取 body 内容（去掉 boundary 前的 \r\n）
         size_t content_end = pos;
-        bool has_trailing_crlf = (pos >= 2 && m_buffer.substr(pos - 2, 2) == "\r\n");
+        bool has_trailing_crlf = (pos >= 2 && buffer_.substr(pos - 2, 2) == "\r\n");
         if (has_trailing_crlf) {
             content_end = pos - 2;
         }
 
-        if (m_curIsFile) {
-            if (m_curFileStream.is_open()) {
-                m_curFileStream.write(m_buffer.data(), content_end);
-                m_curFileSize += content_end;
-                m_curFileStream.close();
+        if (cur_is_file_) {
+            if (cur_file_stream_.is_open()) {
+                cur_file_stream_.write(buffer_.data(), content_end);
+                cur_file_size_ += content_end;
+                cur_file_stream_.close();
             }
-            m_files.push_back({m_curFieldName, m_curFileName, m_curContentType, save_dir + "/" + m_curFileName, m_curFileSize});
+            files_.push_back(
+                {cur_field_name_, cur_file_name_, cur_content_type_, save_dir + "/" + cur_file_name_, cur_file_size_});
         } else {
-            std::string text_content(m_buffer.data(), content_end);
-            m_curFieldValue += text_content;
-            m_fields.push_back({m_curFieldName, m_curFieldValue});
-            m_curFieldValue.clear();
+            std::string text_content(buffer_.data(), content_end);
+            cur_field_value_ += text_content;
+            fields_.push_back({cur_field_name_, cur_field_value_});
+            cur_field_value_.clear();
         }
 
         size_t consumed = pos + boundary_str.length();
 
         // 检查是否结束边界 --boundary--
-        if (m_buffer.size() >= consumed + 2 && m_buffer.substr(consumed, 2) == "--") {
-            m_state = COMPLETE;
-            m_complete = true;
+        if (buffer_.size() >= consumed + 2 && buffer_.substr(consumed, 2) == "--") {
+            state_ = COMPLETE;
+            complete_ = true;
             return consumed + 2;
         }
 
         // 跳过 boundary 后的 \r\n
-        if (m_buffer.size() >= consumed + 2 && m_buffer.substr(consumed, 2) == "\r\n") {
+        if (buffer_.size() >= consumed + 2 && buffer_.substr(consumed, 2) == "\r\n") {
             consumed += 2;
         }
 
-        m_state = HEADERS;
+        state_ = HEADERS;
         return consumed;
     }
     case COMPLETE:
-        return m_buffer.size();
+        return buffer_.size();
     }
     return 0;
 }
@@ -160,14 +161,14 @@ size_t MultipartParser::tryParsePart(const std::string& save_dir)
 
 bool MultipartParser::parse(const std::string& data, const std::string& save_dir)
 {
-    if (m_boundary.empty()) {
+    if (boundary_.empty()) {
         ERROR(logger) << "Boundary not found";
         return false;
     }
 
     std::filesystem::create_directories(save_dir);
 
-    std::string delimiter = "--" + m_boundary;
+    std::string delimiter = "--" + boundary_;
     size_t pos = 0;
     bool files_saved = false;
 
@@ -224,11 +225,11 @@ bool MultipartParser::parse(const std::string& data, const std::string& save_dir
 std::vector<MultipartParser::FilePart> MultipartParser::parseToMemory(const std::string& data)
 {
     std::vector<FilePart> files;
-    if (m_boundary.empty()) {
+    if (boundary_.empty()) {
         return files;
     }
 
-    std::string delimiter = "--" + m_boundary;
+    std::string delimiter = "--" + boundary_;
     size_t pos = 0;
 
     while ((pos = data.find(delimiter, pos)) != std::string::npos) {

@@ -104,22 +104,22 @@ public:
 
     virtual void handleRecv(Socket::ptr sock, const char* data, size_t len, Address::ptr from);
 
-    IOManager* getWorker() const { return m_worker; }
-    IOManager* getIOWorker() const { return m_ioWorker; }
+    IOManager* getWorker() const { return worker_; }
+    IOManager* getIOWorker() const { return io_worker_; }
 
-    std::string getName() const { return m_name; }
-    virtual void setName(const std::string& v) { m_name = v; }
+    std::string getName() const { return name_; }
+    virtual void setName(const std::string& v) { name_ = v; }
 
-    const std::string& getType() const { return m_type; }
-    void setType(const std::string& v) { m_type = v; }
+    const std::string& getType() const { return type_; }
+    void setType(const std::string& v) { type_ = v; }
 
-    bool isStop() const { return m_isStop; }
+    bool isStop() const { return is_stop_; }
 
-    size_t getRecvBufSize() const { return m_recvBufSize; }
-    void setRecvBufSize(size_t v) { m_recvBufSize = v; }
+    size_t getRecvBufSize() const { return recv_buf_size_; }
+    void setRecvBufSize(size_t v) { recv_buf_size_ = v; }
 
-    UdpServerConf::ptr getConf() const { return m_conf; }
-    void setConf(UdpServerConf::ptr v) { m_conf = v; }
+    UdpServerConf::ptr getConf() const { return conf_; }
+    void setConf(UdpServerConf::ptr v) { conf_ = v; }
     void setConf(const UdpServerConf& v);
 
     std::string toString(const std::string& prefix);
@@ -127,14 +127,14 @@ public:
 protected:
     virtual void startRecv(Socket::ptr sock);
 
-    IOManager* m_worker;
-    IOManager* m_ioWorker;
-    std::vector<Socket::ptr> m_socks;
-    std::string m_name;
-    std::string m_type = "udp";
-    bool m_isStop;
-    size_t m_recvBufSize = 64 * 1024;
-    UdpServerConf::ptr m_conf;
+    IOManager* worker_;
+    IOManager* io_worker_;
+    std::vector<Socket::ptr> socks_;
+    std::string name_;
+    std::string type_ = "udp";
+    bool is_stop_;
+    size_t recv_buf_size_ = 64 * 1024;
+    UdpServerConf::ptr conf_;
 };
 
 class UdpServerFactory {

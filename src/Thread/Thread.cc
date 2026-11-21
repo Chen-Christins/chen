@@ -16,36 +16,36 @@ Thread* Thread::GetThis()
 }
 
 Thread::Thread(std::function<void()> task, const std::string& name)
-    : m_task(task)
-    , m_name(name)
+    : task_(task)
+    , name_(name)
 {
     if (name.empty()) {
-        m_name = "UNKNOW";
+        name_ = "UNKNOW";
     }
-    int rt = pthread_create(&m_thread, nullptr, &Thread::run, this);
+    int rt = pthread_create(&thread_, nullptr, &Thread::run, this);
     if (rt) {
         ERROR(logger) << "pthread_create thread fail, rt= " << rt << "name=" << name;
         throw std::logic_error("pthread_create error!");
     }
-    m_semaphore.wait();
+    semaphore_.wait();
 }
 
 Thread::~Thread()
 {
-    if (m_thread) {
-        pthread_detach(m_thread);
+    if (thread_) {
+        pthread_detach(thread_);
     }
 }
 
 void Thread::join()
 {
-    if (m_thread) {
-        int rt = pthread_join(m_thread, nullptr);
+    if (thread_) {
+        int rt = pthread_join(thread_, nullptr);
         if (rt) {
-            ERROR(logger) << "pthread_join thread fail, rt= " << rt << "name=" << m_name;
+            ERROR(logger) << "pthread_join thread fail, rt= " << rt << "name=" << name_;
             throw std::logic_error("pthread_join error!");
         }
-        m_thread = 0;
+        thread_ = 0;
     }
 }
 
@@ -60,7 +60,7 @@ void Thread::SetName(const std::string& name)
         return;
     }
     if (t_thread) {
-        t_thread->m_name = name;
+        t_thread->name_ = name;
     }
     t_thread_name = name;
 }
@@ -69,15 +69,15 @@ void* Thread::run(void* arg)
 {
     Thread* thread = (Thread*)arg;
     t_thread = thread;
-    t_thread_name = thread->m_name;
-    thread->m_id = GetThreadId();
+    t_thread_name = thread->name_;
+    thread->id_ = GetThreadId();
     /* 设置线程的名称 */
-    pthread_setname_np(pthread_self(), thread->m_name.substr(0, 15).c_str());
+    pthread_setname_np(pthread_self(), thread->name_.substr(0, 15).c_str());
 
     std::function<void()> task;
-    task.swap(thread->m_task);
+    task.swap(thread->task_);
 
-    thread->m_semaphore.notify();
+    thread->semaphore_.notify();
     task();
 
     return 0;

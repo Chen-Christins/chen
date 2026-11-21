@@ -21,16 +21,16 @@ FutureStateBase::~FutureStateBase() = default;
 
 bool FutureStateBase::ready() const
 {
-    std::lock_guard lock(m_mutex);
-    return m_done;
+    std::lock_guard lock(mutex_);
+    return done_;
 }
 
 void FutureStateBase::rethrowIfException() const
 {
     std::exception_ptr e;
     {
-        std::lock_guard lock(m_mutex);
-        e = m_exception;
+        std::lock_guard lock(mutex_);
+        e = exception_;
     }
     if (e) {
         std::rethrow_exception(e);
@@ -55,12 +55,12 @@ void FutureStateBase::setException(std::exception_ptr e)
 {
     std::vector<Waiter::ptr> waiters;
     {
-        std::lock_guard lock(m_mutex);
-        if (m_done) {
+        std::lock_guard lock(mutex_);
+        if (done_) {
             warnDuplicate("setException");
             return;
         }
-        m_exception = std::move(e);
+        exception_ = std::move(e);
         waiters = completeLocked();
     }
     wake(waiters);
@@ -73,30 +73,30 @@ void FutureStateBase::warnDuplicate(const char* api)
 
 std::vector<FutureStateBase::Waiter::ptr> FutureStateBase::completeLocked()
 {
-    m_done = true;
+    done_ = true;
     std::vector<Waiter::ptr> out;
-    out.reserve(m_waiters.size());
-    for (auto& w : m_waiters) {
+    out.reserve(waiters_.size());
+    for (auto& w : waiters_) {
         if (!w->woken) {
             w->woken = true;
             out.push_back(w);
         }
     }
-    m_waiters.clear();
-    m_cond.notify_all();
+    waiters_.clear();
+    cond_.notify_all();
     return out;
 }
 
 std::vector<FutureStateBase::Waiter::ptr> FutureStateBase::markAllLocked()
 {
     std::vector<Waiter::ptr> out;
-    for (auto& w : m_waiters) {
+    for (auto& w : waiters_) {
         if (!w->woken) {
             w->woken = true;
             out.push_back(w);
         }
     }
-    m_cond.notify_all();
+    cond_.notify_all();
     return out;
 }
 
@@ -111,9 +111,9 @@ void FutureStateBase::wake(const std::vector<FutureStateBase::Waiter::ptr>& wait
 
 void FutureStateBase::removeWaiterLocked(uint64_t id)
 {
-    for (auto it = m_waiters.begin(); it != m_waiters.end(); ++it) {
+    for (auto it = waiters_.begin(); it != waiters_.end(); ++it) {
         if ((*it)->id == id) {
-            m_waiters.erase(it);
+            waiters_.erase(it);
             return;
         }
     }
@@ -140,11 +140,11 @@ bool FutureStateBase::armTimerLocked(uint64_t timeout_ms, const Waiter::ptr& sel
             }
             std::vector<Waiter::ptr> waiters;
             {
-                std::lock_guard lock(state->m_mutex);
-                if (state->m_done) {
+                std::lock_guard lock(state->mutex_);
+                if (state->done_) {
                     return;
                 }
-                waiter->timedOut = true;
+                waiter->timed_out = true;
                 waiters = state->markAllLocked();
             }
             wake(waiters);
@@ -155,8 +155,8 @@ bool FutureStateBase::armTimerLocked(uint64_t timeout_ms, const Waiter::ptr& sel
 
 bool FutureStateBase::waitImpl(uint64_t timeout_ms)
 {
-    std::unique_lock lock(m_mutex);
-    if (m_done) {
+    std::unique_lock lock(mutex_);
+    if (done_) {
         return true;
     }
 
@@ -166,29 +166,29 @@ bool FutureStateBase::waitImpl(uint64_t timeout_ms)
             WARN(g_logger) << "Future::wait called in scheduler main fiber, fallback to thread blocking";
         }
         if (timeout_ms) {
-            return m_cond.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] {
-                return m_done;
+            return cond_.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] {
+                return done_;
             });
         }
-        m_cond.wait(lock, [this] {
-            return m_done;
+        cond_.wait(lock, [this] {
+            return done_;
         });
         return true;
     }
 
     Waiter::ptr waiter = std::make_shared<Waiter>();
-    waiter->id = ++m_nextWaiterId;
+    waiter->id = ++next_waiter_id_;
     waiter->scheduler = Scheduler::GetThis();
     waiter->fiber = Fiber::GetThis();
-    m_waiters.push_back(waiter);
+    waiters_.push_back(waiter);
 
     Timer::ptr timer;
     if (timeout_ms && !armTimerLocked(timeout_ms, waiter, timer)) {
         // 没有 IOManager 就没有定时器，只能退化成阻塞等待
         removeWaiterLocked(waiter->id);
         WARN(g_logger) << "Future::waitFor in fiber without IOManager, fallback to thread blocking";
-        return m_cond.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] {
-            return m_done;
+        return cond_.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] {
+            return done_;
         });
     }
 
@@ -196,11 +196,11 @@ bool FutureStateBase::waitImpl(uint64_t timeout_ms)
         lock.unlock();
         Fiber::YieldToHold();
         lock.lock();
-        if (m_done) {
+        if (done_) {
             break;
         }
         // 可能是别人的超时定时器唤醒了所有人，也可能只是虚假唤醒
-        if (waiter->timedOut) {
+        if (waiter->timed_out) {
             removeWaiterLocked(waiter->id);
             if (timer) {
                 timer->cancel();
@@ -220,8 +220,8 @@ void FutureState<void>::setValue()
 {
     std::vector<Waiter::ptr> waiters;
     {
-        std::lock_guard lock(m_mutex);
-        if (m_done) {
+        std::lock_guard lock(mutex_);
+        if (done_) {
             warnDuplicate("setValue");
             return;
         }
@@ -237,67 +237,67 @@ void FutureState<void>::get()
 }
 
 Future<void>::Future(StatePtr state)
-    : m_state(std::move(state))
+    : state_(std::move(state))
 {
 }
 
 bool Future<void>::valid() const
 {
-    return m_state != nullptr;
+    return state_ != nullptr;
 }
 
 bool Future<void>::ready() const
 {
-    return m_state && m_state->ready();
+    return state_ && state_->ready();
 }
 
 void Future<void>::wait() const
 {
-    if (m_state) {
-        m_state->wait();
+    if (state_) {
+        state_->wait();
     }
 }
 
 bool Future<void>::waitFor(uint64_t timeout_ms) const
 {
-    return m_state ? m_state->waitFor(timeout_ms) : true;
+    return state_ ? state_->waitFor(timeout_ms) : true;
 }
 
 void Future<void>::get() const
 {
-    if (m_state) {
-        m_state->get();
+    if (state_) {
+        state_->get();
     }
 }
 
 const Future<void>::StatePtr& Future<void>::state() const
 {
-    return m_state;
+    return state_;
 }
 
 Promise<void>::Promise()
-    : m_state(std::make_shared<FutureState<void>>())
+    : state_(std::make_shared<FutureState<void>>())
 {
 }
 
 Future<void> Promise<void>::getFuture() const
 {
-    return Future<void>(m_state);
+    return Future<void>(state_);
 }
 
 void Promise<void>::setValue()
 {
-    m_state->setValue();
+    state_->setValue();
 }
 
 void Promise<void>::setException(std::exception_ptr e)
 {
-    m_state->setException(std::move(e));
+    state_->setException(std::move(e));
 }
 
 bool Promise<void>::satisfied() const
 {
-    return m_state->ready();
+    return state_->ready();
 }
 
 } // namespace chen

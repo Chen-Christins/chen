@@ -33,23 +33,23 @@ ByteArray::Node::~Node()
 }
 
 ByteArray::ByteArray(size_t base_size)
-    : m_baseSize(base_size)
-    , m_position(0)
-    , m_capacity(base_size)
-    , m_size(0)
-    , m_endian(std::endian::big)
-    , m_root(new Node(base_size))
-    , m_cur(m_root)
+    : base_size_(base_size)
+    , position_(0)
+    , capacity_(base_size)
+    , size_(0)
+    , endian_(std::endian::big)
+    , root_(new Node(base_size))
+    , cur_(root_)
 {
 }
 
 ByteArray::~ByteArray()
 {
-    Node* tmp = m_root;
+    Node* tmp = root_;
     while (tmp) {
-        m_cur = tmp;
+        cur_ = tmp;
         tmp = tmp->next;
-        delete m_cur;
+        delete cur_;
     }
 }
 
@@ -93,7 +93,7 @@ void ByteArray::writeFuint8(uint8_t value)
 
 void ByteArray::writeFint16(int16_t value)
 {
-    if (m_endian != std::endian::native) {
+    if (endian_ != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -101,7 +101,7 @@ void ByteArray::writeFint16(int16_t value)
 
 void ByteArray::writeFuint16(uint16_t value)
 {
-    if (m_endian != std::endian::native) {
+    if (endian_ != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -109,7 +109,7 @@ void ByteArray::writeFuint16(uint16_t value)
 
 void ByteArray::writeFint32(int32_t value)
 {
-    if (m_endian != std::endian::native) {
+    if (endian_ != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -117,7 +117,7 @@ void ByteArray::writeFint32(int32_t value)
 
 void ByteArray::writeFuint32(uint32_t value)
 {
-    if (m_endian != std::endian::native) {
+    if (endian_ != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -125,7 +125,7 @@ void ByteArray::writeFuint32(uint32_t value)
 
 void ByteArray::writeFint64(int64_t value)
 {
-    if (m_endian != std::endian::native) {
+    if (endian_ != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -133,7 +133,7 @@ void ByteArray::writeFint64(int64_t value)
 
 void ByteArray::writeFuint64(uint64_t value)
 {
-    if (m_endian != std::endian::native) {
+    if (endian_ != std::endian::native) {
         value = byteswap(value);
     }
     write(&value, sizeof(value));
@@ -233,8 +233,8 @@ uint8_t ByteArray::readFuint8()
 
 #define XX(type)                               \
     type v;                                    \
-    read(&v, sizeof(v));                       \
-    if (m_endian == std::endian::native) {     \
+    read(&v, sizeof(v));                                                                                               \
+    if (endian_ == std::endian::native) {                                                                              \
         return v;                              \
     } else {                                   \
         return byteswap(v);                    \
@@ -367,16 +367,16 @@ std::string ByteArray::readStringVint()
 
 void ByteArray::clear()
 {
-    m_position = m_size = 0;
-    m_capacity = m_baseSize;
-    Node* tmp = m_root->next;
+    position_ = size_ = 0;
+    capacity_ = base_size_;
+    Node* tmp = root_->next;
     while (tmp) {
-        m_cur = tmp;
+        cur_ = tmp;
         tmp = tmp->next;
-        delete m_cur;
+        delete cur_;
     }
-    m_cur = m_root;
-    m_root->next = nullptr;
+    cur_ = root_;
+    root_->next = nullptr;
 }
 
 // 改变操作位置
@@ -388,37 +388,37 @@ void ByteArray::write(const void* buf, size_t size)
     addCapacity(size);
 
     // 开始写入的地方
-    size_t npos = m_position % m_baseSize;
+    size_t npos = position_ % base_size_;
     // 第一个可以写入的内存块的容量
-    size_t ncap = m_cur->size - npos;
+    size_t ncap = cur_->size - npos;
     // 缓冲区读的起始位置
     size_t bpos = 0;
 
     while (size > 0) {
         // 如果当前数据块大于要写入的数据，直接写入
         if (ncap >= size) {
-            memcpy(m_cur->ptr + npos, (const char*)buf + bpos, size);
-            if (m_cur->size == (npos + size)) {
-                m_cur = m_cur->next;
+            memcpy(cur_->ptr + npos, (const char*)buf + bpos, size);
+            if (cur_->size == (npos + size)) {
+                cur_ = cur_->next;
             }
-            m_position += size;
+            position_ += size;
             bpos += size;
             size = 0;
         } else {
             // 第一次是先将[buf, buf + ncp] 这个部分写入存储块，第一块满了就下一个块
             // 然后下一个写就是[buf + ncp, ncap]的部分
-            memcpy(m_cur->ptr + npos, (const char*)buf + bpos, ncap);
-            m_position += ncap;
+            memcpy(cur_->ptr + npos, (const char*)buf + bpos, ncap);
+            position_ += ncap;
             bpos += ncap;
             size -= ncap;
-            m_cur = m_cur->next;
-            ncap = m_cur->size;
+            cur_ = cur_->next;
+            ncap = cur_->size;
             npos = 0;
         }
     }
 
-    if (m_position > m_size) {
-        m_size = m_position;
+    if (position_ > size_) {
+        size_ = position_;
     }
 }
 // 这个是改变操作位置的
@@ -428,31 +428,31 @@ void ByteArray::read(void* buf, size_t size)
         throw std::out_of_range("not enough len");
     }
     // 第一个开始读的数据块里开始读的位置
-    size_t npos = m_position % m_baseSize;
+    size_t npos = position_ % base_size_;
     // 第一个开始读的数据块的剩余空间
-    size_t ncap = m_cur->size - npos;
+    size_t ncap = cur_->size - npos;
     // 缓冲区开始写的位置
     size_t bpos = 0;
 
     while (size > 0) {
         // 如果当前数据块大于要写入的数据，直接写入
         if (ncap >= size) {
-            memcpy((char*)buf + bpos, m_cur->ptr + npos, size);
-            if (m_cur->size == (npos + size)) {
-                m_cur = m_cur->next;
+            memcpy((char*)buf + bpos, cur_->ptr + npos, size);
+            if (cur_->size == (npos + size)) {
+                cur_ = cur_->next;
             }
-            m_position += size;
+            position_ += size;
             bpos += size;
             size = 0;
         } else {
-            // 第一次是先将[m_cur, m_cur + ncap] 这个部分写入存储块，第一块满了就下一个块
+            // 第一次是先将[cur_, cur_ + ncap] 这个部分写入存储块，第一块满了就下一个块
             // 然后下一个写就是[buf + ncp, ncap]的部分
-            memcpy((char*)buf + bpos, m_cur->ptr + npos, ncap);
-            m_position += ncap;
+            memcpy((char*)buf + bpos, cur_->ptr + npos, ncap);
+            position_ += ncap;
             bpos += ncap;
             size -= ncap;
-            m_cur = m_cur->next;
-            ncap = m_cur->size;
+            cur_ = cur_->next;
+            ncap = cur_->size;
             npos = 0;
         }
     }
@@ -461,17 +461,17 @@ void ByteArray::read(void* buf, size_t size)
 // 这个是不改变操作位置的
 void ByteArray::read(void* buf, size_t size, size_t position) const
 {
-    if (size > m_size - position) {
+    if (size > size_ - position) {
         throw std::out_of_range("not enough len");
     }
 
     // 第一个开始读的数据块里开始读的位置
-    size_t npos = position % m_baseSize;
+    size_t npos = position % base_size_;
     // 第一个开始读的数据块的剩余空间
-    size_t ncap = m_cur->size - npos;
+    size_t ncap = cur_->size - npos;
     // 缓冲区开始写的位置
     size_t bpos = 0;
-    Node* cur = m_cur;
+    Node* cur = cur_;
 
     while (size > 0) {
         // 如果当前数据块大于要写入的数据，直接写入
@@ -500,23 +500,23 @@ void ByteArray::read(void* buf, size_t size, size_t position) const
 // 这里还将读取之前链表的位置给处理了
 void ByteArray::setPosition(size_t v)
 {
-    if (v > m_capacity) {
+    if (v > capacity_) {
         throw std::out_of_range("set_position out of range");
     }
-    // m_position 是开始读的位置
-    m_position = v;
+    // position_ 是开始读的位置
+    position_ = v;
     // 如果当前位置比数据大小还大
-    if (m_position > m_size) {
-        m_size = m_position;
+    if (position_ > size_) {
+        size_ = position_;
     }
     // 链表遍历到当前的位置
-    m_cur = m_root;
-    while (v > m_cur->size) {
-        v -= m_cur->size;
-        m_cur = m_cur->next;
+    cur_ = root_;
+    while (v > cur_->size) {
+        v -= cur_->size;
+        cur_ = cur_->next;
     }
-    if (v == m_cur->size) {
-        m_cur = m_cur->next;
+    if (v == cur_->size) {
+        cur_ = cur_->next;
     }
 }
 
@@ -532,14 +532,14 @@ bool ByteArray::writeToFile(const std::string& name) const
     // 取出可以读的数据大小
     int64_t read_size = getReadSize();
     // 获取开始读的位置
-    int64_t pos = m_position;
+    int64_t pos = position_;
     // 拿当前的数据块
-    Node* cur = m_cur;
+    Node* cur = cur_;
 
     while (read_size > 0) {
         // 开始读的位置对单个数据块的大小取余可以得到开始写的数据块的起始位置
-        int diff = pos % m_baseSize;
-        int64_t len = (read_size > (int64_t)m_baseSize ? m_baseSize : read_size) - diff;
+        int diff = pos % base_size_;
+        int64_t len = (read_size > (int64_t)base_size_ ? base_size_ : read_size) - diff;
         ofs.write(cur->ptr + diff, len);
         cur = cur->next;
         pos += len;
@@ -558,13 +558,13 @@ bool ByteArray::readFromFile(const std::string& name)
         return false;
     }
 
-    std::shared_ptr<char> buff(new char[m_baseSize], [](char* ptr) {
+    std::shared_ptr<char> buff(new char[base_size_], [](char* ptr) {
         delete[] ptr;
     });
     // 只要还能读
     while (!ifs.eof()) {
         // 每次读一个小于等于 m_baseSize大小的数据
-        ifs.read(buff.get(), m_baseSize);
+        ifs.read(buff.get(), base_size_);
         write(buff.get(), ifs.gcount());
     }
     return true;
@@ -572,15 +572,15 @@ bool ByteArray::readFromFile(const std::string& name)
 
 bool ByteArray::isLittleEndian() const
 {
-    return m_endian == std::endian::little;
+    return endian_ == std::endian::little;
 }
 
 void ByteArray::setIsLittleEndian(bool val)
 {
     if (val) {
-        m_endian = std::endian::little;
+        endian_ = std::endian::little;
     } else {
-        m_endian = std::endian::big;
+        endian_ = std::endian::big;
     }
 }
 
@@ -591,7 +591,7 @@ std::string ByteArray::toString() const
     if (str.empty()) {
         return str;
     }
-    read(&str[0], str.size(), m_position);
+    read(&str[0], str.size(), position_);
     return str;
 }
 
@@ -618,10 +618,10 @@ uint64_t ByteArray::getWriteBuffers(std::vector<iovec>& buffers, uint64_t len)
     addCapacity(len);
     uint64_t size = len;
 
-    size_t npos = m_position % m_baseSize;
-    size_t ncap = m_cur->size - npos;
+    size_t npos = position_ % base_size_;
+    size_t ncap = cur_->size - npos;
     struct iovec iov;
-    Node* cur = m_cur;
+    Node* cur = cur_;
 
     while (len > 0) {
         if (len <= ncap) {
@@ -649,11 +649,11 @@ uint64_t ByteArray::getReadBuffers(std::vector<iovec>& buffers, uint64_t len) co
     }
 
     uint64_t size = len;
-    size_t npos = m_position % m_baseSize;
-    size_t ncap = m_cur->size - npos;
+    size_t npos = position_ % base_size_;
+    size_t ncap = cur_->size - npos;
 
     struct iovec iov;
-    Node* cur = m_cur;
+    Node* cur = cur_;
 
     while (len > 0) {
         if (len <= ncap) {
@@ -683,10 +683,10 @@ uint64_t ByteArray::getReadBuffers(std::vector<iovec>& buffers, uint64_t len, ui
 
     uint64_t size = len;
 
-    size_t npos = position % m_baseSize;
+    size_t npos = position % base_size_;
     // 需要读多少个 node
-    size_t count = position / m_baseSize;
-    Node* cur = m_root;
+    size_t count = position / base_size_;
+    Node* cur = root_;
     while (count > 0) {
         cur = cur->next;
         --count;
@@ -727,8 +727,8 @@ void ByteArray::addCapacity(size_t size)
     // 获取需要补充的容量大小
     size = size - old_cap;
     // 获取需要增加数据块的数量
-    size_t count = ceil(1.0 * size / m_baseSize);
-    Node* tmp = m_root;
+    size_t count = ceil(1.0 * size / base_size_);
+    Node* tmp = root_;
     // 直接移到最后一个位置
     while (tmp->next) {
         tmp = tmp->next;
@@ -736,17 +736,17 @@ void ByteArray::addCapacity(size_t size)
 
     Node* first = nullptr;
     for (size_t i = 0; i < count; ++i) {
-        tmp->next = new Node(m_baseSize);
+        tmp->next = new Node(base_size_);
         if (first == nullptr) {
             first = tmp->next;
         }
         tmp = tmp->next;
         // 扩容
-        m_capacity += m_baseSize;
+        capacity_ += base_size_;
     }
     // 如果最初没空间了
     if (old_cap == 0) {
-        m_cur = first;
+        cur_ = first;
     }
 }
 

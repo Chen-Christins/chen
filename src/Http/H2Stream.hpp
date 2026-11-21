@@ -19,8 +19,8 @@ public:
     H2Stream(H2Session::ptr h2, int32_t stream_id);
     ~H2Stream();
 
-    int32_t getStreamId() const { return m_streamId; }
-    H2Session::ptr getH2Session() const { return m_h2; }
+    int32_t getStreamId() const { return stream_id_; }
+    H2Session::ptr getH2Session() const { return h2_; }
 
     // Override HttpSession
     int sendResponse(HttpResponse::ptr rsp) override;
@@ -30,8 +30,8 @@ public:
     int sendData(const std::string& data, bool end_stream = false);
 
 private:
-    H2Session::ptr m_h2;
-    int32_t m_streamId;
+    H2Session::ptr h2_;
+    int32_t stream_id_;
 };
 
 } // namespace chen::http

@@ -35,7 +35,7 @@ public:
      *            false: 不纳入进来
      * @param[in] name 调度器名称
      */
-    Scheduler(size_t threadCount = 1, bool use_caller = true, const std::string& name = "");
+    Scheduler(size_t thread_count = 1, bool use_caller = true, const std::string& name = "");
 
     /**
      * @brief 析构函数，设为虚类是为了充当基类
@@ -45,7 +45,7 @@ public:
     /**
      * @brief 获取调度器名称
      */
-    const std::string& getName() const { return m_name; }
+    const std::string& getName() const { return name_; }
 
     /**
      * @brief 获取当前的这个协程调度器
@@ -72,7 +72,7 @@ public:
     {
         bool need_tickle = false;
         {
-            std::lock_guard lock(m_mutex);
+            std::lock_guard lock(mutex_);
             need_tickle = scheduleNoLock(fc, thread);
         }
         if (need_tickle) {
@@ -86,7 +86,7 @@ public:
     {
         bool need_tickle = false;
         {
-            std::lock_guard lock(m_mutex);
+            std::lock_guard lock(mutex_);
             while (begin != end) {
                 need_tickle = scheduleNoLock(&*begin, -1) | need_tickle;
                 ++begin;
@@ -140,7 +140,7 @@ protected:
     /**
      * @brief 是否有空闲的线程
      */
-    bool hasIdleThreads() { return m_idleThreadCount > 0; }
+    bool hasIdleThreads() { return idle_thread_count_ > 0; }
 
     /**
      * @brief 获取待调度任务数量
@@ -154,10 +154,10 @@ private:
     bool scheduleNoLock(FiberOrCb fc, int thread)
     {
         /* 是否需要通知一下, 为空就需要插入之后直接开始调度 */
-        bool need_tickle = m_fibers.empty();
+        bool need_tickle = fibers_.empty();
         FiberAndThread ft(fc, thread);
         if (ft.fiber || ft.cb) {
-            m_fibers.push_back(ft);
+            fibers_.push_back(ft);
         }
         return need_tickle;
     }
@@ -169,7 +169,7 @@ private:
         /// 任务
         std::function<void()> cb;
         /// 线程id
-        int threadId;
+        int thread_id;
         // 确定协程在哪一个线程上面执行
         FiberAndThread(Fiber::ptr f, int thr);
         /* 传入的智能指针swap，这样传入的智能指针就是空指针，
@@ -192,31 +192,31 @@ private:
 
 private:
     /// 互斥锁
-    std::mutex m_mutex;
+    std::mutex mutex_;
     /// 线程池
-    std::vector<Thread::ptr> m_threads;
+    std::vector<Thread::ptr> threads_;
     /// 待执行的协程队列
-    std::list<FiberAndThread> m_fibers;
+    std::list<FiberAndThread> fibers_;
     /// 协程调度器的名称
-    std::string m_name;
+    std::string name_;
     /// user_caller为true时生效，调度协程
-    Fiber::ptr m_rootFiber;
+    Fiber::ptr root_fiber_;
 
 protected:
     /// 协程下的线程id数组
-    std::vector<int> m_threadIds;
+    std::vector<int> thread_ids_;
     /// 线程数量
-    size_t m_threadCount = 0;
+    size_t thread_count_ = 0;
     /// 工作线程的数量
-    std::atomic<size_t> m_activeThreadCount = {0};
+    std::atomic<size_t> active_thread_count_ = {0};
     /// 空闲线程数量
-    std::atomic<size_t> m_idleThreadCount = {0};
+    std::atomic<size_t> idle_thread_count_ = {0};
     /// 是否正在停止
-    bool m_stopping = true;
+    bool stopping_ = true;
     /// 是否自动停止
-    bool m_autoStop = false;
+    bool auto_stop_ = false;
     /// 主线程id(use_caller的)
-    int m_rootThreadId = 0;
+    int root_thread_id_ = 0;
 };
 
 class SchedulerSwitcher {
@@ -228,7 +228,7 @@ public:
     SchedulerSwitcher& operator=(const SchedulerSwitcher&) = delete;
 
 private:
-    Scheduler* m_caller = nullptr;
+    Scheduler* caller_ = nullptr;
 };
 
 } // namespace chen

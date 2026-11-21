@@ -906,8 +906,8 @@ public:
     }
     void add(uint64_t x)
     {
-        roarings[highBytes(x)].add(lowBytes(x));
-        roarings[highBytes(x)].setCopyOnWrite(copyOnWrite);
+        roarings[high_bytes(x)].add(low_bytes(x));
+        roarings[high_bytes(x)].setCopyOnWrite(copyOnWrite);
     }
 
     /**
@@ -922,8 +922,8 @@ public:
     }
     bool addChecked(uint64_t x)
     {
-        bool result = roarings[highBytes(x)].addChecked(lowBytes(x));
-        roarings[highBytes(x)].setCopyOnWrite(copyOnWrite);
+        bool result = roarings[high_bytes(x)].addChecked(low_bytes(x));
+        roarings[high_bytes(x)].setCopyOnWrite(copyOnWrite);
         return result;
     }
 
@@ -941,8 +941,8 @@ public:
     void addMany(size_t n_args, const uint64_t* vals)
     {
         for (size_t lcv = 0; lcv < n_args; lcv++) {
-            roarings[highBytes(vals[lcv])].add(lowBytes(vals[lcv]));
-            roarings[highBytes(vals[lcv])].setCopyOnWrite(copyOnWrite);
+            roarings[high_bytes(vals[lcv])].add(low_bytes(vals[lcv]));
+            roarings[high_bytes(vals[lcv])].setCopyOnWrite(copyOnWrite);
         }
     }
 
@@ -953,9 +953,9 @@ public:
     void remove(uint32_t x) { roarings[0].remove(x); }
     void remove(uint64_t x)
     {
-        auto roaring_iter = roarings.find(highBytes(x));
+        auto roaring_iter = roarings.find(high_bytes(x));
         if (roaring_iter != roarings.cend())
-            roaring_iter->second.remove(lowBytes(x));
+            roaring_iter->second.remove(low_bytes(x));
     }
 
     /**
@@ -965,9 +965,9 @@ public:
     bool removeChecked(uint32_t x) { return roarings[0].removeChecked(x); }
     bool removeChecked(uint64_t x)
     {
-        auto roaring_iter = roarings.find(highBytes(x));
+        auto roaring_iter = roarings.find(high_bytes(x));
         if (roaring_iter != roarings.cend())
-            return roaring_iter->second.removeChecked(lowBytes(x));
+            return roaring_iter->second.removeChecked(low_bytes(x));
         return false;
     }
 
@@ -1012,7 +1012,10 @@ public:
      * Check if value x is present
      */
     bool contains(uint32_t x) const { return roarings.count(0) == 0 ? false : roarings.at(0).contains(x); }
-    bool contains(uint64_t x) const { return roarings.count(highBytes(x)) == 0 ? false : roarings.at(highBytes(x)).contains(lowBytes(x)); }
+    bool contains(uint64_t x) const
+    {
+        return roarings.count(high_bytes(x)) == 0 ? false : roarings.at(high_bytes(x)).contains(low_bytes(x));
+    }
 
     /**
      * Compute the intersection between the current bitmap and the provided
@@ -1233,10 +1236,10 @@ public:
      */
     void flip(uint64_t range_start, uint64_t range_end)
     {
-        uint32_t start_high = highBytes(range_start);
-        uint32_t start_low = lowBytes(range_start);
-        uint32_t end_high = highBytes(range_end);
-        uint32_t end_low = lowBytes(range_end);
+        uint32_t start_high = high_bytes(range_start);
+        uint32_t start_low = low_bytes(range_start);
+        uint32_t end_high = high_bytes(range_end);
+        uint32_t end_low = low_bytes(range_end);
 
         if (start_high == end_high) {
             roarings[start_high].flip(start_low, end_low);
@@ -1247,7 +1250,7 @@ public:
         roarings[start_high].flip(start_low, (std::numeric_limits<uint32_t>::max)());
         roarings[start_high++].setCopyOnWrite(copyOnWrite);
 
-        for (; start_high <= highBytes(range_end) - 1; ++start_high) {
+        for (; start_high <= high_bytes(range_end) - 1; ++start_high) {
             roarings[start_high].flip((std::numeric_limits<uint32_t>::min)(), (std::numeric_limits<uint32_t>::max)());
             roarings[start_high].setCopyOnWrite(copyOnWrite);
         }
@@ -1343,15 +1346,15 @@ public:
     uint64_t rank(uint64_t x) const
     {
         uint64_t result = 0;
-        auto roaring_destination = roarings.find(highBytes(x));
+        auto roaring_destination = roarings.find(high_bytes(x));
         if (roaring_destination != roarings.cend()) {
             for (auto roaring_iter = roarings.cbegin(); roaring_iter != roaring_destination; ++roaring_iter) {
                 result += roaring_iter->second.cardinality();
             }
-            result += roaring_destination->second.rank(lowBytes(x));
+            result += roaring_destination->second.rank(low_bytes(x));
             return result;
         }
-        roaring_destination = roarings.lower_bound(highBytes(x));
+        roaring_destination = roarings.lower_bound(high_bytes(x));
         for (auto roaring_iter = roarings.cbegin(); roaring_iter != roaring_destination; ++roaring_iter) {
             result += roaring_iter->second.cardinality();
         }
@@ -1642,9 +1645,12 @@ public:
 private:
     std::map<uint32_t, Roaring> roarings;
     bool copyOnWrite = false;
-    static uint32_t highBytes(const uint64_t in) { return uint32_t(in >> 32); }
-    static uint32_t lowBytes(const uint64_t in) { return uint32_t(in); }
-    static uint64_t uniteBytes(const uint32_t highBytes, const uint32_t lowBytes) { return (uint64_t(highBytes) << 32) | uint64_t(lowBytes); }
+    static uint32_t high_bytes(const uint64_t in) { return uint32_t(in >> 32); }
+    static uint32_t low_bytes(const uint64_t in) { return uint32_t(in); }
+    static uint64_t uniteBytes(const uint32_t high_bytes, const uint32_t low_bytes)
+    {
+        return (uint64_t(high_bytes) << 32) | uint64_t(low_bytes);
+    }
     // this is needed to tolerate gcc's C++11 libstdc++ lacking emplace
     // prior to version 4.8
     void emplaceOrInsert(const uint32_t key, const Roaring& value)
@@ -1738,11 +1744,11 @@ public:
 
     bool move(const value_type& x)
     {
-        map_iter = p.lower_bound(Roaring64Map::highBytes(x));
+        map_iter = p.lower_bound(Roaring64Map::high_bytes(x));
         if (map_iter != p.cend()) {
             roaring_init_iterator(&map_iter->second.roaring, &i);
-            if (map_iter->first == Roaring64Map::highBytes(x)) {
-                if (roaring_move_uint32_iterator_equalorlarger(&i, Roaring64Map::lowBytes(x)))
+            if (map_iter->first == Roaring64Map::high_bytes(x)) {
+                if (roaring_move_uint32_iterator_equalorlarger(&i, Roaring64Map::low_bytes(x)))
                     return true;
                 map_iter++;
                 if (map_iter == map_end)

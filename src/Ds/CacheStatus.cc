@@ -5,19 +5,19 @@ namespace ds {
 
 void CacheStatus::merge(const CacheStatus& oth)
 {
-    m_get += oth.m_get;
-    m_set += oth.m_set;
-    m_del += oth.m_del;
-    m_timeout += oth.m_timeout;
-    m_prune += oth.m_prune;
-    m_hit += oth.m_hit;
+    get_ += oth.get_;
+    set_ += oth.set_;
+    del_ += oth.del_;
+    timeout_ += oth.timeout_;
+    prune_ += oth.prune_;
+    hit_ += oth.hit_;
 }
 
 std::string CacheStatus::toString() const
 {
     std::stringstream ss;
-    ss << "get=" << m_get << " set=" << m_set << " del=" << m_del << " prune=" << m_prune << " timeout=" << m_timeout << " hit=" << m_hit
-       << " hit_rate" << (getHitRate() * 100.0) << "%";
+    ss << "get=" << get_ << " set=" << set_ << " del=" << del_ << " prune=" << prune_ << " timeout=" << timeout_
+       << " hit=" << hit_ << " hit_rate" << (getHitRate() * 100.0) << "%";
     return ss.str();
 }
 

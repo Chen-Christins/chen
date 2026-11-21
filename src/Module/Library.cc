@@ -21,8 +21,8 @@ public:
      * @param d 销毁模块的函数指针
      */
     ModuleCloser(void* handle, destroy_module d)
-        : m_handle(handle)
-        , m_destroy(d)
+        : handle_(handle)
+        , destroy_(d)
     {
     }
 
@@ -36,21 +36,22 @@ public:
         std::string version = module->getVersion();
         std::string path = module->getFilename();
 
-        m_destroy(module);
-        int rt = dlclose(m_handle);
+        destroy_(module);
+        int rt = dlclose(handle_);
         if (rt) {
-            ERROR(logger) << "dlclose handle fail handle=" << m_handle << " name=" << name << " version=" << version << " path=" << path
-                          << " error=" << dlerror();
+            ERROR(logger) << "dlclose handle fail handle=" << handle_ << " name=" << name << " version=" << version
+                          << " path=" << path << " error=" << dlerror();
         } else {
-            INFO(logger) << "destroy module=" << name << " version=" << version << " path=" << path << " handle=" << m_handle << " success";
+            INFO(logger) << "destroy module=" << name << " version=" << version << " path=" << path
+                         << " handle=" << handle_ << " success";
         }
     }
 
 private:
     // 存储动态链接库的句柄
-    void* m_handle;
+    void* handle_;
     // 存储用于销毁模块的函数指针
-    destroy_module m_destroy;
+    destroy_module destroy_;
 };
 
 Module::ptr Library::GetModule(const std::string& path)

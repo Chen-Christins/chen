@@ -47,22 +47,22 @@ bool FileWatcher::isConfigFile(const std::string& filename)
 
 bool FileWatcher::watchDir(const std::string& dir, Callback cb)
 {
-    m_fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-    if (m_fd < 0) {
+    fd_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+    if (fd_ < 0) {
         ERROR(logger) << "FileWatcher::watchDir inotify_init1 failed: " << strerror(errno);
         return false;
     }
 
-    m_iom = IOManager::GetThis();
-    if (!m_iom) {
+    iom_ = IOManager::GetThis();
+    if (!iom_) {
         ERROR(logger) << "FileWatcher::watchDir no IOManager in current thread";
-        close(m_fd);
-        m_fd = -1;
+        close(fd_);
+        fd_ = -1;
         return false;
     }
 
-    m_callback = std::move(cb);
-    m_watchDir = dir;
+    callback_ = std::move(cb);
+    watch_dir_ = dir;
 
     INFO(logger) << "FileWatcher: watching config dir=" << dir;
 
@@ -70,7 +70,7 @@ bool FileWatcher::watchDir(const std::string& dir, Callback cb)
 
     // 通过 IOManager 调度事件处理协程，捕获 shared_ptr 避免协程生命周期内对象被销毁
     auto self = shared_from_this();
-    m_iom->schedule([self]() {
+    iom_->schedule([self]() {
         self->handleEvents();
     });
 
@@ -79,29 +79,29 @@ bool FileWatcher::watchDir(const std::string& dir, Callback cb)
 
 void FileWatcher::stop()
 {
-    if (m_stopped.exchange(true)) {
+    if (stopped_.exchange(true)) {
         return;
     }
     // 先取消 epoll 事件，唤醒可能驻留的协程并归还 pending event 计数
-    if (m_iom && m_fd >= 0) {
-        m_iom->cancelEvent(m_fd, IOManager::READ);
+    if (iom_ && fd_ >= 0) {
+        iom_->cancelEvent(fd_, IOManager::READ);
     }
-    if (m_fd >= 0) {
-        close(m_fd);
-        m_fd = -1;
+    if (fd_ >= 0) {
+        close(fd_);
+        fd_ = -1;
     }
-    m_wd2path.clear();
+    wd2path_.clear();
 }
 
 void FileWatcher::addWatchRecursive(const std::string& dir)
 {
     // 目录 watch 会携带 event->name 上报其直接子文件的事件
-    int wd = inotify_add_watch(m_fd, dir.c_str(), WATCH_MASK);
+    int wd = inotify_add_watch(fd_, dir.c_str(), WATCH_MASK);
     if (wd < 0) {
         WARN(logger) << "FileWatcher: inotify_add_watch dir=" << dir << " failed: " << strerror(errno);
         return;
     }
-    m_wd2path[wd] = dir;
+    wd2path_[wd] = dir;
 
     DIR* dp = opendir(dir.c_str());
     if (dp == nullptr) {
@@ -124,24 +124,24 @@ void FileWatcher::handleEvents()
     constexpr size_t BUF_SIZE = 4096;
     char buf[BUF_SIZE];
 
-    while (!m_stopped.load(std::memory_order_acquire)) {
-        if (m_fd < 0) {
+    while (!stopped_.load(std::memory_order_acquire)) {
+        if (fd_ < 0) {
             break;
         }
         // 注册 inotify fd 到 epoll，等待可读事件
-        if (m_iom->addEvent(m_fd, IOManager::READ) != 0) {
-            ERROR(logger) << "FileWatcher: addEvent failed fd=" << m_fd;
+        if (iom_->addEvent(fd_, IOManager::READ) != 0) {
+            ERROR(logger) << "FileWatcher: addEvent failed fd=" << fd_;
             break;
         }
         Fiber::YieldToHold();
 
-        if (m_stopped.load(std::memory_order_acquire)) {
+        if (stopped_.load(std::memory_order_acquire)) {
             break;
         }
 
         // 读取所有待处理的 inotify 事件（边缘触发需一次读完）
         while (true) {
-            ssize_t len = read(m_fd, buf, BUF_SIZE);
+            ssize_t len = read(fd_, buf, BUF_SIZE);
             if (len <= 0) {
                 break;
             }
@@ -151,8 +151,8 @@ void FileWatcher::handleEvents()
                 size_t event_size = sizeof(inotify_event) + event->len;
 
                 if (event->len > 0) {
-                    auto it = m_wd2path.find(event->wd);
-                    if (it != m_wd2path.end()) {
+                    auto it = wd2path_.find(event->wd);
+                    if (it != wd2path_.end()) {
                         std::string filepath = it->second + "/" + event->name;
 
                         if (event->mask & IN_ISDIR) {
@@ -162,8 +162,8 @@ void FileWatcher::handleEvents()
                             }
                         } else if (isConfigFile(event->name) && (event->mask & RELOAD_MASK)) {
                             INFO(logger) << "FileWatcher: config changed file=" << filepath;
-                            if (m_callback) {
-                                m_callback(filepath, event->mask);
+                            if (callback_) {
+                                callback_(filepath, event->mask);
                             }
                         }
                     }

@@ -34,17 +34,17 @@ public:
     static ShardKey String(const std::string& v);
     static ShardKey Time(time_t v);
 
-    Type getType() const { return m_type; }
-    int64_t getInt64() const { return m_intVal; }
-    const std::string& getString() const { return m_strVal; }
-    time_t getTime() const { return m_timeVal; }
+    Type getType() const { return type_; }
+    int64_t getInt64() const { return int_val_; }
+    const std::string& getString() const { return str_val_; }
+    time_t getTime() const { return time_val_; }
 
 private:
     ShardKey() = default;
-    Type m_type = NONE;
-    int64_t m_intVal = 0;
-    std::string m_strVal;
-    time_t m_timeVal = 0;
+    Type type_ = NONE;
+    int64_t int_val_ = 0;
+    std::string str_val_;
+    time_t time_val_ = 0;
 };
 
 // ============================================================================
@@ -52,11 +52,11 @@ private:
 // ============================================================================
 
 struct ShardTarget {
-    std::string dbName;    /**< 逻辑库名，用于从 ShardRouter 获取对应连接 */
-    std::string tableName; /**< 物理表名，空字符串表示不改变表名 */
+    std::string db_name;    /**< 逻辑库名，用于从 ShardRouter 获取对应连接 */
+    std::string table_name; /**< 物理表名，空字符串表示不改变表名 */
 
-    bool hasDB() const { return !dbName.empty(); }
-    bool hasTable() const { return !tableName.empty(); }
+    bool hasDB() const { return !db_name.empty(); }
+    bool hasTable() const { return !table_name.empty(); }
 };
 
 // ============================================================================
@@ -70,11 +70,11 @@ public:
 
     /**
      * @brief 根据逻辑表名和分片键计算物理目标
-     * @param logicalTable 逻辑表名（XML 中的表名）
+     * @param logical_table 逻辑表名（XML 中的表名）
      * @param key 分片键
      * @return 目标库名和表名
      */
-    virtual ShardTarget route(const std::string& logicalTable, const ShardKey& key) = 0;
+    virtual ShardTarget route(const std::string& logical_table, const ShardKey& key) = 0;
 };
 
 // ============================================================================
@@ -82,34 +82,34 @@ public:
 // ============================================================================
 
 /**
- * @brief 按 hash(key) % shardCount 路由到不同分库（可选分表）
+ * @brief 按 hash(key) % shard_count 路由到不同分库（可选分表）
  *
- * dbFormat 中的 {shard} 替换为分片编号。
- * 如果 tableFormat 非空，同时将表名中的 {shard} 替换。
+ * db_format 中的 {shard} 替换为分片编号。
+ * 如果 table_format 非空，同时将表名中的 {shard} 替换。
  *
  * 示例：
  *   HashShardStrategy("user_shard_{shard}", 4)
- *     route("user", Int64(7))  → dbName="user_shard_3", tableName=""
+ *     route("user", Int64(7))  → db_name="user_shard_3", table_name=""
  *   HashShardStrategy("db_{shard}", 8, "user_{shard}")
- *     route("user", Int64(7))  → dbName="db_7", tableName="user_7"
+ *     route("user", Int64(7))  → db_name="db_7", table_name="user_7"
  */
 class HashShardStrategy : public IShardStrategy {
 public:
     typedef std::shared_ptr<HashShardStrategy> ptr;
 
     /**
-     * @param dbFormat   库名模板，{shard} 替换为分片编号
-     * @param shardCount 分片总数
-     * @param tableFormat 表名模板（可选），为空则只分库不分表
+     * @param db_format   库名模板，{shard} 替换为分片编号
+     * @param shard_count 分片总数
+     * @param table_format 表名模板（可选），为空则只分库不分表
      */
-    HashShardStrategy(const std::string& dbFormat, int shardCount, const std::string& tableFormat = "");
+    HashShardStrategy(const std::string& db_format, int shard_count, const std::string& table_format = "");
 
-    ShardTarget route(const std::string& logicalTable, const ShardKey& key) override;
+    ShardTarget route(const std::string& logical_table, const ShardKey& key) override;
 
 private:
-    std::string m_dbFormat;
-    std::string m_tableFormat;
-    int m_shardCount;
+    std::string db_format_;
+    std::string table_format_;
+    int shard_count_;
 };
 
 // ============================================================================
@@ -119,11 +119,11 @@ private:
 /**
  * @brief 按时间分表，表名由 strftime(format, key) 生成
  *
- * 只分表不分库，dbName 为空字符串。
+ * 只分表不分库，db_name 为空字符串。
  *
  * 示例：
- *   DateShardStrategy("log_%Y%m")  → route("log", Time(now)) → tableName="log_202607"
- *   DateShardStrategy("log_%Y%m%d") → route("log", Time(now)) → tableName="log_20260702"
+ *   DateShardStrategy("log_%Y%m")  → route("log", Time(now)) → table_name="log_202607"
+ *   DateShardStrategy("log_%Y%m%d") → route("log", Time(now)) → table_name="log_20260702"
  */
 class DateShardStrategy : public IShardStrategy {
 public:
@@ -134,10 +134,10 @@ public:
      */
     explicit DateShardStrategy(const std::string& format);
 
-    ShardTarget route(const std::string& logicalTable, const ShardKey& key) override;
+    ShardTarget route(const std::string& logical_table, const ShardKey& key) override;
 
 private:
-    std::string m_format;
+    std::string format_;
 };
 
 // ============================================================================
@@ -152,27 +152,27 @@ public:
 
     /**
      * @brief 注册分片规则
-     * @param logicalTable 逻辑表名
+     * @param logical_table 逻辑表名
      * @param strategy 分片策略
      */
-    void addRule(const std::string& logicalTable, IShardStrategy::ptr strategy);
+    void addRule(const std::string& logical_table, IShardStrategy::ptr strategy);
 
     /**
      * @brief 注册数据库连接
-     * @param dbName 逻辑库名
+     * @param db_name 逻辑库名
      * @param conn 数据库连接
      */
-    void addDB(const std::string& dbName, IDB::ptr conn);
+    void addDB(const std::string& db_name, IDB::ptr conn);
 
     // ---- 路由 ----
 
     /**
      * @brief 查询分片目标
-     * @param logicalTable 逻辑表名
+     * @param logical_table 逻辑表名
      * @param key 分片键
      * @return 目标库名和物理表名
      */
-    ShardTarget route(const std::string& logicalTable, const ShardKey& key);
+    ShardTarget route(const std::string& logical_table, const ShardKey& key);
 
     /**
      * @brief 获取目标库的数据库连接
@@ -185,12 +185,12 @@ public:
      * @brief 一步到位：路由 + 获取连接
      * @return (连接, 物理表名)
      */
-    std::pair<IDB::ptr, std::string> resolve(const std::string& logicalTable, const ShardKey& key);
+    std::pair<IDB::ptr, std::string> resolve(const std::string& logical_table, const ShardKey& key);
 
 private:
-    std::unordered_map<std::string, IShardStrategy::ptr> m_rules;
+    std::unordered_map<std::string, IShardStrategy::ptr> rules_;
 
-    std::unordered_map<std::string, IDB::ptr> m_dbs;
+    std::unordered_map<std::string, IDB::ptr> dbs_;
 };
 
 typedef chen::Singleton<ShardRouter> ShardRouterMgr;

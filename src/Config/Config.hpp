@@ -49,12 +49,12 @@ public:
     /**
      * @brief 获取配置名称name.xxxx点来区分层级
      */
-    const std::string& getName() const { return m_name; }
+    const std::string& getName() const { return name_; }
 
     /**
      * @brief 获取配置的描述
      */
-    const std::string& getDescription() const { return m_description; }
+    const std::string& getDescription() const { return description_; }
 
     /**
      * @brief 接口方法，将基础类型，stl容器，自定义类型转换为string类型
@@ -74,9 +74,9 @@ public:
 
 private:
     /// 配置的名称
-    std::string m_name;
+    std::string name_;
     /// 配置的描述
-    std::string m_description;
+    std::string description_;
 };
 
 /**
@@ -397,7 +397,7 @@ public:
      */
     ConfigVar(const std::string& name, const T& default_value, const std::string& description = "")
         : ConfigVarBase(name, description)
-        , m_val(default_value)
+        , val_(default_value)
     {
     }
 
@@ -406,8 +406,8 @@ public:
      */
     const T getValue()
     {
-        std::shared_lock lock(m_mutex);
-        return m_val;
+        std::shared_lock lock(mutex_);
+        return val_;
     }
 
     /**
@@ -417,16 +417,16 @@ public:
     void setValue(const T& v)
     {
         {
-            std::shared_lock lock(m_mutex);
-            if (v == m_val) {
+            std::shared_lock lock(mutex_);
+            if (v == val_) {
                 return;
             }
-            for (auto& [idx, task] : m_cbs) {
-                task(m_val, v);
+            for (auto& [idx, task] : cbs_) {
+                task(val_, v);
             }
         }
-        std::unique_lock lock(m_mutex);
-        m_val = v;
+        std::unique_lock lock(mutex_);
+        val_ = v;
     }
 
     /**
@@ -436,11 +436,11 @@ public:
     std::string toString() override
     {
         try {
-            std::unique_lock lock(m_mutex);
-            return ToStr()(m_val);
+            std::unique_lock lock(mutex_);
+            return ToStr()(val_);
         } catch (std::exception& e) {
-            ERROR(LOG_NAME("system")) << "ConfigVar::toString exception" << e.what() << " convert: string to " << typeid(m_val).name()
-                                      << " to string";
+            ERROR(LOG_NAME("system")) << "ConfigVar::toString exception" << e.what() << " convert: string to "
+                                      << typeid(val_).name() << " to string";
         }
         return "";
     }
@@ -456,8 +456,8 @@ public:
             setValue(FromStr()(val));
             return true;
         } catch (std::exception& e) {
-            ERROR(LOG_NAME("system")) << "ConfigVar::fromString exception" << e.what() << " convert: string to " << typeid(m_val).name() << " - "
-                                      << val;
+            ERROR(LOG_NAME("system")) << "ConfigVar::fromString exception" << e.what() << " convert: string to "
+                                      << typeid(val_).name() << " - " << val;
         }
         return false;
     }
@@ -475,9 +475,9 @@ public:
     uint64_t addListener(on_change_cb cb)
     {
         static uint64_t s_fun_id = 0;
-        std::unique_lock lock(m_mutex);
+        std::unique_lock lock(mutex_);
         ++s_fun_id;
-        m_cbs[s_fun_id] = cb;
+        cbs_[s_fun_id] = cb;
         return s_fun_id;
     }
 
@@ -487,8 +487,8 @@ public:
      */
     void delListener(uint64_t key)
     {
-        std::unique_lock lock(m_mutex);
-        m_cbs.erase(key);
+        std::unique_lock lock(mutex_);
+        cbs_.erase(key);
     }
 
     /**
@@ -498,9 +498,9 @@ public:
      */
     on_change_cb getListener(uint64_t key)
     {
-        std::shared_lock lock(m_mutex);
-        auto it = m_cbs.find(key);
-        return it == m_cbs.end() ? nullptr : it->second;
+        std::shared_lock lock(mutex_);
+        auto it = cbs_.find(key);
+        return it == cbs_.end() ? nullptr : it->second;
     }
 
     /**
@@ -508,16 +508,16 @@ public:
      */
     void clearListener()
     {
-        std::unique_lock lock(m_mutex);
-        m_cbs.clear();
+        std::unique_lock lock(mutex_);
+        cbs_.clear();
     }
 
 private:
     /// c++17 读写锁
-    std::shared_mutex m_mutex;
-    T m_val;
+    std::shared_mutex mutex_;
+    T val_;
     /// 变更回调函数组，uint64_t key, 要求唯一，一般可以用hash
-    std::map<uint64_t, on_change_cb> m_cbs;
+    std::map<uint64_t, on_change_cb> cbs_;
 };
 
 /**

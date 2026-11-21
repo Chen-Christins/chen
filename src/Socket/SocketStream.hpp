@@ -157,7 +157,7 @@ public:
      * @brief 获取socket示例
      * @return Socket::ptr 返回的socket示例
      */
-    Socket::ptr getSocket() const { return m_socket; }
+    Socket::ptr getSocket() const { return socket_; }
 
     /**
      * @brief 是否连接成功
@@ -187,9 +187,9 @@ public:
 
 protected:
     /// socket信息
-    Socket::ptr m_socket;
+    Socket::ptr socket_;
     /// 是否自己控制socket
-    bool m_owner;
+    bool owner_;
 };
 
 class AsyncSocketStream : public SocketStream, public std::enable_shared_from_this<AsyncSocketStream> {
@@ -270,36 +270,36 @@ public:
      * @brief 设置工作线程
      * @param v 工作线程
      */
-    void setWorker(IOManager* v) { m_worker = v; }
-    IOManager* getWorker() const { return m_worker; }
+    void setWorker(IOManager* v) { worker_ = v; }
+    IOManager* getWorker() const { return worker_; }
 
     /**
      * @brief 设置IO线程
      * @param v IO线程
      */
-    void setIOManager(IOManager* v) { m_iomanager = v; }
-    IOManager* getIOManager() const { return m_iomanager; }
+    void setIOManager(IOManager* v) { iomanager_ = v; }
+    IOManager* getIOManager() const { return iomanager_; }
 
     /**
      * @brief 设置自动连接
      * @param v 是否自动连接
      */
-    void setAutoConnect(bool v) { m_autoConnect = v; }
-    bool isAutoConnect() const { return m_autoConnect; }
+    void setAutoConnect(bool v) { auto_connect_ = v; }
+    bool isAutoConnect() const { return auto_connect_; }
 
     /**
      * @brief 设置连接回调
      * @param cb 连接回调函数
      */
-    void setConnectCb(connect_callback cb) { m_connectCb = cb; }
-    connect_callback getConnectCb() const { return m_connectCb; }
+    void setConnectCb(connect_callback cb) { connect_cb_ = cb; }
+    connect_callback getConnectCb() const { return connect_cb_; }
 
     /**
      * @brief 设置断开连接回调
      * @param cb 断开连接回调函数
      */
-    void setDisConnectCb(disconnect_callback cb) { m_disconnectCb = cb; }
-    disconnect_callback getDisConnectCb() const { return m_disconnectCb; }
+    void setDisConnectCb(disconnect_callback cb) { disconnect_cb_ = cb; }
+    disconnect_callback getDisConnectCb() const { return disconnect_cb_; }
 
     /**
      * @brief 设置数据
@@ -308,7 +308,7 @@ public:
     template <class T>
     void setData(const T& v)
     {
-        m_data = v;
+        data_ = v;
     }
 
     /**
@@ -318,7 +318,7 @@ public:
     T getData() const
     {
         try {
-            return boost::any_cast<T>(m_data);
+            return boost::any_cast<T>(data_);
         } catch (...) {
         }
         return T();
@@ -370,30 +370,30 @@ protected:
     bool waitFiber();
 
 protected:
-    FiberSemaphore m_sem;
-    FiberSemaphore m_waitSem;
+    FiberSemaphore sem_;
+    FiberSemaphore wait_sem_;
     /// 消费队列的读写锁和对象的读写锁
-    std::list<SendCtx::ptr> m_queue;
+    std::list<SendCtx::ptr> queue_;
     /// 上下文信息
-    std::unordered_map<uint32_t, Ctx::ptr> m_ctxs;
+    std::unordered_map<uint32_t, Ctx::ptr> ctxs_;
     /// 序列号
-    uint32_t m_sn;
+    uint32_t sn_;
     /// 是否自动连接
-    bool m_autoConnect;
+    bool auto_connect_;
     /// 定时器
-    Timer::ptr m_timer;
+    Timer::ptr timer_;
     /// io线程
-    IOManager* m_iomanager;
+    IOManager* iomanager_;
     /// work线程
-    IOManager* m_worker;
+    IOManager* worker_;
     /// 连接时的回调
-    connect_callback m_connectCb;
+    connect_callback connect_cb_;
     /// 断开连接时的回调
-    disconnect_callback m_disconnectCb;
+    disconnect_callback disconnect_cb_;
     /// 数据
-    boost::any m_data;
+    boost::any data_;
     /// 消费队列的读写锁和对象的读写锁
-    std::shared_mutex m_queueMtx, m_mtx;
+    std::shared_mutex queue_mtx_, mtx_;
 };
 
 class AsyncSocketStreamManager {
@@ -446,28 +446,28 @@ public:
      * @param v 连接回调函数
      */
     void setConnectCb(connect_callback v);
-    connect_callback getConnectCb() const { return m_connectCb; }
+    connect_callback getConnectCb() const { return connect_cb_; }
 
     /**
      * @brief 设置断开连接回调
      * @param v 断开连接回调函数
      */
     void setDisConnectCb(disconnect_callback v);
-    disconnect_callback getDisConnectCb() const { return m_disconnectCb; }
+    disconnect_callback getDisConnectCb() const { return disconnect_cb_; }
 
 private:
     /// 轮询索引
-    uint32_t m_idx;
+    uint32_t idx_;
     /// 异步socket流数量
-    uint32_t m_size;
+    uint32_t size_;
     /// 所有的数据
-    std::vector<AsyncSocketStream::ptr> m_datas;
+    std::vector<AsyncSocketStream::ptr> datas_;
     /// 开始连接的回调
-    connect_callback m_connectCb;
+    connect_callback connect_cb_;
     /// 断开连接的回调
-    disconnect_callback m_disconnectCb;
+    disconnect_callback disconnect_cb_;
     /// 读写锁
-    std::shared_mutex m_mtx;
+    std::shared_mutex mtx_;
 };
 
 } // namespace chen

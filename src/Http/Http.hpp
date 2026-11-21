@@ -203,46 +203,46 @@ public:
     typedef std::shared_ptr<HttpRequest> ptr;
     typedef std::map<std::string, std::string, CaseInsensitiveLess> MapType;
 
-    static constexpr uint8_t HTTP2_VERSION = 0x20;
+    static constexpr uint8_t kHttp2Version = 0x20;
 
     HttpRequest(uint8_t version = 0x11, bool close = true);
     std::shared_ptr<HttpResponse> createResponse();
 
-    HttpMethod getMethod() const { return m_method; }
-    uint8_t getVersion() const { return m_version; }
-    const std::string& getPath() const { return m_path; }
-    const std::string& getQuery() const { return m_query; }
-    const std::string& getBody() const { return m_body; }
+    HttpMethod getMethod() const { return method_; }
+    uint8_t getVersion() const { return version_; }
+    const std::string& getPath() const { return path_; }
+    const std::string& getQuery() const { return query_; }
+    const std::string& getBody() const { return body_; }
 
-    const MapType& getHeaders() const { return m_headers; }
-    const MapType& getParams() const { return m_params; }
-    const MapType& getCookie() const { return m_cookies; }
+    const MapType& getHeaders() const { return headers_; }
+    const MapType& getParams() const { return params_; }
+    const MapType& getCookie() const { return cookies_; }
 
-    void setMethod(HttpMethod v) { m_method = v; }
-    void setVersion(uint8_t v) { m_version = v; }
-    void setPath(std::string v) { m_path = v; }
-    void setQuery(std::string v) { m_query = v; }
-    void setFragment(std::string v) { m_fragment = v; }
-    void setBody(std::string v) { m_body = v; }
+    void setMethod(HttpMethod v) { method_ = v; }
+    void setVersion(uint8_t v) { version_ = v; }
+    void setPath(std::string v) { path_ = v; }
+    void setQuery(std::string v) { query_ = v; }
+    void setFragment(std::string v) { fragment_ = v; }
+    void setBody(std::string v) { body_ = v; }
 
-    void setWebsocket(bool v) { m_websocket = v; }
-    bool isWebsocket() const { return m_websocket; }
+    void setWebsocket(bool v) { websocket_ = v; }
+    bool isWebsocket() const { return websocket_; }
 
-    bool isClose() const { return m_close; }
-    void setClose(bool v) { m_close = v; }
+    bool isClose() const { return close_; }
+    void setClose(bool v) { close_ = v; }
 
     // HTTP/2
-    bool isHttp2() const { return m_version == HTTP2_VERSION; }
-    int32_t getStreamId() const { return m_streamId; }
-    void setStreamId(int32_t v) { m_streamId = v; }
-    const std::string& getScheme() const { return m_scheme; }
-    void setScheme(const std::string& v) { m_scheme = v; }
-    const std::string& getAuthority() const { return m_authority; }
-    void setAuthority(const std::string& v) { m_authority = v; }
+    bool isHttp2() const { return version_ == kHttp2Version; }
+    int32_t getStreamId() const { return stream_id_; }
+    void setStreamId(int32_t v) { stream_id_ = v; }
+    const std::string& getScheme() const { return scheme_; }
+    void setScheme(const std::string& v) { scheme_ = v; }
+    const std::string& getAuthority() const { return authority_; }
+    void setAuthority(const std::string& v) { authority_ = v; }
 
-    void setHeaders(const MapType& v) { m_headers = v; }
-    void setParams(const MapType& v) { m_params = v; }
-    void setCookies(const MapType& v) { m_cookies = v; }
+    void setHeaders(const MapType& v) { headers_ = v; }
+    void setParams(const MapType& v) { params_ = v; }
+    void setCookies(const MapType& v) { cookies_ = v; }
 
     std::string getHeader(const std::string& key, const std::string& def = "") const;
     std::string getParam(const std::string& key, const std::string& def = "");
@@ -263,38 +263,38 @@ public:
     template <class T>
     bool checkGetHeaderAs(const std::string& key, T& val, const T& def = T())
     {
-        return checkGetAs(m_headers, key, val, def);
+        return checkGetAs(headers_, key, val, def);
     }
     template <class T>
     T getHeaderAs(const std::string& key, const T& def = T())
     {
-        return getAs(m_headers, key, def);
+        return getAs(headers_, key, def);
     }
     template <class T>
     bool checkGetParamAs(const std::string& key, T& val, const T& def = T())
     {
         initQueryParam();
         initBodyParam();
-        return checkGetAs(m_params, key, val, def);
+        return checkGetAs(params_, key, val, def);
     }
     template <class T>
     T getParamAs(const std::string& key, const T& def = T())
     {
         initQueryParam();
         initBodyParam();
-        return getAs(m_params, key, def);
+        return getAs(params_, key, def);
     }
     template <class T>
     bool checkGetCookieAs(const std::string& key, T& val, const T& def = T())
     {
         initCookies();
-        return checkGetAs(m_cookies, key, val, def);
+        return checkGetAs(cookies_, key, val, def);
     }
     template <class T>
     T getCookieAs(const std::string& key, const T& def = T())
     {
         initCookies();
-        return getAs(m_cookies, key, def);
+        return getAs(cookies_, key, def);
     }
     std::ostream& dump(std::ostream& os) const;
     std::string toString() const;
@@ -307,34 +307,34 @@ public:
 
 private:
     /// 请求方法
-    HttpMethod m_method;
+    HttpMethod method_;
     /// 协议版本
-    uint8_t m_version;
+    uint8_t version_;
     /// 是否自动关闭
-    bool m_close;
+    bool close_;
     /// 是否为WebSocket协议
-    bool m_websocket;
+    bool websocket_;
 
-    uint8_t m_parserParamFlag;
+    uint8_t parser_param_flag_;
     /// 请求路径
-    std::string m_path;
+    std::string path_;
     /// 请求参数
-    std::string m_query;
+    std::string query_;
     /// 请求的fragment
-    std::string m_fragment;
+    std::string fragment_;
     /// 请求消息体
-    std::string m_body;
+    std::string body_;
     /// 请求头
-    MapType m_headers;
+    MapType headers_;
     /// 请求参数MAP
-    MapType m_params;
+    MapType params_;
     /// cookie MAP
-    MapType m_cookies;
+    MapType cookies_;
 
     // HTTP/2
-    int32_t m_streamId = 0;
-    std::string m_scheme;
-    std::string m_authority;
+    int32_t stream_id_ = 0;
+    std::string scheme_;
+    std::string authority_;
 };
 
 class HttpResponse {
@@ -344,26 +344,26 @@ public:
 
     HttpResponse(uint8_t version = 0x11, bool close = true);
 
-    HttpStatus getStatus() const { return m_status; }
-    uint8_t getVersion() const { return m_version; }
-    const std::string& getBody() const { return m_body; }
-    const std::string& getReason() const { return m_reason; }
-    const MapType& getHeaders() const { return m_headers; }
+    HttpStatus getStatus() const { return status_; }
+    uint8_t getVersion() const { return version_; }
+    const std::string& getBody() const { return body_; }
+    const std::string& getReason() const { return reason_; }
+    const MapType& getHeaders() const { return headers_; }
 
-    void setStatus(HttpStatus v) { m_status = v; }
-    void setVersion(uint8_t v) { m_version = v; }
-    void setBody(const std::string& v) { m_body = v; }
-    void setReason(const std::string& v) { m_reason = v; }
-    void setHeaders(const MapType& v) { m_headers = v; }
+    void setStatus(HttpStatus v) { status_ = v; }
+    void setVersion(uint8_t v) { version_ = v; }
+    void setBody(const std::string& v) { body_ = v; }
+    void setReason(const std::string& v) { reason_ = v; }
+    void setHeaders(const MapType& v) { headers_ = v; }
 
-    void setWebsocket(bool v) { m_websocket = v; }
-    bool isWebsocket() const { return m_websocket; }
+    void setWebsocket(bool v) { websocket_ = v; }
+    bool isWebsocket() const { return websocket_; }
 
-    void setStreaming(bool v) { m_streaming = v; }
-    bool isStreaming() const { return m_streaming; }
+    void setStreaming(bool v) { streaming_ = v; }
+    bool isStreaming() const { return streaming_; }
 
-    bool isClose() const { return m_close; }
-    void setClose(bool v) { m_close = v; }
+    bool isClose() const { return close_; }
+    void setClose(bool v) { close_ = v; }
 
     /**
      * @brief 根据响应头补全状态
@@ -373,8 +373,8 @@ public:
     void init();
 
     // HTTP/2
-    bool isHttp2() const { return m_version == HttpRequest::HTTP2_VERSION; }
-    const std::vector<std::string>& getCookies() const { return m_cookies; }
+    bool isHttp2() const { return version_ == HttpRequest::kHttp2Version; }
+    const std::vector<std::string>& getCookies() const { return cookies_; }
 
     std::string getHeader(const std::string& key, std::string def = "") const;
     void setHeader(const std::string& key, const std::string& val);
@@ -383,13 +383,13 @@ public:
     template <class T>
     bool checkGetHeaderAs(const std::string& key, T& val, const T& def = T())
     {
-        return checkGetAs(m_headers, key, val, def);
+        return checkGetAs(headers_, key, val, def);
     }
 
     template <class T>
     T getHeaderAs(const std::string& key, const T& def = T())
     {
-        return getAs(m_headers, key, def);
+        return getAs(headers_, key, def);
     }
 
     std::ostream& dump(std::ostream& os) const;
@@ -406,23 +406,23 @@ public:
 
 private:
     /// 响应状态
-    HttpStatus m_status;
+    HttpStatus status_;
     /// 协议版本
-    uint8_t m_version;
+    uint8_t version_;
     /// 是否关闭
-    bool m_close;
+    bool close_;
     /// 是否为WebSocket协议
-    bool m_websocket;
+    bool websocket_;
     /// 是否为流式响应（SSE等），此时 handler 自行管理连接
-    bool m_streaming = false;
+    bool streaming_ = false;
     /// 响应体
-    std::string m_body;
+    std::string body_;
     /// 返回状态码的原因
-    std::string m_reason;
+    std::string reason_;
     /// 响应头
-    MapType m_headers;
+    MapType headers_;
 
-    std::vector<std::string> m_cookies;
+    std::vector<std::string> cookies_;
 };
 
 std::ostream& operator<<(std::ostream& os, const HttpRequest& req);

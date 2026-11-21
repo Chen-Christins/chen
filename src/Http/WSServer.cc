@@ -9,8 +9,8 @@ static Logger::ptr logger = LOG_NAME("system");
 WSServer::WSServer(IOManager* worker, IOManager* io_worker, IOManager* accept_worker)
     : TcpServer(worker, io_worker, accept_worker)
 {
-    m_dispatch.reset(new WSServletDispatch);
-    m_type = "websocket_server";
+    dispatch_.reset(new WSServletDispatch);
+    type_ = "websocket_server";
 }
 
 void WSServer::handleClient(Socket::ptr client)
@@ -23,7 +23,7 @@ void WSServer::handleClient(Socket::ptr client)
             DEBUG(logger) << "handleShake error";
             break;
         }
-        WSServlet::ptr servlet = m_dispatch->getWSServlet(header->getPath());
+        WSServlet::ptr servlet = dispatch_->getWSServlet(header->getPath());
         if (!servlet) {
             DEBUG(logger) << "no match WSServlet";
             break;
@@ -50,7 +50,7 @@ void WSServer::handleClient(Socket::ptr client)
         } catch (...) {
             WARN(logger) << "handle unknown exception";
         }
-        auto slt = m_dispatch->getWSServlet(header->getPath());
+        auto slt = dispatch_->getWSServlet(header->getPath());
         if (slt) {
             slt->onClose(header, session);
         }

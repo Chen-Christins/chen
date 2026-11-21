@@ -48,18 +48,18 @@ public:
 
     Request();
 
-    uint32_t getSn() const { return m_sn; }
-    uint32_t getCmd() const { return m_cmd; }
+    uint32_t getSn() const { return sn_; }
+    uint32_t getCmd() const { return cmd_; }
 
-    void setSn(uint32_t v) { m_sn = v; }
-    void setCmd(uint32_t v) { m_cmd = v; }
+    void setSn(uint32_t v) { sn_ = v; }
+    void setCmd(uint32_t v) { cmd_ = v; }
 
     virtual bool serializeToByteArray(ByteArray::ptr bytearray) override;
     virtual bool parseFromByteArray(ByteArray::ptr bytearray) override;
 
 protected:
-    uint32_t m_sn;
-    uint32_t m_cmd;
+    uint32_t sn_;
+    uint32_t cmd_;
 };
 
 class Response : public Message {
@@ -68,24 +68,24 @@ public:
 
     Response();
 
-    uint32_t getSn() const { return m_sn; }
-    uint32_t getCmd() const { return m_cmd; }
-    uint32_t getResult() const { return m_result; }
-    const std::string& getResultStr() const { return m_resultStr; }
+    uint32_t getSn() const { return sn_; }
+    uint32_t getCmd() const { return cmd_; }
+    uint32_t getResult() const { return result_; }
+    const std::string& getResultStr() const { return result_str_; }
 
-    void setSn(uint32_t v) { m_sn = v; }
-    void setCmd(uint32_t v) { m_cmd = v; }
-    void setResult(uint32_t v) { m_result = v; }
-    void setResultStr(const std::string& v) { m_resultStr = v; }
+    void setSn(uint32_t v) { sn_ = v; }
+    void setCmd(uint32_t v) { cmd_ = v; }
+    void setResult(uint32_t v) { result_ = v; }
+    void setResultStr(const std::string& v) { result_str_ = v; }
 
     virtual bool serializeToByteArray(ByteArray::ptr bytearray) override;
     virtual bool parseFromByteArray(ByteArray::ptr bytearray) override;
 
 protected:
-    uint32_t m_sn;
-    uint32_t m_cmd;
-    uint32_t m_result;
-    std::string m_resultStr;
+    uint32_t sn_;
+    uint32_t cmd_;
+    uint32_t result_;
+    std::string result_str_;
 };
 
 class Notify : public Message {
@@ -93,14 +93,14 @@ public:
     typedef std::shared_ptr<Notify> ptr;
     Notify();
 
-    uint32_t getNotify() const { return m_notify; }
-    void setNotify(uint32_t v) { m_notify = v; }
+    uint32_t getNotify() const { return notify_; }
+    void setNotify(uint32_t v) { notify_ = v; }
 
     virtual bool serializeToByteArray(ByteArray::ptr bytearray) override;
     virtual bool parseFromByteArray(ByteArray::ptr bytearray) override;
 
 protected:
-    uint32_t m_notify;
+    uint32_t notify_;
 };
 
 } // namespace chen

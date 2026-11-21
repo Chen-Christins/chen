@@ -317,9 +317,9 @@ IPAddress::ptr IPAddress::Create(const char* address, uint16_t port)
 IPv4Address::ptr IPv4Address::Create(const char* address, uint16_t port)
 {
     IPv4Address::ptr rt(new IPv4Address);
-    rt->m_addr.sin_port = byteswapOnLittleEndian(port);
+    rt->addr_.sin_port = byteswapOnLittleEndian(port);
     // 将ip转换为二进制的形式
-    int result = inet_pton(AF_INET, address, &rt->m_addr.sin_addr);
+    int result = inet_pton(AF_INET, address, &rt->addr_.sin_addr);
     if (result <= 0) {
         ERROR(logger) << "IPv4Address::Create(" << address << ", " << port << ") rt=" << result << " errno=" << errno
                       << " errstr=" << strerror(errno);
@@ -330,37 +330,37 @@ IPv4Address::ptr IPv4Address::Create(const char* address, uint16_t port)
 
 IPv4Address::IPv4Address(const sockaddr_in& address)
 {
-    m_addr = address;
+    addr_ = address;
 }
 
 IPv4Address::IPv4Address(uint32_t address, uint16_t port)
 {
-    memset(&m_addr, 0, sizeof(m_addr));
-    m_addr.sin_family = AF_INET;
-    m_addr.sin_addr.s_addr = byteswapOnLittleEndian(address);
-    m_addr.sin_port = byteswapOnLittleEndian(port);
+    memset(&addr_, 0, sizeof(addr_));
+    addr_.sin_family = AF_INET;
+    addr_.sin_addr.s_addr = byteswapOnLittleEndian(address);
+    addr_.sin_port = byteswapOnLittleEndian(port);
 }
 
 const sockaddr* IPv4Address::getAddr() const
 {
-    return (sockaddr*)&m_addr;
+    return (sockaddr*)&addr_;
 }
 
 sockaddr* IPv4Address::getAddr()
 {
-    return (sockaddr*)&m_addr;
+    return (sockaddr*)&addr_;
 }
 
 socklen_t IPv4Address::getAddrLen() const
 {
-    return sizeof(m_addr);
+    return sizeof(addr_);
 }
 
 std::ostream& IPv4Address::insert(std::ostream& os) const
 {
-    uint32_t addr = byteswapOnLittleEndian(m_addr.sin_addr.s_addr);
+    uint32_t addr = byteswapOnLittleEndian(addr_.sin_addr.s_addr);
     os << ((addr >> 24) & 0xff) << "." << ((addr >> 16) & 0xff) << "." << ((addr >> 8) & 0xff) << "." << (addr & 0xff);
-    os << ": " << byteswapOnLittleEndian(m_addr.sin_port);
+    os << ": " << byteswapOnLittleEndian(addr_.sin_port);
     return os;
 }
 
@@ -374,7 +374,7 @@ IPAddress::ptr IPv4Address::broadcastAddress(uint32_t prefix_len)
         return nullptr;
     }
 
-    sockaddr_in baddr(m_addr);
+    sockaddr_in baddr(addr_);
     baddr.sin_addr.s_addr |= ~byteswapOnLittleEndian(CreateMask<uint32_t>(prefix_len));
 
     return IPv4Address::ptr(new IPv4Address(baddr));
@@ -390,7 +390,7 @@ IPAddress::ptr IPv4Address::networkAddress(uint32_t prefix_len)
         return nullptr;
     }
 
-    sockaddr_in naddr(m_addr);
+    sockaddr_in naddr(addr_);
     naddr.sin_addr.s_addr &= byteswapOnLittleEndian(CreateMask<uint32_t>(prefix_len));
 
     return IPv4Address::ptr(new IPv4Address(naddr));
@@ -410,20 +410,20 @@ IPAddress::ptr IPv4Address::subnetMask(uint32_t prefix_len)
 
 uint32_t IPv4Address::getPort() const
 {
-    return byteswapOnLittleEndian(m_addr.sin_port);
+    return byteswapOnLittleEndian(addr_.sin_port);
 }
 
 void IPv4Address::setPort(uint16_t v)
 {
-    m_addr.sin_port = byteswapOnLittleEndian(v);
+    addr_.sin_port = byteswapOnLittleEndian(v);
 }
 
 IPv6Address::ptr IPv6Address::Create(const char* address, uint16_t port)
 {
     IPv6Address::ptr rt(new IPv6Address);
-    rt->m_addr.sin6_port = byteswapOnLittleEndian(port);
+    rt->addr_.sin6_port = byteswapOnLittleEndian(port);
     // 将ip转换为二进制的形式
-    int result = inet_pton(AF_INET6, address, &rt->m_addr.sin6_addr);
+    int result = inet_pton(AF_INET6, address, &rt->addr_.sin6_addr);
     if (result <= 0) {
         ERROR(logger) << "IPv6Address::Create(" << address << ", " << port << ") rt=" << result << " errno=" << errno
                       << " errstr=" << strerror(errno);
@@ -434,36 +434,36 @@ IPv6Address::ptr IPv6Address::Create(const char* address, uint16_t port)
 
 IPv6Address::IPv6Address()
 {
-    memset(&m_addr, 0, sizeof(m_addr));
-    m_addr.sin6_family = AF_INET6;
+    memset(&addr_, 0, sizeof(addr_));
+    addr_.sin6_family = AF_INET6;
 }
 
 IPv6Address::IPv6Address(const sockaddr_in6& address)
 {
-    m_addr = address;
+    addr_ = address;
 }
 
 IPv6Address::IPv6Address(const uint8_t address[16], uint16_t port)
 {
-    memset(&m_addr, 0, sizeof(m_addr));
-    m_addr.sin6_family = AF_INET6;
-    m_addr.sin6_port = byteswapOnLittleEndian(port);
-    memcpy(&m_addr.sin6_addr.s6_addr, address, 16);
+    memset(&addr_, 0, sizeof(addr_));
+    addr_.sin6_family = AF_INET6;
+    addr_.sin6_port = byteswapOnLittleEndian(port);
+    memcpy(&addr_.sin6_addr.s6_addr, address, 16);
 }
 
 const sockaddr* IPv6Address::getAddr() const
 {
-    return (sockaddr*)&m_addr;
+    return (sockaddr*)&addr_;
 }
 
 sockaddr* IPv6Address::getAddr()
 {
-    return (sockaddr*)&m_addr;
+    return (sockaddr*)&addr_;
 }
 
 socklen_t IPv6Address::getAddrLen() const
 {
-    return sizeof(m_addr);
+    return sizeof(addr_);
 }
 
 /* ipv6的中多个块连续为0可以直接省略，所有如果最后一个 addr[7] 为0，可以省略为 ::
@@ -472,7 +472,7 @@ socklen_t IPv6Address::getAddrLen() const
 std::ostream& IPv6Address::insert(std::ostream& os) const
 {
     os << "[";
-    uint16_t* addr = (uint16_t*)m_addr.sin6_addr.s6_addr;
+    uint16_t* addr = (uint16_t*)addr_.sin6_addr.s6_addr;
     bool used_zeros = false;
     for (size_t i = 0; i < 8; ++i) {
         if (addr[i] == 0 && !used_zeros) {
@@ -493,13 +493,13 @@ std::ostream& IPv6Address::insert(std::ostream& os) const
         os << "::";
     }
 
-    os << "]:" << byteswapOnLittleEndian(m_addr.sin6_port);
+    os << "]:" << byteswapOnLittleEndian(addr_.sin6_port);
     return os;
 }
 
 IPAddress::ptr IPv6Address::broadcastAddress(uint32_t prefix_len)
 {
-    sockaddr_in6 baddr(m_addr);
+    sockaddr_in6 baddr(addr_);
     /*	找到前缀长度结尾在第几个字节，在该字节在哪个位置。
      *	将该字节前剩余位置全部置为1	*/
     baddr.sin6_addr.s6_addr[prefix_len / 8] |= ~CreateMask<uint8_t>(prefix_len % 8);
@@ -512,7 +512,7 @@ IPAddress::ptr IPv6Address::broadcastAddress(uint32_t prefix_len)
 
 IPAddress::ptr IPv6Address::networkAddress(uint32_t prefix_len)
 {
-    sockaddr_in6 naddr(m_addr);
+    sockaddr_in6 naddr(addr_);
     naddr.sin6_addr.s6_addr[prefix_len / 8] &= CreateMask<uint8_t>(prefix_len % 8);
     for (int i = prefix_len / 8 + 1; i < 16; ++i) {
         naddr.sin6_addr.s6_addr[i] = 0x00;
@@ -535,12 +535,12 @@ IPAddress::ptr IPv6Address::subnetMask(uint32_t prefix_len)
 
 uint32_t IPv6Address::getPort() const
 {
-    return byteswapOnLittleEndian(m_addr.sin6_port);
+    return byteswapOnLittleEndian(addr_.sin6_port);
 }
 
 void IPv6Address::setPort(uint16_t v)
 {
-    m_addr.sin6_port = byteswapOnLittleEndian(v);
+    addr_.sin6_port = byteswapOnLittleEndian(v);
 }
 
 // Unix域套接字路径名的最大长度。-1是减去'\0'
@@ -548,101 +548,101 @@ static const size_t MAX_PATH_LEN = sizeof(((sockaddr_un*)0)->sun_path) - 1;
 
 UnixAddress::UnixAddress()
 {
-    memset(&m_addr, 0, sizeof(m_addr));
-    m_addr.sun_family = AF_UNIX;
+    memset(&addr_, 0, sizeof(addr_));
+    addr_.sun_family = AF_UNIX;
     // sun_path 的偏移量+最大路径
-    m_length = offsetof(sockaddr_un, sun_path) + MAX_PATH_LEN;
+    length_ = offsetof(sockaddr_un, sun_path) + MAX_PATH_LEN;
 }
 
 UnixAddress::UnixAddress(const std::string& path)
 {
-    memset(&m_addr, 0, sizeof(m_addr));
-    m_addr.sun_family = AF_UNIX;
+    memset(&addr_, 0, sizeof(addr_));
+    addr_.sun_family = AF_UNIX;
     // 加上 '\0'的长度
-    m_length = path.size() + 1;
+    length_ = path.size() + 1;
     if (!path.empty() && path[0] == '\0') {
-        --m_length;
+        --length_;
     }
 
-    if (m_length > sizeof(m_addr.sun_path)) {
+    if (length_ > sizeof(addr_.sun_path)) {
         throw std::logic_error("path too long");
     }
 
-    memcpy(m_addr.sun_path, path.c_str(), m_length);
+    memcpy(addr_.sun_path, path.c_str(), length_);
 
-    m_length += offsetof(sockaddr_un, sun_path);
+    length_ += offsetof(sockaddr_un, sun_path);
 }
 
 const sockaddr* UnixAddress::getAddr() const
 {
-    return (sockaddr*)&m_addr;
+    return (sockaddr*)&addr_;
 }
 
 sockaddr* UnixAddress::getAddr()
 {
-    return (sockaddr*)&m_addr;
+    return (sockaddr*)&addr_;
 }
 
 socklen_t UnixAddress::getAddrLen() const
 {
-    return m_length;
+    return length_;
 }
 
 void UnixAddress::setAddrLen(uint32_t v)
 {
-    m_length = v;
+    length_ = v;
 }
 
 // offsetof 就是根据内存对齐来返回的值，
 std::string UnixAddress::getPath() const
 {
     std::stringstream ss;
-    if (m_length > offsetof(sockaddr_un, sun_path) && m_addr.sun_path[0] == '\0') {
-        ss << "\\0" << std::string(m_addr.sun_path + 1, m_length - offsetof(sockaddr_un, sun_path) - 1);
+    if (length_ > offsetof(sockaddr_un, sun_path) && addr_.sun_path[0] == '\0') {
+        ss << "\\0" << std::string(addr_.sun_path + 1, length_ - offsetof(sockaddr_un, sun_path) - 1);
     } else {
-        ss << m_addr.sun_path;
+        ss << addr_.sun_path;
     }
     return ss.str();
 }
 
 std::ostream& UnixAddress::insert(std::ostream& os) const
 {
-    if (m_length > offsetof(sockaddr_un, sun_path) && m_addr.sun_path[0] == '\0') {
-        return os << "\\0" << std::string(m_addr.sun_path + 1, m_length - offsetof(sockaddr_un, sun_path) - 1);
+    if (length_ > offsetof(sockaddr_un, sun_path) && addr_.sun_path[0] == '\0') {
+        return os << "\\0" << std::string(addr_.sun_path + 1, length_ - offsetof(sockaddr_un, sun_path) - 1);
     }
-    return os << m_addr.sun_path;
+    return os << addr_.sun_path;
 }
 
 UnknownAddress::UnknownAddress(int family)
 {
-    memset(&m_addr, 0, sizeof(m_addr));
-    m_addr.sa_family = family;
+    memset(&addr_, 0, sizeof(addr_));
+    addr_.sa_family = family;
 }
 
 UnknownAddress::UnknownAddress(const sockaddr& addr)
 {
-    m_addr = addr;
+    addr_ = addr;
 }
 
 const sockaddr* UnknownAddress::getAddr() const
 {
-    return (sockaddr*)&m_addr;
+    return (sockaddr*)&addr_;
 }
 
 std::ostream& UnknownAddress::insert(std::ostream& os) const
 {
-    os << "UnknownAddress family=" << m_addr.sa_family;
+    os << "UnknownAddress family=" << addr_.sa_family;
     return os;
 }
 
 sockaddr* UnknownAddress::getAddr()
 {
-    return (sockaddr*)&m_addr;
+    return (sockaddr*)&addr_;
 }
 
 socklen_t UnknownAddress::getAddrLen() const
 {
-    return sizeof(m_addr);
+    return sizeof(addr_);
 }
 
 std::ostream& operator<<(std::ostream& os, const Address& addr)

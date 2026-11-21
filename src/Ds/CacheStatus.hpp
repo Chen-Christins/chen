@@ -33,126 +33,126 @@ public:
      * @param v 增加的值，默认 1
      * @return 增加后计数的值
      */
-    int64_t incGet(int64_t v = 1) { return Atomic::addFetch(m_get, v); }
+    int64_t incGet(int64_t v = 1) { return Atomic::addFetch(get_, v); }
 
     /**
      * @brief 增加 set 请求计数
      * @param v 增加的值，默认 1
      * @return 增加后计数的值
      */
-    int64_t incSet(int64_t v = 1) { return Atomic::addFetch(m_set, v); }
+    int64_t incSet(int64_t v = 1) { return Atomic::addFetch(set_, v); }
 
     /**
      * @brief 增加 del 请求计数
      * @param v 增加的值，默认 1
      * @return 增加后计数的值
      */
-    int64_t incDel(int64_t v = 1) { return Atomic::addFetch(m_del, v); }
+    int64_t incDel(int64_t v = 1) { return Atomic::addFetch(del_, v); }
 
     /**
      * @brief 增加 timeout（超时）计数
      * @param v 增加的值，默认 1
      * @return 增加后计数的值
      */
-    int64_t incTimeout(int64_t v = 1) { return Atomic::addFetch(m_timeout, v); }
+    int64_t incTimeout(int64_t v = 1) { return Atomic::addFetch(timeout_, v); }
 
     /**
      * @brief 增加 prune（修剪/淘汰）计数
      * @param v 增加的值，默认 1
      * @return 增加后计数的值
      */
-    int64_t incPrune(int64_t v = 1) { return Atomic::addFetch(m_prune, v); }
+    int64_t incPrune(int64_t v = 1) { return Atomic::addFetch(prune_, v); }
 
     /**
      * @brief 增加 hit（命中）计数
      * @param v 增加的值，默认 1
      * @return 增加后计数的值
      */
-    int64_t incHit(int64_t v = 1) { return Atomic::addFetch(m_hit, v); }
+    int64_t incHit(int64_t v = 1) { return Atomic::addFetch(hit_, v); }
 
     /**
      * @brief 减少 get 请求计数
      * @param v 减少的值，默认 1
      * @return 减少后计数的值
      */
-    int64_t decGet(int64_t v = 1) { return Atomic::subFetch(m_get, v); }
+    int64_t decGet(int64_t v = 1) { return Atomic::subFetch(get_, v); }
 
     /**
      * @brief 减少 set 请求计数
      * @param v 减少的值，默认 1
      * @return 减少后计数的值
      */
-    int64_t decSet(int64_t v = 1) { return Atomic::subFetch(m_set, v); }
+    int64_t decSet(int64_t v = 1) { return Atomic::subFetch(set_, v); }
 
     /**
      * @brief 减少 del 请求计数
      * @param v 减少的值，默认 1
      * @return 减少后计数的值
      */
-    int64_t decDel(int64_t v = 1) { return Atomic::subFetch(m_del, v); }
+    int64_t decDel(int64_t v = 1) { return Atomic::subFetch(del_, v); }
 
     /**
      * @brief 减少 timeout（超时）计数
      * @param v 减少的值，默认 1
      * @return 减少后计数的值
      */
-    int64_t decTimeout(int64_t v = 1) { return Atomic::subFetch(m_timeout, v); }
+    int64_t decTimeout(int64_t v = 1) { return Atomic::subFetch(timeout_, v); }
 
     /**
      * @brief 减少 prune（修剪/淘汰）计数
      * @param v 减少的值，默认 1
      * @return 减少后计数的值
      */
-    int64_t decPrune(int64_t v = 1) { return Atomic::subFetch(m_prune, v); }
+    int64_t decPrune(int64_t v = 1) { return Atomic::subFetch(prune_, v); }
 
     /**
      * @brief 减少 hit（命中）计数
      * @param v 减少的值，默认 1
      * @return 减少后计数的值
      */
-    int64_t decHit(int64_t v = 1) { return Atomic::subFetch(m_hit, v); }
+    int64_t decHit(int64_t v = 1) { return Atomic::subFetch(hit_, v); }
 
     /**
      * @brief 获取 get 请求计数（只读）
      * @return 当前 get 计数
      */
-    int64_t getGet() const { return m_get; }
+    int64_t getGet() const { return get_; }
 
     /**
      * @brief 获取 set 请求计数（只读）
      * @return 当前 set 计数
      */
-    int64_t getSet() const { return m_set; }
+    int64_t getSet() const { return set_; }
 
     /**
      * @brief 获取 del 请求计数（只读）
      * @return 当前 del 计数
      */
-    int64_t getDel() const { return m_del; }
+    int64_t getDel() const { return del_; }
 
     /**
      * @brief 获取 timeout（超时）计数（只读）
      * @return 当前 timeout 计数
      */
-    int64_t getTimeout() const { return m_timeout; }
+    int64_t getTimeout() const { return timeout_; }
 
     /**
      * @brief 获取 prune（修剪/淘汰）计数（只读）
      * @return 当前 prune 计数
      */
-    int64_t getPrune() const { return m_prune; }
+    int64_t getPrune() const { return prune_; }
 
     /**
      * @brief 获取 hit（命中）计数（只读）
      * @return 当前 hit 计数
      */
-    int64_t getHit() const { return m_hit; }
+    int64_t getHit() const { return hit_; }
 
     /**
      * @brief 计算命中率
      * @return 命中率（0.0 - 1.0），当 get 为 0 时返回 0
      */
-    double getHitRate() const { return m_get ? (m_hit * 1.0 / m_get) : 0; }
+    double getHitRate() const { return get_ ? (hit_ * 1.0 / get_) : 0; }
 
     /**
      * @brief 合并另一个 CacheStatus 到当前对象中（累加每个计数）
@@ -168,17 +168,17 @@ public:
 
 private:
     /// 请求计数
-    int64_t m_get = 0;
+    int64_t get_ = 0;
     /// 请求计数
-    int64_t m_set = 0;
+    int64_t set_ = 0;
     /// 请求计数
-    int64_t m_del = 0;
+    int64_t del_ = 0;
     /// （超时）计数
-    int64_t m_timeout = 0;
+    int64_t timeout_ = 0;
     /// （修剪/淘汰）计数
-    int64_t m_prune = 0;
+    int64_t prune_ = 0;
     /// （命中）计数
-    int64_t m_hit = 0;
+    int64_t hit_ = 0;
 };
 
 std::ostream& operator<<(std::ostream& os, const CacheStatus& status);

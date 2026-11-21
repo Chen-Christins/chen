@@ -12,9 +12,9 @@ namespace chen::http {
 static Logger::ptr logger = LOG_NAME("system");
 
 H2Session::H2Session(Socket::ptr sock, IOManager* worker, ServletDispatch::ptr dispatch)
-    : m_socket(sock)
-    , m_worker(worker)
-    , m_dispatch(dispatch)
+    : socket_(sock)
+    , worker_(worker)
+    , dispatch_(dispatch)
 {
 }
 
@@ -43,7 +43,7 @@ bool H2Session::init()
             return 0;
         });
 
-    rv = nghttp2_session_server_new(&m_session, callbacks, this);
+    rv = nghttp2_session_server_new(&session_, callbacks, this);
     nghttp2_session_callbacks_del(callbacks);
 
     if (rv != 0) {
@@ -56,7 +56,7 @@ bool H2Session::init()
         {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100},
         {NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE, 65535},
     };
-    rv = nghttp2_submit_settings(m_session, NGHTTP2_FLAG_NONE, iv, sizeof(iv) / sizeof(iv[0]));
+    rv = nghttp2_submit_settings(session_, NGHTTP2_FLAG_NONE, iv, sizeof(iv) / sizeof(iv[0]));
     if (rv != 0) {
         ERROR(logger) << "nghttp2_submit_settings failed: " << nghttp2_strerror(rv);
         return false;
@@ -70,16 +70,16 @@ void H2Session::run()
     std::vector<uint8_t> buf(65536);
     bool has_active_streams = false;
 
-    while (!m_stopping) {
+    while (!stopping_) {
         processCommands();
 
-        bool need_read = nghttp2_session_want_read(m_session) != 0;
+        bool need_read = nghttp2_session_want_read(session_) != 0;
 
         if (need_read) {
             // Short timeout when streams are active so responses get flushed promptly
-            m_socket->setRecvTimeout(has_active_streams ? 250 : UINT64_MAX);
+            socket_->setRecvTimeout(has_active_streams ? 250 : UINT64_MAX);
 
-            int len = m_socket->recv(buf.data(), buf.size());
+            int len = socket_->recv(buf.data(), buf.size());
             if (len == 0) {
                 DEBUG(logger) << "H2 connection closed by peer";
                 break;
@@ -92,7 +92,7 @@ void H2Session::run()
                     break;
                 }
             } else {
-                ssize_t readlen = nghttp2_session_mem_recv(m_session, buf.data(), len);
+                ssize_t readlen = nghttp2_session_mem_recv(session_, buf.data(), len);
                 if (readlen < 0) {
                     WARN(logger) << "nghttp2_session_mem_recv error: " << nghttp2_strerror((int)readlen);
                     break;
@@ -102,17 +102,17 @@ void H2Session::run()
 
         processCommands();
 
-        if (nghttp2_session_want_write(m_session)) {
+        if (nghttp2_session_want_write(session_)) {
             doSend();
-            m_pendingBodies.clear();
+            pending_bodies_.clear();
         }
 
         {
-            std::shared_lock lock(m_streamMutex);
-            has_active_streams = !m_streams.empty();
+            std::shared_lock lock(stream_mutex_);
+            has_active_streams = !streams_.empty();
         }
 
-        if (need_read == 0 && nghttp2_session_want_write(m_session) == 0) {
+        if (need_read == 0 && nghttp2_session_want_write(session_) == 0) {
             if (!has_active_streams) {
                 DEBUG(logger) << "H2 session idle, closing";
                 break;
@@ -121,26 +121,27 @@ void H2Session::run()
     }
 
     // Graceful shutdown
-    if (!m_stopping) {
-        nghttp2_submit_goaway(m_session, NGHTTP2_FLAG_NONE, nghttp2_session_get_last_proc_stream_id(m_session), 0, nullptr, 0);
+    if (!stopping_) {
+        nghttp2_submit_goaway(
+            session_, NGHTTP2_FLAG_NONE, nghttp2_session_get_last_proc_stream_id(session_), 0, nullptr, 0);
         doSend();
     }
 }
 
 void H2Session::close()
 {
-    m_stopping = true;
-    if (m_session) {
-        nghttp2_session_del(m_session);
-        m_session = nullptr;
+    stopping_ = true;
+    if (session_) {
+        nghttp2_session_del(session_);
+        session_ = nullptr;
     }
 }
 
 void H2Session::postCommand(Command cmd)
 {
     {
-        std::lock_guard lock(m_cmdMutex);
-        m_commands.push(std::move(cmd));
+        std::lock_guard lock(cmd_mutex_);
+        commands_.push(std::move(cmd));
     }
 }
 
@@ -150,7 +151,7 @@ int H2Session::sendResponse(int32_t stream_id, HttpResponse::ptr rsp)
     auto nva = build_response_nva((int)rsp->getStatus(), rsp->getHeaders(), rsp->getCookies(), temp_strs);
 
     if (rsp->getBody().empty()) {
-        int rv = nghttp2_submit_response(m_session, stream_id, nva.data(), nva.size(), nullptr);
+        int rv = nghttp2_submit_response(session_, stream_id, nva.data(), nva.size(), nullptr);
         if (rv != 0) {
             ERROR(logger) << "nghttp2_submit_response failed: " << nghttp2_strerror(rv);
         }
@@ -196,9 +197,9 @@ int H2Session::sendResponse(int32_t stream_id, HttpResponse::ptr rsp)
     // synchronously in the connection fiber.
 
     // Keep body_ctx alive until doSend() drains it
-    m_pendingBodies.push_back(body_ctx);
+    pending_bodies_.push_back(body_ctx);
 
-    int rv = nghttp2_submit_response(m_session, stream_id, nva.data(), nva.size(), &data_prd);
+    int rv = nghttp2_submit_response(session_, stream_id, nva.data(), nva.size(), &data_prd);
     if (rv != 0) {
         ERROR(logger) << "nghttp2_submit_response with body failed: " << nghttp2_strerror(rv);
     }
@@ -209,8 +210,8 @@ void H2Session::processCommands()
 {
     std::queue<Command> cmds;
     {
-        std::lock_guard lock(m_cmdMutex);
-        cmds.swap(m_commands);
+        std::lock_guard lock(cmd_mutex_);
+        cmds.swap(commands_);
     }
 
     while (!cmds.empty()) {
@@ -223,7 +224,8 @@ void H2Session::processCommands()
             // TODO: streaming data via nghttp2_submit_data
             break;
         case Command::GOAWAY:
-            nghttp2_submit_goaway(m_session, NGHTTP2_FLAG_NONE, nghttp2_session_get_last_proc_stream_id(m_session), 0, nullptr, 0);
+            nghttp2_submit_goaway(
+                session_, NGHTTP2_FLAG_NONE, nghttp2_session_get_last_proc_stream_id(session_), 0, nullptr, 0);
             break;
         }
         cmds.pop();
@@ -234,7 +236,7 @@ void H2Session::doSend()
 {
     for (;;) {
         const uint8_t* data = nullptr;
-        ssize_t rv = nghttp2_session_mem_send(m_session, &data);
+        ssize_t rv = nghttp2_session_mem_send(session_, &data);
         if (rv < 0) {
             ERROR(logger) << "nghttp2_session_mem_send error: " << nghttp2_strerror((int)rv);
             break;
@@ -242,7 +244,7 @@ void H2Session::doSend()
         if (rv == 0) {
             break;
         }
-        int written = m_socket->send(data, rv);
+        int written = socket_->send(data, rv);
         if (written < 0) {
             ERROR(logger) << "H2 socket send error: " << strerror(errno);
             break;
@@ -258,9 +260,9 @@ void H2Session::processStream(int32_t stream_id)
 {
     StreamCtx* ctx_ptr;
     {
-        std::shared_lock lock(m_streamMutex);
-        auto it = m_streams.find(stream_id);
-        if (it == m_streams.end()) {
+        std::shared_lock lock(stream_mutex_);
+        auto it = streams_.find(stream_id);
+        if (it == streams_.end()) {
             return;
         }
         ctx_ptr = &it->second;
@@ -274,11 +276,11 @@ void H2Session::processStream(int32_t stream_id)
     }
     req->init();
 
-    auto rsp = std::make_shared<HttpResponse>(HttpRequest::HTTP2_VERSION, false);
+    auto rsp = std::make_shared<HttpResponse>(HttpRequest::kHttp2Version, false);
     auto stream = std::make_shared<H2Stream>(shared_from_this(), stream_id);
 
-    if (m_dispatch) {
-        m_dispatch->handle(req, rsp, stream);
+    if (dispatch_) {
+        dispatch_->handle(req, rsp, stream);
     }
 
     if (rsp->isStreaming()) {
@@ -298,9 +300,9 @@ int H2Session::on_begin_headers(nghttp2_session* session, const nghttp2_frame* f
     if (frame->hd.type != NGHTTP2_HEADERS)
         return 0;
     if (frame->headers.cat == NGHTTP2_HCAT_REQUEST) {
-        std::unique_lock lock(h2->m_streamMutex);
-        auto& ctx = h2->m_streams[frame->hd.stream_id];
-        ctx.request = std::make_shared<HttpRequest>(HttpRequest::HTTP2_VERSION, false);
+        std::unique_lock lock(h2->stream_mutex_);
+        auto& ctx = h2->streams_[frame->hd.stream_id];
+        ctx.request = std::make_shared<HttpRequest>(HttpRequest::kHttp2Version, false);
         ctx.request->setStreamId(frame->hd.stream_id);
         ctx.headers_done = false;
         ctx.body_done = false;
@@ -318,9 +320,9 @@ int H2Session::on_header(
     void* user_data)
 {
     auto* h2 = static_cast<H2Session*>(user_data);
-    std::shared_lock lock(h2->m_streamMutex);
-    auto it = h2->m_streams.find(frame->hd.stream_id);
-    if (it == h2->m_streams.end())
+    std::shared_lock lock(h2->stream_mutex_);
+    auto it = h2->streams_.find(frame->hd.stream_id);
+    if (it == h2->streams_.end())
         return 0;
 
     auto& ctx = it->second;
@@ -364,9 +366,9 @@ int H2Session::on_frame_recv(nghttp2_session* session, const nghttp2_frame* fram
 
         // Mark state under lock
         {
-            std::shared_lock lock(h2->m_streamMutex);
-            auto it = h2->m_streams.find(frame->hd.stream_id);
-            if (it != h2->m_streams.end()) {
+            std::shared_lock lock(h2->stream_mutex_);
+            auto it = h2->streams_.find(frame->hd.stream_id);
+            if (it != h2->streams_.end()) {
                 it->second.headers_done = true;
                 if (end_stream) {
                     it->second.body_done = true;
@@ -377,16 +379,16 @@ int H2Session::on_frame_recv(nghttp2_session* session, const nghttp2_frame* fram
         // Spawn stream fiber
         auto self = h2->shared_from_this();
         int32_t sid = frame->hd.stream_id;
-        h2->m_worker->schedule([self, sid]() {
+        h2->worker_->schedule([self, sid]() {
             self->processStream(sid);
         });
         break;
     }
     case NGHTTP2_DATA: {
         if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
-            std::shared_lock lock(h2->m_streamMutex);
-            auto it = h2->m_streams.find(frame->hd.stream_id);
-            if (it != h2->m_streams.end()) {
+            std::shared_lock lock(h2->stream_mutex_);
+            auto it = h2->streams_.find(frame->hd.stream_id);
+            if (it != h2->streams_.end()) {
                 it->second.body_done = true;
             }
         }
@@ -401,9 +403,9 @@ int H2Session::on_frame_recv(nghttp2_session* session, const nghttp2_frame* fram
 int H2Session::on_data_chunk_recv(nghttp2_session* session, uint8_t flags, int32_t stream_id, const uint8_t* data, size_t len, void* user_data)
 {
     auto* h2 = static_cast<H2Session*>(user_data);
-    std::shared_lock lock(h2->m_streamMutex);
-    auto it = h2->m_streams.find(stream_id);
-    if (it != h2->m_streams.end()) {
+    std::shared_lock lock(h2->stream_mutex_);
+    auto it = h2->streams_.find(stream_id);
+    if (it != h2->streams_.end()) {
         it->second.body.append((const char*)data, len);
     }
     return 0;
@@ -415,8 +417,8 @@ int H2Session::on_stream_close(nghttp2_session* session, int32_t stream_id, uint
     if (error_code != 0) {
         WARN(logger) << "H2 stream " << stream_id << " closed with error: " << nghttp2_http2_strerror(error_code);
     }
-    std::unique_lock lock(h2->m_streamMutex);
-    h2->m_streams.erase(stream_id);
+    std::unique_lock lock(h2->stream_mutex_);
+    h2->streams_.erase(stream_id);
     return 0;
 }
 

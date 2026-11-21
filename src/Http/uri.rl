@@ -149,53 +149,49 @@ Uri::ptr Uri::Create(const std::string& uristr) {
 }
 
 Uri::Uri()
-    :m_port(0) {
+    : port_(0) {
 }
 
 bool Uri::isDefaultPort() const {
-    if(m_port == 0) {
+    if (port_ == 0) {
         return true;
     }
-    if(m_scheme == "http"
-            || m_scheme == "ws") {
-        return m_port == 80;
-    } else if(m_scheme == "https"
-            || m_scheme == "wss") {
-        return m_port == 443;
+    if (scheme_ == "http" || scheme_ == "ws") {
+        return port_ == 80;
+    } else if (scheme_ == "https" || scheme_ == "wss") {
+        return port_ == 443;
     }
     return false;
 }
 
 const std::string& Uri::getPath() const {
     static std::string s_default_path = "/";
-    return m_path.empty() ? s_default_path : m_path;
+    return path_.empty() ? s_default_path : path_;
 }
 
 int32_t Uri::getPort() const {
-    if(m_port) {
-        return m_port;
+    if (port_) {
+        return port_;
     }
-    if(m_scheme == "http"
-        || m_scheme == "ws") {
+    if (scheme_ == "http" || scheme_ == "ws") {
         return 80;
-    } else if(m_scheme == "https"
-            || m_scheme == "wss") {
+    } else if (scheme_ == "https" || scheme_ == "wss") {
         return 443;
     }
-    return m_port;
+    return port_;
 }
 
 std::ostream& Uri::dump(std::ostream& os) const {
-    os << m_scheme << "://"
-       << m_userinfo
-       << (m_userinfo.empty() ? "" : "@")
-       << m_host
-       << (isDefaultPort() ? "" : ":" + std::to_string(m_port))
+    os << scheme_ << "://"
+       << userinfo_
+       << (userinfo_.empty() ? "" : "@")
+       << host_
+       << (isDefaultPort() ? "" : ":" + std::to_string(port_))
        << getPath()
-       << (m_query.empty() ? "" : "?")
-       << m_query
-       << (m_fragment.empty() ? "" : "#")
-       << m_fragment;
+       << (query_.empty() ? "" : "?")
+       << query_
+       << (fragment_.empty() ? "" : "#")
+       << fragment_;
     return os;
 }
 
@@ -206,8 +202,8 @@ std::string Uri::toString() const {
 }
 
 Address::ptr Uri::createAddress() const {
-    auto addr = Address::LookupAnyIPAddress(m_host);
-    if(addr) {
+    auto addr = Address::LookupAnyIPAddress(host_);
+    if (addr) {
         addr->setPort(getPort());
     }
     return addr;

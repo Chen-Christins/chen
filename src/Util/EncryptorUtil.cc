@@ -107,67 +107,70 @@ static std::string evp_hmac(const void* data, size_t data_len, const void* key, 
 
 GCMResult EncryptorUtil::EncryptAES128GCM(const std::string& plaintext, const std::string& key, const std::string& iv)
 {
-    if (!ValidateKeySize(key, AES128_KEY_SIZE)) {
+    if (!ValidateKeySize(key, kAes128KeySize)) {
         return {false, "", "", "Invalid key size for AES-128. Expected 16 bytes."};
     }
 
-    std::string actual_iv = iv.empty() ? GenerateRandomIV(GCM_IV_SIZE) : iv;
-    if (actual_iv.size() != GCM_IV_SIZE) {
+    std::string actual_iv = iv.empty() ? GenerateRandomIV(kGcmIvSize) : iv;
+    if (actual_iv.size() != kGcmIvSize) {
         return {false, "", "", "Invalid IV size for AES-GCM. Expected 12 bytes."};
     }
 
-    return EncryptGCM(plaintext, key, actual_iv, AES128_KEY_SIZE);
+    return EncryptGCM(plaintext, key, actual_iv, kAes128KeySize);
 }
 
 GCMResult EncryptorUtil::DecryptAES128GCM(const std::string& ciphertext, const std::string& tag, const std::string& key, const std::string& iv)
 {
-    if (!ValidateKeySize(key, AES128_KEY_SIZE)) {
+    if (!ValidateKeySize(key, kAes128KeySize)) {
         return {false, "", "", "Invalid key size for AES-128. Expected 16 bytes."};
     }
 
-    if (iv.size() != GCM_IV_SIZE) {
+    if (iv.size() != kGcmIvSize) {
         return {false, "", "", "Invalid IV size for AES-GCM. Expected 12 bytes."};
     }
 
-    if (tag.size() != GCM_TAG_SIZE) {
+    if (tag.size() != kGcmTagSize) {
         return {false, "", "", "Invalid tag size for AES-GCM. Expected 16 bytes."};
     }
 
-    return DecryptGCM(ciphertext, tag, key, iv, AES128_KEY_SIZE);
+    return DecryptGCM(ciphertext, tag, key, iv, kAes128KeySize);
 }
 
 GCMResult EncryptorUtil::EncryptAES256GCM(const std::string& plaintext, const std::string& key, const std::string& iv)
 {
-    if (!ValidateKeySize(key, AES256_KEY_SIZE)) {
+    if (!ValidateKeySize(key, kAes256KeySize)) {
         return {false, "", "", "Invalid key size for AES-256. Expected 32 bytes."};
     }
 
-    std::string actual_iv = iv.empty() ? GenerateRandomIV(GCM_IV_SIZE) : iv;
-    if (actual_iv.size() != GCM_IV_SIZE) {
+    std::string actual_iv = iv.empty() ? GenerateRandomIV(kGcmIvSize) : iv;
+    if (actual_iv.size() != kGcmIvSize) {
         return {false, "", "", "Invalid IV size for AES-GCM. Expected 12 bytes."};
     }
 
-    return EncryptGCM(plaintext, key, actual_iv, AES256_KEY_SIZE);
+    return EncryptGCM(plaintext, key, actual_iv, kAes256KeySize);
 }
 
 GCMResult EncryptorUtil::DecryptAES256GCM(const std::string& ciphertext, const std::string& tag, const std::string& key, const std::string& iv)
 {
-    if (!ValidateKeySize(key, AES256_KEY_SIZE)) {
+    if (!ValidateKeySize(key, kAes256KeySize)) {
         return {false, "", "", "Invalid key size for AES-256. Expected 32 bytes."};
     }
 
-    if (iv.size() != GCM_IV_SIZE) {
+    if (iv.size() != kGcmIvSize) {
         return {false, "", "", "Invalid IV size for AES-GCM. Expected 12 bytes."};
     }
 
-    if (tag.size() != GCM_TAG_SIZE) {
+    if (tag.size() != kGcmTagSize) {
         return {false, "", "", "Invalid tag size for AES-GCM. Expected 16 bytes."};
     }
 
-    return DecryptGCM(ciphertext, tag, key, iv, AES256_KEY_SIZE);
+    return DecryptGCM(ciphertext, tag, key, iv, kAes256KeySize);
 }
 
-GCMResult EncryptorUtil::EncryptGCM(const std::string& plaintext, const std::string& key, const std::string& iv, int keySize)
+GCMResult EncryptorUtil::EncryptGCM(const std::string& plaintext,
+    const std::string& key,
+    const std::string& iv,
+    int key_size)
 {
     GCMResult result{false, "", "", ""};
 
@@ -177,7 +180,7 @@ GCMResult EncryptorUtil::EncryptGCM(const std::string& plaintext, const std::str
         return result;
     }
 
-    const EVP_CIPHER* cipher = (keySize == AES128_KEY_SIZE) ? EVP_aes_128_gcm() : EVP_aes_256_gcm();
+    const EVP_CIPHER* cipher = (key_size == kAes128KeySize) ? EVP_aes_128_gcm() : EVP_aes_256_gcm();
 
     if (1 != EVP_EncryptInit_ex(ctx, cipher, NULL, NULL, NULL)) {
         result.error = "Failed to initialize cipher";
@@ -219,8 +222,8 @@ GCMResult EncryptorUtil::EncryptGCM(const std::string& plaintext, const std::str
 
     ciphertext.resize(ciphertext_len);
 
-    std::string tag(GCM_TAG_SIZE, '\0');
-    if (1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_TAG_SIZE, (void*)tag.c_str())) {
+    std::string tag(kGcmTagSize, '\0');
+    if (1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, kGcmTagSize, (void*)tag.c_str())) {
         result.error = "Failed to get authentication tag";
         EVP_CIPHER_CTX_free(ctx);
         return result;
@@ -234,7 +237,11 @@ GCMResult EncryptorUtil::EncryptGCM(const std::string& plaintext, const std::str
     return result;
 }
 
-GCMResult EncryptorUtil::DecryptGCM(const std::string& ciphertext, const std::string& tag, const std::string& key, const std::string& iv, int keySize)
+GCMResult EncryptorUtil::DecryptGCM(const std::string& ciphertext,
+    const std::string& tag,
+    const std::string& key,
+    const std::string& iv,
+    int key_size)
 {
     GCMResult result{false, "", "", ""};
 
@@ -244,7 +251,7 @@ GCMResult EncryptorUtil::DecryptGCM(const std::string& ciphertext, const std::st
         return result;
     }
 
-    const EVP_CIPHER* cipher = (keySize == AES128_KEY_SIZE) ? EVP_aes_128_gcm() : EVP_aes_256_gcm();
+    const EVP_CIPHER* cipher = (key_size == kAes128KeySize) ? EVP_aes_128_gcm() : EVP_aes_256_gcm();
 
     if (1 != EVP_DecryptInit_ex(ctx, cipher, NULL, NULL, NULL)) {
         result.error = "Failed to initialize cipher";
@@ -320,22 +327,22 @@ std::string EncryptorUtil::GenerateRandomKey(size_t length)
     return std::string(key.begin(), key.end());
 }
 
-bool EncryptorUtil::ValidateKeySize(const std::string& key, size_t expectedSize)
+bool EncryptorUtil::ValidateKeySize(const std::string& key, size_t expected_size)
 {
-    return key.length() == expectedSize;
+    return key.length() == expected_size;
 }
 
 // ============================================================================
 // RSA-SHA256 签名
 // ============================================================================
 
-std::string EncryptorUtil::RS256Sign(const std::string& data, const std::string& privateKeyPem)
+std::string EncryptorUtil::RS256Sign(const std::string& data, const std::string& private_key_pem)
 {
-    if (privateKeyPem.empty()) {
+    if (private_key_pem.empty()) {
         return "";
     }
 
-    BIO* bio = BIO_new_mem_buf(privateKeyPem.data(), static_cast<int>(privateKeyPem.size()));
+    BIO* bio = BIO_new_mem_buf(private_key_pem.data(), static_cast<int>(private_key_pem.size()));
     if (!bio) {
         return "";
     }
@@ -353,7 +360,7 @@ std::string EncryptorUtil::RS256Sign(const std::string& data, const std::string&
     }
 
     std::string signature;
-    size_t sigLen = 0;
+    size_t sig_len = 0;
 
     if (EVP_DigestSignInit(ctx, nullptr, EVP_sha256(), nullptr, pkey) != 1) {
         goto cleanup;
@@ -362,15 +369,15 @@ std::string EncryptorUtil::RS256Sign(const std::string& data, const std::string&
         goto cleanup;
     }
     // 获取签名长度
-    if (EVP_DigestSignFinal(ctx, nullptr, &sigLen) != 1) {
+    if (EVP_DigestSignFinal(ctx, nullptr, &sig_len) != 1) {
         goto cleanup;
     }
     {
-        std::vector<unsigned char> sigBuf(sigLen);
-        if (EVP_DigestSignFinal(ctx, sigBuf.data(), &sigLen) != 1) {
+        std::vector<unsigned char> sigBuf(sig_len);
+        if (EVP_DigestSignFinal(ctx, sigBuf.data(), &sig_len) != 1) {
             goto cleanup;
         }
-        signature.assign(reinterpret_cast<const char*>(sigBuf.data()), sigLen);
+        signature.assign(reinterpret_cast<const char*>(sigBuf.data()), sig_len);
     }
 
 cleanup:
@@ -383,13 +390,15 @@ cleanup:
 // RSA-SHA256 验签
 // ============================================================================
 
-bool EncryptorUtil::RS256Verify(const std::string& data, const std::string& signature, const std::string& publicKeyPem)
+bool EncryptorUtil::RS256Verify(const std::string& data,
+    const std::string& signature,
+    const std::string& public_key_pem)
 {
-    if (publicKeyPem.empty() || signature.empty()) {
+    if (public_key_pem.empty() || signature.empty()) {
         return false;
     }
 
-    BIO* bio = BIO_new_mem_buf(publicKeyPem.data(), static_cast<int>(publicKeyPem.size()));
+    BIO* bio = BIO_new_mem_buf(public_key_pem.data(), static_cast<int>(public_key_pem.size()));
     if (!bio) {
         return false;
     }
@@ -458,44 +467,44 @@ RSAKeyPairResult EncryptorUtil::GenerateRSAKeyPair(unsigned bits)
     EVP_PKEY_CTX_free(ctx);
 
     // 写出私钥
-    BIO* privBio = BIO_new(BIO_s_mem());
-    if (!privBio) {
+    BIO* priv_bio = BIO_new(BIO_s_mem());
+    if (!priv_bio) {
         result.error = "BIO_new for private key failed";
         EVP_PKEY_free(pkey);
         return result;
     }
-    if (PEM_write_bio_PrivateKey(privBio, pkey, nullptr, nullptr, 0, nullptr, nullptr) != 1) {
+    if (PEM_write_bio_PrivateKey(priv_bio, pkey, nullptr, nullptr, 0, nullptr, nullptr) != 1) {
         result.error = "PEM_write_bio_PrivateKey failed";
-        BIO_free(privBio);
+        BIO_free(priv_bio);
         EVP_PKEY_free(pkey);
         return result;
     }
     {
-        const char* pemData;
-        long pemLen = BIO_get_mem_data(privBio, &pemData);
-        result.private_key.assign(pemData, pemLen);
+        const char* pem_data;
+        long pem_len = BIO_get_mem_data(priv_bio, &pem_data);
+        result.private_key.assign(pem_data, pem_len);
     }
-    BIO_free(privBio);
+    BIO_free(priv_bio);
 
     // 写出公钥
-    BIO* pubBio = BIO_new(BIO_s_mem());
-    if (!pubBio) {
+    BIO* pub_bio = BIO_new(BIO_s_mem());
+    if (!pub_bio) {
         result.error = "BIO_new for public key failed";
         EVP_PKEY_free(pkey);
         return result;
     }
-    if (PEM_write_bio_PUBKEY(pubBio, pkey) != 1) {
+    if (PEM_write_bio_PUBKEY(pub_bio, pkey) != 1) {
         result.error = "PEM_write_bio_PUBKEY failed";
-        BIO_free(pubBio);
+        BIO_free(pub_bio);
         EVP_PKEY_free(pkey);
         return result;
     }
     {
-        const char* pemData;
-        long pemLen = BIO_get_mem_data(pubBio, &pemData);
-        result.public_key.assign(pemData, pemLen);
+        const char* pem_data;
+        long pem_len = BIO_get_mem_data(pub_bio, &pem_data);
+        result.public_key.assign(pem_data, pem_len);
     }
-    BIO_free(pubBio);
+    BIO_free(pub_bio);
 
     EVP_PKEY_free(pkey);
     result.success = true;
@@ -734,16 +743,19 @@ bool EncryptorUtil::SecureCompare(const std::string& a, const std::string& b)
     return CRYPTO_memcmp(a.data(), b.data(), a.size()) == 0;
 }
 
-std::string EncryptorUtil::PBKDF2_SHA256(const std::string& password, const std::string& salt, int iterations, size_t keyLen)
+std::string EncryptorUtil::PBKDF2_SHA256(const std::string& password,
+    const std::string& salt,
+    int iterations,
+    size_t key_len)
 {
-    if (iterations <= 0 || keyLen == 0) {
+    if (iterations <= 0 || key_len == 0) {
         return "";
     }
 
-    std::string key(keyLen, '\0');
+    std::string key(key_len, '\0');
     int ret = PKCS5_PBKDF2_HMAC(
-        password.data(), static_cast<int>(password.size()), reinterpret_cast<const unsigned char*>(salt.data()), static_cast<int>(salt.size()),
-        iterations, EVP_sha256(), static_cast<int>(keyLen), reinterpret_cast<unsigned char*>(key.data()));
+        password.data(), static_cast<int>(password.size()), reinterpret_cast<const unsigned char*>(salt.data()), static_cast<int>(salt.size()), iterations, EVP_sha256(),
+        static_cast<int>(key_len), reinterpret_cast<unsigned char*>(key.data()));
     if (ret != 1) {
         return "";
     }
@@ -1416,7 +1428,10 @@ static bool bcrypt_decode(const char*& p, uint8_t* out, int len)
     return bytes == len;
 }
 
-std::string EncryptorUtil::BCryptHashWithSalt(const std::string& password, unsigned rounds, const uint8_t* salt, size_t saltLen)
+std::string EncryptorUtil::BCryptHashWithSalt(const std::string& password,
+    unsigned rounds,
+    const uint8_t* salt,
+    size_t salt_len)
 {
     if (rounds < 4) {
         rounds = 4;
@@ -1426,7 +1441,7 @@ std::string EncryptorUtil::BCryptHashWithSalt(const std::string& password, unsig
     }
 
     uint32_t P[18], S[4][256];
-    eksblowfish((const uint8_t*)password.c_str(), password.size(), salt, saltLen, (uint32_t)(1u << rounds), P, S);
+    eksblowfish((const uint8_t*)password.c_str(), password.size(), salt, salt_len, (uint32_t)(1u << rounds), P, S);
 
     // 加密 "OrpheanBeholderScryDoubt"
     // bcrypt 标准要求 Blowfish 输入输出为 big-endian 字节序

@@ -54,15 +54,15 @@ public:
 
 private:
     /// 互斥锁
-    mutable std::mutex m_mutex;
+    mutable std::mutex mutex_;
     /// 令牌补充速率（个/秒）
-    double m_qps;
+    double qps_;
     /// 桶容量
-    double m_burst;
+    double burst_;
     /// 当前令牌数
-    double m_tokens;
+    double tokens_;
     /// 上次补充令牌的时间点
-    std::chrono::steady_clock::time_point m_lastTime;
+    std::chrono::steady_clock::time_point last_time_;
 };
 
 } // namespace chen

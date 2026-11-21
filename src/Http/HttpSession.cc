@@ -99,7 +99,7 @@ int HttpSession::readBodyInto(HttpRequest::ptr req, const std::string& leftover)
     return 0;
 }
 
-int HttpSession::readBodyStreaming(uint64_t totalLen, BodyCallback cb)
+int HttpSession::readBodyStreaming(uint64_t total_len, BodyCallback cb)
 {
     uint64_t buff_size = HttpRequestParser::GetHttpRequestBufferSize();
     std::shared_ptr<char> buffer(new char[buff_size], [](char* ptr) {
@@ -110,19 +110,19 @@ int HttpSession::readBodyStreaming(uint64_t totalLen, BodyCallback cb)
     uint64_t consumed = 0;
 
     // 回放 header 之后已多读到的 body 字节
-    if (!m_pendingBody.empty()) {
-        uint64_t n = std::min<uint64_t>(totalLen, m_pendingBody.size());
+    if (!pending_body_.empty()) {
+        uint64_t n = std::min<uint64_t>(total_len, pending_body_.size());
         if (n > 0) {
-            if (cb && !cb(m_pendingBody.data(), n)) {
+            if (cb && !cb(pending_body_.data(), n)) {
                 return -1;
             }
             consumed = n;
         }
-        m_pendingBody.clear();
+        pending_body_.clear();
     }
 
-    while (consumed < totalLen) {
-        uint64_t want = std::min<uint64_t>(buff_size, totalLen - consumed);
+    while (consumed < total_len) {
+        uint64_t want = std::min<uint64_t>(buff_size, total_len - consumed);
         int len = readFixSize(data, want);
         if (len <= 0) {
             close();
@@ -135,13 +135,13 @@ int HttpSession::readBodyStreaming(uint64_t totalLen, BodyCallback cb)
     }
 
     // 已消费部分从剩余量中扣除（下限 0）
-    m_bodyRemaining = (m_bodyRemaining > consumed) ? (m_bodyRemaining - consumed) : 0;
+    body_remaining_ = (body_remaining_ > consumed) ? (body_remaining_ - consumed) : 0;
     return 0;
 }
 
 int HttpSession::drainBody()
 {
-    if (m_bodyRemaining == 0) {
+    if (body_remaining_ == 0) {
         return 0;
     }
 
@@ -151,14 +151,14 @@ int HttpSession::drainBody()
     });
     char* data = buffer.get();
 
-    while (m_bodyRemaining > 0) {
-        uint64_t want = std::min<uint64_t>(buff_size, m_bodyRemaining);
+    while (body_remaining_ > 0) {
+        uint64_t want = std::min<uint64_t>(buff_size, body_remaining_);
         int len = readFixSize(data, want);
         if (len <= 0) {
             close();
             return -1;
         }
-        m_bodyRemaining -= len;
+        body_remaining_ -= len;
     }
     return 0;
 }
@@ -182,7 +182,7 @@ int HttpSession::sendResponseHeader(HttpResponse::ptr rsp)
     std::stringstream ss;
 
     uint8_t version = rsp->getVersion();
-    if (version == HttpRequest::HTTP2_VERSION) {
+    if (version == HttpRequest::kHttp2Version) {
         ss << "[HTTP/2] :status=" << (uint32_t)rsp->getStatus() << " "
            << (rsp->getReason().empty() ? HttpStatusToString(rsp->getStatus()) : rsp->getReason()) << "\r\n";
     } else {

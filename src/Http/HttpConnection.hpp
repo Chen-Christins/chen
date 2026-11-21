@@ -209,8 +209,8 @@ public:
     int sendRequest(HttpRequest::ptr req);
 
 private:
-    uint64_t m_createTime = 0;
-    uint64_t m_request = 0;
+    uint64_t create_time_ = 0;
+    uint64_t request_ = 0;
 };
 
 class HttpConnectionPool {
@@ -314,18 +314,18 @@ private:
     static void ReleasePtr(HttpConnection* ptr, HttpConnectionPool* pool);
 
 private:
-    std::string m_host;
-    std::string m_vhost;
-    uint32_t m_port;
-    uint32_t m_maxSize;
-    uint32_t m_maxAliveTime;
-    uint32_t m_maxRequest;
+    std::string host_;
+    std::string vhost_;
+    uint32_t port_;
+    uint32_t max_size_;
+    uint32_t max_alive_time_;
+    uint32_t max_request_;
     /// 是否使用 TLS（https）
-    bool m_ssl = false;
+    bool ssl_ = false;
 
-    std::mutex m_mutex;
-    std::list<HttpConnection*> m_conns;
-    std::atomic<int32_t> m_total = {0};
+    std::mutex mutex_;
+    std::list<HttpConnection*> conns_;
+    std::atomic<int32_t> total_ = {0};
 };
 
 } // namespace chen::http

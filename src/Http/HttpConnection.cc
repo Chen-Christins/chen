@@ -247,13 +247,13 @@ HttpResult::ptr HttpConnection::DoRequest(HttpRequest::ptr req, Uri::ptr uri, ui
     }
     Socket::ptr sock;
     if (uri->getScheme() == "https") {
-        SSLSocket::ptr sslSock = SSLSocket::CreateTCP(addr);
-        if (sslSock) {
+        SSLSocket::ptr ssl_sock = SSLSocket::CreateTCP(addr);
+        if (ssl_sock) {
             // 虚拟主机 / CDN 需要 SNI，同时用 host 校验服务端证书
-            sslSock->setServerName(uri->getHost());
-            sslSock->setVerifyPeer(g_clientSslVerify->getValue());
+            ssl_sock->setServerName(uri->getHost());
+            ssl_sock->setVerifyPeer(g_clientSslVerify->getValue());
         }
-        sock = sslSock;
+        sock = ssl_sock;
     } else {
         sock = Socket::CreateTCP(addr);
     }
@@ -342,13 +342,13 @@ HttpResult::ptr HttpConnection::DoRequestStreaming(HttpRequest::ptr req, Uri::pt
     }
     Socket::ptr sock;
     if (uri->getScheme() == "https") {
-        SSLSocket::ptr sslSock = SSLSocket::CreateTCP(addr);
-        if (sslSock) {
+        SSLSocket::ptr ssl_sock = SSLSocket::CreateTCP(addr);
+        if (ssl_sock) {
             // 虚拟主机 / CDN 需要 SNI，同时用 host 校验服务端证书
-            sslSock->setServerName(uri->getHost());
-            sslSock->setVerifyPeer(g_clientSslVerify->getValue());
+            ssl_sock->setServerName(uri->getHost());
+            ssl_sock->setVerifyPeer(g_clientSslVerify->getValue());
         }
-        sock = sslSock;
+        sock = ssl_sock;
     } else {
         sock = Socket::CreateTCP(addr);
     }
@@ -382,7 +382,7 @@ HttpResult::ptr HttpConnection::DoRequestStreaming(HttpRequest::ptr req, Uri::pt
 HttpConnection::HttpConnection(Socket::ptr sock, bool owner)
     : SocketStream(sock, owner)
 {
-    m_createTime = TimeUtil::GetCurrentMs();
+    create_time_ = TimeUtil::GetCurrentMs();
 }
 
 HttpConnection::~HttpConnection()
@@ -671,24 +671,24 @@ HttpConnectionPool::HttpConnectionPool(
     uint32_t max_alive_time,
     uint32_t max_request,
     bool ssl)
-    : m_host(host)
-    , m_vhost(vhost)
-    , m_port(port)
-    , m_maxSize(max_size)
-    , m_maxAliveTime(max_alive_time)
-    , m_maxRequest(max_request)
-    , m_ssl(ssl)
+    : host_(host)
+    , vhost_(vhost)
+    , port_(port)
+    , max_size_(max_size)
+    , max_alive_time_(max_alive_time)
+    , max_request_(max_request)
+    , ssl_(ssl)
 {
 }
 
 HttpConnectionPool::~HttpConnectionPool()
 {
-    std::lock_guard lock(m_mutex);
-    for (auto conn : m_conns) {
+    std::lock_guard lock(mutex_);
+    for (auto conn : conns_) {
         delete conn;
     }
-    m_conns.clear();
-    m_total = 0;
+    conns_.clear();
+    total_ = 0;
 }
 
 HttpConnection::ptr HttpConnectionPool::getConnection()
@@ -696,15 +696,15 @@ HttpConnection::ptr HttpConnectionPool::getConnection()
     uint64_t now_ms = TimeUtil::GetCurrentMs();
     std::vector<HttpConnection*> invalid_conns;
     HttpConnection* ptr = nullptr;
-    std::unique_lock lock(m_mutex);
-    while (!m_conns.empty()) {
-        auto conn = *m_conns.begin();
-        m_conns.pop_front();
+    std::unique_lock lock(mutex_);
+    while (!conns_.empty()) {
+        auto conn = *conns_.begin();
+        conns_.pop_front();
         if (!conn->isConnected()) {
             invalid_conns.push_back(conn);
             continue;
         }
-        if ((conn->m_createTime + m_maxAliveTime) <= now_ms) {
+        if ((conn->create_time_ + max_alive_time_) <= now_ms) {
             invalid_conns.push_back(conn);
             continue;
         }
@@ -715,24 +715,24 @@ HttpConnection::ptr HttpConnectionPool::getConnection()
     for (auto i : invalid_conns) {
         delete i;
     }
-    m_total -= invalid_conns.size();
+    total_ -= invalid_conns.size();
 
     if (!ptr) {
-        IPAddress::ptr addr = Address::LookupAnyIPAddress(m_host);
+        IPAddress::ptr addr = Address::LookupAnyIPAddress(host_);
         if (!addr) {
-            ERROR(logger) << "get addr fail: " << m_host;
+            ERROR(logger) << "get addr fail: " << host_;
             return nullptr;
         }
-        addr->setPort(m_port);
+        addr->setPort(port_);
         Socket::ptr sock;
-        if (m_ssl) {
-            SSLSocket::ptr sslSock = SSLSocket::CreateTCP(addr);
-            if (sslSock) {
+        if (ssl_) {
+            SSLSocket::ptr ssl_sock = SSLSocket::CreateTCP(addr);
+            if (ssl_sock) {
                 // 虚拟主机需要 SNI，同时用 host 校验服务端证书
-                sslSock->setServerName(m_vhost.empty() ? m_host : m_vhost);
-                sslSock->setVerifyPeer(g_clientSslVerify->getValue());
+                ssl_sock->setServerName(vhost_.empty() ? host_ : vhost_);
+                ssl_sock->setVerifyPeer(g_clientSslVerify->getValue());
             }
-            sock = sslSock;
+            sock = ssl_sock;
         } else {
             sock = Socket::CreateTCP(addr);
         }
@@ -746,7 +746,7 @@ HttpConnection::ptr HttpConnectionPool::getConnection()
         }
 
         ptr = new HttpConnection(sock);
-        ++m_total;
+        ++total_;
     }
     return HttpConnection::ptr(ptr, std::bind(&HttpConnectionPool::ReleasePtr, std::placeholders::_1, this));
 }
@@ -918,10 +918,10 @@ HttpResult::ptr HttpConnectionPool::doRequest(
         req->setHeader(i.first, i.second);
     }
     if (!has_host) {
-        if (m_vhost.empty()) {
-            req->setHeader("Host", m_host);
+        if (vhost_.empty()) {
+            req->setHeader("Host", host_);
         } else {
-            req->setHeader("Host", m_vhost);
+            req->setHeader("Host", vhost_);
         }
     }
     req->setBody(body);
@@ -944,13 +944,13 @@ HttpResult::ptr HttpConnectionPool::doRequest(HttpRequest::ptr req, uint64_t tim
 {
     auto conn = getConnection();
     if (!conn) {
-        return std::make_shared<HttpResult>(
-            (int)HttpResult::Error::POOL_GET_CONNECTION, nullptr, "pool host:" + m_host + " port:" + std::to_string(m_port));
+        return std::make_shared<HttpResult>((int)HttpResult::Error::POOL_GET_CONNECTION, nullptr,
+            "pool host:" + host_ + " port:" + std::to_string(port_));
     }
     auto sock = conn->getSocket();
     if (!sock) {
-        return std::make_shared<HttpResult>(
-            (int)HttpResult::Error::POOL_INVALID_CONNECTION, nullptr, "pool host:" + m_host + " port:" + std::to_string(m_port));
+        return std::make_shared<HttpResult>((int)HttpResult::Error::POOL_INVALID_CONNECTION, nullptr,
+            "pool host:" + host_ + " port:" + std::to_string(port_));
     }
     sock->setRecvTimeout(timeout_ms);
     int rt = conn->sendRequest(req);
@@ -978,21 +978,22 @@ HttpResult::ptr HttpConnectionPool::doRequest(HttpRequest::ptr req, uint64_t tim
 
 void HttpConnectionPool::ReleasePtr(HttpConnection* ptr, HttpConnectionPool* pool)
 {
-    ++ptr->m_request;
-    if (!ptr->isConnected() || ((ptr->m_createTime + pool->m_maxAliveTime) <= TimeUtil::GetCurrentMs()) || (ptr->m_request >= pool->m_maxRequest)) {
+    ++ptr->request_;
+    if (!ptr->isConnected() || ((ptr->create_time_ + pool->max_alive_time_) <= TimeUtil::GetCurrentMs())
+        || (ptr->request_ >= pool->max_request_)) {
         delete ptr;
-        --pool->m_total;
+        --pool->total_;
         return;
     }
-    std::unique_lock lock(pool->m_mutex);
+    std::unique_lock lock(pool->mutex_);
     // 池已满，直接关闭多余连接
-    if (pool->m_conns.size() >= pool->m_maxSize) {
+    if (pool->conns_.size() >= pool->max_size_) {
         lock.unlock();
         delete ptr;
-        --pool->m_total;
+        --pool->total_;
         return;
     }
-    pool->m_conns.push_back(ptr);
+    pool->conns_.push_back(ptr);
 }
 
 } // namespace chen::http

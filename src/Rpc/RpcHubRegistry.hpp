@@ -103,15 +103,15 @@ private:
 
 private:
     /// peer_id -> 服务实例
-    std::unordered_map<uint32_t, ServiceEntry> m_peers;
+    std::unordered_map<uint32_t, ServiceEntry> peers_;
     /// func_id -> [instance_id -> peer_id]
-    std::unordered_map<uint32_t, std::unordered_map<uint32_t, uint32_t>> m_funcInstances;
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, uint32_t>> func_instances_;
     /// (func_id << 32 | bind_id) -> peer_id
-    std::unordered_map<uint64_t, uint32_t> m_bindings;
+    std::unordered_map<uint64_t, uint32_t> bindings_;
     /// conn -> peer_id
-    std::map<RpcConnection::ptr, uint32_t, std::owner_less<RpcConnection::ptr>> m_connToPeer;
+    std::map<RpcConnection::ptr, uint32_t, std::owner_less<RpcConnection::ptr>> conn_to_peer_;
     /// 读写锁
-    mutable std::shared_mutex m_mutex;
+    mutable std::shared_mutex mutex_;
 };
 
 } // namespace chen::rpc

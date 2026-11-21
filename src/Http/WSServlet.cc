@@ -4,7 +4,7 @@ namespace chen::http {
 
 WSServlet::WSServlet(const std::string& name)
     : Servlet(name)
-    , m_name(name)
+    , name_(name)
 {
 }
 
@@ -19,39 +19,39 @@ int32_t WSServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response, 
 
 FunctionWSServlet::FunctionWSServlet(callback cb, on_connect_cb connect_cb, on_close_cb close_cb)
     : WSServlet("FunctionWSServlet")
-    , m_callback(cb)
-    , m_onConnect(connect_cb)
-    , m_onClose(close_cb)
+    , callback_(cb)
+    , on_connect_(connect_cb)
+    , on_close_(close_cb)
 {
 }
 
 int32_t FunctionWSServlet::onConnect(HttpRequest::ptr header, WSSession::ptr session)
 {
-    if (m_onConnect) {
-        return m_onConnect(header, session);
+    if (on_connect_) {
+        return on_connect_(header, session);
     }
     return 0;
 }
 
 int32_t FunctionWSServlet::onClose(HttpRequest::ptr header, WSSession::ptr session)
 {
-    if (m_onClose) {
-        return m_onClose(header, session);
+    if (on_close_) {
+        return on_close_(header, session);
     }
     return 0;
 }
 
 int32_t FunctionWSServlet::handle(HttpRequest::ptr header, WSFrameMessage::ptr msg, WSSession::ptr session)
 {
-    if (m_callback) {
-        return m_callback(header, msg, session);
+    if (callback_) {
+        return callback_(header, msg, session);
     }
     return 0;
 }
 
 WSServletDispatch::WSServletDispatch()
 {
-    m_name = "WSServletDispatch";
+    name_ = "WSServletDispatch";
 }
 
 void WSServletDispatch::addServlet(

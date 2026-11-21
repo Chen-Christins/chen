@@ -24,8 +24,8 @@ std::string WSFrameHead::toString() const
 }
 
 WSFrameMessage::WSFrameMessage(int opcode, const std::string& data)
-    : m_opcode(opcode)
-    , m_data(data)
+    : opcode_(opcode)
+    , data_(data)
 {
 }
 

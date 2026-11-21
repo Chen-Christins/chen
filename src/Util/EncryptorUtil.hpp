@@ -95,10 +95,10 @@ public:
     /**
      * @brief 校验密钥长度是否与预期一致
      * @param key 密钥
-     * @param expectedSize 期望长度
+     * @param expected_size 期望长度
      * @return bool 是否匹配
      */
-    static bool ValidateKeySize(const std::string& key, size_t expectedSize);
+    static bool ValidateKeySize(const std::string& key, size_t expected_size);
 
     // ========== 摘要/Hash ==========
 
@@ -397,7 +397,10 @@ public:
      * @param keyLen 派生密钥长度（字节），默认 32
      * @return std::string 原始二进制密钥，失败返回空串
      */
-    static std::string PBKDF2_SHA256(const std::string& password, const std::string& salt, int iterations = 100000, size_t keyLen = 32);
+    static std::string PBKDF2_SHA256(const std::string& password,
+        const std::string& salt,
+        int iterations = 100000,
+        size_t key_len = 32);
 
     // ========== 非加密 Hash（哈希表、分片） ==========
 
@@ -490,19 +493,19 @@ public:
     /**
      * @brief RSA-SHA256 签名（用于 JWT RS256 等场景）
      * @param data 待签名数据
-     * @param privateKeyPem PEM 格式的 RSA 私钥字符串
+     * @param private_key_pem PEM 格式的 RSA 私钥字符串
      * @return 原始二进制签名；失败返回空串
      */
-    static std::string RS256Sign(const std::string& data, const std::string& privateKeyPem);
+    static std::string RS256Sign(const std::string& data, const std::string& private_key_pem);
 
     /**
      * @brief RSA-SHA256 验签
      * @param data 原始数据
      * @param signature 待验证的签名（原始二进制）
-     * @param publicKeyPem PEM 格式的 RSA 公钥字符串
+     * @param public_key_pem PEM 格式的 RSA 公钥字符串
      * @return bool 签名是否有效
      */
-    static bool RS256Verify(const std::string& data, const std::string& signature, const std::string& publicKeyPem);
+    static bool RS256Verify(const std::string& data, const std::string& signature, const std::string& public_key_pem);
 
     /**
      * @brief 生成 RSA 密钥对（PEM 格式）
@@ -530,16 +533,26 @@ public:
     static bool BCryptVerify(const std::string& password, const std::string& hash);
 
 private:
-    static const size_t AES128_KEY_SIZE = 16;
-    static const size_t AES256_KEY_SIZE = 32;
-    static const size_t GCM_IV_SIZE = 12;
-    static const size_t GCM_TAG_SIZE = 16;
+    static const size_t kAes128KeySize = 16;
+    static const size_t kAes256KeySize = 32;
+    static const size_t kGcmIvSize = 12;
+    static const size_t kGcmTagSize = 16;
 
-    static GCMResult EncryptGCM(const std::string& plaintext, const std::string& key, const std::string& iv, int keySize);
-    static GCMResult DecryptGCM(const std::string& ciphertext, const std::string& tag, const std::string& key, const std::string& iv, int keySize);
+    static GCMResult EncryptGCM(const std::string& plaintext,
+        const std::string& key,
+        const std::string& iv,
+        int key_size);
+    static GCMResult DecryptGCM(const std::string& ciphertext,
+        const std::string& tag,
+        const std::string& key,
+        const std::string& iv,
+        int key_size);
 
     /// 内部：用指定 salt 计算 bcrypt hash（BCryptHash 生成随机 salt，BCryptVerify 用提取的 salt）
-    static std::string BCryptHashWithSalt(const std::string& password, unsigned rounds, const uint8_t* salt, size_t saltLen);
+    static std::string BCryptHashWithSalt(const std::string& password,
+        unsigned rounds,
+        const uint8_t* salt,
+        size_t salt_len);
 };
 
 } // namespace chen

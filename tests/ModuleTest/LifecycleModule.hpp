@@ -41,7 +41,7 @@ public:
     uint64_t getTickIntervalMs() override;
 
 private:
-    int m_id;
+    int id_;
 };
 
 } // namespace module_test

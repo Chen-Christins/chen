@@ -22,7 +22,7 @@ Socket::ptr Socket::CreateUDP(Address::ptr address)
 {
     Socket::ptr sock(new Socket(address->getFamily(), UDP, 0));
     sock->newSock();
-    sock->m_isConnected = true;
+    sock->is_connected_ = true;
     return sock;
 }
 
@@ -36,7 +36,7 @@ Socket::ptr Socket::CreateUDPSocket()
 {
     Socket::ptr sock(new Socket(IPv4, UDP, 0));
     sock->newSock();
-    sock->m_isConnected = true;
+    sock->is_connected_ = true;
     return sock;
 }
 
@@ -50,7 +50,7 @@ Socket::ptr Socket::CreateUDPSocket6()
 {
     Socket::ptr sock(new Socket(IPv6, UDP, 0));
     sock->newSock();
-    sock->m_isConnected = true;
+    sock->is_connected_ = true;
     return sock;
 }
 
@@ -67,11 +67,11 @@ Socket::ptr Socket::CreateUnixUDPSocket()
 }
 
 Socket::Socket(int family, int type, int protocol)
-    : m_sock(-1)
-    , m_family(family)
-    , m_type(type)
-    , m_protocol(protocol)
-    , m_isConnected(false)
+    : sock_(-1)
+    , family_(family)
+    , type_(type)
+    , protocol_(protocol)
+    , is_connected_(false)
 {
 }
 
@@ -82,7 +82,7 @@ Socket::~Socket()
 
 uint64_t Socket::getSendTimeout()
 {
-    FdCtx::ptr ctx = FdMgr::GetInstance()->get(m_sock);
+    FdCtx::ptr ctx = FdMgr::GetInstance()->get(sock_);
     if (ctx) {
         return ctx->getTimeout(SO_SNDTIMEO);
     }
@@ -98,7 +98,7 @@ void Socket::setSendTimeout(uint64_t v)
 
 uint64_t Socket::getRecvTimeout()
 {
-    FdCtx::ptr ctx = FdMgr::GetInstance()->get(m_sock);
+    FdCtx::ptr ctx = FdMgr::GetInstance()->get(sock_);
     if (ctx) {
         return ctx->getTimeout(SO_RCVTIMEO);
     }
@@ -115,9 +115,9 @@ void Socket::setRecvTimeout(int64_t v)
 
 bool Socket::getOption(int level, int option, void* result, socklen_t* len)
 {
-    int rt = getsockopt(m_sock, level, option, result, (socklen_t*)len);
+    int rt = getsockopt(sock_, level, option, result, (socklen_t*)len);
     if (rt) {
-        DEBUG(logger) << "getOption sock=" << m_sock << " level=" << level << " option=" << option << " errno=" << errno
+        DEBUG(logger) << "getOption sock=" << sock_ << " level=" << level << " option=" << option << " errno=" << errno
                       << " errstr=" << strerror(errno);
         return false;
     }
@@ -126,8 +126,8 @@ bool Socket::getOption(int level, int option, void* result, socklen_t* len)
 
 bool Socket::setOption(int level, int option, const void* result, socklen_t len)
 {
-    if (setsockopt(m_sock, level, option, result, (socklen_t)len)) {
-        DEBUG(logger) << "setOption sock=" << m_sock << " level=" << level << " option=" << option << " errno=" << errno
+    if (setsockopt(sock_, level, option, result, (socklen_t)len)) {
+        DEBUG(logger) << "setOption sock=" << sock_ << " level=" << level << " option=" << option << " errno=" << errno
                       << " errstr=" << strerror(errno);
         return false;
     }
@@ -136,20 +136,21 @@ bool Socket::setOption(int level, int option, const void* result, socklen_t len)
 
 Socket::ptr Socket::accept()
 {
-    Socket::ptr sock(new Socket(m_family, m_type, m_protocol));
+    Socket::ptr sock(new Socket(family_, type_, protocol_));
     /* 他这里把连接远端地址的操作给到了init函数，在init里面会获取本地地址和远端地址，同时设置端口复用
        accept 里面已经设置了将其插入到fdctx里，而且accept创建的问价描述符属于socket系列的，所以
        这里就间接创建了一个socket句柄
      */
-    int newsock = ::accept(m_sock, nullptr, nullptr);
+    int newsock = ::accept(sock_, nullptr, nullptr);
     if (newsock == -1) {
         // EBADF 是 stop() 关闭监听 socket 时的预期行为，用 DEBUG 级别避免停服时噪声
         if (errno == EBADF) {
-            DEBUG(logger) << "accept(" << m_sock << ") errno=" << errno << " errstr=" << strerror(errno) << " (socket closed)";
+            DEBUG(logger) << "accept(" << sock_ << ") errno=" << errno << " errstr=" << strerror(errno)
+                          << " (socket closed)";
         } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
             // 非阻塞 socket 上没有待处理的连接，正常行为
         } else {
-            ERROR(logger) << "accept(" << m_sock << ") errno=" << errno << " errstr=" << strerror(errno);
+            ERROR(logger) << "accept(" << sock_ << ") errno=" << errno << " errstr=" << strerror(errno);
         }
         return nullptr;
     }
@@ -163,8 +164,8 @@ bool Socket::init(int sock)
 {
     FdCtx::ptr ctx = FdMgr::GetInstance()->get(sock);
     if (ctx && ctx->isSocket() && !ctx->isClose()) {
-        m_sock = sock;
-        m_isConnected = true;
+        sock_ = sock;
+        is_connected_ = true;
         initSock();
         getLocalAddress();
         getRemoteAddress();
@@ -182,8 +183,9 @@ bool Socket::bind(const Address::ptr addr)
         }
     }
 
-    if (UNLIKELY(addr->getFamily() != m_family)) {
-        ERROR(logger) << "bind sock.family(" << m_family << ") addr.family(" << addr->getFamily() << ") not equal, addr=" << addr->toString();
+    if (UNLIKELY(addr->getFamily() != family_)) {
+        ERROR(logger) << "bind sock.family(" << family_ << ") addr.family(" << addr->getFamily()
+                      << ") not equal, addr=" << addr->toString();
         return false;
     }
 
@@ -197,7 +199,7 @@ bool Socket::bind(const Address::ptr addr)
         }
     }
 
-    if (::bind(m_sock, addr->getAddr(), addr->getAddrLen())) {
+    if (::bind(sock_, addr->getAddr(), addr->getAddrLen())) {
         ERROR(logger) << "bind error errno=" << errno << " strerr=" << strerror(errno);
         return false;
     }
@@ -214,26 +216,29 @@ bool Socket::connect(const Address::ptr addr, uint64_t timeout_ms)
         }
     }
 
-    if (UNLIKELY(addr->getFamily() != m_family)) {
-        ERROR(logger) << "connect sock.family(" << m_family << ") addr.family(" << addr->getFamily() << ") not equal, addr=" << addr->toString();
+    if (UNLIKELY(addr->getFamily() != family_)) {
+        ERROR(logger) << "connect sock.family(" << family_ << ") addr.family(" << addr->getFamily()
+                      << ") not equal, addr=" << addr->toString();
         return false;
     }
 
     if (timeout_ms == (uint64_t)-1) {
         /* -1失败 0成功 */
-        if (::connect(m_sock, addr->getAddr(), addr->getAddrLen())) {
-            ERROR(logger) << "sock=" << m_sock << " connect(" << addr->toString() << ") error errno=" << errno << ", strerr=" << strerror(errno);
+        if (::connect(sock_, addr->getAddr(), addr->getAddrLen())) {
+            ERROR(logger) << "sock=" << sock_ << " connect(" << addr->toString() << ") error errno=" << errno
+                          << ", strerr=" << strerror(errno);
             close();
             return false;
         }
     } else {
-        if (::connect_with_timeout(m_sock, addr->getAddr(), addr->getAddrLen(), timeout_ms)) {
-            ERROR(logger) << "sock=" << m_sock << "connect(" << addr->toString() << ") error errno=" << errno << ", strerr=" << strerror(errno);
+        if (::connect_with_timeout(sock_, addr->getAddr(), addr->getAddrLen(), timeout_ms)) {
+            ERROR(logger) << "sock=" << sock_ << "connect(" << addr->toString() << ") error errno=" << errno
+                          << ", strerr=" << strerror(errno);
             close();
             return false;
         }
     }
-    m_isConnected = true;
+    is_connected_ = true;
     getRemoteAddress();
     getLocalAddress();
 
@@ -242,12 +247,12 @@ bool Socket::connect(const Address::ptr addr, uint64_t timeout_ms)
 
 bool Socket::reconnect(uint64_t timeout_ms)
 {
-    if (!m_remoteAddress) {
+    if (!remote_address_) {
         ERROR(logger) << "reconnect m_remoteAddress is null";
         return false;
     }
-    m_localAddress.reset();
-    return connect(m_remoteAddress, timeout_ms);
+    local_address_.reset();
+    return connect(remote_address_, timeout_ms);
 }
 
 bool Socket::listen(int backlog)
@@ -256,7 +261,7 @@ bool Socket::listen(int backlog)
         ERROR(logger) << "listen error sock=-1";
         return false;
     }
-    if (::listen(m_sock, backlog)) {
+    if (::listen(sock_, backlog)) {
         ERROR(logger) << "listen error sock=" << errno << " strerr=" << strerror(errno);
         return false;
     }
@@ -265,15 +270,15 @@ bool Socket::listen(int backlog)
 
 bool Socket::close()
 {
-    if (!m_isConnected && m_sock == -1) {
+    if (!is_connected_ && sock_ == -1) {
         return true;
     }
-    m_isConnected = false;
-    if (m_sock != -1) {
+    is_connected_ = false;
+    if (sock_ != -1) {
         // hook::close 内部会调用 cancelAll 唤醒等待的 fiber，
         // 然后 FdMgr::del 清理 FdCtx，最后 ::close(fd)
-        ::close(m_sock);
-        m_sock = -1;
+        ::close(sock_);
+        sock_ = -1;
     }
     return false;
 }
@@ -282,7 +287,7 @@ bool Socket::close()
 int Socket::send(const void* buffer, size_t length, int flags)
 {
     if (isConnected()) {
-        return ::send(m_sock, buffer, length, flags);
+        return ::send(sock_, buffer, length, flags);
     }
     return -1;
 }
@@ -294,7 +299,7 @@ int Socket::send(const iovec* buffers, size_t length, int flags)
         memset(&msg, 0, sizeof(msg));
         msg.msg_iov = (iovec*)buffers;
         msg.msg_iovlen = length;
-        return ::sendmsg(m_sock, &msg, flags);
+        return ::sendmsg(sock_, &msg, flags);
     }
     return -1;
 }
@@ -303,7 +308,7 @@ int Socket::send(const iovec* buffers, size_t length, int flags)
 int Socket::sendTo(const void* buffer, size_t length, const Address::ptr to, int flags)
 {
     if (isConnected()) {
-        return ::sendto(m_sock, buffer, length, flags, to->getAddr(), to->getAddrLen());
+        return ::sendto(sock_, buffer, length, flags, to->getAddr(), to->getAddrLen());
     }
     return -1;
 }
@@ -317,7 +322,7 @@ int Socket::sendTo(const iovec* buffers, size_t length, const Address::ptr to, i
         msg.msg_name = to->getAddr();
         msg.msg_namelen = to->getAddrLen();
         msg.msg_iovlen = length;
-        return ::sendmsg(m_sock, &msg, flags);
+        return ::sendmsg(sock_, &msg, flags);
     }
     return -1;
 }
@@ -326,7 +331,7 @@ int Socket::sendTo(const iovec* buffers, size_t length, const Address::ptr to, i
 int Socket::recv(void* buffer, size_t length, int flags)
 {
     if (isConnected()) {
-        return ::recv(m_sock, buffer, length, flags);
+        return ::recv(sock_, buffer, length, flags);
     }
     return -1;
 }
@@ -338,7 +343,7 @@ int Socket::recv(iovec* buffers, size_t length, int flags)
         memset(&msg, 0, sizeof(msg));
         msg.msg_iov = (iovec*)buffers;
         msg.msg_iovlen = length;
-        return ::recvmsg(m_sock, &msg, flags);
+        return ::recvmsg(sock_, &msg, flags);
     }
     return -1;
 }
@@ -347,7 +352,7 @@ int Socket::recvFrom(void* buffer, size_t length, Address::ptr from, int flags)
 {
     if (isConnected()) {
         socklen_t len = from->getAddrLen();
-        return ::recvfrom(m_sock, buffer, length, flags, from->getAddr(), &len);
+        return ::recvfrom(sock_, buffer, length, flags, from->getAddr(), &len);
     }
     return -1;
 }
@@ -361,19 +366,19 @@ int Socket::recvFrom(iovec* buffers, size_t length, Address::ptr from, int flags
         msg.msg_iovlen = length;
         msg.msg_name = from->getAddr();
         msg.msg_namelen = from->getAddrLen();
-        return ::recvmsg(m_sock, &msg, flags);
+        return ::recvmsg(sock_, &msg, flags);
     }
     return -1;
 }
 
 Address::ptr Socket::getRemoteAddress()
 {
-    if (m_remoteAddress) {
-        return m_remoteAddress;
+    if (remote_address_) {
+        return remote_address_;
     }
 
     Address::ptr result;
-    switch (m_family) {
+    switch (family_) {
     case AF_INET:
         result.reset(new IPv4Address());
         break;
@@ -384,33 +389,33 @@ Address::ptr Socket::getRemoteAddress()
         result.reset(new UnixAddress());
         break;
     default:
-        result.reset(new UnknownAddress(m_family));
+        result.reset(new UnknownAddress(family_));
         break;
     }
     socklen_t addrlen = result->getAddrLen();
     // 成功0，失败-1，结果的内存地址存放在 result->addr里，获取套接字的远程地址信息
     // 当connect连接上后，可以调用getsockname来获取远程的地址信息
-    if (getpeername(m_sock, result->getAddr(), &addrlen)) {
-        ERROR(logger) << "getpeername error sock=" << m_sock << " errno=" << errno << " errstr=" << strerror(errno);
-        return Address::ptr(new UnknownAddress(m_family));
+    if (getpeername(sock_, result->getAddr(), &addrlen)) {
+        ERROR(logger) << "getpeername error sock=" << sock_ << " errno=" << errno << " errstr=" << strerror(errno);
+        return Address::ptr(new UnknownAddress(family_));
     }
     /* 如果是Unix的，这里需要改一下长度 */
-    if (m_family == AF_UNIX) {
+    if (family_ == AF_UNIX) {
         UnixAddress::ptr addr = std::dynamic_pointer_cast<UnixAddress>(result);
         addr->setAddrLen(addrlen);
     }
-    m_remoteAddress = result;
-    return m_remoteAddress;
+    remote_address_ = result;
+    return remote_address_;
 }
 
 Address::ptr Socket::getLocalAddress()
 {
-    if (m_localAddress) {
-        return m_localAddress;
+    if (local_address_) {
+        return local_address_;
     }
 
     Address::ptr result;
-    switch (m_family) {
+    switch (family_) {
     case AF_INET:
         result.reset(new IPv4Address());
         break;
@@ -421,28 +426,28 @@ Address::ptr Socket::getLocalAddress()
         result.reset(new UnixAddress());
         break;
     default:
-        result.reset(new UnknownAddress(m_family));
+        result.reset(new UnknownAddress(family_));
         break;
     }
     socklen_t addrlen = result->getAddrLen();
     // 成功0，失败-1，结果的内存地址存放在 result->addr里，获取套接字的本地地址信息
     // 当connect/bind连接上后，可以调用getsockname来获取本地的地址信息
-    if (getsockname(m_sock, result->getAddr(), &addrlen)) {
-        ERROR(logger) << "getsockname error sock=" << m_sock << " errno=" << errno << " errstr=" << strerror(errno);
-        return Address::ptr(new UnknownAddress(m_family));
+    if (getsockname(sock_, result->getAddr(), &addrlen)) {
+        ERROR(logger) << "getsockname error sock=" << sock_ << " errno=" << errno << " errstr=" << strerror(errno);
+        return Address::ptr(new UnknownAddress(family_));
     }
     /* 如果是Unix的，这里需要改一下长度 */
-    if (m_family == AF_UNIX) {
+    if (family_ == AF_UNIX) {
         UnixAddress::ptr addr = std::dynamic_pointer_cast<UnixAddress>(result);
         addr->setAddrLen(addrlen);
     }
-    m_localAddress = result;
-    return m_localAddress;
+    local_address_ = result;
+    return local_address_;
 }
 
 bool Socket::isValid() const
 {
-    return m_sock != -1;
+    return sock_ != -1;
 }
 
 int Socket::getError()
@@ -457,15 +462,15 @@ int Socket::getError()
 
 std::ostream& Socket::dump(std::ostream& os) const
 {
-    os << "[Socket sock=" << m_sock << " is_connected=" << m_isConnected << " family=" << m_family << " type=" << m_type
-       << " protocol=" << m_protocol;
+    os << "[Socket sock=" << sock_ << " is_connected=" << is_connected_ << " family=" << family_ << " type=" << type_
+       << " protocol=" << protocol_;
 
-    if (m_localAddress) {
-        os << " local_address=" << m_localAddress->toString();
+    if (local_address_) {
+        os << " local_address=" << local_address_->toString();
     }
 
-    if (m_remoteAddress) {
-        os << " remote_address=" << m_remoteAddress->toString();
+    if (remote_address_) {
+        os << " remote_address=" << remote_address_->toString();
     }
     os << "]";
     return os;
@@ -477,7 +482,7 @@ bool Socket::cancelRead()
     if (!iom || !isValid()) {
         return false;
     }
-    return iom->cancelEvent(m_sock, IOManager::READ);
+    return iom->cancelEvent(sock_, IOManager::READ);
 }
 
 bool Socket::cancelWrite()
@@ -486,7 +491,7 @@ bool Socket::cancelWrite()
     if (!iom || !isValid()) {
         return false;
     }
-    return iom->cancelEvent(m_sock, IOManager::WRITE);
+    return iom->cancelEvent(sock_, IOManager::WRITE);
 }
 
 bool Socket::cancelAccept()
@@ -495,7 +500,7 @@ bool Socket::cancelAccept()
     if (!iom || !isValid()) {
         return false;
     }
-    return iom->cancelEvent(m_sock, IOManager::READ);
+    return iom->cancelEvent(sock_, IOManager::READ);
 }
 
 bool Socket::cancelAll()
@@ -504,7 +509,7 @@ bool Socket::cancelAll()
     if (!iom || !isValid()) {
         return false;
     }
-    return iom->cancelAll(m_sock);
+    return iom->cancelAll(sock_);
 }
 
 void Socket::initSock()
@@ -513,7 +518,7 @@ void Socket::initSock()
     /* 这里这个level有不同的级别，它们对应不同的操作type */
     /* SO_REUSEADDR 允许重用本地地址和端口 */
     setOption(SOL_SOCKET, SO_REUSEADDR, val);
-    if (m_type == SOCK_STREAM) {
+    if (type_ == SOCK_STREAM) {
         /* TCP_NODELAY，不使用Nagle算法 */
         setOption(IPPROTO_TCP, TCP_NODELAY, val);
     }
@@ -521,12 +526,13 @@ void Socket::initSock()
 
 void Socket::newSock()
 {
-    m_sock = socket(m_family, m_type, m_protocol);
-    if (LIKELY(m_sock != -1)) {
-        FdMgr::GetInstance()->get(m_sock, true);
+    sock_ = socket(family_, type_, protocol_);
+    if (LIKELY(sock_ != -1)) {
+        FdMgr::GetInstance()->get(sock_, true);
         initSock();
     } else {
-        ERROR(logger) << "socket(" << m_family << ", " << m_type << ", " << m_protocol << ") errno=" << errno << " errstr=" << strerror(errno);
+        ERROR(logger) << "socket(" << family_ << ", " << type_ << ", " << protocol_ << ") errno=" << errno
+                      << " errstr=" << strerror(errno);
     }
 }
 
@@ -577,19 +583,20 @@ SSLSocket::SSLSocket(int family, int type, int protocol)
 
 Socket::ptr SSLSocket::accept()
 {
-    SSLSocket::ptr sock(new SSLSocket(m_family, m_type, m_protocol));
-    int newsock = ::accept(m_sock, nullptr, nullptr);
+    SSLSocket::ptr sock(new SSLSocket(family_, type_, protocol_));
+    int newsock = ::accept(sock_, nullptr, nullptr);
     if (newsock == -1) {
         if (errno == EBADF) {
-            DEBUG(logger) << "accept(" << m_sock << ") errno=" << errno << " errstr=" << strerror(errno) << " (socket closed)";
+            DEBUG(logger) << "accept(" << sock_ << ") errno=" << errno << " errstr=" << strerror(errno)
+                          << " (socket closed)";
         } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
             // 非阻塞 socket 上没有待处理的连接，正常行为
         } else {
-            ERROR(logger) << "accept(" << m_sock << ") errno=" << errno << ", errstr=" << strerror(errno);
+            ERROR(logger) << "accept(" << sock_ << ") errno=" << errno << ", errstr=" << strerror(errno);
         }
         return nullptr;
     }
-    sock->m_ctx = m_ctx;
+    sock->ctx_ = ctx_;
     if (sock->init(newsock)) {
         return sock;
     }
@@ -607,37 +614,37 @@ bool SSLSocket::connect(const Address::ptr addr, uint64_t timeout_ms)
         return false;
     }
 
-    m_ctx.reset(SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
-    if (!m_ctx) {
+    ctx_.reset(SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
+    if (!ctx_) {
         ERROR(logger) << "SSL_CTX_new(TLS_client_method) failed, addr=" << addr->toString();
         return false;
     }
 
     // 校验策略要在 SSL_new 之前设置到 ctx 上
-    if (m_verifyPeer) {
-        SSL_CTX_set_verify(m_ctx.get(), SSL_VERIFY_PEER, nullptr);
-        if (SSL_CTX_set_default_verify_paths(m_ctx.get()) != 1) {
+    if (verify_peer_) {
+        SSL_CTX_set_verify(ctx_.get(), SSL_VERIFY_PEER, nullptr);
+        if (SSL_CTX_set_default_verify_paths(ctx_.get()) != 1) {
             WARN(logger) << "SSL_CTX_set_default_verify_paths failed, 可用 SSL_CERT_FILE/SSL_CERT_DIR 指定 CA";
         }
     } else {
-        SSL_CTX_set_verify(m_ctx.get(), SSL_VERIFY_NONE, nullptr);
+        SSL_CTX_set_verify(ctx_.get(), SSL_VERIFY_NONE, nullptr);
     }
 
-    m_ssl.reset(SSL_new(m_ctx.get()), SSL_free);
-    if (!m_ssl) {
+    ssl_.reset(SSL_new(ctx_.get()), SSL_free);
+    if (!ssl_) {
         ERROR(logger) << "SSL_new failed, addr=" << addr->toString();
         return false;
     }
-    SSL_set_fd(m_ssl.get(), m_sock);
+    SSL_set_fd(ssl_.get(), sock_);
 
-    if (!m_serverName.empty()) {
+    if (!server_name_.empty()) {
         // 虚拟主机 / CDN 必须带 SNI，否则服务端可能返回默认站点证书
-        SSL_set_tlsext_host_name(m_ssl.get(), m_serverName.c_str());
+        SSL_set_tlsext_host_name(ssl_.get(), server_name_.c_str());
         // 用同一个 host 校验证书主机名
-        if (m_verifyPeer && SSL_set1_host(m_ssl.get(), m_serverName.c_str()) != 1) {
-            WARN(logger) << "SSL_set1_host failed, host=" << m_serverName << " fd=" << m_sock;
+        if (verify_peer_ && SSL_set1_host(ssl_.get(), server_name_.c_str()) != 1) {
+            WARN(logger) << "SSL_set1_host failed, host=" << server_name_ << " fd=" << sock_;
         }
-    } else if (m_verifyPeer) {
+    } else if (verify_peer_) {
         WARN(logger) << "SSL client has no server name, skip hostname verification, addr=" << addr->toString();
     }
 
@@ -656,16 +663,16 @@ bool SSLSocket::close()
 
 int SSLSocket::send(const void* buffer, size_t length, int flags)
 {
-    if (!m_ssl) {
+    if (!ssl_) {
         return -1;
     }
     // 非阻塞 socket 上 SSL_write 可能返回 WANT_*，等 fd 就绪后重试
     for (;;) {
-        int rt = SSL_write(m_ssl.get(), buffer, length);
+        int rt = SSL_write(ssl_.get(), buffer, length);
         if (rt > 0) {
             return rt;
         }
-        int err = SSL_get_error(m_ssl.get(), rt);
+        int err = SSL_get_error(ssl_.get(), rt);
         if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
             if (!sslWaitIO(err)) {
                 return -1;
@@ -681,7 +688,7 @@ int SSLSocket::send(const void* buffer, size_t length, int flags)
 
 int SSLSocket::send(const iovec* buffers, size_t length, int flags)
 {
-    if (!m_ssl) {
+    if (!ssl_) {
         return -1;
     }
     int total = 0;
@@ -712,17 +719,17 @@ int SSLSocket::sendTo(const iovec* buffers, size_t length, const Address::ptr to
 
 int SSLSocket::recv(void* buffer, size_t length, int flags)
 {
-    if (!m_ssl) {
+    if (!ssl_) {
         return -1;
     }
     const bool peek = (flags & MSG_PEEK) != 0;
     // 非阻塞 socket 上 SSL_read 可能返回 WANT_*，等 fd 就绪后重试
     for (;;) {
-        int rt = peek ? SSL_peek(m_ssl.get(), buffer, length) : SSL_read(m_ssl.get(), buffer, length);
+        int rt = peek ? SSL_peek(ssl_.get(), buffer, length) : SSL_read(ssl_.get(), buffer, length);
         if (rt > 0) {
             return rt;
         }
-        int err = SSL_get_error(m_ssl.get(), rt);
+        int err = SSL_get_error(ssl_.get(), rt);
         if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
             if (!sslWaitIO(err)) {
                 return -1;
@@ -742,7 +749,7 @@ int SSLSocket::recv(void* buffer, size_t length, int flags)
 
 int SSLSocket::recv(iovec* buffers, size_t length, int flags)
 {
-    if (!m_ssl) {
+    if (!ssl_) {
         return -1;
     }
     int total = 0;
@@ -773,16 +780,16 @@ int SSLSocket::recvFrom(iovec* buffers, size_t length, Address::ptr from, int fl
 // 证书加载
 bool SSLSocket::loadCertificates(const std::string& cert_file, const std::string& key_file)
 {
-    m_ctx.reset(SSL_CTX_new(TLS_server_method()), SSL_CTX_free);
-    if (SSL_CTX_use_certificate_chain_file(m_ctx.get(), cert_file.c_str()) != 1) {
+    ctx_.reset(SSL_CTX_new(TLS_server_method()), SSL_CTX_free);
+    if (SSL_CTX_use_certificate_chain_file(ctx_.get(), cert_file.c_str()) != 1) {
         ERROR(logger) << "SSL_CTX_use_certificate_chain_file(" << cert_file << ") error";
         return false;
     }
-    if (SSL_CTX_use_PrivateKey_file(m_ctx.get(), key_file.c_str(), SSL_FILETYPE_PEM) != 1) {
+    if (SSL_CTX_use_PrivateKey_file(ctx_.get(), key_file.c_str(), SSL_FILETYPE_PEM) != 1) {
         ERROR(logger) << "SSL_CTX_use_PrivateKey_file(" << key_file << ") error";
         return false;
     }
-    if (SSL_CTX_check_private_key(m_ctx.get()) != 1) {
+    if (SSL_CTX_check_private_key(ctx_.get()) != 1) {
         ERROR(logger) << "SSL_CTX_check_private_key cert_file=" << cert_file << ", key_file=" << key_file;
         return false;
     }
@@ -791,15 +798,15 @@ bool SSLSocket::loadCertificates(const std::string& cert_file, const std::string
 
 std::ostream& SSLSocket::dump(std::ostream& os) const
 {
-    os << "[SSLSocket sock=" << m_sock << " is_connected=" << m_isConnected << " family=" << m_family << " type=" << m_type
-       << " protocol=" << m_protocol;
+    os << "[SSLSocket sock=" << sock_ << " is_connected=" << is_connected_ << " family=" << family_ << " type=" << type_
+       << " protocol=" << protocol_;
 
-    if (m_localAddress) {
-        os << " local_address=" << m_localAddress->toString();
+    if (local_address_) {
+        os << " local_address=" << local_address_->toString();
     }
 
-    if (m_remoteAddress) {
-        os << " remote_address=" << m_remoteAddress->toString();
+    if (remote_address_) {
+        os << " remote_address=" << remote_address_->toString();
     }
     os << "]";
     return os;
@@ -810,14 +817,14 @@ bool SSLSocket::init(int sock)
     bool v = Socket::init(sock);
     if (v) {
         // 这里进行https的握手
-        m_ssl.reset(SSL_new(m_ctx.get()), SSL_free);
-        SSL_set_fd(m_ssl.get(), m_sock);
+        ssl_.reset(SSL_new(ctx_.get()), SSL_free);
+        SSL_set_fd(ssl_.get(), sock_);
         v = sslHandshake(true);
     }
     return v;
 }
 
-bool SSLSocket::sslWaitIO(int sslError)
+bool SSLSocket::sslWaitIO(int ssl_error)
 {
     IOManager* iom = IOManager::GetThis();
     if (!iom) {
@@ -825,7 +832,7 @@ bool SSLSocket::sslWaitIO(int sslError)
     }
 
     static constexpr uint64_t kWaitTimeoutMs = 30000;
-    IOManager::Event event = (sslError == SSL_ERROR_WANT_READ) ? IOManager::READ : IOManager::WRITE;
+    IOManager::Event event = (ssl_error == SSL_ERROR_WANT_READ) ? IOManager::READ : IOManager::WRITE;
 
     struct WaitTimerInfo {
         int cancelled = 0;
@@ -835,7 +842,7 @@ bool SSLSocket::sslWaitIO(int sslError)
 
     Timer::ptr timer = iom->addConditionTimer(
         kWaitTimeoutMs,
-        [winfo, fd = m_sock, iom, event]() {
+        [winfo, fd = sock_, iom, event]() {
             auto t = winfo.lock();
             if (!t || t->cancelled) {
                 return;
@@ -845,8 +852,8 @@ bool SSLSocket::sslWaitIO(int sslError)
         },
         winfo);
 
-    if (UNLIKELY(iom->addEvent(m_sock, event) != 0)) {
-        ERROR(logger) << "sslWaitIO addEvent failed for fd=" << m_sock;
+    if (UNLIKELY(iom->addEvent(sock_, event) != 0)) {
+        ERROR(logger) << "sslWaitIO addEvent failed for fd=" << sock_;
         timer->cancel();
         return false;
     }
@@ -857,7 +864,7 @@ bool SSLSocket::sslWaitIO(int sslError)
         timer->cancel();
     }
     if (info->cancelled) {
-        WARN(logger) << "ssl io timed out on fd=" << m_sock;
+        WARN(logger) << "ssl io timed out on fd=" << sock_;
         return false;
     }
     return true;
@@ -870,11 +877,11 @@ bool SSLSocket::sslHandshake(bool server)
     IOManager* iom = IOManager::GetThis();
     if (!iom) {
         if (server) {
-            ERROR(logger) << "SSL_accept requires IOManager, fd=" << m_sock;
+            ERROR(logger) << "SSL_accept requires IOManager, fd=" << sock_;
             return false;
         }
         // 非调度器线程上 fd 通常是阻塞的，直接同步握手
-        return SSL_connect(m_ssl.get()) == 1;
+        return SSL_connect(ssl_.get()) == 1;
     }
 
     // SSL 握手超时 30 秒
@@ -887,18 +894,18 @@ bool SSLSocket::sslHandshake(bool server)
 
     // 非阻塞 socket 上的 SSL 握手需要多次往返
     while (true) {
-        int ret = server ? SSL_accept(m_ssl.get()) : SSL_connect(m_ssl.get());
+        int ret = server ? SSL_accept(ssl_.get()) : SSL_connect(ssl_.get());
         if (ret == 1) {
             return true;
         }
-        int err = SSL_get_error(m_ssl.get(), ret);
+        int err = SSL_get_error(ssl_.get(), ret);
         if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
             IOManager::Event event = (err == SSL_ERROR_WANT_READ) ? IOManager::READ : IOManager::WRITE;
 
             // 添加超时定时器
             Timer::ptr timer = iom->addConditionTimer(
                 kHandshakeTimeoutMs,
-                [winfo, fd = m_sock, iom, event]() {
+                [winfo, fd = sock_, iom, event]() {
                     auto t = winfo.lock();
                     if (!t || t->cancelled) {
                         return;
@@ -908,8 +915,8 @@ bool SSLSocket::sslHandshake(bool server)
                 },
                 winfo);
 
-            if (UNLIKELY(iom->addEvent(m_sock, event) != 0)) {
-                ERROR(logger) << op << " addEvent failed for fd=" << m_sock;
+            if (UNLIKELY(iom->addEvent(sock_, event) != 0)) {
+                ERROR(logger) << op << " addEvent failed for fd=" << sock_;
                 timer->cancel();
                 return false;
             }
@@ -922,12 +929,12 @@ bool SSLSocket::sslHandshake(bool server)
 
             // 超时被唤醒
             if (tinfo->cancelled) {
-                WARN(logger) << "SSL handshake timed out on fd=" << m_sock;
+                WARN(logger) << "SSL handshake timed out on fd=" << sock_;
                 return false;
             }
         } else if (err == SSL_ERROR_ZERO_RETURN) {
             // 对端在握手完成前关闭了连接
-            DEBUG(logger) << op << ": peer closed during handshake, fd=" << m_sock;
+            DEBUG(logger) << op << ": peer closed during handshake, fd=" << sock_;
             return false;
         } else {
             // 真正的错误（证书问题、协议不匹配等）
@@ -935,12 +942,13 @@ bool SSLSocket::sslHandshake(bool server)
             char err_buf[256];
             ERR_error_string_n(ssl_err, err_buf, sizeof(err_buf));
             if (!server) {
-                long verify_result = SSL_get_verify_result(m_ssl.get());
+                long verify_result = SSL_get_verify_result(ssl_.get());
                 if (verify_result != X509_V_OK) {
-                    WARN(logger) << "certificate verify failed: " << X509_verify_cert_error_string(verify_result) << " fd=" << m_sock;
+                    WARN(logger) << "certificate verify failed: " << X509_verify_cert_error_string(verify_result)
+                                 << " fd=" << sock_;
                 }
             }
-            WARN(logger) << op << " failed: " << err_buf << " (ssl_err=" << err << ") fd=" << m_sock;
+            WARN(logger) << op << " failed: " << err_buf << " (ssl_err=" << err << ") fd=" << sock_;
             return false;
         }
     }

@@ -23,10 +23,10 @@ public:
     virtual int32_t onConnect(HttpRequest::ptr request, SSESession::ptr session) = 0;
     virtual int32_t onClose(HttpRequest::ptr request, SSESession::ptr session) = 0;
 
-    const std::string& getName() const { return m_name; }
+    const std::string& getName() const { return name_; }
 
 protected:
-    std::string m_name;
+    std::string name_;
 };
 
 class FunctionSSEServlet : public SSEServlet {
@@ -41,8 +41,8 @@ public:
     virtual int32_t onClose(HttpRequest::ptr request, SSESession::ptr session) override;
 
 protected:
-    on_connect_cb m_onConnect;
-    on_close_cb m_onClose;
+    on_connect_cb on_connect_;
+    on_close_cb on_close_;
 };
 
 } // namespace chen::http

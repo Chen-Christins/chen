@@ -24,7 +24,7 @@ bool ParseHeader(const char* buf, ProtocolHeader& hdr)
     size_t pos = 0;
     hdr.magic = ReadBigEndianUint8(buf, pos);
     hdr.version = ReadBigEndianUint8(buf, pos);
-    if (hdr.magic != RPC_PROTOCOL_MAGIC || hdr.version != RPC_PROTOCOL_VERSION) {
+    if (hdr.magic != kRpcProtocolMagic || hdr.version != kRpcProtocolVersion) {
         return false;
     }
     hdr.type = static_cast<MessageType>(ReadBigEndianUint8(buf, pos));

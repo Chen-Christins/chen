@@ -22,14 +22,14 @@ public:
     void addHeader(const std::string& key, const std::string& val);
     std::string getHeader(const std::string& key, const std::string& def = "");
 
-    const std::string& getContent() const { return m_content; }
-    void setContent(const std::string& v) { m_content = v; }
+    const std::string& getContent() const { return content_; }
+    void setContent(const std::string& v) { content_ = v; }
 
     std::string toString() const;
 
 private:
-    std::map<std::string, std::string> m_headers;
-    std::string m_content;
+    std::map<std::string, std::string> headers_;
+    std::string content_;
 };
 
 class EMail {
@@ -44,36 +44,36 @@ public:
         const std::vector<std::string>& cc_address = {},
         const std::vector<std::string>& bcc_address = {});
 
-    const std::string& getFromEMailAddress() const { return m_fromEMailAddress; }
-    const std::string& getFromEMailPasswd() const { return m_fromEMailPasswd; }
-    const std::string& getTitle() const { return m_title; }
-    const std::string& getBody() const { return m_body; }
+    const std::string& getFromEMailAddress() const { return from_email_address_; }
+    const std::string& getFromEMailPasswd() const { return from_email_passwd_; }
+    const std::string& getTitle() const { return title_; }
+    const std::string& getBody() const { return body_; }
 
-    void setFromEMailAddress(const std::string& v) { m_fromEMailAddress = v; }
-    void setFromEMailPasswd(const std::string& v) { m_fromEMailPasswd = v; }
-    void setTitle(const std::string& v) { m_title = v; }
-    void setBody(const std::string& v) { m_body = v; }
+    void setFromEMailAddress(const std::string& v) { from_email_address_ = v; }
+    void setFromEMailPasswd(const std::string& v) { from_email_passwd_ = v; }
+    void setTitle(const std::string& v) { title_ = v; }
+    void setBody(const std::string& v) { body_ = v; }
 
-    const std::vector<std::string>& getToEMailAddress() const { return m_toEMailAddress; }
-    const std::vector<std::string>& getCcEMailAddress() const { return m_ccEMailAddress; }
-    const std::vector<std::string>& getBccEMailAddress() const { return m_bccEMailAddress; }
+    const std::vector<std::string>& getToEMailAddress() const { return to_email_address_; }
+    const std::vector<std::string>& getCcEMailAddress() const { return cc_email_address_; }
+    const std::vector<std::string>& getBccEMailAddress() const { return bcc_email_address_; }
 
-    void setToEMailAddress(const std::vector<std::string>& v) { m_toEMailAddress = v; }
-    void setCcEMailAddress(const std::vector<std::string>& v) { m_ccEMailAddress = v; }
-    void setBccEMailAddress(const std::vector<std::string>& v) { m_bccEMailAddress = v; }
+    void setToEMailAddress(const std::vector<std::string>& v) { to_email_address_ = v; }
+    void setCcEMailAddress(const std::vector<std::string>& v) { cc_email_address_ = v; }
+    void setBccEMailAddress(const std::vector<std::string>& v) { bcc_email_address_ = v; }
 
     void addEntity(EMailEntity::ptr entity);
-    const std::vector<EMailEntity::ptr>& getEntitys() const { return m_entitys; }
+    const std::vector<EMailEntity::ptr>& getEntitys() const { return entitys_; }
 
 private:
-    std::string m_fromEMailAddress;
-    std::string m_fromEMailPasswd;
-    std::string m_title;
-    std::string m_body;
-    std::vector<std::string> m_toEMailAddress;
-    std::vector<std::string> m_ccEMailAddress;
-    std::vector<std::string> m_bccEMailAddress;
-    std::vector<EMailEntity::ptr> m_entitys;
+    std::string from_email_address_;
+    std::string from_email_passwd_;
+    std::string title_;
+    std::string body_;
+    std::vector<std::string> to_email_address_;
+    std::vector<std::string> cc_email_address_;
+    std::vector<std::string> bcc_email_address_;
+    std::vector<EMailEntity::ptr> entitys_;
 };
 
 } // namespace chen

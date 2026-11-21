@@ -11,26 +11,26 @@ static chen::Logger::ptr logger = LOG_NAME("system");
 
 chen::rpc::RpcClient::ptr RpcClientPool::getClient(const std::string& address, uint64_t timeout_ms)
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(mutex_);
 
     ensurePruneTimerLocked();
 
-    const uint64_t nowMs = TimeUtil::GetCurrentMs();
-    pruneIdleUnlocked(nowMs, m_idleTimeoutMs);
+    const uint64_t now_ms = TimeUtil::GetCurrentMs();
+    pruneIdleUnlocked(now_ms, idle_timeout_ms_);
 
-    if (auto it = m_clients.find(address); it != m_clients.end()) {
+    if (auto it = clients_.find(address); it != clients_.end()) {
         if (auto& existing = it->second.client; existing) {
             if (existing->isConnected()) {
-                it->second.lastUsedMs = nowMs;
-                DEBUG(logger) << "reuse rpc client address=" << address << " pool_size=" << m_clients.size();
+                it->second.last_used_ms = now_ms;
+                DEBUG(logger) << "reuse rpc client address=" << address << " pool_size=" << clients_.size();
                 return existing;
             }
             // 连接已失效，关闭并从池中移除，下面重新创建
             TRACE(logger) << "reuse rpc client address=" << address << " but not connected, reconnecting";
             existing->close();
-            m_clients.erase(it);
+            clients_.erase(it);
         } else {
-            m_clients.erase(it);
+            clients_.erase(it);
         }
     }
 
@@ -41,95 +41,96 @@ chen::rpc::RpcClient::ptr RpcClientPool::getClient(const std::string& address, u
     }
 
     auto client = std::make_shared<chen::rpc::RpcClient>();
-    client->setHeartbeatInterval(m_heartbeatIntervalMs);
+    client->setHeartbeatInterval(heartbeat_interval_ms_);
     if (!client->connect(addr, timeout_ms)) {
         WARN(logger) << "connect failed: " << address;
         return nullptr;
     }
 
-    m_clients[address] = ClientEntry{client, nowMs};
-    TRACE(logger) << "create rpc client address=" << address << " heartbeat_ms=" << m_heartbeatIntervalMs << " idle_timeout_ms=" << m_idleTimeoutMs
-                  << " pool_size=" << m_clients.size();
+    clients_[address] = ClientEntry{client, now_ms};
+    TRACE(logger) << "create rpc client address=" << address << " heartbeat_ms=" << heartbeat_interval_ms_
+                  << " idle_timeout_ms=" << idle_timeout_ms_ << " pool_size=" << clients_.size();
     return client;
 }
 
 void RpcClientPool::closeClient(const std::string& address)
 {
-    std::lock_guard lock(m_mutex);
-    if (auto it = m_clients.find(address); it != m_clients.end()) {
+    std::lock_guard lock(mutex_);
+    if (auto it = clients_.find(address); it != clients_.end()) {
         if (it->second.client) {
             it->second.client->close();
         }
         INFO(logger) << "close rpc client address=" << address;
-        m_clients.erase(it);
+        clients_.erase(it);
     }
 }
 
 void RpcClientPool::closeAll()
 {
-    std::lock_guard lock(m_mutex);
-    for (auto& [_, entry] : m_clients) {
+    std::lock_guard lock(mutex_);
+    for (auto& [_, entry] : clients_) {
         if (entry.client) {
             entry.client->close();
         }
     }
-    if (!m_clients.empty()) {
-        INFO(logger) << "close all rpc clients count=" << m_clients.size();
+    if (!clients_.empty()) {
+        INFO(logger) << "close all rpc clients count=" << clients_.size();
     }
-    m_clients.clear();
-    if (m_pruneTimer) {
-        m_pruneTimer->cancel();
-        m_pruneTimer.reset();
+    clients_.clear();
+    if (prune_timer_) {
+        prune_timer_->cancel();
+        prune_timer_.reset();
     }
 }
 
 void RpcClientPool::pruneIdle(uint64_t idle_ms)
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(mutex_);
     pruneIdleUnlocked(TimeUtil::GetCurrentMs(), idle_ms);
 }
 
-void RpcClientPool::pruneIdleUnlocked(uint64_t nowMs, uint64_t idleMs)
+void RpcClientPool::pruneIdleUnlocked(uint64_t now_ms, uint64_t idle_ms)
 {
-    if (idleMs == 0) {
+    if (idle_ms == 0) {
         return;
     }
 
-    const size_t before = m_clients.size();
+    const size_t before = clients_.size();
     size_t removed = 0;
-    for (auto it = m_clients.begin(); it != m_clients.end();) {
-        const bool idleTooLong = (nowMs > it->second.lastUsedMs) && (nowMs - it->second.lastUsedMs >= idleMs);
-        if (!it->second.client || idleTooLong) {
+    for (auto it = clients_.begin(); it != clients_.end();) {
+        const bool idle_too_long = (now_ms > it->second.last_used_ms) && (now_ms - it->second.last_used_ms >= idle_ms);
+        if (!it->second.client || idle_too_long) {
             const std::string addr = it->first;
             if (it->second.client) {
                 // 如果有外部持有（use_count > 1），跳过关闭以避免竞态
                 size_t usecnt = it->second.client.use_count();
                 if (usecnt > 1) {
                     DEBUG(logger) << "skip prune in-use rpc client address=" << addr << " use_count=" << usecnt;
-                    // 延后一次检查，更新 lastUsedMs 以避免频繁尝试删除正在使用的客户端
-                    it->second.lastUsedMs = nowMs;
+                    // 延后一次检查，更新 last_used_ms 以避免频繁尝试删除正在使用的客户端
+                    it->second.last_used_ms = now_ms;
                     ++it;
                     continue;
                 }
                 it->second.client->close();
             }
             ++removed;
-            TRACE(logger) << "prune idle rpc client address=" << addr << " idle_ms=" << (nowMs - it->second.lastUsedMs) << " threshold_ms=" << idleMs;
-            it = m_clients.erase(it);
+            TRACE(logger) << "prune idle rpc client address=" << addr
+                          << " idle_ms=" << (now_ms - it->second.last_used_ms) << " threshold_ms=" << idle_ms;
+            it = clients_.erase(it);
             continue;
         }
         ++it;
     }
 
     if (removed > 0) {
-        DEBUG(logger) << "prune idle run before=" << before << " removed=" << removed << " after=" << m_clients.size()
-                      << " idle_threshold_ms=" << idleMs;
+        DEBUG(logger) << "prune idle run before=" << before << " removed=" << removed << " after=" << clients_.size()
+                      << " idle_threshold_ms=" << idle_ms;
     }
 }
 
 void RpcClientPool::ensurePruneTimerLocked()
 {
-    if (m_pruneTimer || m_pruneIntervalMs == 0) {
+    if (prune_timer_ || prune_interval_ms_ == 0) {
         return;
     }
     auto* iom = chen::IOManager::GetThis();
@@ -138,13 +139,14 @@ void RpcClientPool::ensurePruneTimerLocked()
         return;
     }
 
-    m_pruneTimer = iom->addTimer(
-        m_pruneIntervalMs,
+    prune_timer_ = iom->addTimer(
+        prune_interval_ms_,
         [this]() {
-            this->pruneIdle(this->m_idleTimeoutMs);
+            this->pruneIdle(this->idle_timeout_ms_);
         },
         true);
-    TRACE(logger) << "rpc client pool prune timer started interval_ms=" << m_pruneIntervalMs << " idle_timeout_ms=" << m_idleTimeoutMs;
+    TRACE(logger) << "rpc client pool prune timer started interval_ms=" << prune_interval_ms_
+                  << " idle_timeout_ms=" << idle_timeout_ms_;
 }
 
 } // namespace chen::rpc

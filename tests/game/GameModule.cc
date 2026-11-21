@@ -15,10 +15,16 @@ static Logger::ptr logger = LOG_NAME("game_module");
 class EchoHandler : public chen::game::IMessageHandler {
 public:
     explicit EchoHandler(chen::game::GenericProtocolServer::ptr server)
-        : m_server(std::move(server)) {}
+        : server_(std::move(server))
+    {
+    }
 
-    bool handle(uint32_t connId, uint32_t cmdId, const std::vector<uint8_t>& header, const std::vector<uint8_t>& body) override {
-        auto srv = m_server.lock();
+    bool handle(uint32_t conn_id,
+        uint32_t cmd_id,
+        const std::vector<uint8_t>& header,
+        const std::vector<uint8_t>& body) override
+    {
+        auto srv = server_.lock();
         if (!srv) {
             return false;
         }
@@ -27,15 +33,15 @@ public:
             return false;
         }
         uint32_t seq = ntohl(*reinterpret_cast<const uint32_t*>(header.data() + 8));
-        INFO(logger) << "game echo cmd=" << cmdId << " seq=" << seq
-                     << " body_len=" << body.size() << " conn=" << connId;
-        return srv->sendMessage(connId, cmdId, seq, body);
+        INFO(logger) << "game echo cmd=" << cmd_id << " seq=" << seq << " body_len=" << body.size()
+                     << " conn=" << conn_id;
+        return srv->sendMessage(conn_id, cmd_id, seq, body);
     }
 
     std::string getName() const override { return "EchoHandler"; }
 
 private:
-    std::weak_ptr<chen::game::GenericProtocolServer> m_server;
+    std::weak_ptr<chen::game::GenericProtocolServer> server_;
 };
 
 GameModule::GameModule()
@@ -44,25 +50,25 @@ GameModule::GameModule()
 
 bool GameModule::onLoad() {
     INFO(logger) << "Game module loading...";
-    m_gameService = std::make_shared<GameRpcService>();
+    game_service_ = std::make_shared<GameRpcService>();
     // 设置全局实例
-    GameRpcService::SetInstance(m_gameService);
+    GameRpcService::SetInstance(game_service_);
     return true;
 }
 
 bool GameModule::onUnload() {
     INFO(logger) << "Game module unloading...";
-    // 注销 RPC 方法（释放 m_handlers 中 lambda 持有的资源）
-    if (m_rpcServer) {
-        m_rpcServer->unregisterMethod("getPlayerInfo");
-        m_rpcServer->unregisterMethod("updatePlayerLevel");
-        m_rpcServer->unregisterMethod("addPlayerExp");
-        m_rpcServer->unregisterMethod("getAllPlayers");
-        m_rpcServer->unregisterMethod("syncPlayerData");
-        m_rpcServer->unregisterMethod("broadcastMessage");
-        m_rpcServer.reset();
+    // 注销 RPC 方法（释放 handlers_ 中 lambda 持有的资源）
+    if (rpc_server_) {
+        rpc_server_->unregisterMethod("getPlayerInfo");
+        rpc_server_->unregisterMethod("updatePlayerLevel");
+        rpc_server_->unregisterMethod("addPlayerExp");
+        rpc_server_->unregisterMethod("getAllPlayers");
+        rpc_server_->unregisterMethod("syncPlayerData");
+        rpc_server_->unregisterMethod("broadcastMessage");
+        rpc_server_.reset();
     }
-    m_gameService.reset();
+    game_service_.reset();
     return true;
 }
 
@@ -76,16 +82,16 @@ bool GameModule::onServerReady() {
             auto rpc_server = std::dynamic_pointer_cast<rpc::RpcServer>(server);
             if (rpc_server) {
                 INFO(logger) << "Registering RPC methods on server: " << server->getName();
-                m_gameService->registerRpcMethods(rpc_server);
+                game_service_->registerRpcMethods(rpc_server);
                 // 保存引用，供 onUnload 时注销方法
-                m_rpcServer = rpc_server;
+                rpc_server_ = rpc_server;
             }
         }
     } else {
         WARN(logger) << "No RPC server found, game RPC methods not registered";
     }
 
-    // 为 game 协议服务器注册一个默认 echo 处理器 (cmdId=1)
+    // 为 game 协议服务器注册一个默认 echo 处理器 (cmd_id=1)
     std::vector<TcpServer::ptr> game_servers;
     if (Application::GetInstance()->getServer("game", game_servers)) {
         for (auto& server : game_servers) {

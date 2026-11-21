@@ -11,14 +11,14 @@ static Logger::ptr logger = LOG_NAME("system");
 
 void RpcClient::unregisterMethod(const std::string& name)
 {
-    std::lock_guard lock(m_mutex);
-    m_requestHandlers.erase(HandlerKey{name});
+    std::lock_guard lock(mutex_);
+    request_handlers_.erase(HandlerKey{name});
 }
 
 void RpcClient::unregisterMethod(uint32_t cmd)
 {
-    std::lock_guard lock(m_mutex);
-    m_requestHandlers.erase(HandlerKey{cmd});
+    std::lock_guard lock(mutex_);
+    request_handlers_.erase(HandlerKey{cmd});
 }
 
 void RpcClient::applyRouting(Protocol::ptr req, const RpcRouting& routing)
@@ -32,7 +32,7 @@ void RpcClient::applyRouting(Protocol::ptr req, const RpcRouting& routing)
 }
 
 RpcClient::RpcClient(bool auto_heartbeat)
-    : m_auto_heartbeat(auto_heartbeat)
+    : auto_heartbeat_(auto_heartbeat)
 {
 }
 
@@ -43,26 +43,27 @@ RpcClient::~RpcClient()
 
 bool RpcClient::connect(Address::ptr address, uint64_t timeout_ms)
 {
-    m_sock = Socket::CreateTCP(address);
-    if (!m_sock) {
+    sock_ = Socket::CreateTCP(address);
+    if (!sock_) {
         return false;
     }
-    if (!m_sock->connect(address, timeout_ms)) {
+    if (!sock_->connect(address, timeout_ms)) {
         return false;
     }
-    m_session.reset(new RpcConnection(m_sock));
+    session_.reset(new RpcConnection(sock_));
 
     // 启动接收协程
-    IOManager::GetThis()->schedule(std::bind(&RpcClient::recvLoop, std::weak_ptr<RpcClient>(shared_from_this()), m_session));
+    IOManager::GetThis()->schedule(
+        std::bind(&RpcClient::recvLoop, std::weak_ptr<RpcClient>(shared_from_this()), session_));
 
     // 启动心跳
-    m_hbMissed = 0;
-    if (m_auto_heartbeat) {
-        std::lock_guard lock(m_mutex);
-        if (!m_hb_timer) {
+    hb_missed_ = 0;
+    if (auto_heartbeat_) {
+        std::lock_guard lock(mutex_);
+        if (!hb_timer_) {
             std::weak_ptr<RpcClient> weak_this = shared_from_this();
-            m_hb_timer = IOManager::GetThis()->addTimer(
-                m_heartbeat_ms,
+            hb_timer_ = IOManager::GetThis()->addTimer(
+                heartbeat_ms_,
                 [weak_this]() {
                     auto self = weak_this.lock();
                     if (!self) {
@@ -72,10 +73,10 @@ bool RpcClient::connect(Address::ptr address, uint64_t timeout_ms)
                     RpcConnection::ptr session;
                     bool should_close = false;
                     {
-                        std::lock_guard lock(self->m_mutex);
-                        session = self->m_session;
-                        if (++self->m_hbMissed > self->MAX_HB_MISSED) {
-                            WARN(logger) << "heartbeat timeout (" << self->m_hbMissed << " missed), closing connection";
+                        std::lock_guard lock(self->mutex_);
+                        session = self->session_;
+                        if (++self->hb_missed_ > self->kMaxHbMissed) {
+                            WARN(logger) << "heartbeat timeout (" << self->hb_missed_ << " missed), closing connection";
                             should_close = true;
                         }
                     }
@@ -101,22 +102,22 @@ bool RpcClient::connect(Address::ptr address, uint64_t timeout_ms)
 
 void RpcClient::close()
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(mutex_);
     // 先取消 socket 上的 pending 事件（特别是 recvLoop 在等的事件）
     // 确保 recvLoop fiber 被唤醒，否则它会永远卡在 epoll 里
-    if (m_sock) {
-        if (m_sock->isValid()) {
-            m_sock->cancelAll();
+    if (sock_) {
+        if (sock_->isValid()) {
+            sock_->cancelAll();
         }
-        m_sock = nullptr;
+        sock_ = nullptr;
     }
-    if (m_session) {
-        m_session->close();
-        m_session = nullptr;
+    if (session_) {
+        session_->close();
+        session_ = nullptr;
     }
-    if (m_hb_timer) {
-        m_hb_timer->cancel();
-        m_hb_timer = nullptr;
+    if (hb_timer_) {
+        hb_timer_->cancel();
+        hb_timer_ = nullptr;
     }
 }
 
@@ -134,9 +135,9 @@ bool RpcClient::registerService(uint32_t peer_id, uint32_t func_id, uint32_t ins
 
 bool RpcClient::sendProtocol(Protocol::ptr pkt)
 {
-    m_writeSem.wait();
-    bool ok = m_session && m_session->sendProtocol(pkt) > 0;
-    m_writeSem.notify();
+    write_sem_.wait();
+    bool ok = session_ && session_->sendProtocol(pkt) > 0;
+    write_sem_.notify();
     return ok;
 }
 
@@ -147,11 +148,11 @@ Protocol::ptr RpcClient::callInternal(Protocol::ptr req, uint64_t timeout_ms)
     ctx->scheduler = Scheduler::GetThis();
 
     {
-        std::lock_guard lock(m_mutex);
-        if (m_pending_requests.size() >= MAX_PENDING_REQUESTS) {
+        std::lock_guard lock(mutex_);
+        if (pending_requests_.size() >= kMaxPendingRequests) {
             throw std::runtime_error("too many pending requests");
         }
-        m_pending_requests[req->sequence] = ctx;
+        pending_requests_[req->sequence] = ctx;
     }
 
     Timer::ptr timer;
@@ -206,11 +207,11 @@ void RpcClient::callInternalAsync(Protocol::ptr req, uint64_t timeout_ms, std::f
 
     bool too_many = false;
     {
-        std::lock_guard lock(m_mutex);
-        if (m_pending_requests.size() >= MAX_PENDING_REQUESTS) {
+        std::lock_guard lock(mutex_);
+        if (pending_requests_.size() >= kMaxPendingRequests) {
             too_many = true;
         } else {
-            m_pending_requests[req->sequence] = ctx;
+            pending_requests_[req->sequence] = ctx;
         }
     }
     if (too_many) {
@@ -235,7 +236,7 @@ void RpcClient::callInternalAsync(Protocol::ptr req, uint64_t timeout_ms, std::f
                 }
             },
             false);
-        std::lock_guard lock(m_mutex);
+        std::lock_guard lock(mutex_);
         ctx->timer = timer;
     }
 
@@ -252,13 +253,13 @@ void RpcClient::callInternalAsync(Protocol::ptr req, uint64_t timeout_ms, std::f
 
 RpcClient::ResponseContext::ptr RpcClient::takePending(uint32_t sequence)
 {
-    std::lock_guard lock(m_mutex);
-    auto it = m_pending_requests.find(sequence);
-    if (it == m_pending_requests.end()) {
+    std::lock_guard lock(mutex_);
+    auto it = pending_requests_.find(sequence);
+    if (it == pending_requests_.end()) {
         return nullptr;
     }
     ResponseContext::ptr ctx = it->second;
-    m_pending_requests.erase(it);
+    pending_requests_.erase(it);
     return ctx;
 }
 
@@ -267,7 +268,7 @@ void RpcClient::completeRequest(ResponseContext::ptr ctx, RpcStatus status, Prot
     // 取消超时定时器（由定时器自身触发时取消失败，无副作用）
     Timer::ptr timer;
     {
-        std::lock_guard lock(m_mutex);
+        std::lock_guard lock(mutex_);
         timer = ctx->timer;
         ctx->timer.reset();
     }
@@ -308,8 +309,8 @@ void RpcClient::recvLoop(std::weak_ptr<RpcClient> weak_this, RpcConnection::ptr 
         if (resp->type == MessageType::HEARTBEAT) {
             auto self = weak_this.lock();
             if (self) {
-                std::lock_guard lock(self->m_mutex);
-                self->m_hbMissed = 0;
+                std::lock_guard lock(self->mutex_);
+                self->hb_missed_ = 0;
             }
             continue;
         }
@@ -329,9 +330,9 @@ void RpcClient::recvLoop(std::weak_ptr<RpcClient> weak_this, RpcConnection::ptr 
                 key = HandlerKey{method};
             }
             {
-                std::lock_guard lock(self->m_mutex);
-                auto it = self->m_requestHandlers.find(key);
-                if (it != self->m_requestHandlers.end()) {
+                std::lock_guard lock(self->mutex_);
+                auto it = self->request_handlers_.find(key);
+                if (it != self->request_handlers_.end()) {
                     handler = it->second;
                 }
             }
@@ -380,15 +381,15 @@ void RpcClient::recvLoop(std::weak_ptr<RpcClient> weak_this, RpcConnection::ptr 
         // 取消心跳定时器并取出所有待响应请求（必须释放锁后再完成，避免回调重入死锁）
         std::vector<ResponseContext::ptr> pending;
         {
-            std::lock_guard lock(self->m_mutex);
-            if (self->m_hb_timer) {
-                self->m_hb_timer->cancel();
-                self->m_hb_timer = nullptr;
+            std::lock_guard lock(self->mutex_);
+            if (self->hb_timer_) {
+                self->hb_timer_->cancel();
+                self->hb_timer_ = nullptr;
             }
-            for (auto& i : self->m_pending_requests) {
+            for (auto& i : self->pending_requests_) {
                 pending.push_back(i.second);
             }
-            self->m_pending_requests.clear();
+            self->pending_requests_.clear();
         }
         for (auto& ctx : pending) {
             self->completeRequest(ctx, RpcStatus::CONNECTION_CLOSED, nullptr);

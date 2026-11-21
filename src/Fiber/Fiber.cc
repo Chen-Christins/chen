@@ -34,78 +34,78 @@ using StackAllocator = MallocStackAllocator;
 
 Fiber::Fiber()
 {
-    m_state = EXEC;
-    m_isMain = true;
+    state_ = EXEC;
+    is_main_ = true;
     SetThis(this);
     ++g_fiber_count;
     DEBUG(logger) << "Fiber::Fiber main";
 }
 
 Fiber::Fiber(std::function<void()> task, size_t stacksize, bool use_caller)
-    : m_id(++g_fiber_id)
-    , m_task(std::move(task))
+    : id_(++g_fiber_id)
+    , task_(std::move(task))
 {
     ++g_fiber_count;
-    m_stacksize = stacksize ? stacksize : g_fiber_stack_size->getValue();
+    stacksize_ = stacksize ? stacksize : g_fiber_stack_size->getValue();
 
     // 申请一段栈空间
-    m_stack = StackAllocator::Alloc(m_stacksize);
-    if (!m_stack) {
+    stack_ = StackAllocator::Alloc(stacksize_);
+    if (!stack_) {
         ASSERT_MSG(false, "stack alloc");
     }
 
-    char* stack_top = (char*)m_stack + m_stacksize;
+    char* stack_top = (char*)stack_ + stacksize_;
     if (!use_caller) {
-        m_ctx = boost::context::detail::make_fcontext(stack_top, m_stacksize, &Fiber::MainFunc);
+        ctx_ = boost::context::detail::make_fcontext(stack_top, stacksize_, &Fiber::MainFunc);
     } else {
-        m_ctx = boost::context::detail::make_fcontext(stack_top, m_stacksize, &Fiber::CallMainFunc);
+        ctx_ = boost::context::detail::make_fcontext(stack_top, stacksize_, &Fiber::CallMainFunc);
     }
-    m_caller = nullptr;
+    caller_ = nullptr;
 
-    DEBUG(logger) << "Fiber::Fiber id=" << m_id;
+    DEBUG(logger) << "Fiber::Fiber id=" << id_;
 }
 
 Fiber::~Fiber()
 {
     --g_fiber_count;
-    if (m_stack) {
-        ASSERT(m_state == TERM || m_state == EXCEPT || m_state == INIT);
-        StackAllocator::Dealloc(m_stack, m_stacksize);
+    if (stack_) {
+        ASSERT(state_ == TERM || state_ == EXCEPT || state_ == INIT);
+        StackAllocator::Dealloc(stack_, stacksize_);
         // 如果 t_fiber 恰好指向当前正被析构的 fiber，先清掉
         // 避免后续 fiber 析构时通过 GetFiberId() 访问已释放内存
         if (t_fiber == this) {
             SetThis(nullptr);
         }
     } else {
-        ASSERT(!m_task);
-        ASSERT(m_state == EXEC);
+        ASSERT(!task_);
+        ASSERT(state_ == EXEC);
         // 主协程（无栈）析构时无条件清 t_fiber
         // 此时 t_fiber 可能指向已释放的其他 fiber（如 root fiber）
         SetThis(nullptr);
     }
-    DEBUG(logger) << "Fiber::~Fiber id=" << m_id << " total=" << g_fiber_count;
+    DEBUG(logger) << "Fiber::~Fiber id=" << id_ << " total=" << g_fiber_count;
 }
 // 重置协程函数，并且重新设置状态
 void Fiber::reset(std::function<void()> task)
 {
-    ASSERT(m_stack);
-    ASSERT(m_state == TERM || m_state == EXCEPT || m_state == INIT);
-    m_task = std::move(task);
-    char* stack_top = (char*)m_stack + m_stacksize;
-    m_ctx = boost::context::detail::make_fcontext(stack_top, m_stacksize, &Fiber::MainFunc);
-    m_caller = nullptr;
-    m_state = INIT;
+    ASSERT(stack_);
+    ASSERT(state_ == TERM || state_ == EXCEPT || state_ == INIT);
+    task_ = std::move(task);
+    char* stack_top = (char*)stack_ + stacksize_;
+    ctx_ = boost::context::detail::make_fcontext(stack_top, stacksize_, &Fiber::MainFunc);
+    caller_ = nullptr;
+    state_ = INIT;
 }
 
 // 切换到当前协程执行
 void Fiber::swapIn()
 {
-    // DEBUG(logger) << "Fiber::swapIn id=" << m_id << " total=" << g_fiber_count;
+    // DEBUG(logger) << "Fiber::swapIn id=" << id_ << " total=" << g_fiber_count;
     SetThis(this);
-    ASSERT(m_state != EXEC);
-    m_state = EXEC;
-    boost::context::detail::transfer_t t = boost::context::detail::jump_fcontext(m_ctx, this);
-    m_ctx = t.fctx;
+    ASSERT(state_ != EXEC);
+    state_ = EXEC;
+    boost::context::detail::transfer_t t = boost::context::detail::jump_fcontext(ctx_, this);
+    ctx_ = t.fctx;
 }
 
 void Fiber::swapOut()
@@ -113,16 +113,16 @@ void Fiber::swapOut()
     Fiber::ptr cur = GetThis();
     ASSERT(cur);
     SetThis(Scheduler::GetMainFiber());
-    boost::context::detail::transfer_t t = boost::context::detail::jump_fcontext(cur->m_caller, this);
-    cur->m_caller = t.fctx;
+    boost::context::detail::transfer_t t = boost::context::detail::jump_fcontext(cur->caller_, this);
+    cur->caller_ = t.fctx;
 }
 
 void Fiber::call()
 {
     SetThis(this);
-    m_state = EXEC;
-    boost::context::detail::transfer_t t = boost::context::detail::jump_fcontext(m_ctx, this);
-    m_ctx = t.fctx;
+    state_ = EXEC;
+    boost::context::detail::transfer_t t = boost::context::detail::jump_fcontext(ctx_, this);
+    ctx_ = t.fctx;
 }
 
 void Fiber::back()
@@ -130,8 +130,8 @@ void Fiber::back()
     SetThis(t_threadFiber.get());
     Fiber::ptr cur = GetThis();
     ASSERT(cur);
-    boost::context::detail::transfer_t t = boost::context::detail::jump_fcontext(cur->m_caller, this);
-    cur->m_caller = t.fctx;
+    boost::context::detail::transfer_t t = boost::context::detail::jump_fcontext(cur->caller_, this);
+    cur->caller_ = t.fctx;
 }
 
 // static
@@ -159,11 +159,11 @@ void Fiber::YieldToReady()
     ASSERT(cur);
     // 修复竞态条件：协程可能已经被调度器改变了状态
     // 这种情况下，我们检查状态是否合理，然后设置为READY
-    if (cur->m_state == EXEC || cur->m_state == HOLD) {
-        cur->m_state = READY;
-    } else if (cur->m_state != READY) {
+    if (cur->state_ == EXEC || cur->state_ == HOLD) {
+        cur->state_ = READY;
+    } else if (cur->state_ != READY) {
         // 如果协程状态异常，报错
-        ASSERT_MSG(false, "Unexpected fiber state: " << cur->m_state);
+        ASSERT_MSG(false, "Unexpected fiber state: " << cur->state_);
     }
     cur->swapOut();
 }
@@ -174,11 +174,11 @@ void Fiber::YieldToHold()
     ASSERT(cur);
     // 修复竞态条件：协程可能已经被调度器设置为HOLD状态
     // 这种情况下，我们只需要确保协程状态是有效的，然后让出CPU即可
-    if (cur->m_state == EXEC) {
-        cur->m_state = HOLD;
-    } else if (cur->m_state != HOLD) {
+    if (cur->state_ == EXEC) {
+        cur->state_ = HOLD;
+    } else if (cur->state_ != HOLD) {
         // 如果协程状态既不是EXEC也不是HOLD，说明状态异常
-        ASSERT_MSG(false, "Unexpected fiber state: " << cur->m_state);
+        ASSERT_MSG(false, "Unexpected fiber state: " << cur->state_);
     }
     cur->swapOut();
 }
@@ -193,23 +193,23 @@ void Fiber::MainFunc(boost::context::detail::transfer_t t)
 {
     Fiber::ptr cur = GetThis();
     ASSERT(cur);
-    cur->m_caller = t.fctx;
+    cur->caller_ = t.fctx;
     try {
-        cur->m_task();
-        cur->m_task = nullptr;
-        cur->m_state = TERM;
+        cur->task_();
+        cur->task_ = nullptr;
+        cur->state_ = TERM;
     } catch (std::exception& e) {
-        cur->m_state = EXCEPT;
+        cur->state_ = EXCEPT;
         ERROR(logger) << "Fiber Except: " << e.what() << " fiber_id" << cur->getId() << std::endl << BacktraceToString();
     } catch (...) {
-        cur->m_state = EXCEPT;
+        cur->state_ = EXCEPT;
         ERROR(logger) << "Fiber Except"
                       << " fiber_id" << cur->getId() << std::endl
                       << BacktraceToString();
     }
 
     auto raw_ptr = cur.get();
-    auto caller = cur->m_caller;
+    auto caller = cur->caller_;
     cur.reset();
     boost::context::detail::jump_fcontext(caller, nullptr);
 
@@ -221,23 +221,23 @@ void Fiber::CallMainFunc(boost::context::detail::transfer_t t)
 {
     Fiber::ptr cur = GetThis();
     ASSERT(cur);
-    cur->m_caller = t.fctx;
+    cur->caller_ = t.fctx;
     try {
-        cur->m_task();
-        cur->m_task = nullptr;
-        cur->m_state = TERM;
+        cur->task_();
+        cur->task_ = nullptr;
+        cur->state_ = TERM;
     } catch (std::exception& e) {
-        cur->m_state = EXCEPT;
+        cur->state_ = EXCEPT;
         ERROR(logger) << "Fiber Except: " << e.what() << " fiber_id" << cur->getId() << std::endl << BacktraceToString();
     } catch (...) {
-        cur->m_state = EXCEPT;
+        cur->state_ = EXCEPT;
         ERROR(logger) << "Fiber Except"
                       << " fiber_id" << cur->getId() << std::endl
                       << BacktraceToString();
     }
 
     auto raw_ptr = cur.get();
-    auto caller = cur->m_caller;
+    auto caller = cur->caller_;
     cur.reset();
     boost::context::detail::jump_fcontext(caller, nullptr);
 
@@ -262,8 +262,8 @@ bool Fiber::CanYield()
     if (!cur) {
         return false;
     }
-    // 线程主协程：m_caller 为空，Yield 出去就回不来了
-    if (cur->m_isMain) {
+    // 线程主协程：caller_ 为空，Yield 出去就回不来了
+    if (cur->is_main_) {
         return false;
     }
     // 调度器 root 协程（use_caller 时执行 run 循环的协程）同样不能 Yield

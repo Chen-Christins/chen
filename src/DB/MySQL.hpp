@@ -49,10 +49,10 @@ public:
     typedef std::function<bool(MYSQL_ROW row, int field_count, int row_no)> data_cb;
     MySQLRes(MYSQL_RES* res, int eno, const char* estr);
 
-    MYSQL_RES* get() const { return m_data.get(); }
+    MYSQL_RES* get() const { return data_.get(); }
 
-    int getErrno() const override { return m_errno; }
-    const std::string& getErrStr() const override { return m_errstr; }
+    int getErrno() const override { return errno_; }
+    const std::string& getErrStr() const override { return errstr_; }
 
     bool foreach(data_cb cb);
 
@@ -79,12 +79,12 @@ public:
     bool next() override;
 
 private:
-    int m_errno;
-    std::string m_errstr;
-    MYSQL_ROW m_cur;
-    unsigned long* m_curLength;
-    std::shared_ptr<MYSQL_RES> m_data;
-    std::vector<std::string> m_columnNames;
+    int errno_;
+    std::string errstr_;
+    MYSQL_ROW cur_;
+    unsigned long* cur_length_;
+    std::shared_ptr<MYSQL_RES> data_;
+    std::vector<std::string> column_names_;
 };
 
 class MySQLStmtRes : public ISQLData {
@@ -95,8 +95,8 @@ public:
     static MySQLStmtRes::ptr Create(std::shared_ptr<MySQLStmt> stmt);
     ~MySQLStmtRes();
 
-    int getErrno() const override { return m_errno; }
-    const std::string& getErrStr() const override { return m_errstr; }
+    int getErrno() const override { return errno_; }
+    const std::string& getErrStr() const override { return errstr_; }
 
     int getDataCount() override;
     int getColumnCount() override;
@@ -137,12 +137,12 @@ private:
     };
 
 private:
-    int m_errno;
-    std::string m_errstr;
-    std::shared_ptr<MySQLStmt> m_stmt;
-    std::vector<MYSQL_BIND> m_binds;
-    std::vector<Data> m_datas;
-    std::vector<std::string> m_columnNames;
+    int errno_;
+    std::string errstr_;
+    std::shared_ptr<MySQLStmt> stmt_;
+    std::vector<MYSQL_BIND> binds_;
+    std::vector<Data> datas_;
+    std::vector<std::string> column_names_;
 };
 
 class MySQLManager;
@@ -193,15 +193,15 @@ private:
     bool isNeedCheck();
 
 private:
-    std::map<std::string, std::string> m_params;
-    std::shared_ptr<MYSQL> m_mysql;
+    std::map<std::string, std::string> params_;
+    std::shared_ptr<MYSQL> mysql_;
 
-    std::string m_cmd;
-    std::string m_dbname;
+    std::string cmd_;
+    std::string dbname_;
 
-    uint64_t m_lastUsedTime;
-    bool m_hasError;
-    int32_t m_poolSize;
+    uint64_t last_used_time_;
+    bool has_error_;
+    int32_t pool_size_;
 };
 
 class MySQLTransaction : public ITransaction {
@@ -222,18 +222,18 @@ public:
     virtual int execute(const std::string& sql) override;
     int64_t getLastInsertId() override;
 
-    bool isAutoCommit() const { return m_autoCommit; }
-    bool isFinished() const { return m_isFinished; }
-    bool isError() const { return m_hasError; }
+    bool isAutoCommit() const { return auto_commit_; }
+    bool isFinished() const { return is_finished_; }
+    bool isError() const { return has_error_; }
 
 private:
     MySQLTransaction(MySQL::ptr mysql, bool auto_commit);
 
 private:
-    MySQL::ptr m_mysql;
-    bool m_autoCommit;
-    bool m_isFinished;
-    bool m_hasError;
+    MySQL::ptr mysql_;
+    bool auto_commit_;
+    bool is_finished_;
+    bool has_error_;
 };
 
 class MySQLStmt : public IStmt, public std::enable_shared_from_this<MySQLStmt> {
@@ -284,15 +284,15 @@ public:
     int64_t getLastInsertId() override;
     ISQLData::ptr query() override;
 
-    MYSQL_STMT* getRaw() const { return m_stmt; }
+    MYSQL_STMT* getRaw() const { return stmt_; }
 
 private:
     MySQLStmt(MySQL::ptr db, MYSQL_STMT* stmt);
 
 private:
-    MySQL::ptr m_mysql;
-    MYSQL_STMT* m_stmt;
-    std::vector<MYSQL_BIND> m_binds;
+    MySQL::ptr mysql_;
+    MYSQL_STMT* stmt_;
+    std::vector<MYSQL_BIND> binds_;
 };
 
 class MySQLManager {
@@ -305,8 +305,8 @@ public:
 
     void checkConnection(int sec = 30);
 
-    uint32_t getMaxConn() const { return m_maxConn; }
-    void setMaxConn(uint32_t v) { m_maxConn = v; }
+    uint32_t getMaxConn() const { return max_conn_; }
+    void setMaxConn(uint32_t v) { max_conn_ = v; }
 
     int execute(const std::string& name, const char* format, ...);
 
@@ -326,10 +326,10 @@ private:
     void freeMySQL(const std::string& name, MySQL* m);
 
 private:
-    uint32_t m_maxConn;
-    std::mutex m_mutex;
-    std::map<std::string, std::list<MySQL*>> m_conns;
-    std::map<std::string, std::map<std::string, std::string>> m_dbDefines;
+    uint32_t max_conn_;
+    std::mutex mutex_;
+    std::map<std::string, std::list<MySQL*>> conns_;
+    std::map<std::string, std::map<std::string, std::string>> db_defines_;
 };
 
 class MySQLUtil {

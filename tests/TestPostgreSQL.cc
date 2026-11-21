@@ -132,20 +132,23 @@ int main()
         check(trx->execute("INSERT INTO chen_pg_test (name) VALUES ('rollback')") == 0, "transaction insert", db->getErrStr());
         check(trx->rollback(), "transaction rollback");
     }
-    auto rollbackCount = db->query("SELECT COUNT(*) FROM chen_pg_test WHERE name = 'rollback'");
-    check(rollbackCount != nullptr && rollbackCount->next() && rollbackCount->getInt64(0) == 0, "rollback visible row count");
+    auto rollback_count = db->query("SELECT COUNT(*) FROM chen_pg_test WHERE name = 'rollback'");
+    check(rollback_count != nullptr && rollback_count->next() && rollback_count->getInt64(0) == 0,
+        "rollback visible row count");
 
     // 自动提交事务在出错后销毁时应回滚，不能把未提交数据留在连接池连接里
     {
-        auto autoTrx = db->openTransaction(true);
-        check(autoTrx != nullptr, "open auto transaction", db->getErrStr());
-        if (autoTrx) {
-            check(autoTrx->execute("INSERT INTO chen_pg_test (name) VALUES ('auto_rollback')") == 0, "auto transaction insert", db->getErrStr());
-            autoTrx->execute("SELECT * FROM chen_pg_missing_table");
+        auto auto_trx = db->openTransaction(true);
+        check(auto_trx != nullptr, "open auto transaction", db->getErrStr());
+        if (auto_trx) {
+            check(auto_trx->execute("INSERT INTO chen_pg_test (name) VALUES ('auto_rollback')") == 0,
+                "auto transaction insert", db->getErrStr());
+            auto_trx->execute("SELECT * FROM chen_pg_missing_table");
         }
     }
-    auto autoRollbackCount = db->query("SELECT COUNT(*) FROM chen_pg_test WHERE name = 'auto_rollback'");
-    check(autoRollbackCount != nullptr && autoRollbackCount->next() && autoRollbackCount->getInt64(0) == 0, "auto transaction rollback on error");
+    auto auto_rollback_count = db->query("SELECT COUNT(*) FROM chen_pg_test WHERE name = 'auto_rollback'");
+    check(auto_rollback_count != nullptr && auto_rollback_count->next() && auto_rollback_count->getInt64(0) == 0,
+        "auto transaction rollback on error");
 
     check(db->execute("DROP TABLE chen_pg_test") == 0, "drop table cleanup", db->getErrStr());
 

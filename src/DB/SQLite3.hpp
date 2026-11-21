@@ -72,14 +72,14 @@ public:
 
     int close();
 
-    sqlite3* getDB() const { return m_db; }
+    sqlite3* getDB() const { return db_; }
 
 private:
     SQLite3(sqlite3* db);
 
 private:
-    sqlite3* m_db;
-    uint64_t m_lastUsedTime = 0;
+    sqlite3* db_;
+    uint64_t last_used_time_ = 0;
 };
 
 class SQLite3Stmt;
@@ -87,8 +87,8 @@ class SQLite3Data : public ISQLData {
 public:
     typedef std::shared_ptr<SQLite3Data> ptr;
     SQLite3Data(std::shared_ptr<SQLite3Stmt> stmt, int err, const char* errstr);
-    int getErrno() const override { return m_errno; }
-    const std::string& getErrStr() const override { return m_errstr; }
+    int getErrno() const override { return errno_; }
+    const std::string& getErrStr() const override { return errstr_; }
 
     int getDataCount() override;
     int getColumnCount() override;
@@ -116,10 +116,10 @@ public:
     bool next() override;
 
 private:
-    int m_errno;
-    bool m_first;
-    std::string m_errstr;
-    std::shared_ptr<SQLite3Stmt> m_stmt;
+    int errno_;
+    bool first_;
+    std::string errstr_;
+    std::shared_ptr<SQLite3Stmt> stmt_;
 };
 
 class SQLite3Stmt : public IStmt, public std::enable_shared_from_this<SQLite3Stmt> {
@@ -190,8 +190,8 @@ protected:
     SQLite3Stmt(SQLite3::ptr db);
 
 protected:
-    SQLite3::ptr m_db;
-    sqlite3_stmt* m_stmt;
+    SQLite3::ptr db_;
+    sqlite3_stmt* stmt_;
 };
 
 class SQLite3Transaction : public ITransaction {
@@ -213,10 +213,10 @@ public:
     int64_t getLastInsertId() override;
 
 private:
-    SQLite3::ptr m_db;
-    Type m_type;
-    int8_t m_status;
-    bool m_autoCommit;
+    SQLite3::ptr db_;
+    Type type_;
+    int8_t status_;
+    bool auto_commit_;
 };
 
 class SQLite3Manager {
@@ -229,8 +229,8 @@ public:
 
     void checkConnection(int sec = 30);
 
-    uint32_t getMaxConn() const { return m_maxConn; }
-    void setMaxConn(uint32_t v) { m_maxConn = v; }
+    uint32_t getMaxConn() const { return max_conn_; }
+    void setMaxConn(uint32_t v) { max_conn_ = v; }
 
     int execute(const std::string& name, const char* format, ...);
 
@@ -250,10 +250,10 @@ private:
     void freeSQLite3(const std::string& name, SQLite3* m);
 
 private:
-    uint32_t m_maxConn;
-    std::mutex m_mutex;
-    std::map<std::string, std::list<SQLite3*>> m_conns;
-    std::map<std::string, std::map<std::string, std::string>> m_dbDefines;
+    uint32_t max_conn_;
+    std::mutex mutex_;
+    std::map<std::string, std::list<SQLite3*>> conns_;
+    std::map<std::string, std::map<std::string, std::string>> db_defines_;
 };
 
 typedef Singleton<SQLite3Manager> SQLite3Mgr;

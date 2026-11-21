@@ -219,7 +219,7 @@ int TimeUtil::parseTimezoneSuffix(const std::string& str, size_t& end_pos)
     int hour = 0, minute = 0;
 
     // Helper: check if N chars at offset are all ASCII digits
-    auto isDigits = [&](size_t off, size_t n) -> bool {
+    auto is_digits = [&](size_t off, size_t n) -> bool {
         if (sign_pos + off + n > len)
             return false;
         for (size_t k = 0; k < n; ++k) {
@@ -230,7 +230,7 @@ int TimeUtil::parseTimezoneSuffix(const std::string& str, size_t& end_pos)
     };
 
     // Try +HH:MM format (after sign: 2 digits, colon, 2 digits = 5 chars)
-    if (sign_pos + 6 <= len && str[sign_pos + 3] == ':' && isDigits(1, 2) && isDigits(4, 2)) {
+    if (sign_pos + 6 <= len && str[sign_pos + 3] == ':' && is_digits(1, 2) && is_digits(4, 2)) {
         hour = (str[sign_pos + 1] - '0') * 10 + (str[sign_pos + 2] - '0');
         minute = (str[sign_pos + 4] - '0') * 10 + (str[sign_pos + 5] - '0');
         end_pos = sign_pos;
@@ -238,7 +238,7 @@ int TimeUtil::parseTimezoneSuffix(const std::string& str, size_t& end_pos)
     }
 
     // Try +HHMM format (after sign: 4 digits)
-    if (sign_pos + 5 <= len && isDigits(1, 4)) {
+    if (sign_pos + 5 <= len && is_digits(1, 4)) {
         hour = (str[sign_pos + 1] - '0') * 10 + (str[sign_pos + 2] - '0');
         minute = (str[sign_pos + 3] - '0') * 10 + (str[sign_pos + 4] - '0');
         end_pos = sign_pos;
@@ -246,7 +246,7 @@ int TimeUtil::parseTimezoneSuffix(const std::string& str, size_t& end_pos)
     }
 
     // Try +HH format (after sign: 2 digits)
-    if (sign_pos + 3 <= len && isDigits(1, 2)) {
+    if (sign_pos + 3 <= len && is_digits(1, 2)) {
         hour = (str[sign_pos + 1] - '0') * 10 + (str[sign_pos + 2] - '0');
         end_pos = sign_pos;
         return sign * (hour * 3600);

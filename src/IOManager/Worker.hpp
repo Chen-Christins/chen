@@ -65,13 +65,13 @@ private:
 
 private:
     /// 批处理大小，控制并发任务数量
-    uint32_t m_batchSize;
+    uint32_t batch_size_;
     /// 是否完成标志
-    bool m_finish;
+    bool finish_;
     /// 关联的调度器
-    Scheduler* m_scheduler;
+    Scheduler* scheduler_;
     /// 信号量，用于控制并发和同步
-    FiberSemaphore m_sem;
+    FiberSemaphore sem_;
 };
 
 /**
@@ -150,7 +150,7 @@ public:
      * @brief 判断管理器是否已停止
      * @return bool true 表示已停止，false 表示正在运行
      */
-    bool isStoped() const { return m_stop; }
+    bool isStoped() const { return stop_; }
 
     /**
      * @brief 将管理器状态输出到流
@@ -167,9 +167,9 @@ public:
 
 private:
     /// 存储所有调度器：调度器名称 -> 调度器列表
-    std::map<std::string, std::vector<Scheduler::ptr>> m_datas;
+    std::map<std::string, std::vector<Scheduler::ptr>> datas_;
     /// 停止标志
-    bool m_stop;
+    bool stop_;
 };
 
 template <class FiberOrCb>

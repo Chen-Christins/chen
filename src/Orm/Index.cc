@@ -16,27 +16,27 @@ bool Index::init(const tinyxml2::XMLElement& node)
         return false;
     }
 
-    m_name = node.Attribute("name");
+    name_ = node.Attribute("name");
     if (!node.Attribute("type")) {
-        ERROR(logger) << "index name=" << m_name << " type is null";
+        ERROR(logger) << "index name=" << name_ << " type is null";
         return false;
     }
 
-    m_type = node.Attribute("type");
-    m_dtype = ParseType(m_type);
-    if (m_dtype == TYPE_NULL) {
-        ERROR(logger) << "index name=" << m_name << " type=" << m_type << " invalid(pk, index, uniq)";
+    type_ = node.Attribute("type");
+    dtype_ = ParseType(type_);
+    if (dtype_ == TYPE_NULL) {
+        ERROR(logger) << "index name=" << name_ << " type=" << type_ << " invalid(pk, index, uniq)";
         return false;
     }
 
     if (!node.Attribute("cols")) {
-        ERROR(logger) << "index name=" << m_name << " cols is null";
+        ERROR(logger) << "index name=" << name_ << " cols is null";
     }
     std::string tmp = node.Attribute("cols");
-    m_cols = StringUtil::Split(tmp, ',', false);
+    cols_ = StringUtil::Split(tmp, ',', false);
 
     if (node.Attribute("desc")) {
-        m_desc = node.Attribute("desc");
+        desc_ = node.Attribute("desc");
     }
     return true;
 }

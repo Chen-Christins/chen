@@ -7,7 +7,7 @@
 namespace chen::http {
 
 Servlet::Servlet(const std::string& name)
-    : m_name(name)
+    : name_(name)
 {
 }
 
@@ -20,16 +20,16 @@ bool Servlet::isStreamingBody() const
     return false;
 }
 
-FunctionServlet::FunctionServlet(callback cb, bool streamingBody)
+FunctionServlet::FunctionServlet(callback cb, bool streaming_body)
     : Servlet("FunctionServlet")
-    , m_cb(cb)
-    , m_streamingBody(streamingBody)
+    , cb_(cb)
+    , streaming_body_(streaming_body)
 {
 }
 
 int32_t FunctionServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)
 {
-    return m_cb(request, response, session);
+    return cb_(request, response, session);
 }
 
 MethodServlet::MethodServlet()
@@ -37,35 +37,35 @@ MethodServlet::MethodServlet()
 {
 }
 
-void MethodServlet::addHandler(HttpMethod method, FunctionServlet::callback cb, bool streamingBody)
+void MethodServlet::addHandler(HttpMethod method, FunctionServlet::callback cb, bool streaming_body)
 {
-    m_handlers[method] = cb;
-    if (streamingBody) {
-        m_anyStreaming = true;
+    handlers_[method] = cb;
+    if (streaming_body) {
+        any_streaming_ = true;
     }
 }
 
-void MethodServlet::setDefaultHandler(FunctionServlet::callback cb, bool streamingBody)
+void MethodServlet::setDefaultHandler(FunctionServlet::callback cb, bool streaming_body)
 {
-    m_defaultHandler = cb;
-    if (streamingBody) {
-        m_anyStreaming = true;
+    default_handler_ = cb;
+    if (streaming_body) {
+        any_streaming_ = true;
     }
 }
 
 int32_t MethodServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)
 {
-    auto it = m_handlers.find(request->getMethod());
-    if (it != m_handlers.end()) {
+    auto it = handlers_.find(request->getMethod());
+    if (it != handlers_.end()) {
         return it->second(request, response, session);
     }
-    if (m_defaultHandler) {
-        return m_defaultHandler(request, response, session);
+    if (default_handler_) {
+        return default_handler_(request, response, session);
     }
     response->setStatus(HttpStatus::METHOD_NOT_ALLOWED);
     std::stringstream allow;
     bool first = true;
-    for (auto& pair : m_handlers) {
+    for (auto& pair : handlers_) {
         if (!first)
             allow << ", ";
         allow << HttpMethodToString(pair.first);
@@ -77,18 +77,18 @@ int32_t MethodServlet::handle(HttpRequest::ptr request, HttpResponse::ptr respon
 
 NotFoundServlet::NotFoundServlet(const std::string& name)
     : Servlet("NotFoundServlet")
-    , m_name(name)
+    , name_(name)
 {
-    m_content =
+    content_ =
         "<html><head><title>404 Not Found</title></head><body><center><h1>404 Not Found</h1></center><hr><center>" + name + "</center></body></html>";
 }
 
 int32_t NotFoundServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)
 {
     response->setStatus(HttpStatus::NOT_FOUND);
-    response->setHeader("Server", m_name);
+    response->setHeader("Server", name_);
     response->setHeader("Content-Type", "text/html");
-    response->setBody(m_content);
+    response->setBody(content_);
 
     return 0;
 }
@@ -129,11 +129,11 @@ static bool isRestfulPattern(const std::vector<std::string>& segments)
 }
 
 // Match a RESTful route against a request path. If request != nullptr,
-// extracted path params are stored in request->m_params.
+// extracted path params are stored in request->params_.
 static Servlet::ptr matchRestfulRoute(const ServletDispatch::RestfulRoute& route, const std::string& path, HttpRequest::ptr request = nullptr)
 {
-    auto pathSegs = splitPath(path);
-    if (pathSegs.size() != route.segments.size()) {
+    auto path_segs = splitPath(path);
+    if (path_segs.size() != route.segments.size()) {
         return nullptr;
     }
     for (size_t i = 0; i < route.segments.size(); ++i) {
@@ -143,9 +143,9 @@ static Servlet::ptr matchRestfulRoute(const ServletDispatch::RestfulRoute& route
         }
         if (seg[0] == ':') {
             if (request) {
-                request->setParam(seg.substr(1), pathSegs[i]);
+                request->setParam(seg.substr(1), path_segs[i]);
             }
-        } else if (seg != pathSegs[i]) {
+        } else if (seg != path_segs[i]) {
             return nullptr;
         }
     }
@@ -157,23 +157,23 @@ static Servlet::ptr matchRestfulRoute(const ServletDispatch::RestfulRoute& route
 ServletDispatch::ServletDispatch()
     : Servlet("ServletDispatch")
 {
-    m_default.reset(new NotFoundServlet("chen/1.0"));
+    default_.reset(new NotFoundServlet("chen/1.0"));
 }
 
 int32_t ServletDispatch::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)
 {
-    std::shared_lock lock(m_mutex);
+    std::shared_lock lock(mutex_);
     const std::string& path = request->getPath();
 
     // 1. Exact match
-    auto mit = m_datas.find(path);
-    if (mit != m_datas.end()) {
+    auto mit = datas_.find(path);
+    if (mit != datas_.end()) {
         mit->second->handle(request, response, session);
         return 0;
     }
 
     // 2. RESTful match (with path-param extraction)
-    for (auto& route : m_restful) {
+    for (auto& route : restful_) {
         auto slt = matchRestfulRoute(route, path, request);
         if (slt) {
             slt->handle(request, response, session);
@@ -182,7 +182,7 @@ int32_t ServletDispatch::handle(HttpRequest::ptr request, HttpResponse::ptr resp
     }
 
     // 3. Glob match
-    for (auto& [pattern, slt] : m_globs) {
+    for (auto& [pattern, slt] : globs_) {
         if (!fnmatch(pattern.c_str(), path.c_str(), 0)) {
             slt->handle(request, response, session);
             return 0;
@@ -190,25 +190,25 @@ int32_t ServletDispatch::handle(HttpRequest::ptr request, HttpResponse::ptr resp
     }
 
     // 4. Default
-    m_default->handle(request, response, session);
+    default_->handle(request, response, session);
     return 0;
 }
 
 void ServletDispatch::addServlet(const std::string& uri, Servlet::ptr slt)
 {
-    std::unique_lock lock(m_mutex);
+    std::unique_lock lock(mutex_);
     auto segs = splitPath(uri);
     if (isRestfulPattern(segs)) {
         // Replace existing route with same segments
-        for (auto it = m_restful.begin(); it != m_restful.end(); ++it) {
+        for (auto it = restful_.begin(); it != restful_.end(); ++it) {
             if (it->segments == segs) {
-                m_restful.erase(it);
+                restful_.erase(it);
                 break;
             }
         }
-        m_restful.push_back({std::move(segs), slt});
+        restful_.push_back({std::move(segs), slt});
     } else {
-        m_datas[uri] = slt;
+        datas_[uri] = slt;
     }
 }
 
@@ -217,14 +217,17 @@ void ServletDispatch::addServlet(const std::string& uri, FunctionServlet::callba
     addServlet(uri, Servlet::ptr(new FunctionServlet(cb)));
 }
 
-void ServletDispatch::addServlet(const std::string& uri, HttpMethod method, FunctionServlet::callback cb, bool streamingBody)
+void ServletDispatch::addServlet(const std::string& uri,
+    HttpMethod method,
+    FunctionServlet::callback cb,
+    bool streaming_body)
 {
-    std::unique_lock lock(m_mutex);
+    std::unique_lock lock(mutex_);
     auto segs = splitPath(uri);
     if (isRestfulPattern(segs)) {
         // Find or create MethodServlet for this RESTful pattern
         MethodServlet::ptr ms;
-        for (auto& route : m_restful) {
+        for (auto& route : restful_) {
             if (route.segments == segs) {
                 ms = std::dynamic_pointer_cast<MethodServlet>(route.servlet);
                 break;
@@ -232,33 +235,33 @@ void ServletDispatch::addServlet(const std::string& uri, HttpMethod method, Func
         }
         if (!ms) {
             ms.reset(new MethodServlet());
-            m_restful.push_back({segs, ms});
+            restful_.push_back({segs, ms});
         }
-        ms->addHandler(method, cb, streamingBody);
+        ms->addHandler(method, cb, streaming_body);
     } else {
-        auto it = m_datas.find(uri);
+        auto it = datas_.find(uri);
         MethodServlet::ptr ms;
-        if (it != m_datas.end()) {
+        if (it != datas_.end()) {
             ms = std::dynamic_pointer_cast<MethodServlet>(it->second);
         }
         if (!ms) {
             ms.reset(new MethodServlet());
-            m_datas[uri] = ms;
+            datas_[uri] = ms;
         }
-        ms->addHandler(method, cb, streamingBody);
+        ms->addHandler(method, cb, streaming_body);
     }
 }
 
 void ServletDispatch::addGlobServlet(const std::string& uri, Servlet::ptr slt)
 {
-    std::unique_lock lock(m_mutex);
-    for (auto it = m_globs.begin(); it != m_globs.end(); ++it) {
+    std::unique_lock lock(mutex_);
+    for (auto it = globs_.begin(); it != globs_.end(); ++it) {
         if (it->first == uri) {
-            m_globs.erase(it);
+            globs_.erase(it);
             break;
         }
     }
-    m_globs.push_back(std::pair(uri, slt));
+    globs_.push_back(std::pair(uri, slt));
 }
 
 void ServletDispatch::addGlobServlet(const std::string& uri, FunctionServlet::callback cb)
@@ -268,13 +271,13 @@ void ServletDispatch::addGlobServlet(const std::string& uri, FunctionServlet::ca
 
 void ServletDispatch::delServlet(const std::string& uri)
 {
-    std::unique_lock lock(m_mutex);
-    m_datas.erase(uri);
+    std::unique_lock lock(mutex_);
+    datas_.erase(uri);
     // Also try to remove RESTful route
     auto segs = splitPath(uri);
-    for (auto it = m_restful.begin(); it != m_restful.end(); ++it) {
+    for (auto it = restful_.begin(); it != restful_.end(); ++it) {
         if (it->segments == segs) {
-            m_restful.erase(it);
+            restful_.erase(it);
             break;
         }
     }
@@ -282,10 +285,10 @@ void ServletDispatch::delServlet(const std::string& uri)
 
 void ServletDispatch::delGlobServlet(const std::string& uri)
 {
-    std::unique_lock lock(m_mutex);
-    for (auto it = m_globs.begin(); it != m_globs.end(); ++it) {
+    std::unique_lock lock(mutex_);
+    for (auto it = globs_.begin(); it != globs_.end(); ++it) {
         if (it->first == uri) {
-            m_globs.erase(it);
+            globs_.erase(it);
             break;
         }
     }
@@ -293,32 +296,32 @@ void ServletDispatch::delGlobServlet(const std::string& uri)
 
 void ServletDispatch::clear()
 {
-    std::unique_lock lock(m_mutex);
-    m_datas.clear();
-    m_restful.clear();
-    m_globs.clear();
-    m_default.reset();
+    std::unique_lock lock(mutex_);
+    datas_.clear();
+    restful_.clear();
+    globs_.clear();
+    default_.reset();
 }
 
 void ServletDispatch::clearServlets()
 {
-    std::unique_lock lock(m_mutex);
-    m_datas.clear();
-    m_restful.clear();
-    m_globs.clear();
-    // 保留 m_default（NotFoundServlet），不清空
+    std::unique_lock lock(mutex_);
+    datas_.clear();
+    restful_.clear();
+    globs_.clear();
+    // 保留 default_（NotFoundServlet），不清空
 }
 
 Servlet::ptr ServletDispatch::getServlet(const std::string& uri)
 {
-    std::shared_lock lock(m_mutex);
-    auto it = m_datas.find(uri);
-    if (it != m_datas.end()) {
+    std::shared_lock lock(mutex_);
+    auto it = datas_.find(uri);
+    if (it != datas_.end()) {
         return it->second;
     }
     // Check RESTful patterns
     auto segs = splitPath(uri);
-    for (auto& route : m_restful) {
+    for (auto& route : restful_) {
         if (route.segments == segs) {
             return route.servlet;
         }
@@ -328,8 +331,8 @@ Servlet::ptr ServletDispatch::getServlet(const std::string& uri)
 
 Servlet::ptr ServletDispatch::getGlobServlet(const std::string& uri)
 {
-    std::shared_lock lock(m_mutex);
-    for (auto it = m_globs.begin(); it != m_globs.end(); ++it) {
+    std::shared_lock lock(mutex_);
+    for (auto it = globs_.begin(); it != globs_.end(); ++it) {
         if (it->first == uri) {
             return it->second;
         }
@@ -339,53 +342,53 @@ Servlet::ptr ServletDispatch::getGlobServlet(const std::string& uri)
 
 Servlet::ptr ServletDispatch::getMatchedServlet(const std::string& uri)
 {
-    std::shared_lock lock(m_mutex);
+    std::shared_lock lock(mutex_);
     // 1. Exact match
-    auto mit = m_datas.find(uri);
-    if (mit != m_datas.end()) {
+    auto mit = datas_.find(uri);
+    if (mit != datas_.end()) {
         return mit->second;
     }
     // 2. RESTful match (without param extraction)
-    for (auto& route : m_restful) {
+    for (auto& route : restful_) {
         auto slt = matchRestfulRoute(route, uri);
         if (slt) {
             return slt;
         }
     }
     // 3. Glob match
-    for (auto& [pattern, slt] : m_globs) {
+    for (auto& [pattern, slt] : globs_) {
         if (!fnmatch(pattern.c_str(), uri.c_str(), 0)) {
             return slt;
         }
     }
-    return m_default;
+    return default_;
 }
 
 Servlet::ptr ServletDispatch::matchForRequest(HttpRequest::ptr request)
 {
-    std::shared_lock lock(m_mutex);
+    std::shared_lock lock(mutex_);
     const std::string& path = request->getPath();
 
     // 1. Exact match
-    auto mit = m_datas.find(path);
-    if (mit != m_datas.end()) {
+    auto mit = datas_.find(path);
+    if (mit != datas_.end()) {
         return mit->second;
     }
     // 2. RESTful match (with path-param extraction)
-    for (auto& route : m_restful) {
+    for (auto& route : restful_) {
         auto slt = matchRestfulRoute(route, path, request);
         if (slt) {
             return slt;
         }
     }
     // 3. Glob match
-    for (auto& [pattern, slt] : m_globs) {
+    for (auto& [pattern, slt] : globs_) {
         if (!fnmatch(pattern.c_str(), path.c_str(), 0)) {
             return slt;
         }
     }
     // 4. Default
-    return m_default;
+    return default_;
 }
 
 } // namespace chen::http

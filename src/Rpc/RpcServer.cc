@@ -9,26 +9,26 @@ static Logger::ptr logger = LOG_NAME("system");
 
 void RpcServer::unregisterMethod(const std::string& name)
 {
-    m_handlers.erase(HandlerKey{name});
+    handlers_.erase(HandlerKey{name});
 }
 
 void RpcServer::unregisterMethod(uint32_t cmd)
 {
-    m_handlers.erase(HandlerKey{cmd});
+    handlers_.erase(HandlerKey{cmd});
 }
 
 void RpcServer::setRelay(bool v)
 {
-    m_relay = v;
-    if (v && !m_registry) {
-        m_registry = std::make_shared<RpcHubRegistry>();
+    relay_ = v;
+    if (v && !registry_) {
+        registry_ = std::make_shared<RpcHubRegistry>();
     }
 }
 
 RpcServer::RpcServer(IOManager* worker, IOManager* io_worker, IOManager* accept_worker)
     : TcpServer(worker, io_worker, accept_worker)
 {
-    m_type = "rpc_server";
+    type_ = "rpc_server";
 }
 
 void RpcServer::sendCode(RpcConnection::ptr conn, uint32_t sequence, int32_t code, const std::string& msg)
@@ -49,14 +49,14 @@ void RpcServer::sendCode(RpcConnection::ptr conn, uint32_t sequence, int32_t cod
 
 std::shared_ptr<RpcServer::ConnRelayState> RpcServer::getRelayState(RpcConnection::ptr conn)
 {
-    std::lock_guard lock(m_connRelayMutex);
-    auto it = m_connRelay.find(conn);
-    if (it != m_connRelay.end()) {
+    std::lock_guard lock(conn_relay_mutex_);
+    auto it = conn_relay_.find(conn);
+    if (it != conn_relay_.end()) {
         return it->second;
     }
     auto state = std::make_shared<ConnRelayState>();
     state->write_sem = std::make_shared<FiberSemaphore>(1);
-    m_connRelay[conn] = state;
+    conn_relay_[conn] = state;
     return state;
 }
 
@@ -78,7 +78,7 @@ bool RpcServer::relaySend(RpcConnection::ptr conn, Protocol::ptr pkt)
 
 void RpcServer::handleClient(Socket::ptr client)
 {
-    if (m_relay) {
+    if (relay_) {
         handleRelayClient(client);
         return;
     }
@@ -86,7 +86,7 @@ void RpcServer::handleClient(Socket::ptr client)
     RpcConnection::ptr session(new RpcConnection(client));
 
     // 发送错误响应（直接编码到 body，无需 protobuf）
-    auto sendError = [&](uint32_t sequence, int32_t code, const std::string& msg) {
+    auto send_error = [&](uint32_t sequence, int32_t code, const std::string& msg) {
         sendCode(session, sequence, code, msg);
     };
 
@@ -137,14 +137,14 @@ void RpcServer::handleClient(Socket::ptr client)
             method = Serializer::DecodeMethod(req->body);
             key = HandlerKey{method};
         }
-        auto it = m_handlers.find(key);
-        if (it == m_handlers.end()) {
+        auto it = handlers_.find(key);
+        if (it == handlers_.end()) {
             if (req->cmd != 0) {
                 WARN(logger) << "Cmd not found: " << req->cmd;
-                sendError(req->sequence, 404, "Cmd not found: " + std::to_string(req->cmd));
+                send_error(req->sequence, 404, "Cmd not found: " + std::to_string(req->cmd));
             } else {
                 WARN(logger) << "Method not found: " << method;
-                sendError(req->sequence, 404, "Method not found: " + method);
+                send_error(req->sequence, 404, "Method not found: " + method);
             }
             continue;
         }
@@ -224,8 +224,8 @@ void RpcServer::handleRelayClient(Socket::ptr client)
                 }
                 key = HandlerKey{method};
             }
-            auto it = m_handlers.find(key);
-            if (it == m_handlers.end()) {
+            auto it = handlers_.find(key);
+            if (it == handlers_.end()) {
                 if (frame->cmd != 0) {
                     WARN(logger) << "Cmd not found: " << frame->cmd;
                     sendCode(session, frame->sequence, 404, "Cmd not found: " + std::to_string(frame->cmd));
@@ -248,13 +248,13 @@ void RpcServer::handleRelayClient(Socket::ptr client)
     } while (true);
 
     // 连接断开：注销注册 + 失败挂在该连接上的未完成中继 + 清理连接 relay 状态
-    if (m_registry) {
-        m_registry->unregisterByConn(session);
+    if (registry_) {
+        registry_->unregisterByConn(session);
     }
     failPendingRelays(session);
     {
-        std::lock_guard lock(m_connRelayMutex);
-        m_connRelay.erase(session);
+        std::lock_guard lock(conn_relay_mutex_);
+        conn_relay_.erase(session);
     }
     session->close();
 }
@@ -277,7 +277,7 @@ void RpcServer::handleRegister(Protocol::ptr frame, RpcConnection::ptr conn)
         bind_ids.push_back(ba->readFuint32());
     }
 
-    bool ok = m_registry->registerService(peer_id, func_id, instance_id, bind_ids, conn);
+    bool ok = registry_->registerService(peer_id, func_id, instance_id, bind_ids, conn);
     if (!ok) {
         WARN(logger) << "register failed, peer_id duplicated, peer_id=" << peer_id;
     }
@@ -288,11 +288,11 @@ RpcConnection::ptr RpcServer::resolveTarget(Protocol::ptr req, RoutingMethod rm)
 {
     switch (rm) {
     case RoutingMethod::DIRECT:
-        return m_registry->getByPeerId(req->dst_peer_id);
+        return registry_->getByPeerId(req->dst_peer_id);
     case RoutingMethod::GROUPID:
-        return m_registry->getByGroupId(req->func_id, req->group_id, req->real_random != 0);
+        return registry_->getByGroupId(req->func_id, req->group_id, req->real_random != 0);
     case RoutingMethod::BIND_ID:
-        return m_registry->getByBindId(req->func_id, req->bind_id);
+        return registry_->getByBindId(req->func_id, req->bind_id);
     case RoutingMethod::BROADCAST:
     case RoutingMethod::NONE:
     default:
@@ -305,7 +305,7 @@ Protocol::ptr RpcServer::buildForwardFrame(Protocol::ptr req, RpcConnection::ptr
     Protocol::ptr out(new Protocol(*req));
     out->routing = static_cast<uint8_t>(RoutingMethod::NONE);
     out->real_random = 0;
-    out->src_peer_id = m_registry->getPeerIdByConn(caller);
+    out->src_peer_id = registry_->getPeerIdByConn(caller);
     out->dst_peer_id = 0;
     out->func_id = 0;
     out->group_id = 0;
@@ -316,7 +316,7 @@ Protocol::ptr RpcServer::buildForwardFrame(Protocol::ptr req, RpcConnection::ptr
 
 void RpcServer::forward(Protocol::ptr req, RpcConnection::ptr caller)
 {
-    if (!m_registry->isRegistered(caller)) {
+    if (!registry_->isRegistered(caller)) {
         WARN(logger) << "forward from unregistered connection";
         sendCode(caller, req->sequence, 403, "unregistered caller");
         return;
@@ -327,7 +327,7 @@ void RpcServer::forward(Protocol::ptr req, RpcConnection::ptr caller)
 
     // 广播：REQUEST 先回 code=0，再异步 fan-out（调用方不等 fan-out 完成）
     if (rm == RoutingMethod::BROADCAST) {
-        auto targets = m_registry->getByFuncId(req->func_id);
+        auto targets = registry_->getByFuncId(req->func_id);
         if (targets.empty()) {
             if (!is_notify) {
                 sendCode(caller, req->sequence, 404, "no broadcast target");
@@ -378,10 +378,10 @@ void RpcServer::forward(Protocol::ptr req, RpcConnection::ptr caller)
         state->ctxs[out_seq] = ctx;
     }
 
-    if (m_relayTimeout > 0) {
+    if (relay_timeout_ > 0) {
         std::weak_ptr<RpcServer> weak_this = std::dynamic_pointer_cast<RpcServer>(shared_from_this());
         ctx->timer = IOManager::GetThis()->addTimer(
-            m_relayTimeout,
+            relay_timeout_,
             [weak_this, state, out_seq]() {
                 auto self = weak_this.lock();
                 if (!self) {
@@ -412,9 +412,9 @@ void RpcServer::handleRelayResponse(Protocol::ptr frame, RpcConnection::ptr conn
     RelayCtx::ptr ctx;
     std::shared_ptr<ConnRelayState> state;
     {
-        std::lock_guard lock(m_connRelayMutex);
-        auto it = m_connRelay.find(conn);
-        if (it == m_connRelay.end()) {
+        std::lock_guard lock(conn_relay_mutex_);
+        auto it = conn_relay_.find(conn);
+        if (it == conn_relay_.end()) {
             DEBUG(logger) << "relay response dropped, seq=" << frame->sequence;
             return;
         }
@@ -443,9 +443,9 @@ void RpcServer::failPendingRelays(RpcConnection::ptr conn)
     std::vector<RelayCtx::ptr> to_fail;
     std::shared_ptr<ConnRelayState> state;
     {
-        std::lock_guard lock(m_connRelayMutex);
-        auto it = m_connRelay.find(conn);
-        if (it == m_connRelay.end()) {
+        std::lock_guard lock(conn_relay_mutex_);
+        auto it = conn_relay_.find(conn);
+        if (it == conn_relay_.end()) {
             return;
         }
         state = it->second;

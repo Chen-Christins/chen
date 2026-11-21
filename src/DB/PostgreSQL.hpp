@@ -35,8 +35,8 @@ public:
     PostgreSQLData(PGresult* res, int err, const std::string& errstr);
     ~PostgreSQLData();
 
-    int getErrno() const override { return m_errno; }
-    const std::string& getErrStr() const override { return m_errstr; }
+    int getErrno() const override { return errno_; }
+    const std::string& getErrStr() const override { return errstr_; }
 
     int getDataCount() override;
     int getColumnCount() override;
@@ -60,17 +60,17 @@ public:
     time_t getTime(int idx) override;
     bool next() override;
 
-    PGresult* getRaw() const { return m_res; }
+    PGresult* getRaw() const { return res_; }
 
 private:
     bool isValidColumn(int idx) const;
     bool isValidCell(int idx) const;
 
 private:
-    int m_errno;
-    std::string m_errstr;
-    PGresult* m_res;
-    int m_cur;
+    int errno_;
+    std::string errstr_;
+    PGresult* res_;
+    int cur_;
 };
 
 /**
@@ -108,23 +108,23 @@ public:
     IStmt::ptr prepare(const std::string& stmt) override;
     ITransaction::ptr openTransaction(bool auto_commit = false) override;
 
-    int getErrno() override { return m_errno; }
-    std::string getErrStr() override { return m_errstr; }
+    int getErrno() override { return errno_; }
+    std::string getErrStr() override { return errstr_; }
 
-    PGconn* getRaw() const { return m_conn; }
+    PGconn* getRaw() const { return conn_; }
 
 private:
     void setError(const std::string& msg, int err = 1);
     void clearError();
 
 private:
-    std::map<std::string, std::string> m_params;
-    PGconn* m_conn = nullptr;
-    int m_errno = 0;
-    std::string m_errstr;
-    uint64_t m_lastUsedTime = 0;
-    bool m_hasError = false;
-    int m_poolSize = 5;
+    std::map<std::string, std::string> params_;
+    PGconn* conn_ = nullptr;
+    int errno_ = 0;
+    std::string errstr_;
+    uint64_t last_used_time_ = 0;
+    bool has_error_ = false;
+    int pool_size_ = 5;
 };
 
 /**
@@ -138,7 +138,7 @@ class PostgreSQLStmt : public IStmt {
 public:
     typedef std::shared_ptr<PostgreSQLStmt> ptr;
 
-    static PostgreSQLStmt::ptr Create(PostgreSQL::ptr db, const std::string& stmt, int paramCount);
+    static PostgreSQLStmt::ptr Create(PostgreSQL::ptr db, const std::string& stmt, int param_count);
 
     int bindInt8(int idx, const int8_t& value) override;
     int bindUint8(int idx, const uint8_t& value) override;
@@ -161,18 +161,18 @@ public:
     int64_t getLastInsertId() override;
     ISQLData::ptr query() override;
 
-    int getErrno() override { return m_errno; }
-    std::string getErrStr() override { return m_errstr; }
+    int getErrno() override { return errno_; }
+    std::string getErrStr() override { return errstr_; }
 
 private:
     struct Param {
         bool bound = false;
-        bool isNull = true;
+        bool is_null = true;
         bool binary = false;
         std::string value;
     };
 
-    PostgreSQLStmt(PostgreSQL::ptr db, const std::string& sql, int paramCount);
+    PostgreSQLStmt(PostgreSQL::ptr db, const std::string& sql, int param_count);
 
     int bindParam(int idx, std::string value, bool binary = false);
     int bindNullParam(int idx);
@@ -181,11 +181,11 @@ private:
     void clearError();
 
 private:
-    PostgreSQL::ptr m_db;
-    std::string m_sql;
-    std::vector<Param> m_params;
-    int m_errno = 0;
-    std::string m_errstr;
+    PostgreSQL::ptr db_;
+    std::string sql_;
+    std::vector<Param> params_;
+    int errno_ = 0;
+    std::string errstr_;
 };
 
 /**
@@ -209,18 +209,18 @@ public:
     int execute(const std::string& sql) override;
     int64_t getLastInsertId() override;
 
-    bool isAutoCommit() const { return m_autoCommit; }
-    bool isFinished() const { return m_isFinished; }
-    bool isError() const { return m_hasError; }
+    bool isAutoCommit() const { return auto_commit_; }
+    bool isFinished() const { return is_finished_; }
+    bool isError() const { return has_error_; }
 
 private:
     PostgreSQLTransaction(PostgreSQL::ptr db, bool auto_commit);
 
 private:
-    PostgreSQL::ptr m_db;
-    bool m_autoCommit;
-    bool m_isFinished;
-    bool m_hasError;
+    PostgreSQL::ptr db_;
+    bool auto_commit_;
+    bool is_finished_;
+    bool has_error_;
 };
 
 /**
@@ -236,8 +236,8 @@ public:
 
     void checkConnection(int sec = 30);
 
-    uint32_t getMaxConn() const { return m_maxConn; }
-    void setMaxConn(uint32_t v) { m_maxConn = v; }
+    uint32_t getMaxConn() const { return max_conn_; }
+    void setMaxConn(uint32_t v) { max_conn_ = v; }
 
     int execute(const std::string& name, const char* format, ...);
 
@@ -257,10 +257,10 @@ private:
     void freePostgreSQL(const std::string& name, PostgreSQL* db);
 
 private:
-    uint32_t m_maxConn;
-    std::mutex m_mutex;
-    std::map<std::string, std::list<PostgreSQL*>> m_conns;
-    std::map<std::string, std::map<std::string, std::string>> m_dbDefines;
+    uint32_t max_conn_;
+    std::mutex mutex_;
+    std::map<std::string, std::list<PostgreSQL*>> conns_;
+    std::map<std::string, std::map<std::string, std::string>> db_defines_;
 };
 
 /**

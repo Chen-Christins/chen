@@ -123,11 +123,11 @@ public:
     /**
      * @brief 获取解密类型
      */
-    EncryptionType getType() const { return m_type; }
+    EncryptionType getType() const { return type_; }
 
 private:
-    EncryptionType m_type;
-    std::string m_password;
+    EncryptionType type_;
+    std::string password_;
 
     /**
      * @brief 计算HMAC-SHA256

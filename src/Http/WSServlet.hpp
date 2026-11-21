@@ -23,10 +23,10 @@ public:
     virtual int32_t onClose(HttpRequest::ptr header, WSSession::ptr session) = 0;
     virtual int32_t handle(HttpRequest::ptr header, WSFrameMessage::ptr msg, WSSession::ptr session) = 0;
 
-    const std::string& getName() const { return m_name; }
+    const std::string& getName() const { return name_; }
 
 protected:
-    std::string m_name;
+    std::string name_;
 };
 
 class FunctionWSServlet : public WSServlet {
@@ -43,9 +43,9 @@ public:
     virtual int32_t handle(HttpRequest::ptr header, WSFrameMessage::ptr msg, WSSession::ptr session) override;
 
 protected:
-    callback m_callback;
-    on_connect_cb m_onConnect;
-    on_close_cb m_onClose;
+    callback callback_;
+    on_connect_cb on_connect_;
+    on_close_cb on_close_;
 };
 
 class WSServletDispatch : public ServletDispatch {

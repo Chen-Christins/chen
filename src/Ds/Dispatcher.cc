@@ -20,9 +20,9 @@ void EventDispatcher::doEmitAsync(EventKey event, std::any data)
     }
     std::vector<std::pair<EventCallback, ICondition::ptr>> cbs;
     {
-        std::shared_lock lock(m_mutex);
-        auto it = m_listeners.find(event);
-        if (it == m_listeners.end()) {
+        std::shared_lock lock(mutex_);
+        auto it = listeners_.find(event);
+        if (it == listeners_.end()) {
             return;
         }
         for (auto& e : it->second) {
@@ -47,17 +47,17 @@ uint64_t EventDispatcher::on(EventKey event, EventCallback cb)
 
 uint64_t EventDispatcher::on(EventKey event, EventCallback cb, ICondition::ptr cond)
 {
-    std::unique_lock lock(m_mutex);
-    uint64_t id = m_nextId++;
-    m_listeners[std::move(event)].push_back({id, std::move(cb), std::move(cond)});
+    std::unique_lock lock(mutex_);
+    uint64_t id = next_id_++;
+    listeners_[std::move(event)].push_back({id, std::move(cb), std::move(cond)});
     return id;
 }
 
 void EventDispatcher::off(EventKey event, uint64_t id)
 {
-    std::unique_lock lock(m_mutex);
-    auto it = m_listeners.find(event);
-    if (it == m_listeners.end()) {
+    std::unique_lock lock(mutex_);
+    auto it = listeners_.find(event);
+    if (it == listeners_.end()) {
         return;
     }
     auto& vec = it->second;
@@ -77,14 +77,14 @@ void EventDispatcher::emitAsync(EventKey event, std::any data)
 
 void EventDispatcher::clear(EventKey event)
 {
-    std::unique_lock lock(m_mutex);
-    m_listeners.erase(event);
+    std::unique_lock lock(mutex_);
+    listeners_.erase(event);
 }
 
 void EventDispatcher::clearAll()
 {
-    std::unique_lock lock(m_mutex);
-    m_listeners.clear();
+    std::unique_lock lock(mutex_);
+    listeners_.clear();
 }
 
 } // namespace chen

@@ -144,47 +144,47 @@ static bool rewritePlaceholders(const std::string& sql, std::string& out, int& c
 }
 
 PostgreSQLData::PostgreSQLData(PGresult* res, int err, const std::string& errstr)
-    : m_errno(err)
-    , m_errstr(errstr)
-    , m_res(res)
-    , m_cur(-1)
+    : errno_(err)
+    , errstr_(errstr)
+    , res_(res)
+    , cur_(-1)
 {
 }
 
 PostgreSQLData::~PostgreSQLData()
 {
-    if (m_res) {
-        PQclear(m_res);
-        m_res = nullptr;
+    if (res_) {
+        PQclear(res_);
+        res_ = nullptr;
     }
 }
 
 bool PostgreSQLData::isValidColumn(int idx) const
 {
-    return m_res && idx >= 0 && idx < PQnfields(m_res);
+    return res_ && idx >= 0 && idx < PQnfields(res_);
 }
 
 bool PostgreSQLData::isValidCell(int idx) const
 {
-    return isValidColumn(idx) && m_cur >= 0 && m_cur < PQntuples(m_res);
+    return isValidColumn(idx) && cur_ >= 0 && cur_ < PQntuples(res_);
 }
 
 int PostgreSQLData::getDataCount()
 {
-    return m_res ? PQntuples(m_res) : 0;
+    return res_ ? PQntuples(res_) : 0;
 }
 
 int PostgreSQLData::getColumnCount()
 {
-    return m_res ? PQnfields(m_res) : 0;
+    return res_ ? PQnfields(res_) : 0;
 }
 
 int PostgreSQLData::getColumnBytes(int idx)
 {
-    if (!isValidCell(idx) || PQgetisnull(m_res, m_cur, idx)) {
+    if (!isValidCell(idx) || PQgetisnull(res_, cur_, idx)) {
         return 0;
     }
-    return PQgetlength(m_res, m_cur, idx);
+    return PQgetlength(res_, cur_, idx);
 }
 
 int PostgreSQLData::getColumnType(int idx)
@@ -192,7 +192,7 @@ int PostgreSQLData::getColumnType(int idx)
     if (!isValidColumn(idx)) {
         return 0;
     }
-    return static_cast<int>(PQftype(m_res, idx));
+    return static_cast<int>(PQftype(res_, idx));
 }
 
 std::string PostgreSQLData::getColumnName(int idx)
@@ -200,7 +200,7 @@ std::string PostgreSQLData::getColumnName(int idx)
     if (!isValidColumn(idx)) {
         return "";
     }
-    const char* name = PQfname(m_res, idx);
+    const char* name = PQfname(res_, idx);
     return name ? name : "";
 }
 
@@ -209,7 +209,7 @@ bool PostgreSQLData::isNull(int idx)
     if (!isValidCell(idx)) {
         return true;
     }
-    return PQgetisnull(m_res, m_cur, idx) != 0;
+    return PQgetisnull(res_, cur_, idx) != 0;
 }
 
 int8_t PostgreSQLData::getInt8(int idx)
@@ -264,23 +264,23 @@ double PostgreSQLData::getDouble(int idx)
 
 std::string PostgreSQLData::getString(int idx)
 {
-    if (!isValidCell(idx) || PQgetisnull(m_res, m_cur, idx)) {
+    if (!isValidCell(idx) || PQgetisnull(res_, cur_, idx)) {
         return "";
     }
-    return std::string(PQgetvalue(m_res, m_cur, idx), PQgetlength(m_res, m_cur, idx));
+    return std::string(PQgetvalue(res_, cur_, idx), PQgetlength(res_, cur_, idx));
 }
 
 std::string PostgreSQLData::getBlob(int idx)
 {
-    if (!isValidCell(idx) || PQgetisnull(m_res, m_cur, idx)) {
+    if (!isValidCell(idx) || PQgetisnull(res_, cur_, idx)) {
         return "";
     }
-    if (PQfformat(m_res, idx) == 1) {
-        return std::string(PQgetvalue(m_res, m_cur, idx), PQgetlength(m_res, m_cur, idx));
+    if (PQfformat(res_, idx) == 1) {
+        return std::string(PQgetvalue(res_, cur_, idx), PQgetlength(res_, cur_, idx));
     }
 
     size_t len = 0;
-    unsigned char* raw = PQunescapeBytea(reinterpret_cast<const unsigned char*>(PQgetvalue(m_res, m_cur, idx)), &len);
+    unsigned char* raw = PQunescapeBytea(reinterpret_cast<const unsigned char*>(PQgetvalue(res_, cur_, idx)), &len);
     if (!raw) {
         return "";
     }
@@ -296,15 +296,15 @@ time_t PostgreSQLData::getTime(int idx)
 
 bool PostgreSQLData::next()
 {
-    if (!m_res) {
+    if (!res_) {
         return false;
     }
-    ++m_cur;
-    return m_cur < PQntuples(m_res);
+    ++cur_;
+    return cur_ < PQntuples(res_);
 }
 
 PostgreSQL::PostgreSQL(const std::map<std::string, std::string>& args)
-    : m_params(args)
+    : params_(args)
 {
 }
 
@@ -315,21 +315,21 @@ PostgreSQL::~PostgreSQL()
 
 void PostgreSQL::setError(const std::string& msg, int err)
 {
-    m_errno = err;
-    m_errstr = msg;
+    errno_ = err;
+    errstr_ = msg;
 }
 
 void PostgreSQL::clearError()
 {
-    m_errno = 0;
-    m_errstr.clear();
+    errno_ = 0;
+    errstr_.clear();
 }
 
 bool PostgreSQL::connect()
 {
     // 连接仍然可用且没有记录到错误时才复用；否则关闭重连，避免把一个处于
     // aborted transaction 状态（PQstatus 仍为 CONNECTION_OK）的连接重新放回池中。
-    if (m_conn && !m_hasError && PQstatus(m_conn) == CONNECTION_OK) {
+    if (conn_ && !has_error_ && PQstatus(conn_) == CONNECTION_OK) {
         clearError();
         return true;
     }
@@ -344,15 +344,15 @@ bool PostgreSQL::connect()
         }
     };
 
-    add("host", GetParamValue<std::string>(m_params, "host"));
-    add("port", GetParamValue<std::string>(m_params, "port"));
-    add("user", GetParamValue<std::string>(m_params, "user"));
-    add("password", GetParamValue<std::string>(m_params, "passwd"));
-    add("dbname", GetParamValue<std::string>(m_params, "dbname"));
-    add("connect_timeout", GetParamValue<std::string>(m_params, "connect_timeout", "10"));
-    add("sslmode", GetParamValue<std::string>(m_params, "sslmode", "prefer"));
-    add("application_name", GetParamValue<std::string>(m_params, "application_name", "chen"));
-    add("options", GetParamValue<std::string>(m_params, "options"));
+    add("host", GetParamValue<std::string>(params_, "host"));
+    add("port", GetParamValue<std::string>(params_, "port"));
+    add("user", GetParamValue<std::string>(params_, "user"));
+    add("password", GetParamValue<std::string>(params_, "passwd"));
+    add("dbname", GetParamValue<std::string>(params_, "dbname"));
+    add("connect_timeout", GetParamValue<std::string>(params_, "connect_timeout", "10"));
+    add("sslmode", GetParamValue<std::string>(params_, "sslmode", "prefer"));
+    add("application_name", GetParamValue<std::string>(params_, "application_name", "chen"));
+    add("options", GetParamValue<std::string>(params_, "options"));
 
     std::vector<const char*> keys;
     std::vector<const char*> vals;
@@ -365,57 +365,57 @@ bool PostgreSQL::connect()
     keys.push_back(nullptr);
     vals.push_back(nullptr);
 
-    m_conn = PQconnectdbParams(keys.data(), vals.data(), 0);
-    if (!m_conn || PQstatus(m_conn) != CONNECTION_OK) {
-        setError(m_conn ? PQerrorMessage(m_conn) : "PQconnectdbParams failed");
-        if (m_conn) {
-            PQfinish(m_conn);
-            m_conn = nullptr;
+    conn_ = PQconnectdbParams(keys.data(), vals.data(), 0);
+    if (!conn_ || PQstatus(conn_) != CONNECTION_OK) {
+        setError(conn_ ? PQerrorMessage(conn_) : "PQconnectdbParams failed");
+        if (conn_) {
+            PQfinish(conn_);
+            conn_ = nullptr;
         }
-        m_hasError = true;
+        has_error_ = true;
         return false;
     }
 
-    PQsetClientEncoding(m_conn, "UTF8");
-    m_poolSize = GetParamValue<int>(m_params, "pool", 5);
-    m_lastUsedTime = time(0);
-    m_hasError = false;
+    PQsetClientEncoding(conn_, "UTF8");
+    pool_size_ = GetParamValue<int>(params_, "pool", 5);
+    last_used_time_ = time(0);
+    has_error_ = false;
     clearError();
     return true;
 }
 
 bool PostgreSQL::ping()
 {
-    if (!m_conn) {
+    if (!conn_) {
         return false;
     }
-    PGresult* res = PQexec(m_conn, "SELECT 1");
+    PGresult* res = PQexec(conn_, "SELECT 1");
     bool ok = res && PQresultStatus(res) == PGRES_TUPLES_OK;
     if (res) {
         PQclear(res);
     }
     if (ok) {
-        m_hasError = false;
+        has_error_ = false;
         clearError();
     } else {
-        m_hasError = true;
+        has_error_ = true;
     }
     return ok;
 }
 
 void PostgreSQL::close()
 {
-    if (m_conn) {
-        PQfinish(m_conn);
-        m_conn = nullptr;
+    if (conn_) {
+        PQfinish(conn_);
+        conn_ = nullptr;
     }
-    m_lastUsedTime = 0;
-    m_hasError = false;
+    last_used_time_ = 0;
+    has_error_ = false;
 }
 
 bool PostgreSQL::isNeedCheck()
 {
-    if ((time(0) - m_lastUsedTime) < 5 && !m_hasError) {
+    if ((time(0) - last_used_time_) < 5 && !has_error_) {
         return false;
     }
     return true;
@@ -438,48 +438,48 @@ int PostgreSQL::execute(const char* format, va_list ap)
 int PostgreSQL::execute(const std::string& sql)
 {
     clearError();
-    if (!m_conn) {
-        m_hasError = true;
+    if (!conn_) {
+        has_error_ = true;
         setError("PostgreSQL::execute m_conn is null");
-        return m_errno;
+        return errno_;
     }
 
-    PGresult* res = PQexec(m_conn, sql.c_str());
+    PGresult* res = PQexec(conn_, sql.c_str());
     if (!res) {
-        m_hasError = true;
-        setError(PQerrorMessage(m_conn));
-        return m_errno;
+        has_error_ = true;
+        setError(PQerrorMessage(conn_));
+        return errno_;
     }
 
     ExecStatusType status = PQresultStatus(res);
     if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK && status != PGRES_EMPTY_QUERY) {
         // 语句失败后连接可能仍为 CONNECTION_OK（例如事务已 aborted），
         // 标记后连接池会在下次复用时 ping / 重连。
-        m_hasError = true;
+        has_error_ = true;
         setError(PQresultErrorMessage(res));
     } else {
-        m_hasError = false;
+        has_error_ = false;
     }
     PQclear(res);
-    return m_errno;
+    return errno_;
 }
 
 int64_t PostgreSQL::getLastInsertId()
 {
-    if (!m_conn) {
-        m_hasError = true;
+    if (!conn_) {
+        has_error_ = true;
         setError("PostgreSQL::getLastInsertId m_conn is null");
         return 0;
     }
 
-    PGresult* res = PQexec(m_conn, "SELECT lastval()");
+    PGresult* res = PQexec(conn_, "SELECT lastval()");
     if (!res) {
-        m_hasError = true;
-        setError(PQerrorMessage(m_conn));
+        has_error_ = true;
+        setError(PQerrorMessage(conn_));
         return 0;
     }
     if (PQresultStatus(res) != PGRES_TUPLES_OK || PQntuples(res) < 1 || PQgetisnull(res, 0, 0)) {
-        m_hasError = true;
+        has_error_ = true;
         setError(PQresultErrorMessage(res));
         PQclear(res);
         return 0;
@@ -487,7 +487,7 @@ int64_t PostgreSQL::getLastInsertId()
 
     int64_t id = static_cast<int64_t>(std::strtoll(PQgetvalue(res, 0, 0), nullptr, 10));
     PQclear(res);
-    m_hasError = false;
+    has_error_ = false;
     clearError();
     return id;
 }
@@ -509,46 +509,46 @@ ISQLData::ptr PostgreSQL::query(const char* format, va_list ap)
 ISQLData::ptr PostgreSQL::query(const std::string& sql)
 {
     clearError();
-    if (!m_conn) {
-        m_hasError = true;
+    if (!conn_) {
+        has_error_ = true;
         setError("PostgreSQL::query m_conn is null");
         return nullptr;
     }
 
-    PGresult* res = PQexec(m_conn, sql.c_str());
+    PGresult* res = PQexec(conn_, sql.c_str());
     if (!res) {
-        m_hasError = true;
-        setError(PQerrorMessage(m_conn));
+        has_error_ = true;
+        setError(PQerrorMessage(conn_));
         return nullptr;
     }
 
     ExecStatusType status = PQresultStatus(res);
     if (status != PGRES_TUPLES_OK && status != PGRES_COMMAND_OK) {
         // 同 execute：错误可能只发生在事务层，连接本身仍是 CONNECTION_OK。
-        m_hasError = true;
+        has_error_ = true;
         setError(PQresultErrorMessage(res));
         PQclear(res);
         return nullptr;
     }
 
-    m_hasError = false;
+    has_error_ = false;
     return PostgreSQLData::ptr(new PostgreSQLData(res, 0, ""));
 }
 
 IStmt::ptr PostgreSQL::prepare(const std::string& stmt)
 {
-    if (!m_conn) {
+    if (!conn_) {
         setError("PostgreSQL::prepare m_conn is null");
         return nullptr;
     }
 
     std::string sql;
-    int paramCount = 0;
-    if (!rewritePlaceholders(stmt, sql, paramCount)) {
+    int param_count = 0;
+    if (!rewritePlaceholders(stmt, sql, param_count)) {
         setError("PostgreSQL::prepare too many parameters");
         return nullptr;
     }
-    return PostgreSQLStmt::Create(shared_from_this(), sql, paramCount);
+    return PostgreSQLStmt::Create(shared_from_this(), sql, param_count);
 }
 
 ITransaction::ptr PostgreSQL::openTransaction(bool auto_commit)
@@ -556,42 +556,42 @@ ITransaction::ptr PostgreSQL::openTransaction(bool auto_commit)
     return PostgreSQLTransaction::Create(shared_from_this(), auto_commit);
 }
 
-PostgreSQLStmt::PostgreSQLStmt(PostgreSQL::ptr db, const std::string& sql, int paramCount)
-    : m_db(db)
-    , m_sql(sql)
+PostgreSQLStmt::PostgreSQLStmt(PostgreSQL::ptr db, const std::string& sql, int param_count)
+    : db_(db)
+    , sql_(sql)
 {
-    if (paramCount > 0) {
-        m_params.resize(static_cast<size_t>(paramCount));
+    if (param_count > 0) {
+        params_.resize(static_cast<size_t>(param_count));
     }
 }
 
-PostgreSQLStmt::ptr PostgreSQLStmt::Create(PostgreSQL::ptr db, const std::string& stmt, int paramCount)
+PostgreSQLStmt::ptr PostgreSQLStmt::Create(PostgreSQL::ptr db, const std::string& stmt, int param_count)
 {
-    return PostgreSQLStmt::ptr(new PostgreSQLStmt(db, stmt, paramCount));
+    return PostgreSQLStmt::ptr(new PostgreSQLStmt(db, stmt, param_count));
 }
 
 void PostgreSQLStmt::setError(const std::string& msg, int err)
 {
-    m_errno = err;
-    m_errstr = msg;
+    errno_ = err;
+    errstr_ = msg;
     ERROR(g_logger) << "PostgreSQLStmt error: " << msg;
 }
 
 void PostgreSQLStmt::clearError()
 {
-    m_errno = 0;
-    m_errstr.clear();
+    errno_ = 0;
+    errstr_.clear();
 }
 
 int PostgreSQLStmt::bindParam(int idx, std::string value, bool binary)
 {
-    if (idx < 1 || static_cast<size_t>(idx) > m_params.size()) {
+    if (idx < 1 || static_cast<size_t>(idx) > params_.size()) {
         setError("bind index out of range: " + std::to_string(idx));
         return -1;
     }
-    Param& p = m_params[static_cast<size_t>(idx - 1)];
+    Param& p = params_[static_cast<size_t>(idx - 1)];
     p.bound = true;
-    p.isNull = false;
+    p.is_null = false;
     p.binary = binary;
     p.value = std::move(value);
     return 0;
@@ -599,13 +599,13 @@ int PostgreSQLStmt::bindParam(int idx, std::string value, bool binary)
 
 int PostgreSQLStmt::bindNullParam(int idx)
 {
-    if (idx < 1 || static_cast<size_t>(idx) > m_params.size()) {
+    if (idx < 1 || static_cast<size_t>(idx) > params_.size()) {
         setError("bind index out of range: " + std::to_string(idx));
         return -1;
     }
-    Param& p = m_params[static_cast<size_t>(idx - 1)];
+    Param& p = params_[static_cast<size_t>(idx - 1)];
     p.bound = true;
-    p.isNull = true;
+    p.is_null = true;
     p.binary = false;
     p.value.clear();
     return 0;
@@ -707,24 +707,24 @@ int PostgreSQLStmt::bindNull(int idx)
 
 PGresult* PostgreSQLStmt::exec()
 {
-    if (!m_db || !m_db->getRaw()) {
+    if (!db_ || !db_->getRaw()) {
         setError("PostgreSQLStmt::exec connection is null");
         return nullptr;
     }
-    for (auto& p : m_params) {
+    for (auto& p : params_) {
         if (!p.bound) {
             setError("PostgreSQLStmt parameter not bound");
             return nullptr;
         }
     }
 
-    std::vector<const char*> values(m_params.size());
-    std::vector<int> lengths(m_params.size(), 0);
-    std::vector<int> formats(m_params.size(), 0);
+    std::vector<const char*> values(params_.size());
+    std::vector<int> lengths(params_.size(), 0);
+    std::vector<int> formats(params_.size(), 0);
 
-    for (size_t i = 0; i < m_params.size(); ++i) {
-        Param& p = m_params[i];
-        if (p.isNull) {
+    for (size_t i = 0; i < params_.size(); ++i) {
+        Param& p = params_[i];
+        if (p.is_null) {
             values[i] = nullptr;
             continue;
         }
@@ -733,11 +733,10 @@ PGresult* PostgreSQLStmt::exec()
         formats[i] = p.binary ? 1 : 0;
     }
 
-    PGresult* res = PQexecParams(
-        m_db->getRaw(), m_sql.c_str(), static_cast<int>(m_params.size()), nullptr, values.empty() ? nullptr : values.data(),
-        lengths.empty() ? nullptr : lengths.data(), formats.empty() ? nullptr : formats.data(), 0);
+    PGresult* res = PQexecParams(db_->getRaw(), sql_.c_str(), static_cast<int>(params_.size()), nullptr,
+        values.empty() ? nullptr : values.data(), lengths.empty() ? nullptr : lengths.data(), formats.empty() ? nullptr : formats.data(), 0);
     if (!res) {
-        setError(PQerrorMessage(m_db->getRaw()));
+        setError(PQerrorMessage(db_->getRaw()));
         return nullptr;
     }
     return res;
@@ -748,7 +747,7 @@ int PostgreSQLStmt::execute()
     clearError();
     PGresult* res = exec();
     if (!res) {
-        return m_errno;
+        return errno_;
     }
 
     ExecStatusType status = PQresultStatus(res);
@@ -756,7 +755,7 @@ int PostgreSQLStmt::execute()
         setError(PQresultErrorMessage(res));
     }
     PQclear(res);
-    return m_errno;
+    return errno_;
 }
 
 ISQLData::ptr PostgreSQLStmt::query()
@@ -778,10 +777,10 @@ ISQLData::ptr PostgreSQLStmt::query()
 
 int64_t PostgreSQLStmt::getLastInsertId()
 {
-    if (!m_db) {
+    if (!db_) {
         return 0;
     }
-    return m_db->getLastInsertId();
+    return db_->getLastInsertId();
 }
 
 PostgreSQLTransaction::ptr PostgreSQLTransaction::Create(PostgreSQL::ptr db, bool auto_commit)
@@ -798,19 +797,19 @@ PostgreSQLTransaction::ptr PostgreSQLTransaction::Create(PostgreSQL::ptr db, boo
 }
 
 PostgreSQLTransaction::PostgreSQLTransaction(PostgreSQL::ptr db, bool auto_commit)
-    : m_db(db)
-    , m_autoCommit(auto_commit)
-    , m_isFinished(false)
-    , m_hasError(false)
+    : db_(db)
+    , auto_commit_(auto_commit)
+    , is_finished_(false)
+    , has_error_(false)
 {
 }
 
 PostgreSQLTransaction::~PostgreSQLTransaction()
 {
-    if (!m_db || m_isFinished) {
+    if (!db_ || is_finished_) {
         return;
     }
-    if (m_autoCommit && !m_hasError) {
+    if (auto_commit_ && !has_error_) {
         PostgreSQLTransaction::commit();
     } else {
         PostgreSQLTransaction::rollback();
@@ -819,7 +818,7 @@ PostgreSQLTransaction::~PostgreSQLTransaction()
 
 bool PostgreSQLTransaction::begin()
 {
-    if (!m_db) {
+    if (!db_) {
         ERROR(g_logger) << "PostgreSQLTransaction::begin m_db is null";
         return false;
     }
@@ -828,14 +827,14 @@ bool PostgreSQLTransaction::begin()
 
 bool PostgreSQLTransaction::commit()
 {
-    if (!m_db) {
+    if (!db_) {
         ERROR(g_logger) << "PostgreSQLTransaction::commit m_db is null";
         return false;
     }
-    if (m_isFinished) {
-        return !m_hasError;
+    if (is_finished_) {
+        return !has_error_;
     }
-    if (m_hasError) {
+    if (has_error_) {
         // PostgreSQL 在语句出错后会把事务标记为 aborted，此时 COMMIT 只会
         // 得到 ROLLBACK；这里显式回滚，确保连接归还连接池前事务已结束。
         rollback();
@@ -843,27 +842,27 @@ bool PostgreSQLTransaction::commit()
     }
     int rt = execute("COMMIT");
     if (rt == 0) {
-        m_isFinished = true;
+        is_finished_ = true;
     } else {
-        m_hasError = true;
+        has_error_ = true;
     }
     return rt == 0;
 }
 
 bool PostgreSQLTransaction::rollback()
 {
-    if (!m_db) {
+    if (!db_) {
         ERROR(g_logger) << "PostgreSQLTransaction::rollback m_db is null";
         return false;
     }
-    if (m_isFinished) {
+    if (is_finished_) {
         return true;
     }
     int rt = execute("ROLLBACK");
     if (rt == 0) {
-        m_isFinished = true;
+        is_finished_ = true;
     } else {
-        m_hasError = true;
+        has_error_ = true;
     }
     return rt == 0;
 }
@@ -879,55 +878,55 @@ int PostgreSQLTransaction::execute(const char* format, ...)
 
 int PostgreSQLTransaction::execute(const char* format, va_list ap)
 {
-    if (m_isFinished) {
+    if (is_finished_) {
         ERROR(g_logger) << "transaction is finished, format=" << format;
         return -1;
     }
-    if (!m_db) {
+    if (!db_) {
         ERROR(g_logger) << "PostgreSQLTransaction::execute m_db is null";
         return -1;
     }
-    int rt = m_db->execute(format, ap);
+    int rt = db_->execute(format, ap);
     if (rt) {
-        m_hasError = true;
+        has_error_ = true;
     }
     return rt;
 }
 
 int PostgreSQLTransaction::execute(const std::string& sql)
 {
-    if (m_isFinished) {
+    if (is_finished_) {
         ERROR(g_logger) << "transaction is finished, sql=" << sql;
         return -1;
     }
-    if (!m_db) {
+    if (!db_) {
         ERROR(g_logger) << "PostgreSQLTransaction::execute m_db is null";
         return -1;
     }
-    int rt = m_db->execute(sql);
+    int rt = db_->execute(sql);
     if (rt) {
-        m_hasError = true;
+        has_error_ = true;
     }
     return rt;
 }
 
 int64_t PostgreSQLTransaction::getLastInsertId()
 {
-    if (!m_db) {
+    if (!db_) {
         ERROR(g_logger) << "PostgreSQLTransaction::getLastInsertId m_db is null";
         return 0;
     }
-    return m_db->getLastInsertId();
+    return db_->getLastInsertId();
 }
 
 PostgreSQLManager::PostgreSQLManager()
-    : m_maxConn(10)
+    : max_conn_(10)
 {
 }
 
 PostgreSQLManager::~PostgreSQLManager()
 {
-    for (auto& i : m_conns) {
+    for (auto& i : conns_) {
         for (auto& n : i.second) {
             delete n;
         }
@@ -936,15 +935,15 @@ PostgreSQLManager::~PostgreSQLManager()
 
 PostgreSQL::ptr PostgreSQLManager::get(const std::string& name)
 {
-    std::unique_lock lock(m_mutex);
-    auto it = m_conns.find(name);
-    if (it != m_conns.end() && !it->second.empty()) {
+    std::unique_lock lock(mutex_);
+    auto it = conns_.find(name);
+    if (it != conns_.end() && !it->second.empty()) {
         PostgreSQL* rt = it->second.front();
         it->second.pop_front();
         lock.unlock();
 
         if (!rt->isNeedCheck() || rt->ping() || rt->connect()) {
-            rt->m_lastUsedTime = time(0);
+            rt->last_used_time_ = time(0);
             return PostgreSQL::ptr(rt, std::bind(&PostgreSQLManager::freePostgreSQL, this, name, std::placeholders::_1));
         }
 
@@ -959,8 +958,8 @@ PostgreSQL::ptr PostgreSQLManager::get(const std::string& name)
     if (sit != config.end()) {
         args = sit->second;
     } else {
-        sit = m_dbDefines.find(name);
-        if (sit != m_dbDefines.end()) {
+        sit = db_defines_.find(name);
+        if (sit != db_defines_.end()) {
             args = sit->second;
         } else {
             return nullptr;
@@ -970,7 +969,7 @@ PostgreSQL::ptr PostgreSQLManager::get(const std::string& name)
 
     PostgreSQL* rt = new PostgreSQL(args);
     if (rt->connect()) {
-        rt->m_lastUsedTime = time(0);
+        rt->last_used_time_ = time(0);
         return PostgreSQL::ptr(rt, std::bind(&PostgreSQLManager::freePostgreSQL, this, name, std::placeholders::_1));
     }
 
@@ -980,18 +979,18 @@ PostgreSQL::ptr PostgreSQLManager::get(const std::string& name)
 
 void PostgreSQLManager::registerPostgreSQL(const std::string& name, const std::map<std::string, std::string>& params)
 {
-    std::lock_guard lock(m_mutex);
-    m_dbDefines[name] = params;
+    std::lock_guard lock(mutex_);
+    db_defines_[name] = params;
 }
 
 void PostgreSQLManager::checkConnection(int sec)
 {
     time_t now = time(0);
     std::vector<PostgreSQL*> conns;
-    std::unique_lock lock(m_mutex);
-    for (auto& i : m_conns) {
+    std::unique_lock lock(mutex_);
+    for (auto& i : conns_) {
         for (auto it = i.second.begin(); it != i.second.end();) {
-            if (static_cast<int>(now - (*it)->m_lastUsedTime) >= sec) {
+            if (static_cast<int>(now - (*it)->last_used_time_) >= sec) {
                 auto tmp = *it;
                 i.second.erase(it++);
                 conns.push_back(tmp);
@@ -1080,18 +1079,18 @@ void PostgreSQLManager::freePostgreSQL(const std::string& name, PostgreSQL* db)
         ERROR(g_logger) << "PostgreSQLManager::freePostgreSQL db is null";
         return;
     }
-    if (db->m_conn && PQstatus(db->m_conn) == CONNECTION_OK) {
+    if (db->conn_ && PQstatus(db->conn_) == CONNECTION_OK) {
         // 防御性清理：正常归还时事务对象已经结束，不应残留事务状态。
-        if (PQtransactionStatus(db->m_conn) != PQTRANS_IDLE) {
-            PGresult* res = PQexec(db->m_conn, "ROLLBACK");
+        if (PQtransactionStatus(db->conn_) != PQTRANS_IDLE) {
+            PGresult* res = PQexec(db->conn_, "ROLLBACK");
             if (res) {
                 PQclear(res);
             }
         }
-        if (PQtransactionStatus(db->m_conn) == PQTRANS_IDLE) {
-            std::lock_guard lock(m_mutex);
-            if (m_conns[name].size() < static_cast<size_t>(db->m_poolSize)) {
-                m_conns[name].push_back(db);
+        if (PQtransactionStatus(db->conn_) == PQTRANS_IDLE) {
+            std::lock_guard lock(mutex_);
+            if (conns_[name].size() < static_cast<size_t>(db->pool_size_)) {
+                conns_[name].push_back(db);
                 return;
             }
         }

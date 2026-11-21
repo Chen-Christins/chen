@@ -18,9 +18,9 @@ void EventBus::doEmitAsync(EventKey event, std::any data)
     }
     std::vector<EventCallback> cbs;
     {
-        std::shared_lock lock(m_mutex);
-        auto it = m_listeners.find(event);
-        if (it == m_listeners.end()) {
+        std::shared_lock lock(mutex_);
+        auto it = listeners_.find(event);
+        if (it == listeners_.end()) {
             return;
         }
         for (auto& entry : it->second) {
@@ -37,17 +37,17 @@ void EventBus::doEmitAsync(EventKey event, std::any data)
 
 uint64_t EventBus::on(EventKey event, EventCallback cb)
 {
-    std::unique_lock lock(m_mutex);
-    uint64_t id = m_nextId++;
-    m_listeners[std::move(event)].push_back({id, std::move(cb)});
+    std::unique_lock lock(mutex_);
+    uint64_t id = next_id_++;
+    listeners_[std::move(event)].push_back({id, std::move(cb)});
     return id;
 }
 
 void EventBus::off(EventKey event, uint64_t id)
 {
-    std::unique_lock lock(m_mutex);
-    auto it = m_listeners.find(event);
-    if (it == m_listeners.end()) {
+    std::unique_lock lock(mutex_);
+    auto it = listeners_.find(event);
+    if (it == listeners_.end()) {
         return;
     }
     auto& vec = it->second;
@@ -67,14 +67,14 @@ void EventBus::emitAsync(EventKey event, std::any data)
 
 void EventBus::clear(EventKey event)
 {
-    std::unique_lock lock(m_mutex);
-    m_listeners.erase(event);
+    std::unique_lock lock(mutex_);
+    listeners_.erase(event);
 }
 
 void EventBus::clearAll()
 {
-    std::unique_lock lock(m_mutex);
-    m_listeners.clear();
+    std::unique_lock lock(mutex_);
+    listeners_.clear();
 }
 
 } // namespace chen

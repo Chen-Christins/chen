@@ -52,17 +52,17 @@ public:
     /**
      * @brief 获取表名
      */
-    const std::string& getName() const { return m_name; }
+    const std::string& getName() const { return name_; }
 
     /**
      * @brief 获取字段列表
      */
-    const std::vector<std::string>& getHeaders() const { return m_headers; }
+    const std::vector<std::string>& getHeaders() const { return headers_; }
 
     /**
      * @brief 获取行数
      */
-    size_t getRowCount() const { return m_rows.size(); }
+    size_t getRowCount() const { return rows_.size(); }
 
     /**
      * @brief 获取指定行数据
@@ -82,11 +82,11 @@ public:
     template <typename T>
     T getValue(size_t row_index, const std::string& column_name, const T& default_value = T{}) const
     {
-        if (row_index >= m_rows.size()) {
+        if (row_index >= rows_.size()) {
             return default_value;
         }
 
-        const RowData& row = m_rows[row_index];
+        const RowData& row = rows_[row_index];
         auto it = row.find(column_name);
         if (it == row.end()) {
             return default_value;
@@ -95,7 +95,8 @@ public:
         try {
             return std::get<T>(it->second);
         } catch (const std::bad_variant_access&) {
-            WARN(LOG_NAME("data")) << "Type mismatch for field " << column_name << " in table " << m_name << " row " << row_index;
+            WARN(LOG_NAME("data")) << "Type mismatch for field " << column_name << " in table " << name_ << " row "
+                                   << row_index;
             return default_value;
         }
     }
@@ -103,7 +104,10 @@ public:
     /**
      * @brief 检查字段是否存在
      */
-    bool hasField(const std::string& field_name) const { return std::find(m_headers.begin(), m_headers.end(), field_name) != m_headers.end(); }
+    bool hasField(const std::string& field_name) const
+    {
+        return std::find(headers_.begin(), headers_.end(), field_name) != headers_.end();
+    }
 
     /**
      * @brief 遍历所有行
@@ -114,9 +118,9 @@ public:
 private:
     friend class DataReader;
 
-    std::string m_name;                 // 表名
-    std::vector<std::string> m_headers; // 字段列表
-    std::vector<RowData> m_rows;        // 行数据
+    std::string name_;                 // 表名
+    std::vector<std::string> headers_; // 字段列表
+    std::vector<RowData> rows_;        // 行数据
 };
 
 /**
@@ -176,7 +180,7 @@ public:
     /**
      * @brief 获取表数量
      */
-    size_t getTableCount() const { return m_tables.size(); }
+    size_t getTableCount() const { return tables_.size(); }
 
     /**
      * @brief 清空所有数据
@@ -210,13 +214,13 @@ private:
     FieldValue _readFieldValue(const uint8_t*& ptr, const uint8_t* end);
 
     // 加密密钥
-    static const uint32_t ENCRYPT_KEY = 0xABCD1234;
+    static const uint32_t kEncryptKey = 0xABCD1234;
 
     // 文件头标识
-    static const char FILE_HEADER[4];
+    static const char kFileHeader[4];
 
-    std::map<std::string, TableData::ptr> m_tables; // 表数据映射
-    std::unique_ptr<DataDecryptor> m_decryptor;     // 解密器
+    std::map<std::string, TableData::ptr> tables_; // 表数据映射
+    std::unique_ptr<DataDecryptor> decryptor_;     // 解密器
 };
 
 /**
@@ -233,12 +237,12 @@ public:
     template <typename T>
     operator T() const
     {
-        if (!m_row) {
+        if (!row_) {
             return T{};
         }
 
-        auto it = m_row->find(m_field_name);
-        if (it == m_row->end()) {
+        auto it = row_->find(field_name_);
+        if (it == row_->end()) {
             return T{};
         }
 
@@ -264,8 +268,8 @@ public:
     bool isNull() const;
 
 private:
-    const RowData* m_row;
-    std::string m_field_name;
+    const RowData* row_;
+    std::string field_name_;
 };
 
 /**
@@ -284,16 +288,16 @@ public:
     /**
      * @brief 获取原始行数据
      */
-    const RowData* getRawRow() const { return m_table ? m_table->getRow(m_row_index) : nullptr; }
+    const RowData* getRawRow() const { return table_ ? table_->getRow(row_index_) : nullptr; }
 
     /**
      * @brief 检查行是否有效
      */
-    bool isValid() const { return m_table && m_row_index < m_table->getRowCount(); }
+    bool isValid() const { return table_ && row_index_ < table_->getRowCount(); }
 
 private:
-    const TableData* m_table;
-    size_t m_row_index;
+    const TableData* table_;
+    size_t row_index_;
 };
 
 } // namespace chen::data

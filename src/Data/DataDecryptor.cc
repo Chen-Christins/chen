@@ -19,8 +19,8 @@ DecryptionMetadata::DecryptionMetadata()
 }
 
 DataDecryptor::DataDecryptor(EncryptionType type, const std::string& password)
-    : m_type(type)
-    , m_password(password)
+    : type_(type)
+    , password_(password)
 {
     // OpenSSL 1.1+ 会自动完成全局初始化，无需手动调用 OpenSSL_add_all_algorithms 等旧接口
 }
@@ -226,7 +226,7 @@ std::vector<uint8_t> DataDecryptor::parseAndDecrypt(const uint8_t* data, size_t 
     }
 
     // 版本1格式：直接XOR加密的数据
-    if (m_type == EncryptionType::XOR) {
+    if (type_ == EncryptionType::XOR) {
         return decryptXOR(std::vector<uint8_t>(data, data + size), 0xABCD1234);
     }
 
@@ -246,7 +246,7 @@ std::vector<uint8_t> DataDecryptor::parseAndDecrypt(const uint8_t* data, size_t 
 
     // 手动解析JSON（简化版）
     // 使用构造函数指定的加密类型，而不是从文件中读取
-    EncryptionType enc_type = m_type;
+    EncryptionType enc_type = type_;
     std::map<std::string, std::string> metadata_map;
 
     // 查找metadata字段
@@ -323,7 +323,7 @@ std::vector<uint8_t> DataDecryptor::parseAndDecrypt(const uint8_t* data, size_t 
         std::vector<uint8_t> key;
         if (metadata_map["derived"] == "true") {
             std::vector<uint8_t> salt = hexStringToBytes(metadata_map["salt"]);
-            key = deriveKey(m_password, salt, 16);
+            key = deriveKey(password_, salt, 16);
         } else {
             throw std::runtime_error("Direct key not supported for AES-128-GCM");
         }
@@ -334,7 +334,7 @@ std::vector<uint8_t> DataDecryptor::parseAndDecrypt(const uint8_t* data, size_t 
         std::vector<uint8_t> key;
         if (metadata_map["derived"] == "true") {
             std::vector<uint8_t> salt = hexStringToBytes(metadata_map["salt"]);
-            key = deriveKey(m_password, salt, 32);
+            key = deriveKey(password_, salt, 32);
         } else {
             throw std::runtime_error("Direct key not supported for AES-256-GCM");
         }
@@ -345,7 +345,7 @@ std::vector<uint8_t> DataDecryptor::parseAndDecrypt(const uint8_t* data, size_t 
         std::vector<uint8_t> key;
         if (metadata_map["derived"] == "true") {
             std::vector<uint8_t> salt = hexStringToBytes(metadata_map["salt"]);
-            key = deriveKey(m_password, salt, 32);
+            key = deriveKey(password_, salt, 32);
         } else {
             throw std::runtime_error("Direct key not supported for ChaCha20-Poly1305");
         }
@@ -355,7 +355,7 @@ std::vector<uint8_t> DataDecryptor::parseAndDecrypt(const uint8_t* data, size_t 
     case EncryptionType::CUSTOM: {
         std::vector<uint8_t> key;
         if (metadata_map["derived"] == "true") {
-            std::vector<uint8_t> pwd_data(m_password.begin(), m_password.end());
+            std::vector<uint8_t> pwd_data(password_.begin(), password_.end());
             std::vector<uint8_t> empty_data;
             key = computeHMACSHA256(pwd_data, empty_data);
         } else {
@@ -396,8 +396,8 @@ std::vector<uint8_t> DataDecryptor::hexStringToBytes(const std::string& hex)
     std::vector<uint8_t> bytes;
 
     for (size_t i = 0; i < hex.length(); i += 2) {
-        std::string byteString = hex.substr(i, 2);
-        uint8_t byte = static_cast<uint8_t>(strtol(byteString.c_str(), nullptr, 16));
+        std::string byte_string = hex.substr(i, 2);
+        uint8_t byte = static_cast<uint8_t>(strtol(byte_string.c_str(), nullptr, 16));
         bytes.push_back(byte);
     }
 

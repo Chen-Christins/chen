@@ -42,9 +42,9 @@ private:
     SmtpClient(Socket::ptr sock);
 
 private:
-    std::string m_host;
-    std::stringstream m_ss;
-    bool m_authed = false;
+    std::string host_;
+    std::stringstream ss_;
+    bool authed_ = false;
 };
 
 } // namespace chen

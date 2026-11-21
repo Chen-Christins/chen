@@ -19,28 +19,28 @@ static ConfigVar<uint32_t>::ptr g_rock_protocol_gzip_min_length =
 
 bool RockBody::serializeToByteArray(ByteArray::ptr bytearray)
 {
-    bytearray->writeStringVint(m_body);
+    bytearray->writeStringVint(body_);
     return true;
 }
 
 bool RockBody::parseFromByteArray(ByteArray::ptr bytearray)
 {
-    m_body = bytearray->readStringVint();
+    body_ = bytearray->readStringVint();
     return true;
 }
 
 std::shared_ptr<RockResponse> RockRequest::createResponse()
 {
     RockResponse::ptr rt(new RockResponse);
-    rt->setSn(m_sn);
-    rt->setCmd(m_cmd);
+    rt->setSn(sn_);
+    rt->setCmd(cmd_);
     return rt;
 }
 
 std::string RockRequest::toString() const
 {
     std::stringstream ss;
-    ss << "[RockRequest sn=" << m_sn << " cmd=" << m_cmd << " body.length=" << m_body.size() << "]";
+    ss << "[RockRequest sn=" << sn_ << " cmd=" << cmd_ << " body.length=" << body_.size() << "]";
     return ss.str();
 }
 
@@ -84,8 +84,8 @@ bool RockRequest::parseFromByteArray(ByteArray::ptr bytearray)
 std::string RockResponse::toString() const
 {
     std::stringstream ss;
-    ss << "[RockResponse sn=" << m_sn << " cmd=" << m_cmd << " result=" << m_result << " result_msg=" << m_resultStr
-       << " body.length=" << m_body.size() << "]";
+    ss << "[RockResponse sn=" << sn_ << " cmd=" << cmd_ << " result=" << result_ << " result_msg=" << result_str_
+       << " body.length=" << body_.size() << "]";
     return ss.str();
 }
 
@@ -129,7 +129,7 @@ bool RockResponse::parseFromByteArray(ByteArray::ptr bytearray)
 std::string RockNotify::toString() const
 {
     std::stringstream ss;
-    ss << "[RockNotify notify=" << m_notify << " body.length=" << m_body.size() << "]";
+    ss << "[RockNotify notify=" << notify_ << " body.length=" << body_.size() << "]";
     return ss.str();
 }
 

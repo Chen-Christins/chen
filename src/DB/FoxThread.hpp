@@ -66,9 +66,9 @@ public:
 
     void join();
     void stop();
-    bool isStart() const { return m_start; }
+    bool isStart() const { return start_; }
 
-    struct event_base* getBase() { return m_base; }
+    struct event_base* getBase() { return base_; }
     std::thread::id getId() const;
 
     void* getData(const std::string& name);
@@ -79,32 +79,32 @@ public:
     }
     void setData(const std::string& name, void* v);
 
-    void setInitCb(init_cb v) { m_initCb = v; }
+    void setInitCb(init_cb v) { init_cb_ = v; }
 
     void dump(std::ostream& os);
-    virtual uint64_t getTotal() { return m_total; }
+    virtual uint64_t getTotal() { return total_; }
 
 private:
     void thread_cb();
     static void read_cb(evutil_socket_t sock, short which, void* args);
 
 private:
-    evutil_socket_t m_read;
-    evutil_socket_t m_write;
-    struct event_base* m_base;
-    struct event* m_event;
-    std::thread* m_thread;
-    std::shared_mutex m_mutex;
-    std::list<callback> m_callbacks;
+    evutil_socket_t read_;
+    evutil_socket_t write_;
+    struct event_base* base_;
+    struct event* event_;
+    std::thread* thread_;
+    std::shared_mutex mutex_;
+    std::list<callback> callbacks_;
 
-    std::string m_name;
-    init_cb m_initCb;
+    std::string name_;
+    init_cb init_cb_;
 
-    std::map<std::string, void*> m_datas;
+    std::map<std::string, void*> datas_;
 
-    bool m_working;
-    bool m_start;
-    uint64_t m_total;
+    bool working_;
+    bool start_;
+    uint64_t total_;
 };
 
 class FoxThreadPool : public IFoxThread {
@@ -126,12 +126,12 @@ public:
     bool dispatch(uint32_t id, callback cb);
 
     FoxThread* getRandFoxThread();
-    void setInitCb(FoxThread::init_cb v) { m_initCb = v; }
+    void setInitCb(FoxThread::init_cb v) { init_cb_ = v; }
 
     void dump(std::ostream& os);
 
     void broadcast(callback cb);
-    virtual uint64_t getTotal() { return m_total; }
+    virtual uint64_t getTotal() { return total_; }
 
 private:
     void releaseFoxThread(FoxThread* t);
@@ -140,17 +140,17 @@ private:
     void wrapcb(std::shared_ptr<FoxThread>, callback cb);
 
 private:
-    uint32_t m_size;
-    uint32_t m_cur;
-    std::string m_name;
-    bool m_advance;
-    bool m_start;
-    std::shared_mutex m_mutex;
-    std::list<callback> m_callbacks;
-    std::vector<FoxThread*> m_threads;
-    std::list<FoxThread*> m_freeFoxThreads;
-    FoxThread::init_cb m_initCb;
-    uint64_t m_total;
+    uint32_t size_;
+    uint32_t cur_;
+    std::string name_;
+    bool advance_;
+    bool start_;
+    std::shared_mutex mutex_;
+    std::list<callback> callbacks_;
+    std::vector<FoxThread*> threads_;
+    std::list<FoxThread*> free_fox_threads_;
+    FoxThread::init_cb init_cb_;
+    uint64_t total_;
 };
 
 class FoxThreadManager {
@@ -172,13 +172,13 @@ public:
 
 private:
     /// 线程池集合
-    std::map<std::string, IFoxThread::ptr> m_threads;
-    /// 保护 m_threads 与初始化状态的互斥锁
-    std::shared_mutex m_mutex;
+    std::map<std::string, IFoxThread::ptr> threads_;
+    /// 保护 threads_ 与初始化状态的互斥锁
+    std::shared_mutex mutex_;
     /// 是否已完成 init（进程内仅一次，避免热重载销毁在用线程池）
-    bool m_inited = false;
+    bool inited_ = false;
     /// 是否已完成 start
-    bool m_started = false;
+    bool started_ = false;
 };
 
 typedef Singleton<FoxThreadManager> FoxThreadMgr;

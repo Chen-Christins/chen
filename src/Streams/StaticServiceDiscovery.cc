@@ -36,15 +36,15 @@ StaticServiceDiscovery::StaticServiceDiscovery()
 }
 
 StaticServiceDiscovery::StaticServiceDiscovery(const Conf& conf)
-    : m_conf(conf)
+    : conf_(conf)
 {
 }
 
 StaticServiceDiscovery::~StaticServiceDiscovery()
 {
-    if (m_listenerId != 0) {
-        g_service_discovery_domains->delListener(m_listenerId);
-        m_listenerId = 0;
+    if (listener_id_ != 0) {
+        g_service_discovery_domains->delListener(listener_id_);
+        listener_id_ = 0;
     }
 }
 
@@ -59,22 +59,22 @@ StaticServiceDiscovery::ptr StaticServiceDiscovery::CreateFromConfig()
 
 void StaticServiceDiscovery::start()
 {
-    if (m_conf.empty()) {
+    if (conf_.empty()) {
         auto conf = g_service_discovery_domains->getValue();
-        std::unique_lock lock(m_mtx);
-        if (m_conf.empty()) {
-            m_conf = std::move(conf);
+        std::unique_lock lock(mtx_);
+        if (conf_.empty()) {
+            conf_ = std::move(conf);
         }
     }
 
     {
-        std::unique_lock lock(m_mtx);
-        m_started = true;
+        std::unique_lock lock(mtx_);
+        started_ = true;
     }
 
-    // 只注册一次配置变更监听，实现 yml 热更新（避免在持有 m_mtx 时去拿 ConfigVar 的锁）
-    if (m_listenerId == 0) {
-        m_listenerId = g_service_discovery_domains->addListener([this](const Conf&, const Conf& now) {
+    // 只注册一次配置变更监听，实现 yml 热更新（避免在持有 mtx_ 时去拿 ConfigVar 的锁）
+    if (listener_id_ == 0) {
+        listener_id_ = g_service_discovery_domains->addListener([this](const Conf&, const Conf& now) {
             setConf(now);
         });
     }
@@ -88,10 +88,10 @@ void StaticServiceDiscovery::stop()
     std::unordered_map<std::string, std::unordered_map<std::string, std::unordered_map<uint64_t, ServiceItemInfo::ptr>>> datas;
     service_callback cb;
     {
-        std::unique_lock lock(m_mtx);
-        m_started = false;
-        datas.swap(m_datas);
-        cb = m_cb;
+        std::unique_lock lock(mtx_);
+        started_ = false;
+        datas.swap(datas_);
+        cb = cb_;
     }
 
     if (cb) {
@@ -107,8 +107,8 @@ void StaticServiceDiscovery::stop()
 void StaticServiceDiscovery::setConf(const Conf& conf)
 {
     {
-        std::unique_lock lock(m_mtx);
-        m_conf = conf;
+        std::unique_lock lock(mtx_);
+        conf_ = conf;
     }
     if (shouldApply()) {
         apply(true);
@@ -117,8 +117,8 @@ void StaticServiceDiscovery::setConf(const Conf& conf)
 
 StaticServiceDiscovery::Conf StaticServiceDiscovery::getConf()
 {
-    std::shared_lock lock(m_mtx);
-    return m_conf;
+    std::shared_lock lock(mtx_);
+    return conf_;
 }
 
 bool StaticServiceDiscovery::addServer(
@@ -134,9 +134,9 @@ bool StaticServiceDiscovery::addServer(
     }
 
     {
-        std::unique_lock lock(m_mtx);
-        m_registerInfos[domain][service][addr] = name;
-        m_registerWeights[domain][service][addr] = weight;
+        std::unique_lock lock(mtx_);
+        register_infos_[domain][service][addr] = name;
+        register_weights_[domain][service][addr] = weight;
     }
     if (shouldApply()) {
         apply(true);
@@ -148,10 +148,10 @@ bool StaticServiceDiscovery::delServer(const std::string& domain, const std::str
 {
     bool found = false;
     {
-        std::unique_lock lock(m_mtx);
+        std::unique_lock lock(mtx_);
 
-        auto it = m_registerInfos.find(domain);
-        if (it != m_registerInfos.end()) {
+        auto it = register_infos_.find(domain);
+        if (it != register_infos_.end()) {
             auto sit = it->second.find(service);
             if (sit != it->second.end()) {
                 found = sit->second.erase(addr) > 0;
@@ -160,12 +160,12 @@ bool StaticServiceDiscovery::delServer(const std::string& domain, const std::str
                 }
             }
             if (it->second.empty()) {
-                m_registerInfos.erase(it);
+                register_infos_.erase(it);
             }
         }
 
-        auto wit = m_registerWeights.find(domain);
-        if (wit != m_registerWeights.end()) {
+        auto wit = register_weights_.find(domain);
+        if (wit != register_weights_.end()) {
             auto sit = wit->second.find(service);
             if (sit != wit->second.end()) {
                 sit->second.erase(addr);
@@ -174,12 +174,12 @@ bool StaticServiceDiscovery::delServer(const std::string& domain, const std::str
                 }
             }
             if (wit->second.empty()) {
-                m_registerWeights.erase(wit);
+                register_weights_.erase(wit);
             }
         }
 
-        auto cit = m_conf.find(domain);
-        if (cit != m_conf.end()) {
+        auto cit = conf_.find(domain);
+        if (cit != conf_.end()) {
             auto scit = cit->second.find(service);
             if (scit != cit->second.end()) {
                 auto old_size = scit->second.size();
@@ -192,7 +192,7 @@ bool StaticServiceDiscovery::delServer(const std::string& domain, const std::str
                 }
             }
             if (cit->second.empty()) {
-                m_conf.erase(cit);
+                conf_.erase(cit);
             }
         }
     }
@@ -210,22 +210,22 @@ bool StaticServiceDiscovery::unregisterServer(const std::string& domain, const s
 
 bool StaticServiceDiscovery::isStarted()
 {
-    std::shared_lock lock(m_mtx);
-    return m_started;
+    std::shared_lock lock(mtx_);
+    return started_;
 }
 
 bool StaticServiceDiscovery::shouldApply()
 {
-    std::shared_lock lock(m_mtx);
-    return m_started;
+    std::shared_lock lock(mtx_);
+    return started_;
 }
 
 std::string StaticServiceDiscovery::statusString()
 {
     std::unordered_map<std::string, std::unordered_map<std::string, std::unordered_map<uint64_t, ServiceItemInfo::ptr>>> datas;
     {
-        std::shared_lock lock(m_mtx);
-        datas = m_datas;
+        std::shared_lock lock(mtx_);
+        datas = datas_;
     }
 
     std::stringstream ss;
@@ -247,17 +247,17 @@ void StaticServiceDiscovery::apply(bool notify)
     service_callback cb;
     std::unordered_map<std::string, std::unordered_map<std::string, std::unordered_map<uint64_t, ServiceItemInfo::ptr>>> desired;
     {
-        std::shared_lock lock(m_mtx);
-        conf = m_conf;
-        cb = m_cb;
+        std::shared_lock lock(mtx_);
+        conf = conf_;
+        cb = cb_;
 
         // registerServer()/addServer() 补录的实例
-        for (auto& [domain, services] : m_registerInfos) {
+        for (auto& [domain, services] : register_infos_) {
             for (auto& [service, addrs] : services) {
                 for (auto& [addr, data] : addrs) {
                     uint32_t weight = 10000;
-                    auto wit = m_registerWeights.find(domain);
-                    if (wit != m_registerWeights.end()) {
+                    auto wit = register_weights_.find(domain);
+                    if (wit != register_weights_.end()) {
                         auto sit = wit->second.find(service);
                         if (sit != wit->second.end()) {
                             auto ait = sit->second.find(addr);
@@ -291,8 +291,8 @@ void StaticServiceDiscovery::apply(bool notify)
 
     std::set<std::pair<std::string, std::string>> keys;
     {
-        std::shared_lock lock(m_mtx);
-        for (auto& [domain, services] : m_datas) {
+        std::shared_lock lock(mtx_);
+        for (auto& [domain, services] : datas_) {
             for (auto& [service, items] : services) {
                 keys.insert({domain, service});
             }
@@ -309,10 +309,10 @@ void StaticServiceDiscovery::apply(bool notify)
         std::unordered_map<uint64_t, ServiceItemInfo::ptr> new_value;
 
         {
-            std::unique_lock lock(m_mtx);
+            std::unique_lock lock(mtx_);
 
-            auto it = m_datas.find(domain);
-            if (it != m_datas.end()) {
+            auto it = datas_.find(domain);
+            if (it != datas_.end()) {
                 auto sit = it->second.find(service);
                 if (sit != it->second.end()) {
                     old_value = sit->second;
@@ -328,14 +328,14 @@ void StaticServiceDiscovery::apply(bool notify)
             }
 
             if (new_value.empty()) {
-                if (it != m_datas.end()) {
+                if (it != datas_.end()) {
                     it->second.erase(service);
                     if (it->second.empty()) {
-                        m_datas.erase(it);
+                        datas_.erase(it);
                     }
                 }
             } else {
-                m_datas[domain][service] = new_value;
+                datas_[domain][service] = new_value;
             }
         }
 

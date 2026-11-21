@@ -90,28 +90,28 @@ public:
      * @brief 将字符串中的指定字符替换为另一个字符
      * @param str 目标字符串
      * @param find 需要替换的字符
-     * @param replaceWith 替换的字符
+     * @param replace_with 替换的字符
      * @return 替换后的字符串
      */
-    static std::string Replace(const std::string& str, char find, char replaceWith);
+    static std::string Replace(const std::string& str, char find, char replace_with);
 
     /**
      * @brief 将字符串中的指定字符替换为字符串
      * @param str 目标字符串
      * @param find 需要替换的字符
-     * @param replaceWith 替换的字符串
+     * @param replace_with 替换的字符串
      * @return 替换后的字符串
      */
-    static std::string Replace(const std::string& str, char find, const std::string& replaceWith);
+    static std::string Replace(const std::string& str, char find, const std::string& replace_with);
 
     /**
      * @brief 将字符串中的指定子串替换为另一个字符串
      * @param str 目标字符串
      * @param find 需要替换的子串
-     * @param replaceWith 替换的字符串
+     * @param replace_with 替换的字符串
      * @return 替换后的字符串
      */
-    static std::string Replace(const std::string& str, const std::string& find, const std::string& replaceWith);
+    static std::string Replace(const std::string& str, const std::string& find, const std::string& replace_with);
 
     /**
      * @brief 将字符串全部转换为大写

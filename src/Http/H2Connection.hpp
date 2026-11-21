@@ -88,15 +88,15 @@ private:
     };
 
 private:
-    Socket::ptr m_socket;
+    Socket::ptr socket_;
 
-    nghttp2_session* m_session = nullptr;
+    nghttp2_session* session_ = nullptr;
 
-    bool m_connected = false;
+    bool connected_ = false;
 
-    std::unordered_map<int32_t, PendingResponse> m_responses;
+    std::unordered_map<int32_t, PendingResponse> responses_;
 
-    std::shared_mutex m_respMutex;
+    std::shared_mutex resp_mutex_;
 };
 
 } // namespace http

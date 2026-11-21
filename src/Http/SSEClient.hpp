@@ -58,12 +58,12 @@ public:
      * @brief 设置事件回调
      * @param cb 回调函数
      */
-    void setCallback(callback_type cb) { m_callback = std::move(cb); }
+    void setCallback(callback_type cb) { callback_ = std::move(cb); }
 
     /**
      * @brief 获取当前回调
      */
-    callback_type getCallback() const { return m_callback; }
+    callback_type getCallback() const { return callback_; }
 
     /**
      * @brief 喂入原始数据
@@ -82,9 +82,9 @@ public:
 
 private:
     /// 数据缓冲区（存放未完成的事件片段）
-    std::string m_buffer;
+    std::string buffer_;
     /// 事件回调
-    callback_type m_callback;
+    callback_type callback_;
 };
 
 } // namespace chen::http

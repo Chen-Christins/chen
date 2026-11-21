@@ -123,24 +123,24 @@ void on_request_http_field(void* data, const char* field, size_t flen, const cha
 }
 
 HttpRequestParser::HttpRequestParser()
-    : m_error(0)
+    : error_(0)
 {
-    m_data.reset(new HttpRequest);
-    http_parser_init(&m_parser);
-    m_parser.request_method = on_request_method;
-    m_parser.request_uri = on_request_uri;
-    m_parser.fragment = on_request_fragment;
-    m_parser.request_path = on_request_path;
-    m_parser.query_string = on_request_query;
-    m_parser.http_version = on_request_version;
-    m_parser.header_done = on_request_header_done;
-    m_parser.http_field = on_request_http_field;
-    m_parser.data = this;
+    data_.reset(new HttpRequest);
+    http_parser_init(&parser_);
+    parser_.request_method = on_request_method;
+    parser_.request_uri = on_request_uri;
+    parser_.fragment = on_request_fragment;
+    parser_.request_path = on_request_path;
+    parser_.query_string = on_request_query;
+    parser_.http_version = on_request_version;
+    parser_.header_done = on_request_header_done;
+    parser_.http_field = on_request_http_field;
+    parser_.data = this;
 }
 
 size_t HttpRequestParser::execute(char* data, size_t len)
 {
-    size_t offset = http_parser_execute(&m_parser, data, len, 0);
+    size_t offset = http_parser_execute(&parser_, data, len, 0);
     // move (data + offset, data + len - offset) to data
     // 把解析过的数据移走
     memmove(data, data + offset, (len - offset));
@@ -149,17 +149,17 @@ size_t HttpRequestParser::execute(char* data, size_t len)
 
 int HttpRequestParser::isFinished()
 {
-    return http_parser_is_finished(&m_parser);
+    return http_parser_is_finished(&parser_);
 }
 
 int HttpRequestParser::hasError()
 {
-    return m_error || http_parser_has_error(&m_parser);
+    return error_ || http_parser_has_error(&parser_);
 }
 
 uint64_t HttpRequestParser::getContentLength()
 {
-    return m_data->getHeaderAs<uint64_t>("content-length", 0);
+    return data_->getHeaderAs<uint64_t>("content-length", 0);
 }
 
 uint64_t HttpRequestParser::GetHttpRequestBufferSize()
@@ -223,43 +223,43 @@ void on_response_http_field(void* data, const char* field, size_t flen, const ch
 }
 
 HttpResponseParser::HttpResponseParser()
-    : m_error(0)
+    : error_(0)
 {
-    m_data.reset(new HttpResponse);
-    httpclient_parser_init(&m_parser);
-    m_parser.reason_phrase = on_response_reason;
-    m_parser.status_code = on_response_status;
-    m_parser.chunk_size = on_response_chunck;
-    m_parser.http_version = on_response_version;
-    m_parser.header_done = on_response_header_done;
-    m_parser.last_chunk = on_response_last_chunck;
-    m_parser.http_field = on_response_http_field;
-    m_parser.data = this;
+    data_.reset(new HttpResponse);
+    httpclient_parser_init(&parser_);
+    parser_.reason_phrase = on_response_reason;
+    parser_.status_code = on_response_status;
+    parser_.chunk_size = on_response_chunck;
+    parser_.http_version = on_response_version;
+    parser_.header_done = on_response_header_done;
+    parser_.last_chunk = on_response_last_chunck;
+    parser_.http_field = on_response_http_field;
+    parser_.data = this;
 }
 
 size_t HttpResponseParser::execute(char* data, size_t len, bool chunck)
 {
     if (chunck) {
-        httpclient_parser_init(&m_parser);
+        httpclient_parser_init(&parser_);
     }
-    size_t offset = httpclient_parser_execute(&m_parser, data, len, 0);
+    size_t offset = httpclient_parser_execute(&parser_, data, len, 0);
     memmove(data, data + offset, len - offset);
     return offset;
 }
 
 int HttpResponseParser::isFinished()
 {
-    return httpclient_parser_finish(&m_parser);
+    return httpclient_parser_finish(&parser_);
 }
 
 int HttpResponseParser::hasError()
 {
-    return m_error || httpclient_parser_has_error(&m_parser);
+    return error_ || httpclient_parser_has_error(&parser_);
 }
 
 uint64_t HttpResponseParser::getContentLength()
 {
-    return m_data->getHeaderAs<uint64_t>("content-length", 0);
+    return data_->getHeaderAs<uint64_t>("content-length", 0);
 }
 
 uint64_t HttpResponseParser::GetHttpResponseBufferSize()

@@ -30,14 +30,14 @@ SDLoadBalance::~SDLoadBalance()
 HolderStats HolderStatsSet::getTotal()
 {
     HolderStats rt;
-    for (auto& i : m_stats) {
+    for (auto& i : stats_) {
 #define XX(f) rt.f += i.f
-        XX(m_usedTime);
-        XX(m_total);
-        XX(m_doing);
-        XX(m_timeouts);
-        XX(m_oks);
-        XX(m_errs);
+        XX(used_time_);
+        XX(total_);
+        XX(doing_);
+        XX(timeouts_);
+        XX(oks_);
+        XX(errs_);
 #undef XX
     }
     return rt;
@@ -46,19 +46,19 @@ HolderStats HolderStatsSet::getTotal()
 std::string HolderStats::toString()
 {
     std::stringstream ss;
-    ss << "[Stat total=" << m_total << " used_time=" << m_usedTime << " doing=" << m_doing << " timeouts=" << m_timeouts << " oks=" << m_oks
-       << " errs=" << m_errs << " oks_rate=" << (m_total ? (m_oks * 100.0 / m_total) : 0)
-       << " errs_rate=" << (m_total ? (m_errs * 100.0 / m_total) : 0) << " avg_used=" << (m_oks ? (m_usedTime * 1.0 / m_oks) : 0)
-       << " weight=" << getWeight(1) << "]";
+    ss << "[Stat total=" << total_ << " used_time=" << used_time_ << " doing=" << doing_ << " timeouts=" << timeouts_
+       << " oks=" << oks_ << " errs=" << errs_ << " oks_rate=" << (total_ ? (oks_ * 100.0 / total_) : 0)
+       << " errs_rate=" << (total_ ? (errs_ * 100.0 / total_) : 0)
+       << " avg_used=" << (oks_ ? (used_time_ * 1.0 / oks_) : 0) << " weight=" << getWeight(1) << "]";
     return ss.str();
 }
 
 void LoadBalanceItem::close()
 {
-    if (!m_stream) {
+    if (!stream_) {
         return;
     }
-    auto stream = m_stream;
+    auto stream = stream_;
 
     // 优先使用配置的 service_io 调度器；未配置时回退当前调度器，避免 close 任务被丢弃
     if (auto sched = WorkerMgr::GetInstance()->get("service_io")) {
@@ -78,7 +78,7 @@ void LoadBalanceItem::close()
 
 bool LoadBalanceItem::isValid()
 {
-    if (!m_stream || !m_stream->isConnected()) {
+    if (!stream_ || !stream_->isConnected()) {
         return false;
     }
 
@@ -86,14 +86,14 @@ bool LoadBalanceItem::isValid()
     if (threshold == 0) {
         return true;
     }
-    if (m_consecutiveFails.load() < threshold) {
+    if (consecutive_fails_.load() < threshold) {
         return true;
     }
 
     // 冷却期外放行一次，给实例恢复的机会（half-open）
     uint64_t cooldown = g_load_balance_fail_cooldown_ms->getValue();
-    if (TimeUtil::GetCurrentMs() - m_lastFailMs.load() >= cooldown) {
-        m_consecutiveFails.store(0);
+    if (TimeUtil::GetCurrentMs() - last_fail_ms_.load() >= cooldown) {
+        consecutive_fails_.store(0);
         return true;
     }
     return false;
@@ -101,36 +101,36 @@ bool LoadBalanceItem::isValid()
 
 void LoadBalanceItem::incFail()
 {
-    m_consecutiveFails.fetch_add(1);
-    m_lastFailMs.store(TimeUtil::GetCurrentMs());
+    consecutive_fails_.fetch_add(1);
+    last_fail_ms_.store(TimeUtil::GetCurrentMs());
 }
 
 void LoadBalanceItem::resetFail()
 {
-    m_consecutiveFails.store(0);
+    consecutive_fails_.store(0);
 }
 
 std::string LoadBalanceItem::toString()
 {
     std::stringstream ss;
-    ss << "[Item id=" << m_id << " weight=" << getWeight();
-    if (!m_stream) {
+    ss << "[Item id=" << id_ << " weight=" << getWeight();
+    if (!stream_) {
         ss << " stream=null";
     } else {
-        ss << " stream=[" << m_stream->getRemoteAddressString() << " is_connected=" << m_stream->isConnected() << "]";
+        ss << " stream=[" << stream_->getRemoteAddressString() << " is_connected=" << stream_->isConnected() << "]";
     }
-    ss << m_stats.getTotal().toString() << "]";
+    ss << stats_.getTotal().toString() << "]";
     // float w = 0;
     // float w2 = 0;
     // for(uint64_t n = 0; n < 5; ++n) {
     //     if(n) {
     //         ss << ",";w
     //     } else {
-    //         ss << m_stats.get(time(0) - n).toString();
+    //         ss << stats_.get(time(0) - n).toString();
     //     }
-    //     w += m_stats.get(time(0) - n).getWeight();
-    //     w2 += m_stats.get(time(0) - n).getWeight() * (1 - n * 0.1);
-    //     ss << m_stats.get(time(0) - n).getWeight();
+    //     w += stats_.get(time(0) - n).getWeight();
+    //     w2 += stats_.get(time(0) - n).getWeight() * (1 - n * 0.1);
+    //     ss << stats_.get(time(0) - n).getWeight();
     // }
     // ss << " w=" << w;
     // ss << " w2=" << w2;
@@ -139,64 +139,64 @@ std::string LoadBalanceItem::toString()
 
 LoadBalanceItem::ptr LoadBalance::getById(uint64_t id)
 {
-    std::shared_lock lock(m_mutex);
-    auto it = m_datas.find(id);
-    return it == m_datas.end() ? nullptr : it->second;
+    std::shared_lock lock(mutex_);
+    auto it = datas_.find(id);
+    return it == datas_.end() ? nullptr : it->second;
 }
 
 void LoadBalance::add(LoadBalanceItem::ptr v)
 {
-    std::unique_lock lock(m_mutex);
-    m_datas[v->getId()] = v;
+    std::unique_lock lock(mutex_);
+    datas_[v->getId()] = v;
     initNolock();
 }
 
 void LoadBalance::del(LoadBalanceItem::ptr v)
 {
-    std::unique_lock lock(m_mutex);
-    m_datas.erase(v->getId());
+    std::unique_lock lock(mutex_);
+    datas_.erase(v->getId());
     initNolock();
 }
 
 void LoadBalance::update(const std::unordered_map<uint64_t, LoadBalanceItem::ptr>& adds, std::unordered_map<uint64_t, LoadBalanceItem::ptr>& dels)
 {
-    std::unique_lock lock(m_mutex);
+    std::unique_lock lock(mutex_);
     for (auto& i : dels) {
-        auto it = m_datas.find(i.first);
-        if (it != m_datas.end()) {
+        auto it = datas_.find(i.first);
+        if (it != datas_.end()) {
             i.second = it->second;
-            m_datas.erase(it);
+            datas_.erase(it);
         }
     }
     for (auto& i : adds) {
-        m_datas[i.first] = i.second;
+        datas_[i.first] = i.second;
     }
     initNolock();
 }
 
 void LoadBalance::set(const std::vector<LoadBalanceItem::ptr>& vs)
 {
-    std::unique_lock lock(m_mutex);
-    m_datas.clear();
+    std::unique_lock lock(mutex_);
+    datas_.clear();
     for (auto& i : vs) {
-        m_datas[i->getId()] = i;
+        datas_[i->getId()] = i;
     }
     initNolock();
 }
 
 void LoadBalance::init()
 {
-    std::unique_lock lock(m_mutex);
+    std::unique_lock lock(mutex_);
     initNolock();
 }
 
 std::string LoadBalance::statusString(const std::string& prefix)
 {
-    std::shared_lock lock(m_mutex);
-    decltype(m_datas) datas = m_datas;
+    std::shared_lock lock(mutex_);
+    decltype(datas_) datas = datas_;
     lock.unlock();
     std::stringstream ss;
-    ss << prefix << "init_time: " << TimeUtil::Time2StrMs(m_lastInitTime, "%Y-%m-%d %H:%M:%S") << std::endl;
+    ss << prefix << "init_time: " << TimeUtil::Time2StrMs(last_init_time_, "%Y-%m-%d %H:%M:%S") << std::endl;
     for (auto& i : datas) {
         ss << prefix << i.second->toString() << std::endl;
     }
@@ -206,33 +206,33 @@ std::string LoadBalance::statusString(const std::string& prefix)
 void LoadBalance::checkInit()
 {
     uint64_t ts = TimeUtil::GetCurrentMs();
-    if (ts - m_lastInitTime > 500) {
+    if (ts - last_init_time_ > 500) {
         init();
-        m_lastInitTime = ts;
+        last_init_time_ = ts;
     }
 }
 
 void RoundRobinLoadBalance::initNolock()
 {
-    decltype(m_items) items;
-    for (auto& i : m_datas) {
+    decltype(items_) items;
+    for (auto& i : datas_) {
         if (i.second->isValid()) {
             items.push_back(i.second);
         }
     }
-    items.swap(m_items);
+    items.swap(items_);
 }
 
 LoadBalanceItem::ptr RoundRobinLoadBalance::get(uint64_t v)
 {
     checkInit();
-    std::shared_lock lock(m_mutex);
-    if (m_items.empty()) {
+    std::shared_lock lock(mutex_);
+    if (items_.empty()) {
         return nullptr;
     }
-    uint32_t r = (v == (uint64_t)-1 ? rand() : v) % m_items.size();
-    for (size_t i = 0; i < m_items.size(); ++i) {
-        auto& h = m_items[(r + i) % m_items.size()];
+    uint32_t r = (v == (uint64_t)-1 ? rand() : v) % items_.size();
+    for (size_t i = 0; i < items_.size(); ++i) {
+        auto& h = items_[(r + i) % items_.size()];
         if (h->isValid()) {
             return h;
         }
@@ -252,15 +252,15 @@ FairLoadBalanceItem::ptr WeightLoadBalance::getAsFair()
 LoadBalanceItem::ptr WeightLoadBalance::get(uint64_t v)
 {
     checkInit();
-    std::shared_lock lock(m_mutex);
-    if (m_items.empty()) {
+    std::shared_lock lock(mutex_);
+    if (items_.empty()) {
         return nullptr;
     }
 
     // 只在可用实例中按权重做前缀和随机，避免“选中后再找下一个可用项”导致权重失真
     std::vector<std::pair<LoadBalanceItem::ptr, int64_t>> items;
     int64_t total = 0;
-    for (auto& item : m_items) {
+    for (auto& item : items_) {
         if (!item->isValid()) {
             continue;
         }
@@ -287,70 +287,70 @@ LoadBalanceItem::ptr WeightLoadBalance::get(uint64_t v)
 
 void WeightLoadBalance::initNolock()
 {
-    decltype(m_items) items;
-    for (auto& i : m_datas) {
+    decltype(items_) items;
+    for (auto& i : datas_) {
         if (i.second->isValid()) {
             items.push_back(i.second);
         }
     }
-    items.swap(m_items);
+    items.swap(items_);
 }
 
 void HolderStats::clear()
 {
-    m_usedTime = 0;
-    m_total = 0;
-    m_doing = 0;
-    m_timeouts = 0;
-    m_oks = 0;
-    m_errs = 0;
+    used_time_ = 0;
+    total_ = 0;
+    doing_ = 0;
+    timeouts_ = 0;
+    oks_ = 0;
+    errs_ = 0;
 }
 
 float HolderStats::getWeight(float rate)
 {
-    // if(m_total == 0) {
+    // if(total_ == 0) {
     //     return 0.1;
     // }
-    float base = m_total + 20;
-    return std::min((m_oks * 1.0 / (m_usedTime + 1)) * 2.0, 50.0) * (1 - 4.0 * m_timeouts / base) * (1 - 1 * m_doing / base)
-        * (1 - 10.0 * m_errs / base) * rate;
-    // return std::min((m_oks * 1.0 / (m_usedTime + 1)) * 10.0, 100.0)
-    //     * (1 - (2.0 * pow(m_timeouts, 1.3) / base))
-    //     * (1 - (1.0 * pow(m_doing, 1.1) / base))
-    //     * (1 - (4.0 * pow(m_errs, 1.5) / base)) * rate;
-    // return std::min(((m_oks + 1) * 1.0 / (m_usedTime + 1)) * 10.0, 100.0)
-    //     * std::min((base / (m_timeouts * 3.0 + 1)) / 100.0, 10.0)
-    //     * std::min((base / ( m_doing * 1.0 + 1)) / 100.0, 10.0)
-    //     * std::min((base / (m_errs * 5.0 + 1)) / 100.0, 10.0);
+    float base = total_ + 20;
+    return std::min((oks_ * 1.0 / (used_time_ + 1)) * 2.0, 50.0) * (1 - 4.0 * timeouts_ / base)
+        * (1 - 1 * doing_ / base) * (1 - 10.0 * errs_ / base) * rate;
+    // return std::min((oks_ * 1.0 / (used_time_ + 1)) * 10.0, 100.0)
+    //     * (1 - (2.0 * pow(timeouts_, 1.3) / base))
+    //     * (1 - (1.0 * pow(doing_, 1.1) / base))
+    //     * (1 - (4.0 * pow(errs_, 1.5) / base)) * rate;
+    // return std::min(((oks_ + 1) * 1.0 / (used_time_ + 1)) * 10.0, 100.0)
+    //     * std::min((base / (timeouts_ * 3.0 + 1)) / 100.0, 10.0)
+    //     * std::min((base / ( doing_ * 1.0 + 1)) / 100.0, 10.0)
+    //     * std::min((base / (errs_ * 5.0 + 1)) / 100.0, 10.0);
 }
 
 HolderStatsSet::HolderStatsSet(uint32_t size)
 {
-    m_stats.resize(size);
+    stats_.resize(size);
 }
 
 void HolderStatsSet::init(const uint32_t& now)
 {
-    if (m_lastUpdateTime < now) {
-        for (uint32_t t = m_lastUpdateTime + 1, i = 0; t <= now && i < m_stats.size(); ++t, ++i) {
-            m_stats[t % m_stats.size()].clear();
+    if (last_update_time_ < now) {
+        for (uint32_t t = last_update_time_ + 1, i = 0; t <= now && i < stats_.size(); ++t, ++i) {
+            stats_[t % stats_.size()].clear();
         }
-        m_lastUpdateTime = now;
+        last_update_time_ = now;
     }
 }
 
 HolderStats& HolderStatsSet::get(const uint32_t& now)
 {
     init(now);
-    return m_stats[now % m_stats.size()];
+    return stats_[now % stats_.size()];
 }
 
 float HolderStatsSet::getWeight(const uint32_t& now)
 {
     init(now);
     float v = 0;
-    for (size_t i = 1; i < m_stats.size(); ++i) {
-        v += m_stats[(now - i) % m_stats.size()].getWeight(1 - 0.1 * i);
+    for (size_t i = 1; i < stats_.size(); ++i) {
+        v += stats_[(now - i) % stats_.size()].getWeight(1 - 0.1 * i);
     }
     return v;
     // return getTotal().getWeight(1.0);
@@ -358,8 +358,8 @@ float HolderStatsSet::getWeight(const uint32_t& now)
 
 int32_t FairLoadBalanceItem::getWeight()
 {
-    int32_t v = m_weight * m_stats.getWeight();
-    if (m_stream->isConnected()) {
+    int32_t v = weight_ * stats_.getWeight();
+    if (stream_->isConnected()) {
         return v > 1 ? v : 1;
     }
     return 1;
@@ -367,19 +367,19 @@ int32_t FairLoadBalanceItem::getWeight()
 
 HolderStats& LoadBalanceItem::get(const uint32_t& now)
 {
-    return m_stats.get(now);
+    return stats_.get(now);
 }
 
 // LoadBalanceItem::ptr FairLoadBalance::get() {
-//     std::shared_lock lock(m_mutex);
+//     std::shared_lock lock(mutex_);
 //     int32_t idx = getIdx();
 //     if(idx == -1) {
 //         return nullptr;
 //     }
 //
 //     //TODO fix weight
-//     for(size_t i = 0; i < m_items.size(); ++i) {
-//         auto& h = m_items[(idx + i) % m_items.size()];
+//     for(size_t i = 0; i < items_.size(); ++i) {
+//         auto& h = items_[(idx + i) % items_.size()];
 //         if(h->isValid()) {
 //             return h;
 //         }
@@ -388,16 +388,16 @@ HolderStats& LoadBalanceItem::get(const uint32_t& now)
 // }
 //
 // void FairLoadBalance::initNolock() {
-//     decltype(m_items) items;
-//     for(auto& i : m_datas){
+//     decltype(items_) items;
+//     for(auto& i : datas_){
 //         items.push_back(i.second);
 //     }
-//     items.swap(m_items);
+//     items.swap(items_);
 //
-//     m_weights.resize(m_items.size());
+//     m_weights.resize(items_.size());
 //     int32_t total = 0;
-//     for(size_t i = 0; i < m_items.size(); ++i) {
-//         total += m_items[i]->getWeight();
+//     for(size_t i = 0; i < items_.size(); ++i) {
+//         total += items_[i]->getWeight();
 //         m_weights[i] = total;
 //     }
 // }
@@ -413,16 +413,16 @@ HolderStats& LoadBalanceItem::get(const uint32_t& now)
 // }
 
 SDLoadBalance::SDLoadBalance(IServiceDiscovery::ptr sd)
-    : m_sd(sd)
+    : sd_(sd)
 {
 }
 
 LoadBalance::ptr SDLoadBalance::get(const std::string& domain, const std::string& service, bool auto_create)
 {
     do {
-        std::shared_lock lock(m_mutex);
-        auto it = m_datas.find(domain);
-        if (it == m_datas.end()) {
+        std::shared_lock lock(mutex_);
+        auto it = datas_.find(domain);
+        if (it == datas_.end()) {
             break;
         }
         auto iit = it->second.find(service);
@@ -439,22 +439,22 @@ LoadBalance::ptr SDLoadBalance::get(const std::string& domain, const std::string
     auto type = getType(domain, service);
 
     auto lb = createLoadBalance(type);
-    std::unique_lock lock(m_mutex);
-    m_datas[domain][service] = lb;
+    std::unique_lock lock(mutex_);
+    datas_[domain][service] = lb;
     lock.unlock();
     return lb;
 }
 
 ILoadBalance::Type SDLoadBalance::getType(const std::string& domain, const std::string& service)
 {
-    std::shared_lock lock(m_mutex);
-    auto it = m_types.find(domain);
-    if (it == m_types.end()) {
-        return m_defaultType;
+    std::shared_lock lock(mutex_);
+    auto it = types_.find(domain);
+    if (it == types_.end()) {
+        return default_type_;
     }
     auto iit = it->second.find(service);
     if (iit == it->second.end()) {
-        return m_defaultType;
+        return default_type_;
     }
     return iit->second;
 }
@@ -509,7 +509,7 @@ void SDLoadBalance::onServiceChange(
 
     std::unordered_map<uint64_t, LoadBalanceItem::ptr> add_infos;
     for (auto& i : add_values) {
-        auto stream = m_cb(i.second);
+        auto stream = cb_(i.second);
         if (!stream) {
             ERROR(logger) << "create stream fail, " << i.second->toString();
             continue;
@@ -534,19 +534,18 @@ void SDLoadBalance::onServiceChange(
 
 void SDLoadBalance::start()
 {
-    m_sd->setServiceCallback(
-        std::bind(&SDLoadBalance::onServiceChange, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
-    m_sd->start();
+    sd_->setServiceCallback(std::bind(&SDLoadBalance::onServiceChange, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+    sd_->start();
 }
 
 void SDLoadBalance::stop()
 {
-    m_sd->stop();
+    sd_->stop();
 }
 
 void SDLoadBalance::initConf(const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& confs)
 {
-    decltype(m_types) types;
+    decltype(types_) types;
     std::unordered_map<std::string, std::unordered_set<std::string>> query_infos;
     for (auto& i : confs) {
         for (auto& n : i.second) {
@@ -560,16 +559,16 @@ void SDLoadBalance::initConf(const std::unordered_map<std::string, std::unordere
             query_infos[i.first].insert(n.first);
         }
     }
-    m_sd->setQueryServer(query_infos);
-    std::unique_lock lock(m_mutex);
-    types.swap(m_types);
+    sd_->setQueryServer(query_infos);
+    std::unique_lock lock(mutex_);
+    types.swap(types_);
     lock.unlock();
 }
 
 std::string SDLoadBalance::statusString()
 {
-    std::shared_lock lock(m_mutex);
-    decltype(m_datas) datas = m_datas;
+    std::shared_lock lock(mutex_);
+    decltype(datas_) datas = datas_;
     lock.unlock();
     std::stringstream ss;
     for (auto& i : datas) {

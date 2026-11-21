@@ -212,8 +212,8 @@ void test_pool_reuse(CountingHttpServerPtr server, uint16_t port)
 void test_pool_disabled(CountingHttpServerPtr server, uint16_t port)
 {
     INFO(logger) << "=== test_pool_disabled ===";
-    auto poolEnable = chen::Config::Lookup<bool>("http.client.pool_enable", true, "HttpClient 是否复用连接池");
-    poolEnable->setValue(false);
+    auto pool_enable = chen::Config::Lookup<bool>("http.client.pool_enable", true, "HttpClient 是否复用连接池");
+    pool_enable->setValue(false);
     chen::http::HttpClient::clearPools();
 
     const int before = server->connections.load();
@@ -226,7 +226,7 @@ void test_pool_disabled(CountingHttpServerPtr server, uint16_t port)
         }
     }
 
-    poolEnable->setValue(true);
+    pool_enable->setValue(true);
     chen::http::HttpClient::clearPools();
 
     const int used = server->connections.load() - before;

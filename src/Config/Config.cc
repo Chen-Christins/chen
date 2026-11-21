@@ -11,10 +11,10 @@ namespace chen {
 static Logger::ptr logger = LOG_NAME("system");
 
 ConfigVarBase::ConfigVarBase(const std::string& name, const std::string& description)
-    : m_name(name)
-    , m_description(description)
+    : name_(name)
+    , description_(description)
 {
-    std::transform(m_name.begin(), m_name.end(), m_name.begin(), ::tolower);
+    std::transform(name_.begin(), name_.end(), name_.begin(), ::tolower);
 }
 
 ConfigVarBase::~ConfigVarBase()

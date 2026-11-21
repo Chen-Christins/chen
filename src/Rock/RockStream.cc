@@ -37,14 +37,14 @@ std::string RockResult::toString() const
 
 RockStream::RockStream(Socket::ptr sock)
     : AsyncSocketStream(sock, true)
-    , m_decoder(new RockMessageDecoder)
+    , decoder_(new RockMessageDecoder)
 {
     DEBUG(logger) << "RockStream::RockStream " << this << " " << (sock ? sock->toString() : "");
 }
 
 RockStream::~RockStream()
 {
-    DEBUG(logger) << "RockStream::~RockStream " << this << " " << (m_socket ? m_socket->toString() : "");
+    DEBUG(logger) << "RockStream::~RockStream " << this << " " << (socket_ ? socket_->toString() : "");
 }
 
 int32_t RockStream::sendMessage(Message::ptr msg)
@@ -81,18 +81,18 @@ RockResult::ptr RockStream::request(RockRequest::ptr req, uint32_t timeout_ms)
 
 bool RockStream::RockSendCtx::doSend(AsyncSocketStream::ptr stream)
 {
-    return std::dynamic_pointer_cast<RockStream>(stream)->m_decoder->serializeTo(stream, msg) > 0;
+    return std::dynamic_pointer_cast<RockStream>(stream)->decoder_->serializeTo(stream, msg) > 0;
 }
 
 bool RockStream::RockCtx::doSend(AsyncSocketStream::ptr stream)
 {
-    return std::dynamic_pointer_cast<RockStream>(stream)->m_decoder->serializeTo(stream, request) > 0;
+    return std::dynamic_pointer_cast<RockStream>(stream)->decoder_->serializeTo(stream, request) > 0;
 }
 
 AsyncSocketStream::Ctx::ptr RockStream::doRecv()
 {
     // INFO(logger) << "doRecv " << this;
-    auto msg = m_decoder->parseFrom(shared_from_this());
+    auto msg = decoder_->parseFrom(shared_from_this());
     if (!msg) {
         innerClose();
         return nullptr;
@@ -119,8 +119,9 @@ AsyncSocketStream::Ctx::ptr RockStream::doRecv()
             WARN(logger) << "RockStream doRecv request not RockRequest: " << msg->toString();
             return nullptr;
         }
-        if (m_requestHandler) {
-            m_worker->schedule(std::bind(&RockStream::handleRequest, std::dynamic_pointer_cast<RockStream>(shared_from_this()), req));
+        if (request_handler_) {
+            worker_->schedule(
+                std::bind(&RockStream::handleRequest, std::dynamic_pointer_cast<RockStream>(shared_from_this()), req));
         } else {
             WARN(logger) << "unhandle request " << req->toString();
         }
@@ -131,8 +132,9 @@ AsyncSocketStream::Ctx::ptr RockStream::doRecv()
             return nullptr;
         }
 
-        if (m_notifyHandler) {
-            m_worker->schedule(std::bind(&RockStream::handleNotify, std::dynamic_pointer_cast<RockStream>(shared_from_this()), nty));
+        if (notify_handler_) {
+            worker_->schedule(
+                std::bind(&RockStream::handleNotify, std::dynamic_pointer_cast<RockStream>(shared_from_this()), nty));
         } else {
             WARN(logger) << "unhandle notify " << nty->toString();
         }
@@ -145,7 +147,7 @@ AsyncSocketStream::Ctx::ptr RockStream::doRecv()
 void RockStream::handleRequest(RockRequest::ptr req)
 {
     RockResponse::ptr rsp = req->createResponse();
-    if (!m_requestHandler(req, rsp, std::dynamic_pointer_cast<RockStream>(shared_from_this()))) {
+    if (!request_handler_(req, rsp, std::dynamic_pointer_cast<RockStream>(shared_from_this()))) {
         sendMessage(rsp);
         // innerClose();
         close();
@@ -156,7 +158,7 @@ void RockStream::handleRequest(RockRequest::ptr req)
 
 void RockStream::handleNotify(RockNotify::ptr nty)
 {
-    if (!m_notifyHandler(nty, std::dynamic_pointer_cast<RockStream>(shared_from_this()))) {
+    if (!notify_handler_(nty, std::dynamic_pointer_cast<RockStream>(shared_from_this()))) {
         // innerClose();
         close();
     }
@@ -165,19 +167,19 @@ void RockStream::handleNotify(RockNotify::ptr nty)
 RockSession::RockSession(Socket::ptr sock)
     : RockStream(sock)
 {
-    m_autoConnect = false;
+    auto_connect_ = false;
 }
 
 RockConnection::RockConnection()
     : RockStream(nullptr)
 {
-    m_autoConnect = true;
+    auto_connect_ = true;
 }
 
 bool RockConnection::connect(Address::ptr addr)
 {
-    m_socket = Socket::CreateTCP(addr);
-    return m_socket->connect(addr);
+    socket_ = Socket::CreateTCP(addr);
+    return socket_->connect(addr);
 }
 
 RockSDLoadBalance::RockSDLoadBalance(IServiceDiscovery::ptr sd)
@@ -225,14 +227,14 @@ static SocketStream::ptr create_rock_stream(ServiceItemInfo::ptr info)
 
 void RockSDLoadBalance::start()
 {
-    m_cb = create_rock_stream;
+    cb_ = create_rock_stream;
     initConf(g_rock_services->getValue());
     SDLoadBalance::start();
 }
 
 void RockSDLoadBalance::start(const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& confs)
 {
-    m_cb = create_rock_stream;
+    cb_ = create_rock_stream;
     initConf(confs);
     SDLoadBalance::start();
 }

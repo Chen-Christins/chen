@@ -10,54 +10,54 @@ static Logger::ptr logger = LOG_NAME("orm");
 
 std::string Column::getDTypeString()
 {
-    return TypeToString(m_dtype);
+    return TypeToString(dtype_);
 }
 
 std::string Column::getDefaultValueString()
 {
-    if (m_default.empty()) {
+    if (default_.empty()) {
         return "";
     }
-    if (m_dtype <= TYPE_DOUBLE || m_dtype == TYPE_INT64 || m_dtype == TYPE_UINT64) {
-        return m_default;
+    if (dtype_ <= TYPE_DOUBLE || dtype_ == TYPE_INT64 || dtype_ == TYPE_UINT64) {
+        return default_;
     }
-    if (m_dtype <= TYPE_BLOB) {
-        return "\"" + m_default + "\"";
+    if (dtype_ <= TYPE_BLOB) {
+        return "\"" + default_ + "\"";
     }
-    if (m_default == "current_timestamp") {
+    if (default_ == "current_timestamp") {
         return "time(0)";
     }
-    return "chen::TimeUtil::Str2Time(\"" + m_default + "\")";
+    return "chen::TimeUtil::Str2Time(\"" + default_ + "\")";
 }
 
 std::string Column::getSQLite3Default()
 {
-    if (m_dtype <= TYPE_UINT64) {
-        if (m_default.empty()) {
+    if (dtype_ <= TYPE_UINT64) {
+        if (default_.empty()) {
             return "0";
         }
-        return m_default;
+        return default_;
     }
-    if (m_dtype <= TYPE_BLOB) {
-        if (m_default.empty()) {
+    if (dtype_ <= TYPE_BLOB) {
+        if (default_.empty()) {
             return "''";
         }
-        return "'" + m_default + "'";
+        return "'" + default_ + "'";
     }
-    if (m_default.empty()) {
+    if (default_.empty()) {
         return "'1980-01-01 00:00:00'";
     }
-    return m_default;
+    return default_;
 }
 
 std::string Column::getMySQLDefault()
 {
     // MySQL DATETIME 支持 1970-01-01，TIMESTAMP 不支持，需保留 1980 哨兵
-    if (m_dtype == TYPE_TIMESTAMP && m_type == "datetime") {
-        if (m_default.empty()) {
+    if (dtype_ == TYPE_TIMESTAMP && type_ == "datetime") {
+        if (default_.empty()) {
             return "'1970-01-01 00:00:00'";
         }
-        return m_default;
+        return default_;
     }
     return getSQLite3Default();
 }
@@ -106,26 +106,26 @@ std::string escapePostgreSQLStringLiteral(const std::string& v)
 
 std::string Column::getPostgreSQLDefault()
 {
-    if (m_dtype <= TYPE_UINT64) {
-        if (m_default.empty()) {
+    if (dtype_ <= TYPE_UINT64) {
+        if (default_.empty()) {
             return "0";
         }
-        return m_default;
+        return default_;
     }
-    if (m_dtype <= TYPE_BLOB) {
-        std::string value = "'" + escapePostgreSQLStringLiteral(m_default) + "'";
-        if (m_dtype == TYPE_BLOB) {
+    if (dtype_ <= TYPE_BLOB) {
+        std::string value = "'" + escapePostgreSQLStringLiteral(default_) + "'";
+        if (dtype_ == TYPE_BLOB) {
             value += "::bytea";
         }
         return value;
     }
-    if (m_default.empty()) {
+    if (default_.empty()) {
         return "'1970-01-01 00:00:00'";
     }
-    if (m_default == "current_timestamp") {
+    if (default_ == "current_timestamp") {
         return "CURRENT_TIMESTAMP";
     }
-    return m_default;
+    return default_;
 }
 
 bool Column::init(const tinyxml2::XMLElement& node)
@@ -135,77 +135,79 @@ bool Column::init(const tinyxml2::XMLElement& node)
         return false;
     }
 
-    m_name = node.Attribute("name");
+    name_ = node.Attribute("name");
     if (!node.Attribute("type")) {
-        ERROR(logger) << "column name=" << m_name << " type is null";
+        ERROR(logger) << "column name=" << name_ << " type is null";
         return false;
     }
 
-    m_type = node.Attribute("type");
-    m_dtype = ParseType(m_type);
+    type_ = node.Attribute("type");
+    dtype_ = ParseType(type_);
 
-    if (m_dtype == TYPE_NULL) {
-        ERROR(logger) << "column name=" << m_name << " type=" << m_type << " is invalid";
+    if (dtype_ == TYPE_NULL) {
+        ERROR(logger) << "column name=" << name_ << " type=" << type_ << " is invalid";
         return false;
     }
 
     if (node.Attribute("desc")) {
-        m_desc = node.Attribute("desc");
+        desc_ = node.Attribute("desc");
     }
 
     if (node.Attribute("default")) {
-        m_default = node.Attribute("default");
+        default_ = node.Attribute("default");
     }
 
     if (node.Attribute("update")) {
-        m_update = node.Attribute("update");
+        update_ = node.Attribute("update");
     }
 
     if (node.Attribute("length")) {
-        m_length = node.IntAttribute("length");
+        length_ = node.IntAttribute("length");
     } else {
-        m_length = 0;
+        length_ = 0;
     }
-    m_autoIncrement = node.BoolAttribute("auto_increment", false);
+    auto_increment_ = node.BoolAttribute("auto_increment", false);
     return true;
 }
 
 std::string Column::getMemberDefine() const
 {
     std::stringstream ss;
-    ss << TypeToString(m_dtype) << " " << GetAsMemberName(m_name) << ";" << std::endl;
+    ss << TypeToString(dtype_) << " " << GetAsMemberName(name_) << ";" << std::endl;
     return ss.str();
 }
 
 std::string Column::getGetFunDefine() const
 {
     std::stringstream ss;
-    std::string desc = m_desc.empty() ? m_name : m_desc;
+    std::string desc = desc_.empty() ? name_ : desc_;
     ss << "/**" << std::endl;
     ss << "     * @brief 获取" << desc << std::endl;
     ss << "     * @return " << desc << std::endl;
     ss << "     */" << std::endl;
-    ss << "    const " << TypeToString(m_dtype) << "& " << GetAsGetFunName(m_name) << "() { return " << GetAsMemberName(m_name) << "; }" << std::endl;
+    ss << "    const " << TypeToString(dtype_) << "& " << GetAsGetFunName(name_) << "() { return "
+       << GetAsMemberName(name_) << "; }" << std::endl;
     return ss.str();
 }
 
 std::string Column::getSetFunDefine() const
 {
     std::stringstream ss;
-    std::string desc = m_desc.empty() ? m_name : m_desc;
+    std::string desc = desc_.empty() ? name_ : desc_;
     ss << "/**" << std::endl;
     ss << "     * @brief 设置" << desc << std::endl;
     ss << "     * @param v " << desc << std::endl;
     ss << "     */" << std::endl;
-    ss << "    void " << GetAsSetFunName(m_name) << "(const " << TypeToString(m_dtype) << "& v);" << std::endl;
+    ss << "    void " << GetAsSetFunName(name_) << "(const " << TypeToString(dtype_) << "& v);" << std::endl;
     return ss.str();
 }
 
 std::string Column::getSetFunImpl(const std::string& class_name, int idx) const
 {
     std::stringstream ss;
-    ss << "void " << GetAsClassName(class_name) << "::" << GetAsSetFunName(m_name) << "(const " << TypeToString(m_dtype) << "& v) {" << std::endl;
-    ss << "    " << GetAsMemberName(m_name) << " = v;" << std::endl;
+    ss << "void " << GetAsClassName(class_name) << "::" << GetAsSetFunName(name_) << "(const " << TypeToString(dtype_)
+       << "& v) {" << std::endl;
+    ss << "    " << GetAsMemberName(name_) << " = v;" << std::endl;
     ss << "    m_flags |= (1ull << " << idx << ");" << std::endl;
     ss << "}" << std::endl;
     return ss.str();
@@ -263,8 +265,8 @@ std::string Column::TypeToString(Type type)
 
 std::string Column::getSQLite3TypeString()
 {
-#define XX(a, b)        \
-    if (a == m_dtype) { \
+#define XX(a, b)                                                                                                       \
+    if (a == dtype_) {                                                                                                 \
         return #b;      \
     }
     XX(TYPE_INT8, INTEGER);
@@ -287,8 +289,8 @@ std::string Column::getSQLite3TypeString()
 
 std::string Column::getMySQLTypeString()
 {
-#define XX(a, b)        \
-    if (a == m_dtype) { \
+#define XX(a, b)                                                                                                       \
+    if (a == dtype_) {                                                                                                 \
         return #b;      \
     }
     XX(TYPE_INT8, tinyint);
@@ -304,19 +306,19 @@ std::string Column::getMySQLTypeString()
     XX(TYPE_BLOB, blob);
     XX(TYPE_TEXT, text);
 #undef XX
-    if (m_dtype == TYPE_TIMESTAMP) {
-        return m_type == "datetime" ? "datetime" : "timestamp";
+    if (dtype_ == TYPE_TIMESTAMP) {
+        return type_ == "datetime" ? "datetime" : "timestamp";
     }
-    if (m_dtype == TYPE_STRING) {
-        return "varchar(" + std::to_string(m_length ? m_length : 128) + ")";
+    if (dtype_ == TYPE_STRING) {
+        return "varchar(" + std::to_string(length_ ? length_ : 128) + ")";
     }
     return "";
 }
 
 std::string Column::getPostgreSQLTypeString()
 {
-#define XX(a, b)        \
-    if (a == m_dtype) { \
+#define XX(a, b)                                                                                                       \
+    if (a == dtype_) {                                                                                                 \
         return #b;      \
     }
     XX(TYPE_INT8, smallint);
@@ -332,19 +334,19 @@ std::string Column::getPostgreSQLTypeString()
     XX(TYPE_BLOB, bytea);
     XX(TYPE_TEXT, text);
 #undef XX
-    if (m_dtype == TYPE_TIMESTAMP) {
+    if (dtype_ == TYPE_TIMESTAMP) {
         return "timestamp without time zone";
     }
-    if (m_dtype == TYPE_STRING) {
-        return "character varying(" + std::to_string(m_length ? m_length : 128) + ")";
+    if (dtype_ == TYPE_STRING) {
+        return "character varying(" + std::to_string(length_ ? length_ : 128) + ")";
     }
     return "";
 }
 
 std::string Column::getBindString()
 {
-#define XX(a, b)          \
-    if (a == m_dtype) {   \
+#define XX(a, b)                                                                                                       \
+    if (a == dtype_) {                                                                                                 \
         return "bind" #b; \
     }
     XX(TYPE_INT8, Int8);
@@ -367,8 +369,8 @@ std::string Column::getBindString()
 
 std::string Column::getGetString()
 {
-#define XX(a, b)         \
-    if (a == m_dtype) {  \
+#define XX(a, b)                                                                                                       \
+    if (a == dtype_) {                                                                                                 \
         return "get" #b; \
     }
     XX(TYPE_INT8, Int8);

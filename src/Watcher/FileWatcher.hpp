@@ -48,7 +48,7 @@ public:
     /**
      * @brief 获取 inotify 文件描述符
      */
-    int getFd() const { return m_fd; }
+    int getFd() const { return fd_; }
 
 private:
     /**
@@ -68,17 +68,17 @@ private:
 
 private:
     /// inotify 文件描述符
-    int m_fd = -1;
+    int fd_ = -1;
     /// 所属的 IO 调度器（用于 stop 时取消事件）
-    IOManager* m_iom = nullptr;
+    IOManager* iom_ = nullptr;
     /// 变更回调
-    Callback m_callback;
+    Callback callback_;
     /// 监听的根目录路径
-    std::string m_watchDir;
+    std::string watch_dir_;
     /// watch descriptor → 目录路径映射
-    std::map<int, std::string> m_wd2path;
+    std::map<int, std::string> wd2path_;
     /// 是否已停止
-    std::atomic<bool> m_stopped{false};
+    std::atomic<bool> stopped_{false};
 };
 
 } // namespace chen

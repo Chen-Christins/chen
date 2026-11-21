@@ -43,20 +43,20 @@ static ConfigVar<uint64_t>::ptr g_udp_recv_buf_size = Config::Lookup("udp_server
 static Logger::ptr logger = LOG_NAME("system");
 
 UdpServer::UdpServer(IOManager* worker, IOManager* io_worker)
-    : m_worker(worker)
-    , m_ioWorker(io_worker)
-    , m_name("chen/1.0.0")
-    , m_isStop(true)
-    , m_recvBufSize(g_udp_recv_buf_size->getValue())
+    : worker_(worker)
+    , io_worker_(io_worker)
+    , name_("chen/1.0.0")
+    , is_stop_(true)
+    , recv_buf_size_(g_udp_recv_buf_size->getValue())
 {
 }
 
 UdpServer::~UdpServer()
 {
-    for (auto& i : m_socks) {
+    for (auto& i : socks_) {
         i->close();
     }
-    m_socks.clear();
+    socks_.clear();
 }
 
 void UdpServer::clearRegistrations()
@@ -80,59 +80,59 @@ bool UdpServer::bind(const std::vector<Address::ptr>& addrs, std::vector<Address
             fails.push_back(addr);
             continue;
         }
-        m_socks.push_back(sock);
+        socks_.push_back(sock);
     }
 
     if (!fails.empty()) {
-        m_socks.clear();
+        socks_.clear();
         return false;
     }
-    for (auto& i : m_socks) {
-        INFO(logger) << "type=" << m_type << " name=" << m_name << " server bind success: " << *i;
+    for (auto& i : socks_) {
+        INFO(logger) << "type=" << type_ << " name=" << name_ << " server bind success: " << *i;
     }
     return true;
 }
 
 bool UdpServer::start()
 {
-    if (!m_isStop) {
+    if (!is_stop_) {
         return true;
     }
-    m_isStop = false;
-    for (auto& sock : m_socks) {
-        m_worker->schedule(std::bind(&UdpServer::startRecv, shared_from_this(), sock));
+    is_stop_ = false;
+    for (auto& sock : socks_) {
+        worker_->schedule(std::bind(&UdpServer::startRecv, shared_from_this(), sock));
     }
     return true;
 }
 
 void UdpServer::stop()
 {
-    m_isStop = true;
+    is_stop_ = true;
     auto self = shared_from_this();
-    m_worker->schedule([this, self]() {
-        for (auto& sock : m_socks) {
+    worker_->schedule([this, self]() {
+        for (auto& sock : socks_) {
             sock->cancelAll();
             sock->close();
         }
-        m_socks.clear();
+        socks_.clear();
     });
 }
 
 void UdpServer::startRecv(Socket::ptr sock)
 {
-    std::vector<char> buffer(m_recvBufSize);
+    std::vector<char> buffer(recv_buf_size_);
     struct sockaddr_storage addr;
     socklen_t addrlen;
-    while (!m_isStop) {
+    while (!is_stop_) {
         addrlen = sizeof(addr);
         int n = ::recvfrom(sock->getSocket(), buffer.data(), buffer.size(), 0, (struct sockaddr*)&addr, &addrlen);
         if (n > 0) {
             auto from = Address::Create((sockaddr*)&addr, addrlen);
             std::vector<char> data(buffer.begin(), buffer.begin() + n);
-            m_ioWorker->schedule([this, self = shared_from_this(), sock, data = std::move(data), from]() {
+            io_worker_->schedule([this, self = shared_from_this(), sock, data = std::move(data), from]() {
                 handleRecv(sock, data.data(), data.size(), from);
             });
-        } else if (!m_isStop) {
+        } else if (!is_stop_) {
             ERROR(logger) << "recvfrom errno=" << errno << " errstr=" << strerror(errno);
         }
     }
@@ -145,25 +145,25 @@ void UdpServer::handleRecv(Socket::ptr sock, const char* data, size_t len, Addre
 
 void UdpServer::setConf(const UdpServerConf& v)
 {
-    m_conf.reset(new UdpServerConf(v));
+    conf_.reset(new UdpServerConf(v));
     if (v.recv_buf_size > 0) {
-        m_recvBufSize = v.recv_buf_size;
+        recv_buf_size_ = v.recv_buf_size;
     }
     if (v.timeout > 0) {
         // UDP doesn't have a per-connection timeout, but set for consistency
     }
     DEBUG(logger) << "apply udp server conf"
-                  << " name=" << (v.name.empty() ? m_name : v.name) << " type=" << v.type;
+                  << " name=" << (v.name.empty() ? name_ : v.name) << " type=" << v.type;
 }
 
 std::string UdpServer::toString(const std::string& prefix)
 {
     std::stringstream ss;
-    ss << prefix << "[type=" << m_type << " name=" << m_name << " worker=" << (m_worker ? m_worker->getName() : "")
-       << " recv_buf_size=" << m_recvBufSize;
+    ss << prefix << "[type=" << type_ << " name=" << name_ << " worker=" << (worker_ ? worker_->getName() : "")
+       << " recv_buf_size=" << recv_buf_size_;
 
     std::string pre = prefix.empty() ? "    " : prefix;
-    for (auto& i : m_socks) {
+    for (auto& i : socks_) {
         ss << pre << pre << *i << std::endl;
     }
     return ss.str();

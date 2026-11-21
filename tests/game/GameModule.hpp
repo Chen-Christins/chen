@@ -47,9 +47,9 @@ public:
 
 private:
     /// 游戏RPC服务实例
-    GameRpcService::ptr m_gameService;
+    GameRpcService::ptr game_service_;
     /// RPC 服务器引用（用于 onUnload 时注销方法）
-    rpc::RpcServer::ptr m_rpcServer;
+    rpc::RpcServer::ptr rpc_server_;
 };
 
 } // namespace game

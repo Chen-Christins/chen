@@ -12,7 +12,7 @@ static chen::Logger::ptr logger = LOG_NAME("test_game_rpc");
 template <>
 struct chen::rpc::Serialization<chen::game::PlayerData> {
     static void write(ByteArray::ptr ba, const chen::game::PlayerData& player) {
-        ba->writeFint32(player.playerId);
+        ba->writeFint32(player.player_id);
         ba->writeStringVint(player.name);
         ba->writeFint32(player.level);
         ba->writeFint32(player.exp);
@@ -20,7 +20,7 @@ struct chen::rpc::Serialization<chen::game::PlayerData> {
     }
 
     static void read(ByteArray::ptr ba, chen::game::PlayerData& player) {
-        player.playerId = ba->readFint32();
+        player.player_id = ba->readFint32();
         player.name = ba->readStringVint();
         player.level = ba->readFint32();
         player.exp = ba->readFint32();
@@ -46,11 +46,9 @@ void testRpcClient() {
     try {
         // 测试获取玩家信息
         std::cout << "\n--- 测试获取玩家信息 ---" << std::endl;
-        auto playerInfo = client->call<chen::game::PlayerData>("getPlayerInfo", 1001);
-        std::cout << "玩家信息: ID=" << playerInfo.playerId
-                  << ", Name=" << playerInfo.name
-                  << ", Level=" << playerInfo.level
-                  << ", Exp=" << playerInfo.exp << std::endl;
+        auto player_info = client->call<chen::game::PlayerData>("getPlayerInfo", 1001);
+        std::cout << "玩家信息: ID=" << player_info.player_id << ", Name=" << player_info.name
+                  << ", Level=" << player_info.level << ", Exp=" << player_info.exp << std::endl;
 
         // 测试增加经验值
         std::cout << "\n--- 测试增加经验值 ---" << std::endl;
@@ -58,16 +56,15 @@ void testRpcClient() {
         std::cout << "增加经验结果: " << (result ? "成功" : "失败") << std::endl;
 
         // 再次获取玩家信息查看变化
-        auto updatedInfo = client->call<chen::game::PlayerData>("getPlayerInfo", 1001);
-        std::cout << "更新后经验值: " << updatedInfo.exp << std::endl;
+        auto updated_info = client->call<chen::game::PlayerData>("getPlayerInfo", 1001);
+        std::cout << "更新后经验值: " << updated_info.exp << std::endl;
 
         // 测试获取所有玩家
         std::cout << "\n--- 测试获取所有玩家 ---" << std::endl;
-        auto allPlayers = client->call<std::vector<chen::game::PlayerData>>("getAllPlayers");
-        std::cout << "服务器中共有 " << allPlayers.size() << " 个玩家:" << std::endl;
-        for (const auto& player : allPlayers) {
-            std::cout << "  - " << player.name << " (ID:" << player.playerId
-                      << ", Lv." << player.level << ")" << std::endl;
+        auto all_players = client->call<std::vector<chen::game::PlayerData>>("getAllPlayers");
+        std::cout << "服务器中共有 " << all_players.size() << " 个玩家:" << std::endl;
+        for (const auto& player : all_players) {
+            std::cout << "  - " << player.name << " (ID:" << player.player_id << ", Lv." << player.level << ")" << std::endl;
         }
 
         // 测试广播消息

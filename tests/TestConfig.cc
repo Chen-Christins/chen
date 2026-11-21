@@ -103,18 +103,18 @@ void test_yaml()
 class Person {
 public:
     Person() {}
-    std::string m_name;
-    int m_age = 0;
-    bool m_sex = 0;
+    std::string name_;
+    int age_ = 0;
+    bool sex_ = 0;
 
     std::string toString() const
     {
         std::stringstream ss;
-        ss << "[Person name=" << m_name << " age=" << m_age << " sex=" << m_sex << "]";
+        ss << "[Person name=" << name_ << " age=" << age_ << " sex=" << sex_ << "]";
         return ss.str();
     }
 
-    bool operator==(const Person& oth) const { return m_name == oth.m_name && m_age == oth.m_age && m_sex == oth.m_sex; }
+    bool operator==(const Person& oth) const { return name_ == oth.name_ && age_ == oth.age_ && sex_ == oth.sex_; }
 };
 
 namespace chen {
@@ -126,9 +126,9 @@ public:
     {
         YAML::Node node = YAML::Load(v);
         Person p;
-        p.m_name = node["name"].as<std::string>();
-        p.m_age = node["age"].as<int>();
-        p.m_sex = node["sex"].as<bool>();
+        p.name_ = node["name"].as<std::string>();
+        p.age_ = node["age"].as<int>();
+        p.sex_ = node["sex"].as<bool>();
         return p;
     }
 };
@@ -139,9 +139,9 @@ public:
     std::string operator()(const Person& v)
     {
         YAML::Node node;
-        node["name"] = v.m_name;
-        node["age"] = v.m_age;
-        node["sex"] = v.m_sex;
+        node["name"] = v.name_;
+        node["age"] = v.age_;
+        node["sex"] = v.sex_;
         std::stringstream ss;
         ss << node;
         return ss.str();

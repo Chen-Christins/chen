@@ -30,27 +30,27 @@ public:
      * @brief 获取索引名称
      * @return const std::string&
      */
-    const std::string& getName() const { return m_name; }
+    const std::string& getName() const { return name_; }
     /**
      * @brief 获取索引类型字符串
      * @return const std::string&
      */
-    const std::string& getType() const { return m_type; }
+    const std::string& getType() const { return type_; }
     /**
      * @brief 获取索引描述
      * @return const std::string&
      */
-    const std::string& getDesc() const { return m_desc; }
+    const std::string& getDesc() const { return desc_; }
     /**
      * @brief 获取索引列
      * @return const std::vector<std::string>&
      */
-    const std::vector<std::string>& getCols() const { return m_cols; }
+    const std::vector<std::string>& getCols() const { return cols_; }
     /**
      * @brief 获取索引类型
      * @return Type
      */
-    Type getDType() const { return m_dtype; }
+    Type getDType() const { return dtype_; }
     /**
      * @brief 初始化索引
      * @param node
@@ -61,7 +61,7 @@ public:
      * @brief 是否为主键索引
      * @return bool
      */
-    bool isPK() const { return m_type == "pk"; }
+    bool isPK() const { return type_ == "pk"; }
     /**
      * @brief 解析索引类型(string -> Type)
      * @param v
@@ -77,15 +77,15 @@ public:
 
 private:
     /// 索引名称
-    std::string m_name;
+    std::string name_;
     /// 索引类型
-    std::string m_type;
+    std::string type_;
     /// 索引描述
-    std::string m_desc;
+    std::string desc_;
     /// 列名称
-    std::vector<std::string> m_cols;
+    std::vector<std::string> cols_;
 
-    Type m_dtype;
+    Type dtype_;
 };
 
 } // namespace orm

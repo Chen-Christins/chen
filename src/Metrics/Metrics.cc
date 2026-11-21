@@ -174,25 +174,25 @@ Labels NormalizeLabels(const Labels& labels)
 } // namespace
 
 Metric::Metric(const std::string& name, const std::string& help, const Labels& labels)
-    : m_name(name)
-    , m_help(help)
-    , m_labels(NormalizeLabels(labels))
+    : name_(name)
+    , help_(help)
+    , labels_(NormalizeLabels(labels))
 {
-    m_sanitizedName = SanitizeMetricName(m_name);
-    m_labelString = BuildLabelString(m_labels);
+    sanitized_name_ = SanitizeMetricName(name_);
+    label_string_ = BuildLabelString(labels_);
 }
 
 std::string Metric::formatLabels(const std::string& extra_key, const std::string& extra_value) const
 {
     if (extra_key.empty()) {
-        return m_labelString;
+        return label_string_;
     }
 
     std::string out;
-    if (m_labelString.empty()) {
+    if (label_string_.empty()) {
         out = "{";
     } else {
-        out = m_labelString;
+        out = label_string_;
         out.pop_back(); // 去掉结尾的 '}'
         out += ",";
     }
@@ -205,13 +205,13 @@ std::string Metric::formatLabels(const std::string& extra_key, const std::string
 
 Counter::Counter(const std::string& name, const std::string& help, const Labels& labels)
     : Metric(name, help, labels)
-    , m_shards(new Shard[ShardCount()])
+    , shards_(new Shard[ShardCount()])
 {
 }
 
 void Counter::inc(uint64_t v)
 {
-    m_shards[GetShardIndex()].value.fetch_add(v, std::memory_order_relaxed);
+    shards_[GetShardIndex()].value.fetch_add(v, std::memory_order_relaxed);
 }
 
 uint64_t Counter::value() const
@@ -219,14 +219,14 @@ uint64_t Counter::value() const
     uint64_t total = 0;
     size_t shard_count = ShardCount();
     for (size_t i = 0; i < shard_count; ++i) {
-        total += m_shards[i].value.load(std::memory_order_relaxed);
+        total += shards_[i].value.load(std::memory_order_relaxed);
     }
     return total;
 }
 
 std::string Counter::render() const
 {
-    return m_sanitizedName + formatLabels() + " " + TypeUtil::ToString(value()) + "\n";
+    return sanitized_name_ + formatLabels() + " " + TypeUtil::ToString(value()) + "\n";
 }
 
 Gauge::Gauge(const std::string& name, const std::string& help, const Labels& labels)
@@ -236,12 +236,12 @@ Gauge::Gauge(const std::string& name, const std::string& help, const Labels& lab
 
 void Gauge::set(int64_t v)
 {
-    m_value.store(v, std::memory_order_relaxed);
+    value_.store(v, std::memory_order_relaxed);
 }
 
 void Gauge::add(int64_t v)
 {
-    m_value.fetch_add(v, std::memory_order_relaxed);
+    value_.fetch_add(v, std::memory_order_relaxed);
 }
 
 void Gauge::inc()
@@ -256,62 +256,62 @@ void Gauge::dec()
 
 int64_t Gauge::value() const
 {
-    return m_value.load(std::memory_order_relaxed);
+    return value_.load(std::memory_order_relaxed);
 }
 
 std::string Gauge::render() const
 {
-    return m_sanitizedName + formatLabels() + " " + TypeUtil::ToString(value()) + "\n";
+    return sanitized_name_ + formatLabels() + " " + TypeUtil::ToString(value()) + "\n";
 }
 
 GaugeFunc::GaugeFunc(const std::string& name, const std::string& help, const Labels& labels, Callback cb)
     : Metric(name, help, labels)
-    , m_cb(std::move(cb))
+    , cb_(std::move(cb))
 {
 }
 
 int64_t GaugeFunc::value() const
 {
-    return m_cb ? m_cb() : 0;
+    return cb_ ? cb_() : 0;
 }
 
 std::string GaugeFunc::render() const
 {
     int64_t value = this->value();
-    return m_sanitizedName + formatLabels() + " " + TypeUtil::ToString(value) + "\n";
+    return sanitized_name_ + formatLabels() + " " + TypeUtil::ToString(value) + "\n";
 }
 
 Histogram::Histogram(const std::string& name, const std::string& help, const Labels& labels, const std::vector<double>& buckets)
     : Metric(name, help, labels)
-    , m_buckets(buckets.empty() ? DefaultBuckets() : buckets)
+    , buckets_(buckets.empty() ? DefaultBuckets() : buckets)
 {
-    std::sort(m_buckets.begin(), m_buckets.end());
-    m_buckets.erase(std::unique(m_buckets.begin(), m_buckets.end()), m_buckets.end());
+    std::sort(buckets_.begin(), buckets_.end());
+    buckets_.erase(std::unique(buckets_.begin(), buckets_.end()), buckets_.end());
 
-    m_stride = ((m_buckets.size() + 2 + 7) / 8) * 8;
+    stride_ = ((buckets_.size() + 2 + 7) / 8) * 8;
 
-    size_t total = m_stride * ShardCount();
-    m_shardData = static_cast<std::atomic<uint64_t>*>(std::aligned_alloc(64, total * sizeof(std::atomic<uint64_t>)));
+    size_t total = stride_ * ShardCount();
+    shard_data_ = static_cast<std::atomic<uint64_t>*>(std::aligned_alloc(64, total * sizeof(std::atomic<uint64_t>)));
 
-    if (!m_shardData) {
+    if (!shard_data_) {
         throw std::bad_alloc();
     }
     for (size_t i = 0; i < total; ++i) {
-        new (&m_shardData[i]) std::atomic<uint64_t>(0);
+        new (&shard_data_[i]) std::atomic<uint64_t>(0);
     }
 }
 
 Histogram::~Histogram()
 {
-    if (!m_shardData) {
+    if (!shard_data_) {
         return;
     }
     using Atomic = std::atomic<uint64_t>;
-    size_t total = m_stride * ShardCount();
+    size_t total = stride_ * ShardCount();
     for (size_t i = 0; i < total; ++i) {
-        m_shardData[i].~Atomic();
+        shard_data_[i].~Atomic();
     }
-    std::free(m_shardData);
+    std::free(shard_data_);
 }
 
 void Histogram::observe(double v)
@@ -319,13 +319,13 @@ void Histogram::observe(double v)
     if (std::isnan(v) || v < 0) {
         v = 0;
     }
-    size_t count_index = m_buckets.size();
-    auto* shard = m_shardData + static_cast<size_t>(GetShardIndex()) * m_stride;
+    size_t count_index = buckets_.size();
+    auto* shard = shard_data_ + static_cast<size_t>(GetShardIndex()) * stride_;
 
     // 只递增命中的第一个桶；未命中任何桶时归入 +Inf（仅累计 count/sum）
-    auto it = std::lower_bound(m_buckets.begin(), m_buckets.end(), v);
-    if (it != m_buckets.end()) {
-        size_t index = static_cast<size_t>(it - m_buckets.begin());
+    auto it = std::lower_bound(buckets_.begin(), buckets_.end(), v);
+    if (it != buckets_.end()) {
+        size_t index = static_cast<size_t>(it - buckets_.begin());
         shard[index].fetch_add(1, std::memory_order_relaxed);
     }
     shard[count_index].fetch_add(1, std::memory_order_relaxed);
@@ -336,25 +336,25 @@ void Histogram::observe(double v)
 Histogram::Snapshot Histogram::snapshot() const
 {
     Snapshot snap;
-    snap.buckets.reserve(m_buckets.size());
+    snap.buckets.reserve(buckets_.size());
 
     size_t shard_count = ShardCount();
-    size_t count_index = m_buckets.size();
+    size_t count_index = buckets_.size();
 
     uint64_t cumulative = 0;
-    for (size_t i = 0; i < m_buckets.size(); ++i) {
+    for (size_t i = 0; i < buckets_.size(); ++i) {
         uint64_t bucket_total = 0;
         for (size_t s = 0; s < shard_count; ++s) {
-            const auto* shard = m_shardData + s * m_stride;
+            const auto* shard = shard_data_ + s * stride_;
             bucket_total += shard[i].load(std::memory_order_relaxed);
         }
         cumulative += bucket_total;
-        snap.buckets.emplace_back(m_buckets[i], cumulative);
+        snap.buckets.emplace_back(buckets_[i], cumulative);
     }
 
     uint64_t sum_ns = 0;
     for (size_t s = 0; s < shard_count; ++s) {
-        const auto* shard = m_shardData + s * m_stride;
+        const auto* shard = shard_data_ + s * stride_;
         snap.count += shard[count_index].load(std::memory_order_relaxed);
         sum_ns += shard[count_index + 1].load(std::memory_order_relaxed);
     }
@@ -365,7 +365,7 @@ Histogram::Snapshot Histogram::snapshot() const
 std::string Histogram::render() const
 {
     Snapshot snap = snapshot();
-    const std::string& name = m_sanitizedName;
+    const std::string& name = sanitized_name_;
     std::string out;
     out.reserve((snap.buckets.size() + 3) * 80);
 
@@ -418,10 +418,10 @@ std::string Registry::makeKey(const std::string& name, const Labels& labels) con
 
 Counter* Registry::getCounter(const std::string& name, const std::string& help, const Labels& labels)
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(mutex_);
     auto key = makeKey(name, labels);
-    auto it = m_metrics.find(key);
-    if (it != m_metrics.end()) {
+    auto it = metrics_.find(key);
+    if (it != metrics_.end()) {
         auto* metric = dynamic_cast<Counter*>(it->second.get());
         if (!metric) {
             WarnTypeMismatch(name);
@@ -430,16 +430,16 @@ Counter* Registry::getCounter(const std::string& name, const std::string& help, 
     }
     auto metric = std::make_shared<Counter>(name, help, labels);
     auto* result = metric.get();
-    m_metrics.emplace(std::move(key), std::move(metric));
+    metrics_.emplace(std::move(key), std::move(metric));
     return result;
 }
 
 Gauge* Registry::getGauge(const std::string& name, const std::string& help, const Labels& labels)
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(mutex_);
     auto key = makeKey(name, labels);
-    auto it = m_metrics.find(key);
-    if (it != m_metrics.end()) {
+    auto it = metrics_.find(key);
+    if (it != metrics_.end()) {
         auto* metric = dynamic_cast<Gauge*>(it->second.get());
         if (!metric) {
             WarnTypeMismatch(name);
@@ -448,16 +448,16 @@ Gauge* Registry::getGauge(const std::string& name, const std::string& help, cons
     }
     auto metric = std::make_shared<Gauge>(name, help, labels);
     auto* result = metric.get();
-    m_metrics.emplace(std::move(key), std::move(metric));
+    metrics_.emplace(std::move(key), std::move(metric));
     return result;
 }
 
 GaugeFunc* Registry::getGaugeFunc(const std::string& name, const std::string& help, const Labels& labels, GaugeFunc::Callback cb)
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(mutex_);
     auto key = makeKey(name, labels);
-    auto it = m_metrics.find(key);
-    if (it != m_metrics.end()) {
+    auto it = metrics_.find(key);
+    if (it != metrics_.end()) {
         auto* metric = dynamic_cast<GaugeFunc*>(it->second.get());
         if (!metric) {
             WarnTypeMismatch(name);
@@ -466,16 +466,16 @@ GaugeFunc* Registry::getGaugeFunc(const std::string& name, const std::string& he
     }
     auto metric = std::make_shared<GaugeFunc>(name, help, labels, std::move(cb));
     auto* result = metric.get();
-    m_metrics.emplace(std::move(key), std::move(metric));
+    metrics_.emplace(std::move(key), std::move(metric));
     return result;
 }
 
 Histogram* Registry::getHistogram(const std::string& name, const std::string& help, const Labels& labels, const std::vector<double>& buckets)
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(mutex_);
     auto key = makeKey(name, labels);
-    auto it = m_metrics.find(key);
-    if (it != m_metrics.end()) {
+    auto it = metrics_.find(key);
+    if (it != metrics_.end()) {
         auto* metric = dynamic_cast<Histogram*>(it->second.get());
         if (!metric) {
             WarnTypeMismatch(name);
@@ -484,7 +484,7 @@ Histogram* Registry::getHistogram(const std::string& name, const std::string& he
     }
     auto metric = std::make_shared<Histogram>(name, help, labels, buckets);
     auto* result = metric.get();
-    m_metrics.emplace(std::move(key), std::move(metric));
+    metrics_.emplace(std::move(key), std::move(metric));
     return result;
 }
 
@@ -492,9 +492,9 @@ std::string Registry::RenderPrometheus()
 {
     std::vector<Metric*> metrics;
     {
-        std::lock_guard lock(m_mutex);
-        metrics.reserve(m_metrics.size());
-        for (auto& [key, metric] : m_metrics) {
+        std::lock_guard lock(mutex_);
+        metrics.reserve(metrics_.size());
+        for (auto& [key, metric] : metrics_) {
             metrics.push_back(metric.get());
         }
     }
@@ -528,9 +528,9 @@ std::string Registry::RenderJson()
 {
     std::vector<Metric*> metrics;
     {
-        std::lock_guard lock(m_mutex);
-        metrics.reserve(m_metrics.size());
-        for (auto& [key, metric] : m_metrics) {
+        std::lock_guard lock(mutex_);
+        metrics.reserve(metrics_.size());
+        for (auto& [key, metric] : metrics_) {
             metrics.push_back(metric.get());
         }
     }

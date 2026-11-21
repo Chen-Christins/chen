@@ -321,7 +321,7 @@ public:
     BlackholeServer(chen::IOManager* worker, chen::IOManager* io_worker, chen::IOManager* accept_worker)
         : TcpServer(worker, io_worker, accept_worker)
     {
-        m_type = "blackhole";
+        type_ = "blackhole";
     }
 
     void handleClient(chen::Socket::ptr client) override

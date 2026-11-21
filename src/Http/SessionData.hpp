@@ -26,16 +26,16 @@ public:
     template <class T>
     void setData(const std::string& key, const T& v)
     {
-        std::unique_lock lock(m_mutex);
-        m_datas[key] = v;
+        std::unique_lock lock(mutex_);
+        datas_[key] = v;
     }
 
     template <class T>
     T getData(const std::string& key, const T& def = T{})
     {
-        std::shared_lock lock(m_mutex);
-        auto it = m_datas.find(key);
-        if (it == m_datas.end()) {
+        std::shared_lock lock(mutex_);
+        auto it = datas_.find(key);
+        if (it == datas_.end()) {
             return def;
         }
         boost::any v = it->second;
@@ -50,17 +50,17 @@ public:
     void del(const std::string& key);
 
     bool has(const std::string& key);
-    uint64_t getLastAccessTime() const { return m_lastAccessTime; }
-    void setLastAccessTime(uint64_t v) { m_lastAccessTime = v; }
+    uint64_t getLastAccessTime() const { return last_access_time_; }
+    void setLastAccessTime(uint64_t v) { last_access_time_ = v; }
 
-    const std::string& getId() const { return m_id; }
-    void setId(const std::string& v) { m_id = v; }
+    const std::string& getId() const { return id_; }
+    void setId(const std::string& v) { id_ = v; }
 
 private:
-    std::shared_mutex m_mutex;
-    std::unordered_map<std::string, boost::any> m_datas;
-    uint64_t m_lastAccessTime;
-    std::string m_id;
+    std::shared_mutex mutex_;
+    std::unordered_map<std::string, boost::any> datas_;
+    uint64_t last_access_time_;
+    std::string id_;
 };
 
 class SessionDataManager {
@@ -71,8 +71,8 @@ public:
     void check(int64_t ts = 3600);
 
 private:
-    std::shared_mutex m_mutex;
-    std::unordered_map<std::string, SessionData::ptr> m_datas;
+    std::shared_mutex mutex_;
+    std::unordered_map<std::string, SessionData::ptr> datas_;
 };
 
 typedef Singleton<SessionDataManager> SessionDataMgr;

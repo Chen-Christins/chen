@@ -19,7 +19,7 @@ namespace chen::game {
  * @brief 玩家数据结构
  */
 struct PlayerData {
-    int32_t playerId; // 玩家ID
+    int32_t player_id; // 玩家ID
     std::string name; // 玩家名称
     int32_t level;    // 玩家等级
     int32_t exp;      // 玩家经验值
@@ -51,47 +51,47 @@ public:
 
     /**
      * @brief 获取玩家信息
-     * @param playerId 玩家ID
+     * @param player_id 玩家ID
      * @return PlayerData 玩家数据
      */
-    PlayerData getPlayerInfo(int32_t playerId);
+    PlayerData get_player_info(int32_t player_id);
 
     /**
      * @brief 更新玩家等级
-     * @param playerId 玩家ID
-     * @param newLevel 新等级
+     * @param player_id 玩家ID
+     * @param new_level 新等级
      * @return bool 是否成功
      */
-    bool updatePlayerLevel(int32_t playerId, int32_t newLevel);
+    bool update_player_level(int32_t player_id, int32_t new_level);
 
     /**
      * @brief 增加玩家经验值
-     * @param playerId 玩家ID
+     * @param player_id 玩家ID
      * @param exp 经验值
      * @return bool 是否成功
      */
-    bool addPlayerExp(int32_t playerId, int32_t exp);
+    bool add_player_exp(int32_t player_id, int32_t exp);
 
     /**
      * @brief 获取所有玩家信息
      * @return std::vector<PlayerData> 玩家列表
      */
-    std::vector<PlayerData> getAllPlayers();
+    std::vector<PlayerData> get_all_players();
 
     /**
      * @brief 同步玩家数据（用于服务器间数据同步）
-     * @param playerData 玩家数据
+     * @param player_data 玩家数据
      * @return bool 是否成功
      */
-    bool syncPlayerData(const PlayerData& playerData);
+    bool sync_player_data(const PlayerData& player_data);
 
     /**
      * @brief 广播消息到其他服务器
-     * @param serverId 发送方服务器ID
+     * @param server_id 发送方服务器ID
      * @param message 消息内容
      * @return bool 是否成功
      */
-    bool broadcastMessage(const std::string& serverId, const std::string& message);
+    bool broadcastMessage(const std::string& server_id, const std::string& message);
 
     /**
      * @brief 获取单例实例
@@ -112,8 +112,8 @@ private:
     void initGameData();
 
 private:
-    /// 玩家数据存储 (playerId -> PlayerData)
-    std::map<int32_t, PlayerData> m_playerData;
+    /// 玩家数据存储 (player_id -> PlayerData)
+    std::map<int32_t, PlayerData> player_data_;
 };
 
 } // namespace chen::game

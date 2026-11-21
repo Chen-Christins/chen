@@ -10,14 +10,14 @@
 namespace chen {
 
 FdCtx::FdCtx(int fd)
-    : m_isInit(false)
-    , m_isSocket(false)
-    , m_sysNonblock(false)
-    , m_userNonblock(false)
-    , m_isClosed(false)
-    , m_fd(fd)
-    , m_recvTimout(-1)
-    , m_sendTimeout(-1)
+    : is_init_(false)
+    , is_socket_(false)
+    , sys_nonblock_(false)
+    , user_nonblock_(false)
+    , is_closed_(false)
+    , fd_(fd)
+    , recv_timout_(-1)
+    , send_timeout_(-1)
 {
     init();
 }
@@ -28,56 +28,56 @@ FdCtx::~FdCtx()
 
 bool FdCtx::init()
 {
-    if (m_isInit) {
+    if (is_init_) {
         return true;
     }
     // 赋值为无穷大
-    m_recvTimout = -1;
-    m_sendTimeout = -1;
+    recv_timout_ = -1;
+    send_timeout_ = -1;
 
     struct stat fd_stat;
-    if (-1 == fstat(m_fd, &fd_stat)) {
-        m_isInit = false;
-        m_isSocket = false;
+    if (-1 == fstat(fd_, &fd_stat)) {
+        is_init_ = false;
+        is_socket_ = false;
     } else {
-        m_isInit = true;
-        m_isSocket = S_ISSOCK(fd_stat.st_mode);
+        is_init_ = true;
+        is_socket_ = S_ISSOCK(fd_stat.st_mode);
     }
-    if (m_isSocket) {
-        int flags = fcntl_f(m_fd, F_GETFL, 0);
+    if (is_socket_) {
+        int flags = fcntl_f(fd_, F_GETFL, 0);
         if (!(flags & O_NONBLOCK)) {
-            fcntl_f(m_fd, F_SETFL, flags | O_NONBLOCK);
+            fcntl_f(fd_, F_SETFL, flags | O_NONBLOCK);
         }
-        m_sysNonblock = true;
+        sys_nonblock_ = true;
     } else {
-        m_sysNonblock = false;
+        sys_nonblock_ = false;
     }
-    m_userNonblock = false;
-    m_isClosed = false;
-    return m_isInit;
+    user_nonblock_ = false;
+    is_closed_ = false;
+    return is_init_;
 }
 
 void FdCtx::setTimeout(int type, uint64_t v)
 {
     if (type == SO_RCVTIMEO) {
-        m_recvTimout = v;
+        recv_timout_ = v;
     } else {
-        m_sendTimeout = v;
+        send_timeout_ = v;
     }
 }
 
 uint64_t FdCtx::getTimeout(int type)
 {
     if (type == SO_RCVTIMEO) {
-        return m_recvTimout;
+        return recv_timout_;
     } else {
-        return m_sendTimeout;
+        return send_timeout_;
     }
 }
 
 FdManager::FdManager()
 {
-    m_datas.resize(64);
+    datas_.resize(64);
 }
 
 FdCtx::ptr FdManager::get(int fd, bool auto_create)
@@ -85,39 +85,39 @@ FdCtx::ptr FdManager::get(int fd, bool auto_create)
     if (fd == -1) {
         return nullptr;
     }
-    std::shared_lock lock(m_mutex);
-    if ((int)m_datas.size() <= fd) {
+    std::shared_lock lock(mutex_);
+    if ((int)datas_.size() <= fd) {
         if (auto_create == false) {
             return nullptr;
         }
     } else {
-        if (m_datas[fd] || !auto_create) {
-            return m_datas[fd];
+        if (datas_[fd] || !auto_create) {
+            return datas_[fd];
         }
     }
     lock.unlock();
     // fd不存在，并且要求创建
-    std::unique_lock lock2(m_mutex);
+    std::unique_lock lock2(mutex_);
     FdCtx::ptr ctx(new FdCtx(fd));
-    if (fd >= (int)m_datas.size()) {
-        m_datas.resize(fd * 1.5);
+    if (fd >= (int)datas_.size()) {
+        datas_.resize(fd * 1.5);
     }
-    m_datas[fd] = ctx;
+    datas_[fd] = ctx;
     return ctx;
 }
 
 void FdManager::del(int fd)
 {
-    std::unique_lock lock(m_mutex);
-    if ((int)m_datas.size() <= fd) {
+    std::unique_lock lock(mutex_);
+    if ((int)datas_.size() <= fd) {
         return;
     }
     // 标记旧 FdCtx 为已关闭：持有该 FdCtx 的 do_io 在唤醒后可据此感知
     // fd 已被关闭/复用，避免在复用后的 fd 上再次 recv / addEvent。
-    if (m_datas[fd]) {
-        m_datas[fd]->setClose(true);
+    if (datas_[fd]) {
+        datas_[fd]->setClose(true);
     }
-    m_datas[fd].reset();
+    datas_[fd].reset();
 }
 
 } // namespace chen

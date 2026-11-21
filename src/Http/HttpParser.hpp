@@ -26,23 +26,23 @@ public:
     int isFinished();
     int hasError();
 
-    HttpRequest::ptr getData() const { return m_data; }
-    void setError(int v) { m_error = v; }
+    HttpRequest::ptr getData() const { return data_; }
+    void setError(int v) { error_ = v; }
 
     uint64_t getContentLength();
-    const http_parser& getParser() const { return m_parser; }
+    const http_parser& getParser() const { return parser_; }
 
 public:
     static uint64_t GetHttpRequestBufferSize();
     static uint64_t GetHttpRequestMaxBodySize();
 
 private:
-    http_parser m_parser;
-    HttpRequest::ptr m_data;
+    http_parser parser_;
+    HttpRequest::ptr data_;
     // 1000: invalid method
     // 1001: invalid version
     // 1002: invalid field
-    int m_error;
+    int error_;
 };
 
 class HttpResponseParser {
@@ -54,20 +54,20 @@ public:
     int isFinished();
     int hasError();
 
-    HttpResponse::ptr getData() const { return m_data; }
-    void setError(int v) { m_error = v; }
+    HttpResponse::ptr getData() const { return data_; }
+    void setError(int v) { error_ = v; }
 
     uint64_t getContentLength();
-    const httpclient_parser& getParser() const { return m_parser; }
+    const httpclient_parser& getParser() const { return parser_; }
 
 public:
     static uint64_t GetHttpResponseBufferSize();
     static uint64_t GetHttpResponseMaxBodySize();
 
 private:
-    httpclient_parser m_parser;
-    HttpResponse::ptr m_data;
-    int m_error;
+    httpclient_parser parser_;
+    HttpResponse::ptr data_;
+    int error_;
 };
 
 } // namespace chen::http

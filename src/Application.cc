@@ -57,7 +57,7 @@ static void RegisterBuiltInServers()
             [](const TcpServerConf& conf, IOManager* process_worker, IOManager* io_worker, IOManager* accept_worker) {
                 auto server =
                     std::make_shared<http::HttpServer>(conf.keepalive != 0, process_worker, io_worker, accept_worker);
-                if (conf.negotiateH2) {
+                if (conf.negotiate_h2) {
                     server->setNegotiateH2(true);
                 }
                 return TcpServer::ptr(server);
@@ -105,18 +105,18 @@ static void RegisterBuiltInServers()
     });
 }
 
-Application* Application::m_instance = nullptr;
-std::atomic<bool> Application::s_shutdownSignaled{false};
+Application* Application::kInstance = nullptr;
+std::atomic<bool> Application::kShutdownSignaled{false};
 
 Application::Application()
 {
-    m_instance = this;
+    kInstance = this;
 }
 
 bool Application::init(int argc, char** argv)
 {
-    m_argc = argc;
-    m_argv = argv;
+    argc_ = argc;
+    argv_ = argv;
 
     EnvMgr::GetInstance()->addHelp("s", "start in terminal, or -s reload|stop|quit to signal a running instance");
     EnvMgr::GetInstance()->addHelp("d", "run as daemon");
@@ -198,7 +198,7 @@ bool Application::run()
     bool is_daemon = EnvMgr::GetInstance()->has("d");
 
     bool ret = start_daemon(
-        m_argc, m_argv,
+        argc_, argv_,
         [this](int, char**) {
             return masterMain();
         },
@@ -210,7 +210,7 @@ bool Application::run()
 void Application::signalHandler(int sig)
 {
     if (sig == SIGINT || sig == SIGTERM || sig == SIGQUIT) {
-        s_shutdownSignaled.store(true, std::memory_order_release);
+        kShutdownSignaled.store(true, std::memory_order_release);
     }
 }
 
@@ -275,9 +275,9 @@ void Application::registerSignals()
 void Application::onHousekeeping()
 {
     // 检查优雅关闭信号
-    if (s_shutdownSignaled.load(std::memory_order_acquire)) {
-        if (!m_isShuttingDown) {
-            m_isShuttingDown = true;
+    if (kShutdownSignaled.load(std::memory_order_acquire)) {
+        if (!is_shutting_down_) {
+            is_shutting_down_ = true;
             INFO(logger) << "received shutdown signal, starting graceful shutdown...";
             doGracefulShutdown();
         }
@@ -286,10 +286,10 @@ void Application::onHousekeeping()
 
 void Application::startConfigWatcher()
 {
-    m_configWatcher.reset(new FileWatcher());
+    config_watcher_.reset(new FileWatcher());
     std::string conf_path = EnvMgr::GetInstance()->getAbsolutePath(EnvMgr::GetInstance()->getConfigPath());
 
-    m_configWatcher->watchDir(conf_path, [this](const std::string& file, uint32_t events) {
+    config_watcher_->watchDir(conf_path, [this](const std::string& file, uint32_t events) {
         INFO(logger) << "inotify: config file event file=" << file << " mask=0x" << std::hex << events;
         doConfigReload(file);
     });
@@ -303,10 +303,10 @@ void Application::doConfigReload(const std::string& file)
 
 void Application::doGracefulShutdown()
 {
-    EnvMgr::GetInstance()->setProcTitleRole(m_isWorker ? "worker process (draining)" : "master process (draining)");
+    EnvMgr::GetInstance()->setProcTitleRole(is_worker_ ? "worker process (draining)" : "master process (draining)");
 
     INFO(logger) << "graceful shutdown: stopping all servers...";
-    for (auto& [type, servers] : m_servers) {
+    for (auto& [type, servers] : servers_) {
         for (auto& server : servers) {
             INFO(logger) << "graceful shutdown: stopping server type=" << type << " name=" << server->getName();
             server->stop();
@@ -314,7 +314,7 @@ void Application::doGracefulShutdown()
     }
 
     INFO(logger) << "graceful shutdown: closing all client connections...";
-    for (auto& [type, servers] : m_servers) {
+    for (auto& [type, servers] : servers_) {
         for (auto& server : servers) {
             server->closeAllClients();
         }
@@ -322,27 +322,27 @@ void Application::doGracefulShutdown()
 
     uint64_t drain_ms = g_drain_timeout_ms->getValue();
     INFO(logger) << "graceful shutdown: waiting " << drain_ms << "ms for in-flight fibers to unwind...";
-    auto self = std::weak_ptr<IOManager>(m_mainIOManager);
-    m_mainIOManager->addTimer(drain_ms, [this, self]() {
+    auto self = std::weak_ptr<IOManager>(main_iomanager_);
+    main_iomanager_->addTimer(drain_ms, [this, self]() {
         if (self.expired()) {
             return;
         }
 
         INFO(logger) << "graceful shutdown: cancelling tick timers...";
-        for (auto& timer : m_tickTimers) {
+        for (auto& timer : tick_timers_) {
             if (timer) {
                 timer->cancel();
             }
         }
-        m_tickTimers.clear();
+        tick_timers_.clear();
 
-        if (m_housekeepingTimer) {
-            m_housekeepingTimer->cancel();
-            m_housekeepingTimer.reset();
+        if (housekeeping_timer_) {
+            housekeeping_timer_->cancel();
+            housekeeping_timer_.reset();
         }
 
         INFO(logger) << "graceful shutdown: stopping tick IOManager...";
-        m_tickIOManager->stop();
+        tick_iomanager_->stop();
 
         INFO(logger) << "graceful shutdown: unloading modules...";
         {
@@ -365,14 +365,14 @@ void Application::doGracefulShutdown()
         WorkerMgr::GetInstance()->stop();
 
         // worker 不清理 pid 文件（由 master 负责）
-        if (!m_isWorker && !m_pidfile.empty()) {
-            FSUtil::Unlink(m_pidfile, true);
-            INFO(logger) << "graceful shutdown: removed pid file " << m_pidfile;
+        if (!is_worker_ && !pidfile_.empty()) {
+            FSUtil::Unlink(pidfile_, true);
+            INFO(logger) << "graceful shutdown: removed pid file " << pidfile_;
         }
 
-        if (m_configWatcher) {
+        if (config_watcher_) {
             INFO(logger) << "graceful shutdown: stopping config watcher...";
-            m_configWatcher->stop();
+            config_watcher_->stop();
         }
 
         INFO(logger) << "graceful shutdown complete, server exiting normally";
@@ -445,7 +445,7 @@ bool Application::setupServers()
             }
         }
         server->setConf(i);
-        m_servers[i.type].push_back(server);
+        servers_[i.type].push_back(server);
     }
     return true;
 }
@@ -483,8 +483,8 @@ int Application::spawnWorker()
     w.pid = pid;
     w.ready_fd = pipefd[0];
     w.draining = false;
-    m_workers.push_back(w);
-    int idx = static_cast<int>(m_workers.size()) - 1;
+    workers_.push_back(w);
+    int idx = static_cast<int>(workers_.size()) - 1;
 
     INFO(logger) << "master: spawned worker pid=" << pid;
 
@@ -524,12 +524,12 @@ bool Application::waitWorkerReady(WorkerProc& w, uint64_t timeout_ms)
 void Application::sleepInterruptible(uint32_t ms)
 {
     uint64_t remain_ns = static_cast<uint64_t>(ms) * 1000000ULL;
-    while (remain_ns > 0 && !m_isMasterStopping) {
+    while (remain_ns > 0 && !is_master_stopping_) {
         struct timespec ts;
         ts.tv_sec = static_cast<time_t>(remain_ns / 1000000000ULL);
         ts.tv_nsec = static_cast<long>(remain_ns % 1000000000ULL);
 
-        int sig = sigtimedwait(&m_masterSigset, nullptr, &ts);
+        int sig = sigtimedwait(&master_sigset_, nullptr, &ts);
         if (sig < 0) {
             if (errno == EAGAIN) {
                 break; // 超时
@@ -541,13 +541,13 @@ void Application::sleepInterruptible(uint32_t ms)
         }
         if (sig == SIGTERM || sig == SIGINT) {
             INFO(logger) << "master: received shutdown signal during worker restart backoff";
-            m_isMasterStopping = true;
+            is_master_stopping_ = true;
             return;
         }
         if (sig == SIGHUP) {
-            m_pendingReload = true;
+            pending_reload_ = true;
         } else if (sig == SIGCHLD) {
-            m_pendingReap = true;
+            pending_reap_ = true;
         }
     }
 }
@@ -558,13 +558,13 @@ void Application::reapWorkers()
     pid_t pid = 0;
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
         bool draining = false;
-        for (auto it = m_workers.begin(); it != m_workers.end(); ++it) {
+        for (auto it = workers_.begin(); it != workers_.end(); ++it) {
             if (it->pid == pid) {
                 draining = it->draining;
                 if (it->ready_fd >= 0) {
                     close(it->ready_fd);
                 }
-                m_workers.erase(it);
+                workers_.erase(it);
                 break;
             }
         }
@@ -575,7 +575,7 @@ void Application::reapWorkers()
             WARN(logger) << "master: worker pid=" << pid << " killed signal=" << WTERMSIG(status);
         }
 
-        if (m_isMasterStopping || draining) {
+        if (is_master_stopping_ || draining) {
             continue;
         }
 
@@ -586,7 +586,7 @@ void Application::reapWorkers()
         if (interval > 0) {
             sleepInterruptible(interval);
         }
-        if (m_isMasterStopping) {
+        if (is_master_stopping_) {
             return;
         }
         int idx = spawnWorker();
@@ -594,8 +594,8 @@ void Application::reapWorkers()
             ERROR(logger) << "master: failed to respawn worker";
             continue;
         }
-        if (!waitWorkerReady(m_workers[idx], g_worker_ready_timeout_ms->getValue())) {
-            ERROR(logger) << "master: respawned worker pid=" << m_workers[idx].pid << " not ready";
+        if (!waitWorkerReady(workers_[idx], g_worker_ready_timeout_ms->getValue())) {
+            ERROR(logger) << "master: respawned worker pid=" << workers_[idx].pid << " not ready";
         }
     }
 }
@@ -616,7 +616,7 @@ void Application::handleReload()
         return;
     }
 
-    WorkerProc& new_worker = m_workers[idx];
+    WorkerProc& new_worker = workers_[idx];
     if (!waitWorkerReady(new_worker, g_worker_ready_timeout_ms->getValue())) {
         ERROR(logger) << "master: new worker pid=" << new_worker.pid
                       << " failed to become ready, killing it and keeping old workers";
@@ -631,7 +631,7 @@ void Application::handleReload()
     }
 
     INFO(logger) << "master: new worker pid=" << new_worker.pid << " ready, draining old workers";
-    for (auto& w : m_workers) {
+    for (auto& w : workers_) {
         if (w.pid == new_worker.pid || w.draining) {
             continue;
         }
@@ -646,8 +646,8 @@ void Application::handleReload()
 
 void Application::shutdownWorkers()
 {
-    m_isMasterStopping = true;
-    for (auto& w : m_workers) {
+    is_master_stopping_ = true;
+    for (auto& w : workers_) {
         if (w.pid > 0) {
             INFO(logger) << "master: sending SIGTERM to worker pid=" << w.pid;
             kill(w.pid, SIGTERM);
@@ -655,7 +655,7 @@ void Application::shutdownWorkers()
         }
     }
 
-    while (!m_workers.empty()) {
+    while (!workers_.empty()) {
         int status = 0;
         pid_t pid = waitpid(-1, &status, 0);
         if (pid < 0) {
@@ -665,12 +665,12 @@ void Application::shutdownWorkers()
             ERROR(logger) << "master: waitpid failed errno=" << errno << " errstr=" << strerror(errno);
             break;
         }
-        for (auto it = m_workers.begin(); it != m_workers.end(); ++it) {
+        for (auto it = workers_.begin(); it != workers_.end(); ++it) {
             if (it->pid == pid) {
                 if (it->ready_fd >= 0) {
                     close(it->ready_fd);
                 }
-                m_workers.erase(it);
+                workers_.erase(it);
                 break;
             }
         }
@@ -687,51 +687,51 @@ int Application::masterMain()
         return 1;
     }
 
-    m_pidfile = g_server_work_path->getValue() + "/" + g_server_pid_file->getValue();
+    pidfile_ = g_server_work_path->getValue() + "/" + g_server_pid_file->getValue();
     {
-        std::ofstream ofs(m_pidfile);
+        std::ofstream ofs(pidfile_);
         if (!ofs) {
-            ERROR(logger) << "master: open pidfile " << m_pidfile << " failed";
+            ERROR(logger) << "master: open pidfile " << pidfile_ << " failed";
             return 1;
         }
         ofs << getpid();
     }
 
-    INFO(logger) << "master started pid=" << getpid() << " pidfile=" << m_pidfile;
+    INFO(logger) << "master started pid=" << getpid() << " pidfile=" << pidfile_;
 
     signal(SIGPIPE, SIG_IGN);
 
-    sigemptyset(&m_masterSigset);
-    sigaddset(&m_masterSigset, SIGHUP);
-    sigaddset(&m_masterSigset, SIGTERM);
-    sigaddset(&m_masterSigset, SIGINT);
-    sigaddset(&m_masterSigset, SIGCHLD);
-    sigprocmask(SIG_BLOCK, &m_masterSigset, nullptr);
+    sigemptyset(&master_sigset_);
+    sigaddset(&master_sigset_, SIGHUP);
+    sigaddset(&master_sigset_, SIGTERM);
+    sigaddset(&master_sigset_, SIGINT);
+    sigaddset(&master_sigset_, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &master_sigset_, nullptr);
 
     int idx = spawnWorker();
-    if (idx < 0 || !waitWorkerReady(m_workers[idx], g_worker_ready_timeout_ms->getValue())) {
+    if (idx < 0 || !waitWorkerReady(workers_[idx], g_worker_ready_timeout_ms->getValue())) {
         ERROR(logger) << "master: initial worker failed to start";
         shutdownWorkers();
-        if (!m_pidfile.empty()) {
-            FSUtil::Unlink(m_pidfile, true);
+        if (!pidfile_.empty()) {
+            FSUtil::Unlink(pidfile_, true);
         }
         return 1;
     }
 
-    while (!m_isMasterStopping) {
+    while (!is_master_stopping_) {
         // 先处理 backoff 期间被消费的信号
-        if (m_pendingReload) {
-            m_pendingReload = false;
+        if (pending_reload_) {
+            pending_reload_ = false;
             handleReload();
             continue;
         }
-        if (m_pendingReap) {
-            m_pendingReap = false;
+        if (pending_reap_) {
+            pending_reap_ = false;
             reapWorkers();
             continue;
         }
 
-        int sig = sigwaitinfo(&m_masterSigset, nullptr);
+        int sig = sigwaitinfo(&master_sigset_, nullptr);
         if (sig < 0) {
             if (errno == EINTR) {
                 continue;
@@ -743,7 +743,7 @@ int Application::masterMain()
             handleReload();
         } else if (sig == SIGTERM || sig == SIGINT) {
             INFO(logger) << "master: received shutdown signal, stopping workers...";
-            m_isMasterStopping = true;
+            is_master_stopping_ = true;
             break;
         } else if (sig == SIGCHLD) {
             reapWorkers();
@@ -752,9 +752,9 @@ int Application::masterMain()
 
     shutdownWorkers();
 
-    if (!m_pidfile.empty()) {
-        FSUtil::Unlink(m_pidfile, true);
-        INFO(logger) << "master: removed pid file " << m_pidfile;
+    if (!pidfile_.empty()) {
+        FSUtil::Unlink(pidfile_, true);
+        INFO(logger) << "master: removed pid file " << pidfile_;
     }
 
     INFO(logger) << "master: exited";
@@ -771,16 +771,16 @@ void Application::workerMain(int ready_fd)
     sigemptyset(&set);
     sigprocmask(SIG_SETMASK, &set, nullptr);
 
-    m_isWorker = true;
-    m_readyFd = ready_fd;
+    is_worker_ = true;
+    ready_fd_ = ready_fd;
 
-    m_mainIOManager.reset(new IOManager(1, true, "main"));
-    m_tickIOManager.reset(new IOManager(1, false, "tick"));
-    m_mainIOManager->schedule(std::bind(&Application::run_fiber, this));
+    main_iomanager_.reset(new IOManager(1, true, "main"));
+    tick_iomanager_.reset(new IOManager(1, false, "tick"));
+    main_iomanager_->schedule(std::bind(&Application::run_fiber, this));
 
     // housekeeping 定时器：仅处理信号检测
     uint64_t housekeeping_ms = g_housekeeping_interval_ms->getValue();
-    m_housekeepingTimer = m_mainIOManager->addTimer(
+    housekeeping_timer_ = main_iomanager_->addTimer(
         housekeeping_ms,
         [this]() {
             onHousekeeping();
@@ -790,44 +790,44 @@ void Application::workerMain(int ready_fd)
     // inotify 监听配置文件变更
     startConfigWatcher();
 
-    m_mainIOManager->stop();
-    m_tickIOManager->stop();
+    main_iomanager_->stop();
+    tick_iomanager_->stop();
 
-    m_mainIOManager.reset();
-    m_tickIOManager.reset();
+    main_iomanager_.reset();
+    tick_iomanager_.reset();
     _exit(0);
 }
 
 void Application::reportWorkerReady()
 {
-    if (m_readyFd < 0) {
+    if (ready_fd_ < 0) {
         return;
     }
 
     char c = '1';
-    ssize_t n = write(m_readyFd, &c, 1);
+    ssize_t n = write(ready_fd_, &c, 1);
     if (n != 1) {
         WARN(logger) << "worker: failed to notify master ready, errno=" << errno;
     }
 
-    close(m_readyFd);
-    m_readyFd = -1;
+    close(ready_fd_);
+    ready_fd_ = -1;
 }
 
 void Application::reportWorkerFailed()
 {
-    if (m_readyFd < 0) {
+    if (ready_fd_ < 0) {
         return;
     }
 
     char c = '0';
-    ssize_t n = write(m_readyFd, &c, 1);
+    ssize_t n = write(ready_fd_, &c, 1);
     if (n != 1) {
         WARN(logger) << "worker: failed to notify master failure, errno=" << errno;
     }
 
-    close(m_readyFd);
-    m_readyFd = -1;
+    close(ready_fd_);
+    ready_fd_ = -1;
 }
 
 int Application::run_fiber()
@@ -847,10 +847,10 @@ int Application::run_fiber()
     ModuleMgr::GetInstance()->listAll(modules);
 
     for (auto& i : modules) {
-        i->onBeforeArgsParse(m_argc, m_argv);
+        i->onBeforeArgsParse(argc_, argv_);
     }
     for (auto& i : modules) {
-        i->onAfterArgsParse(m_argc, m_argv);
+        i->onAfterArgsParse(argc_, argv_);
     }
 
     bool has_error = false;
@@ -870,7 +870,7 @@ int Application::run_fiber()
 
     // server 已由 master 创建并绑定监听 socket，fork 后由此 worker 继承；
     // 按配置解析出真实 worker 并注入，之后才能 start()
-    for (auto& [type, servers] : m_servers) {
+    for (auto& [type, servers] : servers_) {
         for (auto& server : servers) {
             auto conf = server->getConf();
             if (!conf) {
@@ -921,7 +921,7 @@ int Application::run_fiber()
         sd->start();
     }
 
-    for (auto& [type, servers] : m_servers) {
+    for (auto& [type, servers] : servers_) {
         for (auto& server : servers) {
             server->start();
         }
@@ -937,7 +937,7 @@ int Application::run_fiber()
         if (interval_ms > 0) {
             // 使用 weak_ptr，避免定时器阻止模块释放
             std::weak_ptr<Module> weak_i = i;
-            auto timer = m_tickIOManager->addTimer(
+            auto timer = tick_iomanager_->addTimer(
                 interval_ms,
                 [weak_i]() {
                     auto mod = weak_i.lock();
@@ -946,11 +946,11 @@ int Application::run_fiber()
                     }
                 },
                 true);
-            m_tickTimers.push_back(timer);
+            tick_timers_.push_back(timer);
         }
     }
 
-    INFO(logger) << "worker ready: " << m_servers.size() << " server type(s), " << modules.size() << " module(s)";
+    INFO(logger) << "worker ready: " << servers_.size() << " server type(s), " << modules.size() << " module(s)";
 
     reportWorkerReady();
 
@@ -959,8 +959,8 @@ int Application::run_fiber()
 
 bool Application::getServer(const std::string& name, std::vector<TcpServer::ptr>& svrs)
 {
-    auto it = m_servers.find(name);
-    if (it == m_servers.end()) {
+    auto it = servers_.find(name);
+    if (it == servers_.end()) {
         return false;
     }
     svrs = it->second;
@@ -969,21 +969,21 @@ bool Application::getServer(const std::string& name, std::vector<TcpServer::ptr>
 
 void Application::getAllServers(std::vector<TcpServer::ptr>& svrs)
 {
-    for (auto& [type, servers] : m_servers) {
+    for (auto& [type, servers] : servers_) {
         svrs.insert(svrs.end(), servers.begin(), servers.end());
     }
 }
 
 IServiceDiscovery::ptr Application::getServiceDiscovery() const
 {
-    std::lock_guard lock(m_serviceDiscoveryMutex);
-    return m_serviceDiscovery;
+    std::lock_guard lock(service_discovery_mutex_);
+    return service_discovery_;
 }
 
 void Application::setServiceDiscovery(IServiceDiscovery::ptr sd)
 {
-    std::lock_guard lock(m_serviceDiscoveryMutex);
-    m_serviceDiscovery = std::move(sd);
+    std::lock_guard lock(service_discovery_mutex_);
+    service_discovery_ = std::move(sd);
 }
 
 } // namespace chen

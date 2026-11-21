@@ -84,7 +84,7 @@ struct RpcFutureState {
     typedef std::shared_ptr<RpcFutureState> ptr;
 
     RpcFutureState()
-        : m_future(m_promise.getFuture())
+        : future_(promise_.getFuture())
     {
     }
 
@@ -92,30 +92,30 @@ struct RpcFutureState {
      * @brief 填充结果并唤醒所有等待的协程（由完成回调调用）
      * @param result 调用结果
      */
-    void complete(RpcResult<R> result) { m_promise.setValue(std::move(result)); }
+    void complete(RpcResult<R> result) { promise_.setValue(std::move(result)); }
 
     /**
      * @brief 非阻塞查询结果是否就绪
      */
-    bool ready() const { return m_future.ready(); }
+    bool ready() const { return future_.ready(); }
 
     /**
      * @brief 等待结果（挂起当前协程，不阻塞线程）
      * @return RpcResult<R> 调用结果
      */
-    RpcResult<R> get() const { return m_future.get(); }
+    RpcResult<R> get() const { return future_.get(); }
 
     /**
      * @brief 等待结果，带超时
      * @param timeout_ms 超时毫秒数
      * @return bool true 已就绪 | false 超时（状态不变，后续仍可 get）
      */
-    bool waitFor(uint64_t timeout_ms) const { return m_future.waitFor(timeout_ms); }
+    bool waitFor(uint64_t timeout_ms) const { return future_.waitFor(timeout_ms); }
 
     /// 结果生产端
-    Promise<RpcResult<R>> m_promise;
+    Promise<RpcResult<R>> promise_;
     /// 结果消费端
-    Future<RpcResult<R>> m_future;
+    Future<RpcResult<R>> future_;
 };
 
 /**
@@ -138,26 +138,26 @@ public:
      * @param state 共享状态
      */
     explicit RpcFuture(std::shared_ptr<RpcFutureState<R>> state)
-        : m_state(std::move(state))
+        : state_(std::move(state))
     {
     }
 
     /**
      * @brief 等待并返回调用结果（挂起当前协程）
      */
-    RpcResult<R> get() const { return m_state->get(); }
+    RpcResult<R> get() const { return state_->get(); }
 
     /**
      * @brief 等待结果就绪，带超时
      * @param timeout_ms 超时毫秒数
      * @return bool true 已就绪 | false 超时（状态不变，后续仍可 get）
      */
-    bool waitFor(uint64_t timeout_ms) const { return m_state->waitFor(timeout_ms); }
+    bool waitFor(uint64_t timeout_ms) const { return state_->waitFor(timeout_ms); }
 
     /**
      * @brief 非阻塞查询结果是否就绪
      */
-    bool ready() const { return m_state->ready(); }
+    bool ready() const { return state_->ready(); }
 
     /**
      * @brief 等待并返回业务值
@@ -166,7 +166,7 @@ public:
      */
     R getValue() const
     {
-        RpcResult<R> result = m_state->get();
+        RpcResult<R> result = state_->get();
         if (!result.ok()) {
             throw std::runtime_error(result.error.empty() ? StatusToString(result.status) : result.error);
         }
@@ -176,7 +176,7 @@ public:
     }
 
 private:
-    std::shared_ptr<RpcFutureState<R>> m_state; ///< 共享状态
+    std::shared_ptr<RpcFutureState<R>> state_; ///< 共享状态
 };
 
 } // namespace chen::rpc
