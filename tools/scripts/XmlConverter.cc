@@ -751,7 +751,7 @@ void XMLToHeaderConverter::generateHeader(const std::string& output_file)
         }
     }
     if (has_serializable_struct) {
-        required_headers_.insert("<chen/rpc/serializer.h>");
+        required_headers_.insert("<Chen/Rpc/Serializer.hpp>");
     }
 
     // Generate header guard
