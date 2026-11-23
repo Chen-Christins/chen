@@ -122,9 +122,10 @@ cp -r "${DIST_DIR}/${PROTOCOL_DIR}" "${DIST_DIR}/${RESOURCES_DIR}"
 echo "复制头文件..."
 find src -name "*.h" -o -name "*.hh" -o -name "*.hpp" | while read file; do
     rel_path=$(dirname "$file")
-    rel_path="${rel_path#src/}"
-    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/Chen/$rel_path"
-    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/Chen/$rel_path/"
+    rel_path="${rel_path#src}"
+    rel_path="${rel_path#/}"
+    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/Chen${rel_path:+/$rel_path}"
+    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/Chen${rel_path:+/$rel_path}/"
     echo "复制: $file"
 done
 
@@ -132,9 +133,10 @@ done
 echo "复制模块文档..."
 find src -name "README.md" | while read file; do
     rel_path=$(dirname "$file")
-    rel_path="${rel_path#src/}"
-    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/Chen/$rel_path"
-    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/Chen/$rel_path/"
+    rel_path="${rel_path#src}"
+    rel_path="${rel_path#/}"
+    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/Chen${rel_path:+/$rel_path}"
+    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/Chen${rel_path:+/$rel_path}/"
     echo "复制文档: $file"
 done
 
