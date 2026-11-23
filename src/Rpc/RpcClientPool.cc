@@ -11,27 +11,45 @@ static chen::Logger::ptr logger = LOG_NAME("system");
 
 chen::rpc::RpcClient::ptr RpcClientPool::getClient(const std::string& address, uint64_t timeout_ms)
 {
-    std::lock_guard lock(mutex_);
+    // 注意：connect() 内部是非阻塞 connect + Fiber::YieldToHold()，会让出协程。
+    // 因此绝对不能持有 mutex_（std::mutex 阻塞整个 OS 线程）去 connect，
+    // 否则同一调度器上的 prune 定时器会卡死线程，协程永远无法恢复。
+    std::vector<RpcClient::ptr> to_close;
+    RpcClient::ptr reused;
+    uint64_t heartbeat_ms = 0;
+    {
+        std::lock_guard lock(mutex_);
 
-    ensurePruneTimerLocked();
+        ensurePruneTimerLocked();
 
-    const uint64_t now_ms = TimeUtil::GetCurrentMs();
-    pruneIdleUnlocked(now_ms, idle_timeout_ms_);
+        heartbeat_ms = heartbeat_interval_ms_;
+        const uint64_t now_ms = TimeUtil::GetCurrentMs();
+        pruneIdleUnlocked(now_ms, idle_timeout_ms_, to_close);
 
-    if (auto it = clients_.find(address); it != clients_.end()) {
-        if (auto& existing = it->second.client; existing) {
-            if (existing->isConnected()) {
+        if (auto it = clients_.find(address); it != clients_.end()) {
+            if (auto& existing = it->second.client; existing && existing->isConnected()) {
                 it->second.last_used_ms = now_ms;
                 DEBUG(logger) << "reuse rpc client address=" << address << " pool_size=" << clients_.size();
-                return existing;
+                reused = existing;
+            } else {
+                if (existing) {
+                    // 连接已失效，从池中移除，锁外关闭后重新创建
+                    TRACE(logger) << "reuse rpc client address=" << address << " but not connected, reconnecting";
+                    to_close.push_back(existing);
+                }
+                clients_.erase(it);
             }
-            // 连接已失效，关闭并从池中移除，下面重新创建
-            TRACE(logger) << "reuse rpc client address=" << address << " but not connected, reconnecting";
-            existing->close();
-            clients_.erase(it);
-        } else {
-            clients_.erase(it);
         }
+    }
+
+    for (auto& c : to_close) {
+        if (c) {
+            c->close();
+        }
+    }
+
+    if (reused) {
+        return reused;
     }
 
     auto addr = chen::Address::LookupAny(address);
@@ -41,55 +59,94 @@ chen::rpc::RpcClient::ptr RpcClientPool::getClient(const std::string& address, u
     }
 
     auto client = std::make_shared<chen::rpc::RpcClient>();
-    client->setHeartbeatInterval(heartbeat_interval_ms_);
+    client->setHeartbeatInterval(heartbeat_ms);
     if (!client->connect(addr, timeout_ms)) {
         WARN(logger) << "connect failed: " << address;
         return nullptr;
     }
 
-    clients_[address] = ClientEntry{client, now_ms};
-    TRACE(logger) << "create rpc client address=" << address << " heartbeat_ms=" << heartbeat_interval_ms_
-                  << " idle_timeout_ms=" << idle_timeout_ms_ << " pool_size=" << clients_.size();
-    return client;
+    RpcClient::ptr result = client;
+    bool discard_new = false;
+    {
+        std::lock_guard lock(mutex_);
+        // 并发 getClient 可能已经插入了可用连接，复用已有的，丢弃自己新建的
+        if (auto it = clients_.find(address);
+            it != clients_.end() && it->second.client && it->second.client->isConnected()) {
+            it->second.last_used_ms = TimeUtil::GetCurrentMs();
+            result = it->second.client;
+            discard_new = true;
+        } else {
+            clients_[address] = ClientEntry{client, TimeUtil::GetCurrentMs()};
+            TRACE(logger) << "create rpc client address=" << address << " heartbeat_ms=" << heartbeat_ms
+                          << " idle_timeout_ms=" << idle_timeout_ms_ << " pool_size=" << clients_.size();
+        }
+    }
+
+    if (discard_new) {
+        client->close();
+    }
+    return result;
 }
 
 void RpcClientPool::closeClient(const std::string& address)
 {
-    std::lock_guard lock(mutex_);
-    if (auto it = clients_.find(address); it != clients_.end()) {
-        if (it->second.client) {
-            it->second.client->close();
+    RpcClient::ptr client;
+    {
+        std::lock_guard lock(mutex_);
+        if (auto it = clients_.find(address); it != clients_.end()) {
+            client = it->second.client;
+            clients_.erase(it);
         }
+    }
+    if (client) {
+        // 锁外关闭，避免在池锁内做可能的阻塞操作
+        client->close();
         INFO(logger) << "close rpc client address=" << address;
-        clients_.erase(it);
     }
 }
 
 void RpcClientPool::closeAll()
 {
-    std::lock_guard lock(mutex_);
-    for (auto& [_, entry] : clients_) {
-        if (entry.client) {
-            entry.client->close();
+    std::vector<RpcClient::ptr> clients;
+    Timer::ptr timer;
+    {
+        std::lock_guard lock(mutex_);
+        for (auto& [_, entry] : clients_) {
+            if (entry.client) {
+                clients.push_back(entry.client);
+            }
+        }
+        if (!clients_.empty()) {
+            INFO(logger) << "close all rpc clients count=" << clients_.size();
+        }
+        clients_.clear();
+        timer.swap(prune_timer_);
+    }
+    for (auto& c : clients) {
+        if (c) {
+            c->close();
         }
     }
-    if (!clients_.empty()) {
-        INFO(logger) << "close all rpc clients count=" << clients_.size();
-    }
-    clients_.clear();
-    if (prune_timer_) {
-        prune_timer_->cancel();
-        prune_timer_.reset();
+    if (timer) {
+        timer->cancel();
     }
 }
 
 void RpcClientPool::pruneIdle(uint64_t idle_ms)
 {
-    std::lock_guard lock(mutex_);
-    pruneIdleUnlocked(TimeUtil::GetCurrentMs(), idle_ms);
+    std::vector<RpcClient::ptr> to_close;
+    {
+        std::lock_guard lock(mutex_);
+        pruneIdleUnlocked(TimeUtil::GetCurrentMs(), idle_ms, to_close);
+    }
+    for (auto& c : to_close) {
+        if (c) {
+            c->close();
+        }
+    }
 }
 
-void RpcClientPool::pruneIdleUnlocked(uint64_t now_ms, uint64_t idle_ms)
+void RpcClientPool::pruneIdleUnlocked(uint64_t now_ms, uint64_t idle_ms, std::vector<RpcClient::ptr>& to_close)
 {
     if (idle_ms == 0) {
         return;
@@ -111,7 +168,8 @@ void RpcClientPool::pruneIdleUnlocked(uint64_t now_ms, uint64_t idle_ms)
                     ++it;
                     continue;
                 }
-                it->second.client->close();
+                // 锁外统一关闭
+                to_close.push_back(it->second.client);
             }
             ++removed;
             TRACE(logger) << "prune idle rpc client address=" << addr

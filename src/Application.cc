@@ -1,11 +1,13 @@
 #include "Application.hpp"
 
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <mutex>
 #include <poll.h>
 #include <sys/wait.h>
+#include <thread>
 
 #include "Config/Config.hpp"
 #include "Daemon.hpp"
@@ -44,6 +46,14 @@ static ConfigVar<uint64_t>::ptr g_worker_ready_timeout_ms =
 
 static ConfigVar<uint32_t>::ptr g_worker_restart_interval_ms =
     Config::Lookup("server.worker_restart_interval_ms", (uint32_t)2000, "master restarts crashed worker interval ms");
+
+static ConfigVar<uint64_t>::ptr g_worker_shutdown_timeout_ms = Config::Lookup("server.worker_shutdown_timeout_ms",
+    (uint64_t)10000,
+    "master waits worker exit before SIGKILL ms (should exceed drain + shutdown grace)");
+
+static ConfigVar<uint64_t>::ptr g_shutdown_grace_timeout_ms = Config::Lookup("server.shutdown_grace_timeout_ms",
+    (uint64_t)3000,
+    "worker force-exit if graceful shutdown exceeds drain + this grace period ms");
 
 static ConfigVar<std::string>::ptr g_server_process_name = Config::Lookup("server.process_name",
     std::string(),
@@ -322,6 +332,23 @@ void Application::doGracefulShutdown()
 
     uint64_t drain_ms = g_drain_timeout_ms->getValue();
     INFO(logger) << "graceful shutdown: waiting " << drain_ms << "ms for in-flight fibers to unwind...";
+
+    // 硬看门狗：优雅退出可能卡在模块卸载 / Scheduler::stop() / 锁等待上，
+    // 这里用独立线程兜底，超过 drain + grace 后无条件退出，避免 worker 永远不退出。
+    const uint64_t grace_ms = g_shutdown_grace_timeout_ms->getValue();
+    if (grace_ms > 0) {
+        try {
+            std::thread([drain_ms, grace_ms]() {
+                std::this_thread::sleep_for(std::chrono::milliseconds(drain_ms + grace_ms));
+                ERROR(logger) << "graceful shutdown exceeded " << (drain_ms + grace_ms)
+                              << "ms, forcing exit (possible deadlock in unload/scheduler stop)";
+                std::_Exit(0);
+            }).detach();
+        } catch (const std::exception& e) {
+            WARN(logger) << "graceful shutdown: failed to start watchdog thread: " << e.what();
+        }
+    }
+
     auto self = std::weak_ptr<IOManager>(main_iomanager_);
     main_iomanager_->addTimer(drain_ms, [this, self]() {
         if (self.expired()) {
@@ -377,7 +404,8 @@ void Application::doGracefulShutdown()
 
         INFO(logger) << "graceful shutdown complete, server exiting normally";
 
-        std::exit(0);
+        // 直接 _Exit，跳过静态析构：在协程/退出路径里跑全局析构容易再次死锁
+        std::_Exit(0);
     });
 }
 
@@ -655,9 +683,26 @@ void Application::shutdownWorkers()
         }
     }
 
+    const uint64_t timeout_ms = g_worker_shutdown_timeout_ms->getValue();
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+
+    bool timed_out = false;
     while (!workers_.empty()) {
         int status = 0;
-        pid_t pid = waitpid(-1, &status, 0);
+        pid_t pid = waitpid(-1, &status, WNOHANG);
+        if (pid > 0) {
+            for (auto it = workers_.begin(); it != workers_.end(); ++it) {
+                if (it->pid == pid) {
+                    if (it->ready_fd >= 0) {
+                        close(it->ready_fd);
+                    }
+                    workers_.erase(it);
+                    break;
+                }
+            }
+            INFO(logger) << "master: worker pid=" << pid << " stopped";
+            continue;
+        }
         if (pid < 0) {
             if (errno == EINTR) {
                 continue;
@@ -665,17 +710,51 @@ void Application::shutdownWorkers()
             ERROR(logger) << "master: waitpid failed errno=" << errno << " errstr=" << strerror(errno);
             break;
         }
-        for (auto it = workers_.begin(); it != workers_.end(); ++it) {
-            if (it->pid == pid) {
-                if (it->ready_fd >= 0) {
-                    close(it->ready_fd);
-                }
-                workers_.erase(it);
-                break;
+        // pid == 0：子进程还没退出
+        if (std::chrono::steady_clock::now() >= deadline) {
+            timed_out = true;
+            break;
+        }
+        poll(nullptr, 0, 50);
+    }
+
+    if (!workers_.empty()) {
+        if (timed_out) {
+            WARN(logger) << "master: workers not exited within " << timeout_ms << "ms, sending SIGKILL";
+        } else {
+            WARN(logger) << "master: reaping remaining workers with SIGKILL";
+        }
+        for (auto& w : workers_) {
+            if (w.pid > 0) {
+                kill(w.pid, SIGKILL);
             }
         }
-        INFO(logger) << "master: worker pid=" << pid << " stopped";
+        // SIGKILL 后必须收尸，否则会留下僵尸进程
+        while (!workers_.empty()) {
+            int status = 0;
+            pid_t pid = waitpid(-1, &status, 0);
+            if (pid > 0) {
+                for (auto it = workers_.begin(); it != workers_.end(); ++it) {
+                    if (it->pid == pid) {
+                        if (it->ready_fd >= 0) {
+                            close(it->ready_fd);
+                        }
+                        workers_.erase(it);
+                        break;
+                    }
+                }
+                WARN(logger) << "master: worker pid=" << pid << " killed";
+                continue;
+            }
+            if (pid < 0 && errno == EINTR) {
+                continue;
+            }
+            ERROR(logger) << "master: waitpid after SIGKILL failed errno=" << errno << " errstr=" << strerror(errno);
+            break;
+        }
     }
+
+    workers_.clear();
 }
 
 int Application::masterMain()
