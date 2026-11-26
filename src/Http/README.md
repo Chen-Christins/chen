@@ -99,6 +99,37 @@ chen::http::HttpClient::submit(chen::http::HttpMethod::GET, url, 3000,
 - `H2Stream` 表示单个流，支持 Server Push
 - HPACK 头部压缩
 
+### 流式响应（H1 / H2 通用）
+
+`HttpSession` 提供两个虚接口，业务 servlet 不需要区分协议：
+
+```cpp
+int32_t handle(chen::http::HttpRequest::ptr req,
+               chen::http::HttpResponse::ptr rsp,
+               chen::http::HttpSession::ptr session) override
+{
+    rsp->setStreaming(true);                       // 告诉框架不要再自动发响应
+    rsp->setHeader("Content-Type", "text/plain");
+    if (session->sendResponseHeader(rsp) != 0) {   // 只发头，不带 END_STREAM / Content-Length
+        return -1;
+    }
+    session->sendData("chunk-1\n", 8, false);
+    session->sendData("chunk-2\n", 8, false);
+    session->sendData(nullptr, 0, true);           // 最后一段：结束流
+    return 0;
+}
+```
+
+- **HTTP/1.1**：`sendResponseHeader()` 写状态行 + 头，`sendData()` 直接写 socket；框架在处理函数返回后关闭连接，
+  因此流式响应不要依赖 keep-alive
+- **HTTP/2**：`sendResponseHeader()` 提交不带 `END_STREAM` 的 HEADERS 帧，`sendData()` 投递 DATA 命令，
+  由连接协程通过 nghttp2 data provider 发送；`end_stream=true` 打上 `END_STREAM`
+- **背压**：每条流有 1MB 待发水位，超过时 `sendData()` 通过 hook 后的 `usleep` 让出 fiber，等连接协程取走数据；
+  等待超过 5s 返回 -1
+- `H2Stream` 析构时若还没 `end_stream`，会兜底补一个空的结束帧
+- 注意：`SSEServlet` 仍直接写裸 socket（HTTP/1.1 格式），SSE over HTTP/2 目前不可用，业务流式接口请用上面的
+  `sendResponseHeader()` + `sendData()`
+
 ## WebSocket
 
 - `WSConnection` 处理升级握手和帧读写

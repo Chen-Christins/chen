@@ -82,6 +82,16 @@ public:
      */
     virtual int sendResponseHeader(HttpResponse::ptr rsp);
 
+    /**
+     * @brief 流式响应写一段 body（配合 sendResponseHeader 使用）
+     * @param buffer 数据起始地址
+     * @param length 数据长度
+     * @param end_stream 是否为最后一段（H2 用 END_STREAM 标记；H1 忽略）
+     * @return 实际处理/入队的字节数，失败返回 -1
+     * @details H1 直接写 socket；H2 由 H2Stream 覆写，交给连接协程异步发送。
+     */
+    virtual int sendData(const void* buffer, size_t length, bool end_stream = false);
+
 private:
     /// header 之后已多读到的 body 字节
     std::string pending_body_;

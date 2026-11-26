@@ -1,5 +1,6 @@
 #include "H2Session.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <utility>
 
@@ -80,7 +81,9 @@ void H2Session::run()
             // 有在途 stream 或正在 drain 时用短超时，保证响应 / GOAWAY 及时处理；
             // 空闲时也不能无限阻塞：startDrain() 只是投递命令，需要本循环醒过来才能发出 GOAWAY
             const bool fast_wakeup = has_active_streams || draining_;
-            socket_->setRecvTimeout(fast_wakeup ? 250 : 500);
+            // 流式数据由业务 fiber 投递，本循环靠 recv 超时醒来处理；活跃时 50ms 一醒，
+            // 空闲时 500ms，避免为 SSE/流式响应引入空转线程
+            socket_->setRecvTimeout(fast_wakeup ? 50 : 500);
 
             int len = socket_->recv(buf.data(), buf.size());
             if (len == 0) {
@@ -158,10 +161,33 @@ void H2Session::startDrain()
 void H2Session::close()
 {
     stopping_ = true;
+    {
+        std::unique_lock lock(stream_mutex_);
+        for (auto& kv : stream_states_) {
+            kv.second->closed = true;
+        }
+        stream_states_.clear();
+    }
     if (session_) {
         nghttp2_session_del(session_);
         session_ = nullptr;
     }
+}
+
+size_t H2Session::getStreamQueuedBytes(int32_t stream_id)
+{
+    std::shared_lock lock(stream_mutex_);
+    auto it = stream_states_.find(stream_id);
+    return it == stream_states_.end() ? 0 : it->second->queued_bytes;
+}
+
+bool H2Session::isStreamClosed(int32_t stream_id)
+{
+    std::shared_lock lock(stream_mutex_);
+    auto it = stream_states_.find(stream_id);
+    // 注意：state 尚不存在表示“HEADERS 命令还没被连接协程处理”，不能当成已关闭，
+    // 否则 servlet 刚发出响应头就立刻 sendData 会被误判为流已关闭。
+    return it != stream_states_.end() && it->second->closed;
 }
 
 void H2Session::postCommand(Command cmd)
@@ -233,6 +259,113 @@ int H2Session::sendResponse(int32_t stream_id, HttpResponse::ptr rsp)
     return rv;
 }
 
+std::shared_ptr<H2Session::StreamState> H2Session::getOrCreateStreamState(int32_t stream_id)
+{
+    auto it = stream_states_.find(stream_id);
+    if (it != stream_states_.end()) {
+        return it->second;
+    }
+    auto st = std::make_shared<StreamState>();
+    stream_states_[stream_id] = st;
+    return st;
+}
+
+void H2Session::submitResponseHeaders(int32_t stream_id, HttpResponse::ptr rsp)
+{
+    std::list<std::string> temp_strs;
+    auto nva = build_response_nva((int)rsp->getStatus(), rsp->getHeaders(), rsp->getCookies(), temp_strs);
+
+    // 头与 data provider 必须一次性提交：nghttp2 只允许每条流同时存在一个待发 HEADERS/DATA，
+    // 先 submit_headers 再 submit_data 会拿到 NGHTTP2_ERR_DATA_EXIST（HEADERS 还没发出去）。
+    // provider 在队列空时返回 DEFERRED，发送由 sendData() 的 resume_data 驱动。
+    nghttp2_data_provider prd;
+    prd.source.ptr = this;
+    prd.read_callback = &H2Session::onStreamDataRead;
+
+    int rv = nghttp2_submit_response(session_, stream_id, nva.data(), nva.size(), &prd);
+    if (rv != 0) {
+        WARN(logger) << "nghttp2_submit_response (streaming) failed for stream " << stream_id << ": "
+                     << nghttp2_strerror(rv);
+    }
+}
+
+ssize_t H2Session::onStreamDataRead(nghttp2_session* session,
+    int32_t stream_id,
+    uint8_t* buf,
+    size_t length,
+    uint32_t* data_flags,
+    nghttp2_data_source* source,
+    void* user_data)
+{
+    (void)session;
+    (void)source;
+    auto* self = static_cast<H2Session*>(user_data);
+
+    std::unique_lock lock(self->stream_mutex_);
+    auto it = self->stream_states_.find(stream_id);
+    if (it == self->stream_states_.end()) {
+        *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+        return 0;
+    }
+
+    auto& st = *it->second;
+    if (st.chunks.empty()) {
+        if (st.eof) {
+            *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+            return 0;
+        }
+        // 暂时没有数据：挂起，等 sendData() 入队后 resume
+        return NGHTTP2_ERR_DEFERRED;
+    }
+
+    auto& chunk = st.chunks.front();
+    const size_t n = std::min(length, chunk.size());
+    if (n > 0) {
+        memcpy(buf, chunk.data(), n);
+        st.queued_bytes -= n;
+    }
+    if (n == chunk.size()) {
+        st.chunks.pop_front();
+    } else {
+        chunk.erase(0, n);
+    }
+
+    if (st.chunks.empty() && st.eof) {
+        *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+    }
+    return (ssize_t)n;
+}
+
+void H2Session::handleStreamData(const Command& cmd)
+{
+    std::unique_lock lock(stream_mutex_);
+    // state 可能还没创建（servlet 先发 DATA 后由连接协程补建），这里补齐；
+    // 只有显式标记 closed 的流才丢弃，避免给已结束的流提交数据帧。
+    auto st_ptr = getOrCreateStreamState(cmd.stream_id);
+    if (st_ptr->closed) {
+        return;
+    }
+
+    auto& st = *st_ptr;
+    if (!cmd.data.empty()) {
+        st.queued_bytes += cmd.data.size();
+        st.chunks.push_back(cmd.data);
+    }
+    if (cmd.end_stream) {
+        st.eof = true;
+    }
+
+    // provider 是随 HEADERS 一起提交的，这里只需要把 deferred 的流唤醒；
+    // provider 还没被调用过时 resume 会返回 NGHTTP2_ERR_INVALID_ARGUMENT，忽略即可
+    if (!st.chunks.empty() || st.eof) {
+        int rv = nghttp2_session_resume_data(session_, cmd.stream_id);
+        if (rv != 0 && rv != NGHTTP2_ERR_INVALID_ARGUMENT) {
+            WARN(logger) << "nghttp2_session_resume_data failed for stream " << cmd.stream_id << ": "
+                         << nghttp2_strerror(rv);
+        }
+    }
+}
+
 void H2Session::processCommands()
 {
     std::queue<Command> cmds;
@@ -247,8 +380,18 @@ void H2Session::processCommands()
         case Command::RESPONSE:
             sendResponse(cmd.stream_id, cmd.response);
             break;
+        case Command::HEADERS: {
+            if (cmd.response) {
+                {
+                    std::unique_lock lock(stream_mutex_);
+                    getOrCreateStreamState(cmd.stream_id);
+                }
+                submitResponseHeaders(cmd.stream_id, cmd.response);
+            }
+            break;
+        }
         case Command::DATA:
-            // TODO: streaming data via nghttp2_submit_data
+            handleStreamData(cmd);
             break;
         case Command::GOAWAY:
             nghttp2_submit_goaway(
@@ -459,6 +602,11 @@ int H2Session::on_stream_close(nghttp2_session* session, int32_t stream_id, uint
         WARN(logger) << "H2 stream " << stream_id << " closed with error: " << nghttp2_http2_strerror(error_code);
     }
     std::unique_lock lock(h2->stream_mutex_);
+    auto it = h2->stream_states_.find(stream_id);
+    if (it != h2->stream_states_.end()) {
+        it->second->closed = true;
+        h2->stream_states_.erase(it);
+    }
     h2->streams_.erase(stream_id);
     return 0;
 }

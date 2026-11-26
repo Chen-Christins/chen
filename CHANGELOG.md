@@ -50,6 +50,22 @@ All notable changes to this project will be documented in this file.
   `integration_drain_reload`（HTTP/1.1）与 `integration_h2_drain_reload`（H2 + GOAWAY）两个用例，
   curl 不支持 HTTP/2 时后者 SKIP；通过 `make test-integration` 运行，CI 已接入
 
+### HTTP/2 流式响应（新增）
+
+- **新增** `HttpSession::sendData(buffer, length, end_stream)` 虚接口：H1 直接写 socket，H2 由
+  `H2Stream` 覆写后投递 `Command::DATA`
+- **新增** `H2Stream::sendResponseHeader()`：提交不带 `END_STREAM` 的 HEADERS 帧，配合 `sendData()` 分块发送
+- **新增** `Command::HEADERS` / `Command::DATA` 的落地实现：每条流一个 data provider，队列空时返回
+  `NGHTTP2_ERR_DEFERRED`，`sendData()` 入队后 `nghttp2_session_resume_data()` 唤醒，最后一段带 `END_STREAM`；
+  provider 与响应头通过一次 `nghttp2_submit_response()` 提交（分开 `submit_headers` + `submit_data` 会撞
+  `NGHTTP2_ERR_DATA_EXIST`：HEADERS 尚未发出时不允许再提交 DATA）
+- **新增** 背压：每条流 1MB 待发水位，超限时 `sendData()` 让出 fiber 等待，5s 超时返回 -1；
+  `H2Session` 活跃流期间 recv 轮询间隔从 250ms 收到 50ms，降低流式数据延迟
+- **修复** `H2Stream` 析构时若业务忘记 `end_stream`，补发空的结束帧，避免对端一直等 `END_STREAM`
+- **已知限制**：`SSEServlet` 仍按 HTTP/1.1 直接写裸 socket，SSE over HTTP/2 仍不可用
+- **测试**：`tests/ModuleTest/DrainModule.cc` 新增 `/drain/stream`（头部 + 3 个分块 + 结束帧），
+  `drain_reload.sh` 在 H1/H2 两种模式下都断言完整收到 chunk-1..3
+
 ### HTTP/2（修复）
 
 - **修复** `H2Session::processStream()` 的数据竞争：原来在释放 `stream_mutex_` 后继续通过引用访问

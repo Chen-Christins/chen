@@ -208,6 +208,16 @@ int HttpSession::sendResponseHeader(HttpResponse::ptr rsp)
     return writeFixSize(data.c_str(), data.size()) > 0 ? 0 : -1;
 }
 
+int HttpSession::sendData(const void* buffer, size_t length, bool end_stream)
+{
+    // HTTP/1.1 没有流内分帧：头已发出，body 直接写；end_stream 由调用方关闭连接体现
+    (void)end_stream;
+    if (length == 0) {
+        return 0;
+    }
+    return writeFixSize(buffer, length) > 0 ? (int)length : -1;
+}
+
 int HttpSession::sendResponse(HttpResponse::ptr rsp)
 {
     std::stringstream ss;

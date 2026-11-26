@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include <cstdlib>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -57,6 +58,44 @@ public:
 
         response->setHeader("Content-Type", "text/plain");
         response->setBody("slow-ok");
+        return 0;
+    }
+};
+
+/**
+ * @brief 流式响应：先发头，再分三块写 body，最后 END_STREAM
+ * @details H1 直接写 socket（处理完连接关闭），H2 走 HEADERS + DATA 帧；
+ *          验证 HttpSession::sendResponseHeader()/sendData() 在两种协议下都可用
+ */
+class StreamServlet : public chen::http::Servlet {
+public:
+    StreamServlet()
+        : chen::http::Servlet("drain_stream")
+    {
+    }
+
+    int32_t handle(chen::http::HttpRequest::ptr request,
+        chen::http::HttpResponse::ptr response,
+        chen::http::HttpSession::ptr session) override
+    {
+        (void)request;
+
+        response->setStreaming(true);
+        response->setHeader("Content-Type", "text/plain");
+        response->setHeader("Cache-Control", "no-cache");
+
+        if (session->sendResponseHeader(response) != 0) {
+            return -1;
+        }
+
+        const char* chunks[] = {"chunk-1\n", "chunk-2\n", "chunk-3\n"};
+        for (size_t i = 0; i < sizeof(chunks) / sizeof(chunks[0]); ++i) {
+            if (session->sendData(chunks[i], std::strlen(chunks[i]), false) < 0) {
+                return -1;
+            }
+            usleep(50 * 1000);
+        }
+        session->sendData(nullptr, 0, true);
         return 0;
     }
 };
@@ -117,8 +156,9 @@ bool DrainModule::onServerReady()
         }
         dispatch->addServlet("/drain/slow", std::make_shared<SlowServlet>());
         dispatch->addServlet("/drain/fast", std::make_shared<FastServlet>());
+        dispatch->addServlet("/drain/stream", std::make_shared<StreamServlet>());
         ++registered;
-        INFO(logger) << "DrainModule registered /drain/{slow,fast} on server=" << http_server->getName()
+        INFO(logger) << "DrainModule registered /drain/{slow,fast,stream} on server=" << http_server->getName()
                      << " type=" << http_server->getType();
     }
 

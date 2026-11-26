@@ -24,14 +24,17 @@ public:
 
     // Override HttpSession
     int sendResponse(HttpResponse::ptr rsp) override;
+    int sendResponseHeader(HttpResponse::ptr rsp) override;
+    int sendData(const void* buffer, size_t length, bool end_stream = false) override;
     HttpRequest::ptr recvRequest() override;
-
-    // Write data to this stream (for streaming responses)
-    int sendData(const std::string& data, bool end_stream = false);
 
 private:
     H2Session::ptr h2_;
     int32_t stream_id_;
+    /// 是否已提交响应头（流式响应必须先发头再发数据）
+    bool headers_sent_ = false;
+    /// 是否已发送 END_STREAM
+    bool ended_ = false;
 };
 
 } // namespace chen::http

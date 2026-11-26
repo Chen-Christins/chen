@@ -149,8 +149,22 @@ done
 log "server ready (master pid=${MASTER_PID})"
 
 # servlet 没注册时探活也会失败，但只有 body 断言能把“404 默认页”和“路由正确”区分开
-FAST_BODY="$(curl "${CURL_OPTS[@]}" -s --max-time 2 "http://127.0.0.1:${PORT}/drain/fast")"
+FAST_RC=0
+FAST_BODY="$(curl "${CURL_OPTS[@]}" -s --max-time 2 "http://127.0.0.1:${PORT}/drain/fast")" || FAST_RC=$?
+[[ ${FAST_RC} -eq 0 ]] || fail "/drain/fast request failed (curl exit=${FAST_RC})"
 [[ "${FAST_BODY}" == "fast-ok" ]] || fail "unexpected /drain/fast body: '${FAST_BODY}'"
+
+# ---------------------------------------------------------------- 流式响应
+# H1：sendResponseHeader 写头后 sendData 直接写 socket，处理完关闭连接；
+# H2：HEADERS 帧不带 END_STREAM，数据走 DATA 帧，最后一段带 END_STREAM
+# set -e 下 curl 失败会直接退出、跳过 fail() 的日志转储，所以这里显式收 exit code
+STREAM_RC=0
+STREAM_BODY="$(curl "${CURL_OPTS[@]}" -s --max-time 10 "http://127.0.0.1:${PORT}/drain/stream")" || STREAM_RC=$?
+[[ ${STREAM_RC} -eq 0 ]] || fail "streaming request failed (curl exit=${STREAM_RC}, body='${STREAM_BODY}')"
+for chunk in chunk-1 chunk-2 chunk-3; do
+    [[ "${STREAM_BODY}" == *"${chunk}"* ]] || fail "streaming body missing '${chunk}' (body='${STREAM_BODY}')"
+done
+log "streaming response ok (${#STREAM_BODY} bytes): $(printf '%s' "${STREAM_BODY}" | tr '\n' ' ')"
 
 # ---------------------------------------------------------------- 在途慢请求 + SIGHUP
 log "sending slow request (800ms) and SIGHUP mid-flight"
