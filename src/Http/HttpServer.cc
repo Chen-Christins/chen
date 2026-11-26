@@ -5,6 +5,7 @@
 #include "../IOManager/IOManager.hpp"
 #include "../Log/Log.hpp"
 #include "H2Session.hpp"
+#include "HttpMetrics.hpp"
 #include "HttpSession.hpp"
 
 namespace chen::http {
@@ -111,6 +112,8 @@ void HttpServer::handleClient(Socket::ptr client)
         rsp->setHeader("Server", getName());
 
         {
+            // 请求指标作用域：进入时在途 +1，离开时记录 method/path/status 与耗时
+            HttpRequestScope metrics_scope;
             // 请求作用域：构造时 in_flight++，析构时 in_flight--，
             // 若此时已 draining 且连接空闲，顺手关闭连接（见 TcpServer::RequestGuard）
             TcpServer::RequestGuard guard(this, client);
@@ -135,10 +138,15 @@ void HttpServer::handleClient(Socket::ptr client)
             }
 
             if (rsp->isStreaming()) {
+                // 流式响应在 servlet 返回后仍会继续写，这里只统计到 dispatch 结束
+                metrics_scope.setOutcome(
+                    HttpMethodToString(req->getMethod()), req->getPath(), static_cast<int>(rsp->getStatus()));
                 break;
             }
 
             session->sendResponse(rsp);
+            metrics_scope.setOutcome(
+                HttpMethodToString(req->getMethod()), req->getPath(), static_cast<int>(rsp->getStatus()));
         }
 
         if (close_conn) {

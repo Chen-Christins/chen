@@ -130,6 +130,21 @@ int32_t handle(chen::http::HttpRequest::ptr req,
 - SSE 已经建立在同一套接口上：`SSESession` 只是把事件编码成 `data:`/`id:`/`event:` 文本，写入统一走
   `sendResponseHeader()` + `sendData()`，因此 `SSEServlet` 在 H1 与 H2 下行为一致（见下节）
 
+## HTTP 请求指标
+
+`HttpServer` 与 `H2Session` 在 dispatch 前后自动打点（`src/Http/HttpMetrics.hpp`），两个协议共用同一套指标：
+
+| 指标                            | 类型      | 标签                       | 含义                                                        |
+|---------------------------------|-----------|----------------------------|-------------------------------------------------------------|
+| `http_requests_total`           | counter   | `method`、`path`、`status` | 处理完成的请求数                                            |
+| `http_request_duration_seconds` | histogram | `method`、`path`           | 从进入 dispatch 到响应写回（流式响应只统计到 servlet 返回） |
+| `http_requests_in_flight`       | gauge     | 无                         | 正在处理的请求数                                            |
+
+- `path` 取自请求行（不含 query），会做归一化：空路径记 `/`、合并重复 `/`、去掉末尾 `/`
+- 不同 `(method, path)` 组合超过 `http.metrics.max_paths`（默认 512）后，**新**路径统一记为 `other`，
+  避免 404 扫描把指标基数打爆；`http.metrics.enabled=false` 可关掉总量与耗时（在途计数仍维护）
+- 指标注册在进程级 Registry，用 `MetricsServlet` 挂 `/metrics` 即可采集（见 `src/Metrics/README.md`）
+
 ## WebSocket
 
 - `WSConnection` 处理升级握手和帧读写

@@ -136,6 +136,17 @@ bool MyModule::onServerReady() {
 }
 ```
 
+HTTP 层已经内置了请求指标（无需业务接入）：
+
+| 指标                            | 类型      | 标签                       |
+|---------------------------------|-----------|----------------------------|
+| `http_requests_total`           | counter   | `method`、`path`、`status` |
+| `http_request_duration_seconds` | histogram | `method`、`path`           |
+| `http_requests_in_flight`       | gauge     | 无                         |
+
+路径基数由 `http.metrics.max_paths`（默认 512）兜底，超限后新路径记为 `other`；`http.metrics.enabled`
+可关闭总量与耗时。实现在 `src/Http/HttpMetrics.hpp`，H1 与 H2 共用。
+
 注意事项：
 
 - registry 是 **进程级（worker 级）** 的；多 worker 时各 worker 指标独立，需要分别采集，或后续由 master/Admin 聚合。

@@ -8,6 +8,7 @@
 #include "../Log/Log.hpp"
 #include "H2Stream.hpp"
 #include "H2Util.hpp"
+#include "HttpMetrics.hpp"
 
 namespace chen::http {
 
@@ -454,8 +455,14 @@ void H2Session::processStream(int32_t stream_id)
     auto rsp = std::make_shared<HttpResponse>(HttpRequest::kHttp2Version, false);
     auto stream = std::make_shared<H2Stream>(shared_from_this(), stream_id);
 
-    if (dispatch_) {
-        dispatch_->handle(req, rsp, stream);
+    {
+        // 请求指标作用域：在途 +1，离开时记录 method/path/status 与 dispatch 耗时
+        HttpRequestScope metrics_scope;
+        if (dispatch_) {
+            dispatch_->handle(req, rsp, stream);
+        }
+        metrics_scope.setOutcome(
+            HttpMethodToString(req->getMethod()), req->getPath(), static_cast<int>(rsp->getStatus()));
     }
 
     if (rsp->isStreaming()) {

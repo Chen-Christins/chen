@@ -16,6 +16,7 @@
 
 #include "src/Application.hpp"
 #include "src/Http/HttpServer.hpp"
+#include "src/Http/MetricsServlet.hpp"
 #include "src/Http/SSEServlet.hpp"
 #include "src/Http/Servlet.hpp"
 #include "src/Log/Log.hpp"
@@ -193,9 +194,11 @@ bool DrainModule::onServerReady()
         dispatch->addServlet("/drain/fast", std::make_shared<FastServlet>());
         dispatch->addServlet("/drain/stream", std::make_shared<StreamServlet>());
         dispatch->addServlet("/drain/sse", std::make_shared<DrainSseServlet>());
+        // 指标采集路由：集成用例借此断言 HTTP 层真的打了点
+        chen::http::RegisterMetricsServlet(http_server, "/drain/metrics");
         ++registered;
-        INFO(logger) << "DrainModule registered /drain/{slow,fast,stream,sse} on server=" << http_server->getName()
-                     << " type=" << http_server->getType();
+        INFO(logger) << "DrainModule registered /drain/{slow,fast,stream,sse,metrics} on server="
+                     << http_server->getName() << " type=" << http_server->getType();
     }
 
     if (registered == 0) {

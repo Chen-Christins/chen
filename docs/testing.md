@@ -40,9 +40,10 @@ tests/
 │   ├── TestFuture.cpp
 │   ├── TestSSESession.cpp
 │   ├── TestTcpDrain.cpp
+│   ├── TestHttpMetrics.cpp
 │   └── TestOrmGen.cpp
 ├── ModuleTest/
-│   └── DrainModule.cc     # 集成测试模块（/drain/{slow,fast,stream,sse}）
+│   └── DrainModule.cc     # 集成测试模块（/drain/{slow,fast,stream,sse,metrics}）
 ├── integration/
 │   ├── drain_reload.sh    # 热重载 drain 集成测试（标签 integration）
 │   └── module/            # libdrain_test_module.so 输出目录（gitignore）
@@ -103,7 +104,13 @@ make test-integration
 | `integration_h2_drain_reload` | HTTP/2（h2c prior knowledge） | 日志出现 `H2 session drained`（证明走 GOAWAY 而不是被超时强杀） |
 
 H2 用例用 `CHEN_IT_PROTO=http2` 选择协议；如果本机 curl 不带 HTTP/2 支持，脚本以 77 退出，
-CTest 记为 **Skipped** 而不是失败。WS/Rock/RPC/Game 是长连接协议，仍按「立即关闭」处理。
+CTest 记为 **Skipped** 而不是失败。
+
+两个用例都会请求 `/drain/metrics`，断言 Prometheus 文本里出现 `http_requests_total`、`/drain/fast`
+的 `status="200"` 标签组合与 `http_requests_in_flight`，用来确认 HTTP 指标与真实请求链路是打通的。
+
+WS/Rock/RPC/Game 的 drain 边界见 [`module-lifecycle.md`](module-lifecycle.md)；它们的在途计数逻辑由
+`test_unit_tcpdrain` 守着，目前没有客户端级集成用例。
 
 ## 编写新用例
 
@@ -203,6 +210,7 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 | `test_unit_future`      | `TestFuture.cc`（线程路径 + 自建 IOManager 的 fiber 路径）                     |
 | `test_unit_ssesession`  | 新增：用假 HttpSession 抓取 SSE 编码与响应头（无迁移来源）                     |
 | `test_unit_tcpdrain`    | 新增：drain 簿记逻辑（在途计数、空闲判定、`closeIdleClients()`，无 IOManager） |
+| `test_unit_httpmetrics` | 新增：HTTP 请求指标的路径归一化、总量/耗时打点、在途计数与路径基数上限         |
 | `test_unit_ormgen`      | `TestOrmGen.cc`（额外编译 `src/Orm/*.cc`）                                     |
 
 有意不迁移（保留为手工程序）：

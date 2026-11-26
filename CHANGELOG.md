@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### HTTP 指标（新增）
+
+- **新增** `HttpServer` / `H2Session` 自动记录 HTTP 请求指标（`src/Http/HttpMetrics.hpp`），H1 与 H2 共用一套口径：
+  - `http_requests_total{method,path,status}`：请求总数
+  - `http_request_duration_seconds{method,path}`：从进入 dispatch 到响应写回的耗时（流式响应只统计到 servlet 返回）
+  - `http_requests_in_flight`：正在处理的请求数（gauge）
+- **新增** 路径基数保护：不同 `(method, path)` 组合超过 `http.metrics.max_paths`（默认 512）后，新路径统一记为
+  `other`，避免 404 扫描把指标基数打爆；`http.metrics.enabled=false` 可关闭总量与耗时
+- **新增** `test_unit_httpmetrics` 单测：路径归一化、总量/耗时打点、在途计数与超限归并
+
 ### 优雅停机（增强）
 
 - **新增** WebSocket / RPC / Rock / Game 四个长连接 server 的协作式 drain：以「一条消息的处理」

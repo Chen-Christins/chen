@@ -175,6 +175,17 @@ for expect in "data: sse-1" "event: msg" ": ping" "data: sse-2"; do
 done
 log "sse response ok: $(printf '%s' "${SSE_BODY}" | tr '\n' ' ')"
 
+# ---------------------------------------------------------------- HTTP 指标
+# HttpServer 在 dispatch 前后自动打点，/drain/metrics 由 MetricsServlet 渲染 Prometheus 文本
+METRICS_RC=0
+METRICS_BODY="$(curl "${CURL_OPTS[@]}" -s --max-time 5 "http://127.0.0.1:${PORT}/drain/metrics")" || METRICS_RC=$?
+[[ ${METRICS_RC} -eq 0 ]] || fail "metrics request failed (curl exit=${METRICS_RC})"
+[[ "${METRICS_BODY}" == *"http_requests_total"* ]] || fail "metrics missing http_requests_total"
+[[ "${METRICS_BODY}" == *'path="/drain/fast"'* ]] || fail "metrics missing /drain/fast series"
+[[ "${METRICS_BODY}" == *'status="200"'* ]] || fail "metrics missing status=200 series"
+[[ "${METRICS_BODY}" == *"http_requests_in_flight"* ]] || fail "metrics missing http_requests_in_flight"
+log "http metrics ok"
+
 # ---------------------------------------------------------------- 在途慢请求 + SIGHUP
 log "sending slow request (800ms) and SIGHUP mid-flight"
 curl "${CURL_OPTS[@]}" -s --max-time 20 -o "${TMP_DIR}/slow.body" -w '%{http_code}' \
