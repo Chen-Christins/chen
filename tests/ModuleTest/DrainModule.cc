@@ -16,6 +16,7 @@
 
 #include "src/Application.hpp"
 #include "src/Http/HttpServer.hpp"
+#include "src/Http/SSEServlet.hpp"
 #include "src/Http/Servlet.hpp"
 #include "src/Log/Log.hpp"
 
@@ -101,6 +102,40 @@ public:
 };
 
 /**
+ * @brief SSE：发两条事件 + 一条注释后结束
+ * @details 走 SSEServlet → SSESession 的流式接口，H1/H2 共用同一份业务代码
+ */
+class DrainSseServlet : public chen::http::SSEServlet {
+public:
+    DrainSseServlet()
+        : chen::http::SSEServlet("drain_sse")
+    {
+    }
+
+    int32_t onConnect(chen::http::HttpRequest::ptr request, chen::http::SSESession::ptr session) override
+    {
+        (void)request;
+        if (session->sendEvent("sse-1", "1", "msg") < 0) {
+            return -1;
+        }
+        session->sendComment("ping");
+        usleep(50 * 1000);
+        if (session->sendEvent("sse-2", "2") < 0) {
+            return -1;
+        }
+        session->closeStream();
+        return 0;
+    }
+
+    int32_t onClose(chen::http::HttpRequest::ptr request, chen::http::SSESession::ptr session) override
+    {
+        (void)request;
+        (void)session;
+        return 0;
+    }
+};
+
+/**
  * @brief 立即返回 fast-ok，用于探活
  */
 class FastServlet : public chen::http::Servlet {
@@ -157,8 +192,9 @@ bool DrainModule::onServerReady()
         dispatch->addServlet("/drain/slow", std::make_shared<SlowServlet>());
         dispatch->addServlet("/drain/fast", std::make_shared<FastServlet>());
         dispatch->addServlet("/drain/stream", std::make_shared<StreamServlet>());
+        dispatch->addServlet("/drain/sse", std::make_shared<DrainSseServlet>());
         ++registered;
-        INFO(logger) << "DrainModule registered /drain/{slow,fast,stream} on server=" << http_server->getName()
+        INFO(logger) << "DrainModule registered /drain/{slow,fast,stream,sse} on server=" << http_server->getName()
                      << " type=" << http_server->getType();
     }
 

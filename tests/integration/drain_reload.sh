@@ -166,6 +166,15 @@ for chunk in chunk-1 chunk-2 chunk-3; do
 done
 log "streaming response ok (${#STREAM_BODY} bytes): $(printf '%s' "${STREAM_BODY}" | tr '\n' ' ')"
 
+# SSE：SSESession 走 sendResponseHeader()/sendData()，H1/H2 同一份业务代码
+SSE_RC=0
+SSE_BODY="$(curl "${CURL_OPTS[@]}" -s --max-time 10 "http://127.0.0.1:${PORT}/drain/sse")" || SSE_RC=$?
+[[ ${SSE_RC} -eq 0 ]] || fail "sse request failed (curl exit=${SSE_RC}, body='${SSE_BODY}')"
+for expect in "data: sse-1" "event: msg" ": ping" "data: sse-2"; do
+    [[ "${SSE_BODY}" == *"${expect}"* ]] || fail "sse body missing '${expect}' (body='${SSE_BODY}')"
+done
+log "sse response ok: $(printf '%s' "${SSE_BODY}" | tr '\n' ' ')"
+
 # ---------------------------------------------------------------- 在途慢请求 + SIGHUP
 log "sending slow request (800ms) and SIGHUP mid-flight"
 curl "${CURL_OPTS[@]}" -s --max-time 20 -o "${TMP_DIR}/slow.body" -w '%{http_code}' \

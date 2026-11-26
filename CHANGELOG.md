@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### SSE（增强）
+
+- **变更** `SSESession` 不再直接写裸 socket：所有写操作统一走 `HttpSession::sendResponseHeader()` /
+  `sendData()`，`SSEServlet` 因此可在 HTTP/1.1 与 HTTP/2 下工作（H2 上头走 HEADERS 帧、事件走 DATA 帧，
+  结束时发 `END_STREAM`），与普通流式响应共用同一套背压
+- **新增** `SSESession(HttpSession::ptr)` 构造函数复用当前请求会话；旧的 `SSESession(Socket::ptr, bool)`
+  保留但仅适用于 HTTP/1.1
+- **新增** `SSESession::closeStream()`：显式结束事件流（H2 发 `END_STREAM`；H1 由框架在 servlet 返回后关连接）
+- **变更** SSE 响应头不再手写 `Connection: keep-alive`：改为 `Connection: close`（SSE 没有
+  `Content-Length`，H1 只能靠关闭连接界定响应结束）
+- **新增** `test_unit_ssesession` 单测（断言响应头与 `id:`/`event:`/`data:` 编码、多行拆分、`close()`），
+  集成测试新增 `/drain/sse` 端点，H1/H2 两个用例都校验事件流内容
+
 ### 构建（ABI 版本化）
 
 - **新增** `libchen` 的 SONAME 版本化：`CMakeLists.txt` 给 `chen` 目标设置

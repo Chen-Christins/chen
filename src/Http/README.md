@@ -34,7 +34,7 @@ auto msg = conn->recvMessage();
 | HTTP/1.1  | `HttpConnection`, `HttpServer`          | Ragel 解析器，支持路由、中间件、静态文件 |
 | HTTP/2    | `H2Connection`, `H2Session`, `H2Stream` | 基于 nghttp2，多路复用                   |
 | WebSocket | `WSConnection`, `WSServer`              | 协议升级、帧编解码                       |
-| SSE       | `SSEConnection`                         | Server-Sent Events 流式推送              |
+| SSE       | `SSEServlet`, `SSESession`, `SSEClient` | Server-Sent Events 流式推送（H1/H2）     |
 
 ## HTTP/1.1
 
@@ -127,8 +127,8 @@ int32_t handle(chen::http::HttpRequest::ptr req,
 - **背压**：每条流有 1MB 待发水位，超过时 `sendData()` 通过 hook 后的 `usleep` 让出 fiber，等连接协程取走数据；
   等待超过 5s 返回 -1
 - `H2Stream` 析构时若还没 `end_stream`，会兜底补一个空的结束帧
-- 注意：`SSEServlet` 仍直接写裸 socket（HTTP/1.1 格式），SSE over HTTP/2 目前不可用，业务流式接口请用上面的
-  `sendResponseHeader()` + `sendData()`
+- SSE 已经建立在同一套接口上：`SSESession` 只是把事件编码成 `data:`/`id:`/`event:` 文本，写入统一走
+  `sendResponseHeader()` + `sendData()`，因此 `SSEServlet` 在 H1 与 H2 下行为一致（见下节）
 
 ## WebSocket
 
@@ -138,6 +138,27 @@ int32_t handle(chen::http::HttpRequest::ptr req,
 
 ## SSE
 
-- `SSEConnection` 维护 `text/event-stream` 响应
-- 支持自动重连、事件 ID、多频道广播
-- `SSEManager` 管理所有 SSE 连接
+- `SSEServlet`：业务基类，实现 `onConnect()` / `onClose()`；`FunctionSSEServlet` 用回调快速接入
+- `SSESession`：事件编码 + 发送，`sendEvent()` / `sendComment()` / `sendRetry()` / `closeStream()`
+- `SSEClient`：客户端侧解析 `text/event-stream`
+
+```cpp
+class ChatServlet : public chen::http::SSEServlet {
+public:
+    ChatServlet() : SSEServlet("chat") {}
+
+    int32_t onConnect(chen::http::HttpRequest::ptr req, chen::http::SSESession::ptr sess) override
+    {
+        sess->sendEvent("connected", "1", "hello");   // id: 1 / event: hello / data: connected
+        sess->sendComment("ping");                     // 心跳：": ping"
+        sess->closeStream();                           // H2 发 END_STREAM；H1 由框架关闭连接
+        return 0;
+    }
+    int32_t onClose(chen::http::HttpRequest::ptr, chen::http::SSESession::ptr) override { return 0; }
+};
+```
+
+- 响应头固定为 `Content-Type: text/event-stream`、`Cache-Control: no-cache`，不带 `Content-Length`：
+  H1 靠关闭连接结束响应，H2 靠 `END_STREAM`
+- `SSESession(HttpSession::ptr)` 复用当前请求会话（H1 写 socket、H2 走 HEADERS/DATA 帧）；
+  旧的 `SSESession(Socket::ptr, bool)` 仍保留，仅适用于 HTTP/1.1

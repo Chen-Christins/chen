@@ -20,8 +20,8 @@ int32_t SSEServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response,
 {
     response->setStreaming(true);
 
-    auto sock = session->getSocket();
-    SSESession::ptr sse_sess(new SSESession(sock, false));
+    // 复用当前请求的会话：H1 写 socket，H2 走 HEADERS/DATA 帧
+    SSESession::ptr sse_sess(new SSESession(session));
 
     if (!sse_sess->sendSSEHeaders()) {
         WARN(logger) << "sendSSEHeaders fail";

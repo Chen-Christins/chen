@@ -38,9 +38,10 @@ tests/
 │   ├── TestMetrics.cpp
 │   ├── TestRateLimiter.cpp
 │   ├── TestFuture.cpp
+│   ├── TestSSESession.cpp
 │   └── TestOrmGen.cpp
 ├── ModuleTest/
-│   └── DrainModule.cc     # 集成测试模块（/drain/slow、/drain/fast）
+│   └── DrainModule.cc     # 集成测试模块（/drain/{slow,fast,stream,sse}）
 ├── integration/
 │   ├── drain_reload.sh    # 热重载 drain 集成测试（标签 integration）
 │   └── module/            # libdrain_test_module.so 输出目录（gitignore）
@@ -199,6 +200,7 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 | `test_unit_metrics`     | `TestMetrics.cc`                                                             |
 | `test_unit_ratelimiter` | `TestRateLimiter.cc`                                                         |
 | `test_unit_future`      | `TestFuture.cc`（线程路径 + 自建 IOManager 的 fiber 路径）                   |
+| `test_unit_ssesession`  | 新增：用假 HttpSession 抓取 SSE 编码与响应头（无迁移来源）                   |
 | `test_unit_ormgen`      | `TestOrmGen.cc`（额外编译 `src/Orm/*.cc`）                                   |
 
 有意不迁移（保留为手工程序）：
