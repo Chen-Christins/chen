@@ -7,8 +7,9 @@ if (CHEN_BUILD_TESTS)
     # 运行方式：ctest --test-dir build -L unit --output-on-failure
     # 约定：不依赖网络、不依赖外部配置/数据库，单次运行 < 1s
     # ------------------------------------------------------------------
-    function(chen_add_unit_test targetname source)
-        chen_add_executable(${targetname} ${source} "" "${LIBS}")
+    # 额外源文件通过 ARGN 传入（如 ORM 生成器需要把 src/Orm 源码一起编进来）
+    function(chen_add_unit_test targetname)
+        chen_add_executable(${targetname} "${ARGN}" "" "${LIBS}")
         add_test(NAME ${targetname} COMMAND ${targetname})
         set_tests_properties(${targetname} PROPERTIES
                 LABELS "unit"
@@ -20,6 +21,21 @@ if (CHEN_BUILD_TESTS)
     chen_add_unit_test(test_unit_stringutil Unit/TestStringUtil.cpp)
     chen_add_unit_test(test_unit_config Unit/TestConfig.cpp)
     chen_add_unit_test(test_unit_timeutil Unit/TestTimeUtil.cpp)
+    chen_add_unit_test(test_unit_uri Unit/TestUri.cpp)
+    chen_add_unit_test(test_unit_httpparser Unit/TestHttpParser.cpp)
+    chen_add_unit_test(test_unit_encryptor Unit/TestEncryptorUtil.cpp)
+    chen_add_unit_test(test_unit_http Unit/TestHttp.cpp)
+    chen_add_unit_test(test_unit_configxml Unit/TestConfigXml.cpp)
+    chen_add_unit_test(test_unit_metrics Unit/TestMetrics.cpp)
+    chen_add_unit_test(test_unit_ratelimiter Unit/TestRateLimiter.cpp)
+    chen_add_unit_test(test_unit_future Unit/TestFuture.cpp)
+    # ORM 生成器不在 libchen 中，单独编译 orm 源码
+    chen_add_unit_test(test_unit_ormgen
+            Unit/TestOrmGen.cpp
+            ${ROOT_DIR}/src/Orm/Column.cc
+            ${ROOT_DIR}/src/Orm/Index.cc
+            ${ROOT_DIR}/src/Orm/Table.cc
+            ${ROOT_DIR}/src/Orm/Util.cc)
 
     # ------------------------------------------------------------------
     # 手工/联调用的历史测试程序：默认不注册到 CTest（部分用例需要

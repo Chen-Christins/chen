@@ -29,7 +29,16 @@ tests/
 │   ├── TestByteArray.cpp
 │   ├── TestStringUtil.cpp
 │   ├── TestConfig.cpp
-│   └── TestTimeUtil.cpp
+│   ├── TestTimeUtil.cpp
+│   ├── TestUri.cpp
+│   ├── TestHttpParser.cpp
+│   ├── TestEncryptorUtil.cpp
+│   ├── TestHttp.cpp
+│   ├── TestConfigXml.cpp
+│   ├── TestMetrics.cpp
+│   ├── TestRateLimiter.cpp
+│   ├── TestFuture.cpp
+│   └── TestOrmGen.cpp
 ├── ModuleTest/
 │   └── DrainModule.cc     # 集成测试模块（/drain/slow、/drain/fast）
 ├── integration/
@@ -161,7 +170,7 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 
 1. 安装系统依赖 + `python3 deps.py sync`
 2. `cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCHEN_BUILD_TESTS=ON`
-3. 定向构建：`chen` + 4 个单测 + `server` + `drain_test_module`
+3. 定向构建：`chen` + 全部单测（`test_unit_*`）+ `server` + `lifecycle_module` + `drain_test_module`
 4. `ctest -L "unit|smoke" --output-on-failure`
 5. `ctest -L integration --output-on-failure`
 
@@ -169,12 +178,49 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 
 发版流程（`package-sdk-ubuntu.yml`）与测试流程分离：测试失败不会阻塞发包，但合并前必须通过。
 
+## 历史用例迁移状态
+
+`tests/` 下早期的 `Test*.cc` 是"手工跑 + 肉眼看输出"的程序。可离线、有明确断言的已迁到
+`tests/Unit/` 并接入 CTest；原程序保留，方便单独调试。
+
+已迁移：
+
+| 单元测试                | 来源                                                                         |
+|-------------------------|------------------------------------------------------------------------------|
+| `test_unit_bytearray`   | `TestByteArray.cc`                                                           |
+| `test_unit_stringutil`  | `TestStringUtil.cc`                                                          |
+| `test_unit_config`      | `TestConfig.cc`                                                              |
+| `test_unit_timeutil`    | `TestTimeUtil.cc`                                                            |
+| `test_unit_uri`         | `TestUri.cc`                                                                 |
+| `test_unit_httpparser`  | `TestHttpParser.cc`                                                          |
+| `test_unit_encryptor`   | `TestEncryptorUtil.cc`（哈希/HMAC/AES-GCM/PBKDF2；RSA、bcrypt 留在手工程序） |
+| `test_unit_http`        | `TestHttp.cc`（原程序只 dump，迁移时补了断言）                               |
+| `test_unit_configxml`   | `TestConfigXml.cc`                                                           |
+| `test_unit_metrics`     | `TestMetrics.cc`                                                             |
+| `test_unit_ratelimiter` | `TestRateLimiter.cc`                                                         |
+| `test_unit_future`      | `TestFuture.cc`（线程路径 + 自建 IOManager 的 fiber 路径）                   |
+| `test_unit_ormgen`      | `TestOrmGen.cc`（额外编译 `src/Orm/*.cc`）                                   |
+
+有意不迁移（保留为手工程序）：
+
+- **网络 / 进程 / 守护**：`TestSocket`、`TestTcpServer`、`TestHttpServer`、`TestH2Server`、`TestHttpClient`、
+  `TestHttpConnection`、`TestWSClient`、`TestWSServer`、`TestSSEServer`、`SsePushExample`、`TestRpcClient`、
+  `TestRpcServer`、`TestRpcHub`、`TestRock`、`TestGameClient`、`TestGameRpc`、`TestModule`、
+  `TestApplication`、`TestDaemon`、`TestFileWatcher` —— 需要端口、模块热加载或 fork/daemon。
+- **数据库**：`TestMySQL`、`TestPostgreSQL` —— 需要真实实例；对应能力由集成测试或手工验证。
+- **需要外部数据**：`TestDataReader` —— 依赖 `xlsx_to_bin.py` 生成的加密 `.bin`，仓库里没有示例数据。
+- **时间/压测基准**：`TestThread`、`TestFiber`、`TestFiberBench`、`TestSchedule`、`TestMassiveSchedule`、
+  `TestIOManager`、`TestHook`、`TestMetricsBench`、`TestLogSizeRotate`、`TestLogReloadFormatter` —— 观测吞吐/调度
+  行为或依赖真实文件轮转，不适合当门禁用例。
+- **会污染进程**：`TestEnv` —— 修改进程标题（`argv[0]`/`PR_SET_NAME`），放进单测套件会影响同进程其它用例。
+
 ## 已知限制
 
 - **ASAN 与协程**：`boost::context` 切换栈需要 `__sanitizer_start_switch_fiber` 注解，当前未接入；对
-  `libchen` 整体开 ASAN 后运行涉及 fiber 切换的用例可能出现误报。纯逻辑单测（`unit`）不开 fiber，
-  可以安全地用 `-DENABLE_ASAN=ON` 单独跑。
+  `libchen` 整体开 ASAN 后运行涉及 fiber 切换的用例可能出现误报。除 `test_unit_future`（自建
+  `IOManager` 跑 fiber 路径）外，其余单测都是纯逻辑，可以安全地用 `-DENABLE_ASAN=ON` 单独跑。
 - **drain 的协议覆盖**：HTTP/1.1 有请求边界，能等到在途请求结束；HTTP/2 在 drain 时发送 GOAWAY，
   等 `streams_` 清空后关闭会话；WS/Rock/RPC/Game 是长连接、没有请求边界，drain 期间仍然立即关闭。
 - **非 Linux 不构建**：见 `AGENTS.md`。macOS/Windows 上只做静态检查，测试结果以 Linux 开发机/CI 为准。
-- 历史测试程序没有断言框架、部分会阻塞在 `accept`，因此不注册进 CTest；后续逐步迁移到 `tests/Unit/`。
+- 历史测试程序没有断言框架、部分会阻塞在 `accept`，因此不注册进 CTest；可离线断言的部分已按
+  “历史用例迁移状态”迁到 `tests/Unit/`，其余保留为手工/联调程序。

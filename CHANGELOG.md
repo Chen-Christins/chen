@@ -92,7 +92,12 @@ All notable changes to this project will be documented in this file.
 
 - **新增** `tests/TestHarness.hpp`：header-only 测试框架（`CHEN_TEST` / `CHEN_CHECK*` / `CHEN_TEST_MAIN`），
   支持 `--list` / `--filter=`，断言失败输出文件与行号，单个用例失败不影响其他用例
-- **新增** `tests/Unit/`：ByteArray、StringUtil、Config、TimeUtil 纯逻辑单元测试
+- **新增** `tests/Unit/`：ByteArray、StringUtil、Config、TimeUtil 纯逻辑单元测试；
+  并把历史手工用例里的 Uri 解析、HTTP/1.1 报文解析、EncryptorUtil 摘要/HMAC/AES-GCM/PBKDF2
+  迁成 `test_unit_uri` / `test_unit_httpparser` / `test_unit_encryptor`（不再靠肉眼看输出）；
+  继续迁移 `TestHttp` / `TestConfigXml` / `TestMetrics` / `TestRateLimiter` / `TestFuture` / `TestOrmGen`
+  为 `test_unit_http` / `test_unit_configxml` / `test_unit_metrics` / `test_unit_ratelimiter` /
+  `test_unit_future` / `test_unit_ormgen`，`chen_add_unit_test()` 支持附加源文件（ORM 生成器需编入 `src/Orm/*.cc`）
 - **新增** CMake 选项 `CHEN_BUILD_TESTS`（Debug 默认 ON）与 CTest 注册：`unit` / `smoke` 标签；
   Makefile 增加 `test`（unit+smoke）与 `test-all` 目标
 - **新增** `.github/workflows/test.yml`：Ubuntu Debug 构建 + `ctest -L "unit|smoke"` 门禁，失败时上传

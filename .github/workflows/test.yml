@@ -75,6 +75,15 @@ jobs:
             test_unit_stringutil \
             test_unit_config \
             test_unit_timeutil \
+            test_unit_uri \
+            test_unit_httpparser \
+            test_unit_encryptor \
+            test_unit_http \
+            test_unit_configxml \
+            test_unit_metrics \
+            test_unit_ratelimiter \
+            test_unit_future \
+            test_unit_ormgen \
             server \
             lifecycle_module \
             drain_test_module
