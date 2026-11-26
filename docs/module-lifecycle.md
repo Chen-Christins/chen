@@ -122,12 +122,11 @@ bin/server -s reload
 ```
 1. server->stop()           ← 停止 accept, 不再接收新连接
 2. drain (server.drain_timeout_ms) ← 关闭空闲连接，等在途请求自然完成
-3. 取消 tick 定时器         ← 框架取消所有模块的 onTick
-4. 停止 tick IOManager
-5. onDeactivate()           ← flush 脏数据
-6. onUnload()               ← clearAll EventBus + stop 定时器 + 释放 DB/Redis 资源
-7. 停止 WorkerMgr           ← 停止 io/accept 线程
-8. 进程退出                  ← 地址空间回收
+3. 取消 tick 定时器         ← 框架取消所有模块的 onTick（定时器挂在 main IOManager 上）
+4. onDeactivate()           ← flush 脏数据
+5. onUnload()               ← clearAll EventBus + stop 定时器 + 释放 DB/Redis 资源
+6. 停止 WorkerMgr           ← 停止 io/accept 线程
+7. 进程退出                  ← 地址空间回收
 ```
 
 > 框架不再代为释放 Redis：使用 DB/Redis 的模块需在自己的 `onUnload()` 中释放连接

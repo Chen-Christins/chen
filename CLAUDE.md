@@ -68,7 +68,16 @@ This is a C++20 coroutine-based async server framework. The heavy lifting is don
   fiber waiting on it → when epoll fires, the waiting fiber is rescheduled. This makes all socket I/O fiber-transparent
   via hook.
 
-The `Application` creates two IOManagers: `m_mainIOManager` (IO + business logic) and `m_tickIOManager` (periodic module `onTick()` calls).
+Responsibilities are split across three classes:
+
+- `ProcessSupervisor` (`src/ProcessSupervisor.*`): master only — creates/binds listening sockets via
+  `ServerRegistry`, forks and supervises workers, handles hot reload and shutdown.
+- `WorkerRuntime` (`src/WorkerRuntime.*`): one worker process — owns one IOManager (`main`,
+  `use_caller=true`, so it runs on the worker thread) that serves IO + business fibers + module
+  `onTick()` timers; plus module lifecycle, config watcher, graceful drain. There is no separate
+  tick thread — slow `onTick()` blocks the event loop, keep it non-blocking.
+- `Application` (`src/Application.*`): process bootstrap (args, config, daemon) + façade (`init` / `run` / `getServer` /
+  `getAllServers` / service discovery).
 
 ### Fiber (coroutine)
 
@@ -129,7 +138,7 @@ Full configuration guide: `docs/log-configuration.md`.
 Follow `cpp-code-style` skill (`.claude/skills/cpp-code-style/SKILL.md`). Key points:
 
 - **Class/struct**: PascalCase (`TcpServer`, `LogEvent`)
-- **Member variables**: `m_` + snake_case (`m_name`, `m_isKeepAlive`)
+- **Member variables**: snake_case + 后缀下划线 (`name_`, `is_keep_alive_`)
 - **Static members**: `g_` prefix (`g_datas`)
 - **Thread-local**: `t_` prefix (`t_thread`)
 - **Member functions**: camelCase (`getValue()`, `setName()`)
@@ -138,7 +147,7 @@ Follow `cpp-code-style` skill (`.claude/skills/cpp-code-style/SKILL.md`). Key po
 - **Enums/macros**: ALL_CAPS
 - **Indent**: 4 spaces, no tabs. Opening brace on same line for class/if/for/switch, new line for functions.
 - **Smart pointer typedef**: each class defines `typedef std::shared_ptr<T> ptr;`
-- **Lock typedef**: each class defines `typedef SpinLock MutexType;` with RAII `MutexType::Lock lock(m_mutex);`
+- **Lock typedef**: each class defines `typedef SpinLock MutexType;` with RAII `MutexType::Lock lock(mutex_);`
 - **File headers**: Doxygen `@file @brief @author @date`
 - **Include guard**: existing code uses `#ifndef`, new files prefer `#pragma once`
 - **Namespace**: all code in `namespace chen`, content not indented inside namespace
@@ -147,22 +156,25 @@ Follow `cpp-code-style` skill (`.claude/skills/cpp-code-style/SKILL.md`). Key po
 
 ## Key Files to Know
 
-| File                          | Role                                                              |
-|-------------------------------|-------------------------------------------------------------------|
-| `src/Application.hpp`         | App orchestrator, signal handling, graceful shutdown / hot reload |
-| `src/IOManager/IOManager.hpp` | epoll + fiber scheduler + timer manager                           |
-| `src/Schedule/Schedule.hpp`   | N:M fiber thread pool                                             |
-| `src/Fiber/Fiber.hpp`         | boost.context coroutine                                           |
-| `src/Hook/Hook.hpp`           | Syscall interception for fiber-friendly IO                        |
-| `src/Module.hpp`              | Module base class, lifecycle                                      |
-| `src/Library.hpp`             | dlopen/dlclose wrapper                                            |
-| `src/Config/Config.hpp`       | Typed YAML config with change listeners                           |
-| `src/Log/Log.hpp`             | Logger, appenders, formatters                                     |
-| `src/Tcp/TcpServer.hpp`       | TcpServer base + TcpServerFactory                                 |
-| `src/Http/Servlet.hpp`        | ServletDispatch, HTTP routing                                     |
-| `src/Rpc/RpcServer.hpp`       | Protobuf RPC server                                               |
-| `src/Thread/Thread.hpp`       | pthread wrapper                                                   |
-| `servers/main.cc`             | Entry point                                                       |
-| `bin/conf/system.yml`         | Main runtime config                                               |
-| `CMakeLists.txt`              | Root build file                                                   |
-| `cmake/utils.cmake`           | Build helper functions                                            |
+| File                          | Role                                                           |
+|-------------------------------|----------------------------------------------------------------|
+| `src/Application.hpp`         | Process bootstrap + façade (args/config/daemon, server lookup) |
+| `src/ProcessSupervisor.hpp`   | Master: fork/supervise workers, hot reload, shutdown           |
+| `src/WorkerRuntime.hpp`       | Worker: IOManagers, module lifecycle, graceful drain           |
+| `src/ServerRegistry.hpp`      | TcpServer creation/bind/lookup                                 |
+| `src/IOManager/IOManager.hpp` | epoll + fiber scheduler + timer manager                        |
+| `src/Schedule/Schedule.hpp`   | N:M fiber thread pool                                          |
+| `src/Fiber/Fiber.hpp`         | boost.context coroutine                                        |
+| `src/Hook/Hook.hpp`           | Syscall interception for fiber-friendly IO                     |
+| `src/Module.hpp`              | Module base class, lifecycle                                   |
+| `src/Library.hpp`             | dlopen/dlclose wrapper                                         |
+| `src/Config/Config.hpp`       | Typed YAML config with change listeners                        |
+| `src/Log/Log.hpp`             | Logger, appenders, formatters                                  |
+| `src/Tcp/TcpServer.hpp`       | TcpServer base + TcpServerFactory                              |
+| `src/Http/Servlet.hpp`        | ServletDispatch, HTTP routing                                  |
+| `src/Rpc/RpcServer.hpp`       | Protobuf RPC server                                            |
+| `src/Thread/Thread.hpp`       | pthread wrapper                                                |
+| `servers/main.cc`             | Entry point                                                    |
+| `bin/conf/system.yml`         | Main runtime config                                            |
+| `CMakeLists.txt`              | Root build file                                                |
+| `cmake/utils.cmake`           | Build helper functions                                         |

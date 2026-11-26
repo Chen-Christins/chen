@@ -3,7 +3,6 @@
 #include "src/IOManager/IOManager.hpp"
 #include "src/Log/Log.hpp"
 #include "src/Rpc/RpcClient.hpp"
-#include "src/Rpc/RpcClientPool.hpp"
 
 static chen::Logger::ptr logger = LOG_ROOT();
 
@@ -220,47 +219,6 @@ void run()
         }
     }
 
-    // RpcClientPool test
-    auto pool = std::make_shared<chen::rpc::RpcClientPool>();
-    pool->setHeartbeatIntervalMs(1000);
-    pool->setIdleTimeoutMs(5000);
-
-    auto pool_client = pool->getClient("127.0.0.1:8080");
-    if (!pool_client) {
-        ERROR(logger) << "[pool] getClient failed";
-    } else {
-        try {
-            int result = pool_client->call<int>("add", 40, 20);
-            INFO(logger) << "[pool] add(40, 20) = " << result;
-
-            std::string str = pool_client->call<std::string>("echo", "hello rpc test");
-            INFO(logger) << "[pool] echo(hello rpc test) = " << str;
-
-            std::vector<std::string> vec = {"one", "two", "three"};
-            auto echoed_vec = pool_client->call<std::vector<std::string>>("echoVec", vec);
-            INFO(logger) << "[pool] echoVec(...) returned vector of size " << echoed_vec.size();
-
-            UserInfo u = pool_client->call<UserInfo>("getUserInfo", 100);
-            INFO(logger) << "[pool] getUserInfo(100) id=" << u.id << " name=" << u.name << " age=" << u.age;
-
-            pool_client->call<void>("echoTest");
-            INFO(logger) << "[pool] echoTest() called successfully";
-
-            auto pool_client2 = pool->getClient("127.0.0.1:8080");
-            INFO(logger) << "[pool] reuse client connected=" << pool_client2->isConnected();
-        } catch (std::exception& e) {
-            ERROR(logger) << "[pool] call error: " << e.what();
-        }
-    }
-
-    chen::IOManager::GetThis()->addTimer(
-        10 * 1000,
-        [client, pool]() {
-            INFO(logger) << "Closing clients...";
-            client->close();
-            pool->closeAll();
-        },
-        false);
 }
 
 int main(int argc, char** argv)

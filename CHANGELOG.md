@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 架构（重构）
+
+- **拆分** `Application` 上帝对象（原 1000+ 行）为三个职责单一的类：
+  - `ProcessSupervisor`：master 的 fork/监督/热重载/停机（含 worker 崩溃重启 backoff）
+  - `WorkerRuntime`：worker 的 IOManager、模块生命周期、配置热加载、优雅 drain
+  - `ServerRegistry`：`TcpServer` 的创建/绑定/查找，替代 `Application` 里的 `servers_`
+- **保持** 对外 API 不变：`Application::init/run/getServer/getAllServers/getServiceDiscovery/
+  setServiceDiscovery/signalHandler/sendSignal` 全部保留，模块代码无需改动
+- **删除** 独立的 tick 线程：模块 `onTick()` 定时器改为挂在 worker 的主 IOManager 上，
+  每个 worker 少一个调度线程；代价是 `onTick()` 与 IO/业务协程同线程，必须保持非阻塞
+
 ### 地址解析（修复）
 
 - **修复** `Address::LookupAny()` / `LookupAnyIPAddress()` 少传 `family` 参数：原来

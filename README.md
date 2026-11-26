@@ -15,8 +15,8 @@
 │  ┌──────┴──────────────────┴─────────────────┴────────┐  │
 │  │                 IOManager (epoll)                  │  │
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────────┐      │  │
-│  │  │ accept   │  │   io     │  │    tick      │      │  │
-│  │  │ worker   │  │  worker  │  │   worker     │      │  │
+│  │  │ accept   │  │   io     │  │   timer      │      │  │
+│  │  │ worker   │  │  worker  │  │  (onTick)    │      │  │
 │  │  └──────────┘  └──────────┘  └──────────────┘      │  │
 │  └────────────────────────────────────────────────────┘  │
 │  ┌────────────────────────────────────────────────────┐  │
@@ -29,6 +29,10 @@
 │  └────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────┘
 ```
+
+进程职责是分开的：`ProcessSupervisor`（master）只创建并绑定监听 socket、fork 并监督
+worker；`WorkerRuntime`（worker）持有 IOManager、加载模块、跑业务；`Application` 只剩
+参数解析、daemon 化和对外门面（`getServer` / `getAllServers` / 服务发现）。
 
 ## 核心特性
 
@@ -73,7 +77,8 @@
 
 - **Timer**：基于时间堆的定时器，支持一次性/循环定时器、条件定时器
 - **精度**：毫秒级，自动检测系统时间回拨
-- **Tick**：模块可声明 `getTickIntervalMs()`，框架按周期调用 `onTick()`
+- **Tick**：模块可声明 `getTickIntervalMs()`，框架按周期调用 `onTick()`；定时器挂在主
+  IOManager 上，与 IO/业务协程同线程，因此 `onTick()` 里不要做阻塞操作
 
 ### 数据库
 
@@ -189,7 +194,10 @@ chen/
 │   ├── RateLimiter/       # 连接限流器
 │   ├── Ds/                 # Dispatcher / EventBus / 缓存
 │   ├── Streams/            # 流抽象 + 负载均衡
-│   ├── Application.*       # 应用主控
+│   ├── Application.*       # 进程引导 + 对外门面（init/run/sendSignal）
+│   ├── ProcessSupervisor.* # master：fork/监督 worker、热重载、停机
+│   ├── WorkerRuntime.*     # worker：调度器、模块生命周期、优雅关闭
+│   ├── ServerRegistry.*    # TcpServer 的创建/绑定/查找
 │   ├── Log/                # 日志系统
 │   ├── Config/             # 配置系统 (YAML/XML)
 │   ├── DB/                 # 数据库 (Redis/MySQL/SQLite)
