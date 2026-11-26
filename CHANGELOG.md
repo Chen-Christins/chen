@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 优雅停机（修复）
+
+- **修复** 优雅关闭/热重载不再「先关连接再干等」：`TcpServer::beginDrain()` 停止 accept 后保留存量连接，
+  HTTP/1.1 按连接记录在途请求数，drain 期间先关闭空闲 keep-alive 连接，再等在途请求完成
+  （上限 `server.drain_timeout_ms`），超时才强制关闭
+- **新增** `TcpServer::beginDrain()` / `closeIdleClients()` / `getInFlightClientCount()` /
+  `supportsGracefulDrain()`，以及协议侧使用的 `TcpServer::RequestGuard`（构造 `in_flight++`，
+  析构 `in_flight--`，draining 且空闲时关闭连接）
+- **变更** `HttpServer` 覆写 `supportsGracefulDrain()`：drain 期间新响应带 `Connection: close`，
+  处理完当前请求即断开；空闲 keep-alive 连接由 `closeIdleClients()` 关闭
+- **变更** WS/Rock/RPC/Game 等长连接协议没有请求边界，仍按原行为立即关闭；HTTP/2 暂未接入
+  stream 级在途统计，同样在 drain 开始时关闭
+- **重构** `Application::doGracefulShutdown()` 拆出 `finishShutdown()`，drain 改为在协程内轮询
+  （`usleep` 让出事件循环），超时打 `drain timeout` 告警后强制关闭
+- **新增** `tests/ModuleTest/DrainModule.cc`：测试模块提供 `/drain/slow`、`/drain/fast`
+- **新增** `tests/integration/drain_reload.sh`：真实起 server，在途慢请求 + `SIGHUP`，
+  断言请求完整、reload 后仍可服务、无 drain 超时、`SIGTERM` 干净退出；标签 `integration`，
+  通过 `make test-integration` 运行，CI 已接入
+
 ### 测试门禁（新增）与文档修正
 
 - **新增** `tests/TestHarness.hpp`：header-only 测试框架（`CHEN_TEST` / `CHEN_CHECK*` / `CHEN_TEST_MAIN`），

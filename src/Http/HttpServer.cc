@@ -64,6 +64,12 @@ void HttpServer::handleClient(Socket::ptr client)
     // HTTP/1.1 path
     HttpSession::ptr session(new HttpSession(client));
     do {
+        // draining 之后不再复用连接读取下一个请求：当前请求处理完即退出
+        if (isDraining()) {
+            DEBUG(logger) << "http server draining, stop keep-alive client=" << *client;
+            break;
+        }
+
         std::string leftover;
         auto req = session->recvRequestHeader(&leftover);
         if (!req) {
@@ -82,35 +88,43 @@ void HttpServer::handleClient(Socket::ptr client)
 
         req->init();
 
-        HttpResponse::ptr rsp(new HttpResponse(req->getVersion(), req->isClose() || !is_keep_alive_));
+        // draining 时响应带 Connection: close，当前请求处理完即断开
+        const bool close_conn = req->isClose() || !is_keep_alive_ || isDraining();
+        HttpResponse::ptr rsp(new HttpResponse(req->getVersion(), close_conn));
         rsp->setHeader("Server", getName());
 
-        auto slt = dispatch_->matchForRequest(req);
-        if (slt && slt->isStreamingBody()) {
-            session->setPendingBody(leftover);
-            session->setBodyRemaining(req->getHeaderAs<uint64_t>("content-length", 0));
-            slt->handle(req, rsp, session);
+        {
+            // 请求作用域：构造时 in_flight++，析构时 in_flight--，
+            // 若此时已 draining 且连接空闲，顺手关闭连接（见 TcpServer::RequestGuard）
+            TcpServer::RequestGuard guard(this, client);
 
-            // servlet 可能提前返回（如 404/403），未消费完 body；排空以保持 keep-alive 一致
-            if (!rsp->isStreaming()) {
-                session->drainBody();
+            auto slt = dispatch_->matchForRequest(req);
+            if (slt && slt->isStreamingBody()) {
+                session->setPendingBody(leftover);
+                session->setBodyRemaining(req->getHeaderAs<uint64_t>("content-length", 0));
+                slt->handle(req, rsp, session);
+
+                // servlet 可能提前返回（如 404/403），未消费完 body；排空以保持 keep-alive 一致
+                if (!rsp->isStreaming()) {
+                    session->drainBody();
+                }
+            } else {
+                if (session->readBodyInto(req, leftover) < 0) {
+                    WARN(logger) << "read http request body fail"
+                                 << " client:" << *client;
+                    break;
+                }
+                slt->handle(req, rsp, session);
             }
-        } else {
-            if (session->readBodyInto(req, leftover) < 0) {
-                WARN(logger) << "read http request body fail"
-                             << " client:" << *client;
+
+            if (rsp->isStreaming()) {
                 break;
             }
-            slt->handle(req, rsp, session);
+
+            session->sendResponse(rsp);
         }
 
-        if (rsp->isStreaming()) {
-            break;
-        }
-
-        session->sendResponse(rsp);
-
-        if (!is_keep_alive_ || req->isClose()) {
+        if (close_conn) {
             break;
         }
     } while (true);

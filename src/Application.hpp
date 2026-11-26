@@ -182,13 +182,19 @@ private:
 
     /**
      * @brief 执行 worker 优雅关闭流程
-     * @details 1. 停止所有 TcpServer 接收新连接
-     *          2. 限时等待现有连接排空
+     * @details 1. 停止所有 TcpServer 接收新连接（beginDrain）
+     *          2. HTTP/1.1 等在途请求处理完，空闲连接关闭；超时则强制关闭
      *          3. 卸载所有模块
      *          4. 停止所有工作线程
      *          5. 退出（pid 文件由 master 负责清理）
      */
     void doGracefulShutdown();
+
+    /**
+     * @brief drain 完成后真正执行卸载与退出
+     * @details 从 doGracefulShutdown 拆出来，便于在 drain 循环结束后直接调用
+     */
+    void finishShutdown();
 
     /**
      * @brief 执行配置文件重载（inotify 触发，单文件）

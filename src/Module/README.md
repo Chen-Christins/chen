@@ -19,7 +19,8 @@
                → onLoad → onServerReady → onServerUp → [onTick()...]
 
 退出（热重载 drain / 关机）:
-               停止 accept → 关闭连接 → 限时 drain（server.drain_timeout_ms）
+               停止 accept → 关闭空闲连接 → 等待在途 HTTP/1.1 请求（server.drain_timeout_ms）
+               → 超时强制关闭 → onDeactivate → onUnload → 退出
                → 取消 tick 定时器 → onDeactivate → onUnload → _exit(0)
 ```
 
@@ -107,20 +108,20 @@ kill -HUP <master_pid>
 
 采用 master/worker 多进程模型：master 持有监听端口，收到 SIGHUP 后 fork 出一个新
 worker 进程加载磁盘上的新模块；新 worker 就绪后，master 通知旧 worker 停止 accept，
-旧 worker 限时 drain 完遗留连接后退出。每个进程只加载一个版本的 `.so`，退出时由内核
+旧 worker 等待在途请求（受 `server.drain_timeout_ms` 约束）后退出。每个进程只加载一个版本的 `.so`，退出时由内核
 回收地址空间， **不做进程内 `dlclose`**。
 
 框架流程：
 
 1. master fork 新 worker，新 worker `CreateModule()` → `onLoad()` → `onServerReady()` → `onServerUp()`
 2. 新 worker 就绪后开始 accept
-3. 旧 worker 停止 accept → 限时 drain → `onDeactivate()` → `onUnload()` → 进程退出
+3. 旧 worker 停止 accept → 关闭空闲连接、等待在途请求 → `onDeactivate()` → `onUnload()` → 进程退出
 
 ### 优雅关闭
 
 框架流程：
 
-1. 停止 accept, drain 连接
+1. 停止 accept，关闭空闲 keep-alive 连接，等待在途 HTTP/1.1 请求（超时强制关闭）
 2. 取消 tick 定时器
 3. `onDeactivate()` — flush 数据
 4. `onUnload()` — 释放资源

@@ -62,7 +62,7 @@ jobs:
       - name: Configure (Debug)
         run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCHEN_BUILD_TESTS=ON
 
-      - name: Build (libchen + unit tests + server)
+      - name: Build (libchen + unit tests + server + drain module)
         # 只构建门禁需要的目标：完整 Release 构建由 package-sdk-ubuntu.yml 覆盖，
         # 这里缩短反馈时间，也避免历史测试程序（需要端口/数据库）拖慢 CI。
         run: |
@@ -72,10 +72,15 @@ jobs:
             test_unit_stringutil \
             test_unit_config \
             test_unit_timeutil \
-            server
+            server \
+            drain_test_module
 
       - name: Run unit + smoke tests
         run: ctest --test-dir build --output-on-failure -L "unit|smoke"
+
+      - name: Run drain/reload integration test
+        # 真实起 server，验证 SIGHUP 热重载时在途 HTTP 请求不被打断
+        run: ctest --test-dir build --output-on-failure -L integration
 
       - name: Upload test log on failure
         if: failure()

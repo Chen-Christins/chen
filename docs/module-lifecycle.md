@@ -5,7 +5,7 @@
 
 热重载采用 **master/worker 多进程模型**：master 进程持有监听端口并监督 worker，
 每个 worker 进程只加载一个版本的模块 `.so`。重载时新 worker 加载新模块，旧 worker
-停止 accept、限时 drain 完遗留连接后退出。进程退出时由内核回收地址空间， **不做进程内
+停止 accept、等待在途 HTTP/1.1 请求处理完（超时强制关闭）后退出。进程退出时由内核回收地址空间， **不做进程内
 `dlclose`**，因此不存在旧 `.so` 函数指针悬空的问题。
 
 ## 进程模型
@@ -38,7 +38,7 @@
 
 | 配置项                       | 默认  | 说明                                                       |
 |------------------------------|-------|------------------------------------------------------------|
-| `drain_timeout_ms`           | 3000  | 旧 worker 停止 accept 后等待遗留连接的毫秒数，超时强制关闭 |
+| `drain_timeout_ms`           | 3000  | 旧 worker 停止 accept 后等待在途 HTTP/1.1 请求的毫秒数，超时强制关闭 |
 | `worker_ready_timeout_ms`    | 30000 | master 等待新 worker 就绪的超时毫秒数                      |
 | `worker_restart_interval_ms` | 2000  | worker 崩溃后 master 重启前的等待毫秒数                    |
 | `housekeeping_interval_ms`   | 500   | worker 检查关闭信号的定时器间隔                            |
@@ -121,7 +121,7 @@ bin/server -s reload
 
 ```
 1. server->stop()           ← 停止 accept, 不再接收新连接
-2. drain (server.drain_timeout_ms) ← 现存连接自然完成
+2. drain (server.drain_timeout_ms) ← 关闭空闲连接，等在途请求自然完成
 3. 取消 tick 定时器         ← 框架取消所有模块的 onTick
 4. 停止 tick IOManager
 5. onDeactivate()           ← flush 脏数据

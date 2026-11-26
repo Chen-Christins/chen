@@ -105,3 +105,22 @@ add_library(lifecycle_module SHARED
 force_redefine_file_macro_for_sources(lifecycle_module)
 target_link_libraries(lifecycle_module ${LIBS})
 chen_set_target_output_dir(lifecycle_module ${ROOT_DIR}/bin/module)
+
+# drain/热重载集成测试模块 — 提供 /drain/slow、/drain/fast 两个 servlet
+add_library(drain_test_module SHARED
+        ModuleTest/DrainModule.cc
+)
+force_redefine_file_macro_for_sources(drain_test_module)
+target_link_libraries(drain_test_module ${LIBS})
+chen_set_target_output_dir(drain_test_module ${ROOT_DIR}/tests/integration/module)
+
+# 集成测试：起真实 server，验证热重载时在途请求不被打断。
+# 依赖 server / drain_test_module 已构建；不在 `make test`（unit|smoke）里跑。
+if (CHEN_BUILD_TESTS)
+    add_test(NAME integration_drain_reload
+            COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/integration/drain_reload.sh)
+    set_tests_properties(integration_drain_reload PROPERTIES
+            LABELS "integration"
+            TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endif ()

@@ -27,6 +27,13 @@ public:
     void setNegotiateH2(bool v) { negotiate_h2_ = v; }
     bool isNegotiateH2() const { return negotiate_h2_; }
 
+    /**
+     * @brief HTTP/1.1 支持协作式 drain
+     * @details 在 handleClient 内用 RequestGuard 标记在途请求；HTTP/2 连接目前没有
+     *          请求边界标记，会在第一次 closeIdleClients() 时被关闭（与旧行为一致）。
+     */
+    virtual bool supportsGracefulDrain() const override { return true; }
+
 protected:
     virtual void handleClient(Socket::ptr client) override;
 

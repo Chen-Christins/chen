@@ -12,16 +12,13 @@
 
 ## 分层与标签
 
-CTest 用标签区分用例，CI 只跑 `unit|smoke`，联调用例按需手工执行。
+CTest 用标签区分用例：`make test` 跑 `unit|smoke`，集成用例用 `make test-integration`。
 
-| 标签          | 内容                                             | 运行时机            | 依赖           |
-|---------------|--------------------------------------------------|---------------------|----------------|
-| `unit`        | 纯逻辑：序列化、字符串、配置、时间、指标计算等   | 每次构建 / CI       | 无             |
-| `smoke`       | 进程能链接、能启动的冒烟检查（如 `server -v`）   | 每次构建 / CI       | 无             |
-| `integration` | 起真实 server、发请求、reload/关闭（待补，见下） | Linux 开发机 / 夜间 | 端口、临时目录 |
-
-> `integration` 依赖「真正的 drain」修复合入后才有意义：当前 `closeAllClients()` 会在
-> `drain_timeout_ms` 之前关闭连接，“在途请求不中断”的断言必然失败。等该修复合入后再补。
+| 标签          | 内容                                             | 运行时机      | 依赖                 |
+|---------------|--------------------------------------------------|---------------|----------------------|
+| `unit`        | 纯逻辑：序列化、字符串、配置、时间、指标计算等   | 每次构建 / CI | 无                   |
+| `smoke`       | 进程能链接、能启动的冒烟检查（如 `server -v`）   | 每次构建 / CI | 无                   |
+| `integration` | 起真实 server、发请求、热重载 / 优雅关闭         | CI / 手工     | 端口、临时目录、curl |
 
 ## 目录结构
 
@@ -33,6 +30,11 @@ tests/
 │   ├── TestStringUtil.cpp
 │   ├── TestConfig.cpp
 │   └── TestTimeUtil.cpp
+├── ModuleTest/
+│   └── DrainModule.cc     # 集成测试模块（/drain/slow、/drain/fast）
+├── integration/
+│   ├── drain_reload.sh    # 热重载 drain 集成测试（标签 integration）
+│   └── module/            # libdrain_test_module.so 输出目录（gitignore）
 ├── *.cc                   # 历史测试程序（手工执行，部分需要端口/数据库）
 └── bin/                   # 测试可执行文件输出目录（ctest 用目标路径，无需关心）
 ```
@@ -66,6 +68,23 @@ ctest --test-dir build -R test_unit_bytearray --output-on-failure
 tests/bin/test_unit_bytearray --filter=varint
 tests/bin/test_unit_bytearray --list
 ```
+
+### 集成测试：热重载 drain
+
+```bash
+make test-integration
+# 等价于：构建 server + drain_test_module，然后 ctest -L integration
+```
+
+[`drain_reload.sh`](../tests/integration/drain_reload.sh) 会：
+
+1. 用临时目录 + 随机端口起一个真实 server（master/worker 模型）；
+2. 发一个 `/drain/slow?ms=800` 的慢请求；
+3. 在途时给 master 发 `SIGHUP`，触发 fork 新 worker、旧 worker drain；
+4. 断言慢请求仍拿到 `200 + slow-ok`、reload 后新请求正常、日志里没有 drain 超时；
+5. 发 `SIGTERM`，断言 master 在 10s 内退出且日志出现 `graceful shutdown complete`。
+
+该用例覆盖 HTTP/1.1 的协作式 drain；HTTP/2 与 WS/Rock/RPC/Game 仍按「立即关闭」处理，不在断言范围内。
 
 ## 编写新用例
 
@@ -126,7 +145,7 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 - 配置项名用小写 `unit_test.<模块>.<字段>`，避免和真实配置冲突。
 - 时间相关断言只使用显式时区接口（如 `Time2StrSec(ts, fmt, 0)`），不要依赖 `TZ`。
 - 不写死绝对路径；确实需要文件时使用 `FSUtil` 配合临时目录，并在用例结束时清理。
-- 不启动监听端口、不连接数据库；这类用例标 `integration` 并默认不注册。
+- 单元测试不启动监听端口、不连接数据库；这类场景放 `integration`。
 
 ## CI
 
@@ -134,8 +153,9 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 
 1. 安装系统依赖 + `python3 deps.py sync`
 2. `cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCHEN_BUILD_TESTS=ON`
-3. `cmake --build build -j$(nproc)`
-4. `ctest --test-dir build -L "unit|smoke" --output-on-failure`
+3. 定向构建：`chen` + 4 个单测 + `server` + `drain_test_module`
+4. `ctest -L "unit|smoke" --output-on-failure`
+5. `ctest -L integration --output-on-failure`
 
 失败时上传 `build/Testing/Temporary/LastTest.log`。
 
@@ -146,5 +166,7 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 - **ASAN 与协程**：`boost::context` 切换栈需要 `__sanitizer_start_switch_fiber` 注解，当前未接入；对
   `libchen` 整体开 ASAN 后运行涉及 fiber 切换的用例可能出现误报。纯逻辑单测（`unit`）不开 fiber，
   可以安全地用 `-DENABLE_ASAN=ON` 单独跑。
+- **drain 的协议覆盖**：HTTP/1.1 有请求边界，能等到在途请求结束；HTTP/2 尚未接入 stream 级在途统计
+  （后续用 GOAWAY 补），WS/Rock/RPC/Game 是长连接、没有请求边界，drain 期间仍然立即关闭。
 - **非 Linux 不构建**：见 `AGENTS.md`。macOS/Windows 上只做静态检查，测试结果以 Linux 开发机/CI 为准。
 - 历史测试程序没有断言框架、部分会阻塞在 `accept`，因此不注册进 CTest；后续逐步迁移到 `tests/Unit/`。

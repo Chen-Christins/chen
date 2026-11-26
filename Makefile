@@ -48,6 +48,21 @@ test:
 		fi; \
 		cd build && ctest -L "unit|smoke" --output-on-failure)
 
+# 运行集成测试（会先构建 server 与 drain_test_module）
+.PHONY: test-integration
+test-integration:
+	$(call time_wrapper, \
+		if [ ! -d "build" ]; then \
+			echo "build 目录不存在，请先执行 make"; \
+			exit 1; \
+		fi; \
+		if [ ! -f "build/CTestTestfile.cmake" ]; then \
+			echo "当前构建未启用测试，请用 Debug 构建或 -DCHEN_BUILD_TESTS=ON 重新 configure"; \
+			exit 1; \
+		fi; \
+		$(MAKE) -C build server drain_test_module -j$$(nproc) && \
+		cd build && ctest -L integration --output-on-failure)
+
 # 运行 CTest 中注册的全部用例
 .PHONY: test-all
 test-all:

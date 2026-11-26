@@ -42,7 +42,7 @@
 ### 模块系统
 
 - **动态加载**：`.so` 共享库 `dlopen` 加载，进程退出时由内核回收地址空间
-- **热重载（多进程）**：`kill -HUP` 或 `-s reload` 触发。master 持有监听端口，fork 新 worker 加载新模块并接管新连接，旧 worker 停止 accept、限时 drain 遗留连接后退出（无 404 窗口）
+- **热重载（多进程）**：`kill -HUP` 或 `-s reload` 触发。master 持有监听端口，fork 新 worker 加载新模块并接管新连接；旧 worker 停止 accept，等待在途 HTTP/1.1 请求完成（最长 `server.drain_timeout_ms`）后退出（无 404 窗口）
 - **配置热加载**：inotify 监听配置目录，`.yml` / `.xml` 变更后立即重载对应文件并触发变更回调（见 [
   `src/Watcher/README.md`](src/Watcher/README.md)）
 - **生命周期回调**：
@@ -52,7 +52,7 @@
            旧 worker onDeactivate → onUnload → 进程退出
   关机:    onDeactivate → onUnload
   ```
-- **优雅关闭**：停止 accept → `closeAllClients()` 关闭存量连接 → drain 排空 → 停 tick → `onDeactivate` → `onUnload` → 停 Worker → 清 pid
+- **优雅关闭**：停止 accept → 关闭空闲连接、等待在途请求 → 超时强制关闭 → 停 tick → `onDeactivate` → `onUnload` → 停 Worker → 清 pid
 
 ### 网络协议支持
 
@@ -258,7 +258,7 @@ fiber:
 
 | 配置键 | 默认值 | 说明 |
 |--------|--------|------|
-| `server.drain_timeout_ms` | 10000 | 停止 accept 后等待连接排空的超时 |
+| `server.drain_timeout_ms` | 10000 | 停止 accept 后等待在途 HTTP/1.1 请求完成的超时，超时强制关闭 |
 | `server.housekeeping_interval_ms` | 500 | housekeeping 轮询间隔（仅信号检测） |
 | `fiber.stack_size` | 131072 | 协程栈大小（字节） |
 | `module.path` | module | 模块 .so 搜索路径 |

@@ -124,6 +124,15 @@ bool TcpServer::start()
     return true;
 }
 
+void TcpServer::beginDrain()
+{
+    is_draining_ = true;
+    // 先停止 accept（关闭监听 socket），存量连接保持打开，交给 closeIdleClients() + 在途计数处理
+    stop();
+    INFO(logger) << "server begin drain name=" << name_ << " type=" << type_ << " graceful=" << supportsGracefulDrain()
+                 << " active_clients=" << getActiveClientCount();
+}
+
 void TcpServer::stop()
 {
     is_stop_ = true;
@@ -162,17 +171,89 @@ size_t TcpServer::getActiveClientCount()
 
 void TcpServer::closeAllClients()
 {
-    std::set<Socket::ptr> clients;
+    std::map<Socket::ptr, ClientState> clients;
     {
         std::lock_guard lock(clients_mutex_);
         clients.swap(active_clients_);
     }
     INFO(logger) << "closeAllClients: closing " << clients.size() << " active connections for server " << name_
                  << " type=" << type_;
-    for (auto& client : clients) {
+    for (auto& entry : clients) {
+        if (entry.first) {
+            entry.first->close();
+        }
+    }
+}
+
+/**
+ * @brief 关闭空闲连接
+ * @details 先把可以关闭的连接从 active_clients_ 摘掉再统一 close()，避免持锁调用阻塞的
+ *          hook close；摘掉之后 handleClient 退出时的 erase 是空操作。
+ */
+size_t TcpServer::closeIdleClients()
+{
+    std::vector<Socket::ptr> idle;
+    {
+        std::lock_guard lock(clients_mutex_);
+        for (auto it = active_clients_.begin(); it != active_clients_.end();) {
+            if (it->second.in_flight <= 0) {
+                it->second.closing = true;
+                idle.push_back(it->first);
+                it = active_clients_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+    for (auto& client : idle) {
         if (client) {
             client->close();
         }
+    }
+    if (!idle.empty()) {
+        DEBUG(logger) << "server " << name_ << " drained " << idle.size() << " idle connection(s)";
+    }
+    return idle.size();
+}
+
+size_t TcpServer::getInFlightClientCount()
+{
+    std::lock_guard lock(clients_mutex_);
+    size_t count = 0;
+    for (const auto& entry : active_clients_) {
+        if (entry.second.in_flight > 0) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+void TcpServer::beginRequest(const Socket::ptr& client)
+{
+    std::lock_guard lock(clients_mutex_);
+    auto it = active_clients_.find(client);
+    if (it != active_clients_.end()) {
+        ++it->second.in_flight;
+    }
+}
+
+void TcpServer::endRequest(const Socket::ptr& client)
+{
+    bool need_close = false;
+    {
+        std::lock_guard lock(clients_mutex_);
+        auto it = active_clients_.find(client);
+        if (it != active_clients_.end() && it->second.in_flight > 0) {
+            --it->second.in_flight;
+            if (it->second.in_flight == 0 && is_draining_) {
+                it->second.closing = true;
+                active_clients_.erase(it);
+                need_close = true;
+            }
+        }
+    }
+    if (need_close && client) {
+        client->close();
     }
 }
 
@@ -190,7 +271,7 @@ void TcpServer::startAccept(Socket::ptr sock)
             client->setRecvTimeout(recv_timeout_);
             {
                 std::lock_guard lock(clients_mutex_);
-                active_clients_.insert(client);
+                active_clients_.try_emplace(client);
             }
             io_worker_->schedule([this, self = shared_from_this(), client]() {
                 handleClient(client);

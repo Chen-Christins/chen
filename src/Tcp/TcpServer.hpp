@@ -7,11 +7,13 @@
  */
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "../Config/Config.hpp"
@@ -232,6 +234,37 @@ public:
     void closeAllClients();
 
     /**
+     * @brief 是否支持协作式 drain（停止 accept 后等待在途请求处理完）
+     * @details HTTP/1.1 请求边界清晰，可在 handleClient 内标记 beginRequest/endRequest；
+     *          长连接协议（WS/Rock/RPC/Game）没有请求边界，默认返回 false，
+     *          由关闭流程直接 closeAllClients()。
+     */
+    virtual bool supportsGracefulDrain() const { return false; }
+
+    /**
+     * @brief 进入 draining：停止 accept，但不主动关闭存量连接
+     * @details 之后由 Application 周期性调用 closeIdleClients() 关闭空闲连接，
+     *          等 getInFlightClientCount() 归零或超时后再强制关闭。
+     */
+    void beginDrain();
+
+    /**
+     * @brief 是否处于 draining 状态
+     */
+    bool isDraining() const { return is_draining_; }
+
+    /**
+     * @brief 关闭空闲（没有在途请求）的连接
+     * @return 本次关闭的连接数
+     */
+    size_t closeIdleClients();
+
+    /**
+     * @brief 存在在途请求的连接数
+     */
+    size_t getInFlightClientCount();
+
+    /**
      * @brief 获取当前活跃客户端连接数
      * @return size_t 活跃连接数量
      */
@@ -253,6 +286,37 @@ public:
     std::string toString(const std::string& prefix);
 
 protected:
+    /**
+     * @brief 标记一个请求开始（in_flight++）
+     */
+    void beginRequest(const Socket::ptr& client);
+
+    /**
+     * @brief 标记一个请求结束（in_flight--，draining 且空闲时关闭连接）
+     */
+    void endRequest(const Socket::ptr& client);
+
+    /**
+     * @brief 请求级 RAII 标记
+     * @details 构造时 in_flight++，析构时 in_flight--；若此时正在 draining 且连接已空闲，
+     *          顺手关闭连接。协议实现只需在「开始处理一个请求」的作用域里放一个 guard。
+     */
+    class RequestGuard : public Noncopyable {
+    public:
+        RequestGuard(TcpServer* server, Socket::ptr client)
+            : server_(server)
+            , client_(std::move(client))
+        {
+            server_->beginRequest(client_);
+        }
+
+        ~RequestGuard() { server_->endRequest(client_); }
+
+    private:
+        TcpServer* server_;
+        Socket::ptr client_;
+    };
+
     /**
      * @brief 处理客户端请求
      * @param client 客户端的socket信息
@@ -285,10 +349,19 @@ protected:
     std::string type_ = "tcp";
     /// TcpServerConf
     TcpServerConf::ptr conf_;
-    /// 当前活跃的客户端连接集合（用于优雅关闭时遍历关闭所有连接）
-    std::set<Socket::ptr> active_clients_;
+    /// 单个连接的 drain 状态
+    struct ClientState {
+        /// 在途请求数（>0 表示不能直接关闭）
+        int in_flight = 0;
+        /// 是否已被关闭流程摘除
+        bool closing = false;
+    };
+    /// 当前活跃的客户端连接：socket -> 状态（key 持有 shared_ptr，保证遍历期间连接存活）
+    std::map<Socket::ptr, ClientState> active_clients_;
     /// 保护 active_clients_ 的互斥锁
     std::mutex clients_mutex_;
+    /// 是否处于 draining（停止接收新连接、等待在途请求）
+    std::atomic<bool> is_draining_{false};
     /// 连接准入限流器（qps + 并发上限）
     ConnLimiter::ptr conn_limiter_;
 };

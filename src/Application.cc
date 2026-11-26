@@ -8,6 +8,7 @@
 #include <poll.h>
 #include <sys/wait.h>
 #include <thread>
+#include <unistd.h>
 
 #include "Config/Config.hpp"
 #include "Daemon.hpp"
@@ -20,6 +21,7 @@
 #include "Rpc/RpcServer.hpp"
 #include "Streams/StaticServiceDiscovery.hpp"
 #include "Util/Env.hpp"
+#include "Util/TimeUtil.hpp"
 #include "Version.hpp"
 
 namespace chen {
@@ -315,23 +317,22 @@ void Application::doGracefulShutdown()
 {
     EnvMgr::GetInstance()->setProcTitleRole(is_worker_ ? "worker process (draining)" : "master process (draining)");
 
-    INFO(logger) << "graceful shutdown: stopping all servers...";
+    // 1. 停止 accept；支持协作式 drain 的协议保留存量连接等待在途请求
+    INFO(logger) << "graceful shutdown: begin draining servers...";
     for (auto& [type, servers] : servers_) {
         for (auto& server : servers) {
-            INFO(logger) << "graceful shutdown: stopping server type=" << type << " name=" << server->getName();
-            server->stop();
-        }
-    }
-
-    INFO(logger) << "graceful shutdown: closing all client connections...";
-    for (auto& [type, servers] : servers_) {
-        for (auto& server : servers) {
-            server->closeAllClients();
+            INFO(logger) << "graceful shutdown: drain server type=" << type << " name=" << server->getName()
+                         << " graceful=" << server->supportsGracefulDrain();
+            server->beginDrain();
+            if (!server->supportsGracefulDrain()) {
+                // 长连接协议（WS/Rock/RPC/Game）没有请求边界，无法判断在途请求，保持立即关闭
+                server->closeAllClients();
+            }
         }
     }
 
     uint64_t drain_ms = g_drain_timeout_ms->getValue();
-    INFO(logger) << "graceful shutdown: waiting " << drain_ms << "ms for in-flight fibers to unwind...";
+    INFO(logger) << "graceful shutdown: waiting up to " << drain_ms << "ms for in-flight requests...";
 
     // 硬看门狗：优雅退出可能卡在模块卸载 / Scheduler::stop() / 锁等待上，
     // 这里用独立线程兜底，超过 drain + grace 后无条件退出，避免 worker 永远不退出。
@@ -349,64 +350,92 @@ void Application::doGracefulShutdown()
         }
     }
 
-    auto self = std::weak_ptr<IOManager>(main_iomanager_);
-    main_iomanager_->addTimer(drain_ms, [this, self]() {
-        if (self.expired()) {
-            return;
-        }
-
-        INFO(logger) << "graceful shutdown: cancelling tick timers...";
-        for (auto& timer : tick_timers_) {
-            if (timer) {
-                timer->cancel();
-            }
-        }
-        tick_timers_.clear();
-
-        if (housekeeping_timer_) {
-            housekeeping_timer_->cancel();
-            housekeeping_timer_.reset();
-        }
-
-        INFO(logger) << "graceful shutdown: stopping tick IOManager...";
-        tick_iomanager_->stop();
-
-        INFO(logger) << "graceful shutdown: unloading modules...";
-        {
-            std::vector<Module::ptr> modules;
-            ModuleMgr::GetInstance()->listAll(modules);
-            for (auto& m : modules) {
-                m->onDeactivate();
-            }
-            for (auto& m : modules) {
-                m->onUnload();
+    // 2. 轮询等待在途请求结束：关闭空闲连接 -> 检查在途数 -> 未到 deadline 就 sleep 20ms。
+    //    这里 sleep 的是 IOManager 的协程（hook 过的 usleep），不会阻塞事件循环。
+    const uint64_t deadline_ms = TimeUtil::GetCurrentMs() + drain_ms;
+    size_t remaining = 0;
+    while (true) {
+        remaining = 0;
+        for (auto& entry : servers_) {
+            for (auto& server : entry.second) {
+                server->closeIdleClients();
+                remaining += server->getInFlightClientCount();
             }
         }
 
-        if (auto sd = getServiceDiscovery()) {
-            INFO(logger) << "graceful shutdown: stopping service discovery...";
-            sd->stop();
+        if (remaining == 0) {
+            break;
         }
-
-        INFO(logger) << "graceful shutdown: stopping WorkerMgr...";
-        WorkerMgr::GetInstance()->stop();
-
-        // worker 不清理 pid 文件（由 master 负责）
-        if (!is_worker_ && !pidfile_.empty()) {
-            FSUtil::Unlink(pidfile_, true);
-            INFO(logger) << "graceful shutdown: removed pid file " << pidfile_;
+        if (TimeUtil::GetCurrentMs() >= deadline_ms) {
+            WARN(logger) << "graceful shutdown: drain timeout after " << drain_ms << "ms, forcing close of "
+                         << remaining << " connection(s) with in-flight requests";
+            for (auto& entry : servers_) {
+                for (auto& server : entry.second) {
+                    server->closeAllClients();
+                }
+            }
+            break;
         }
+        usleep(20 * 1000);
+    }
+    INFO(logger) << "graceful shutdown: drain finished, in_flight=" << remaining;
 
-        if (config_watcher_) {
-            INFO(logger) << "graceful shutdown: stopping config watcher...";
-            config_watcher_->stop();
+    finishShutdown();
+}
+
+void Application::finishShutdown()
+{
+    INFO(logger) << "graceful shutdown: cancelling tick timers...";
+    for (auto& timer : tick_timers_) {
+        if (timer) {
+            timer->cancel();
         }
+    }
+    tick_timers_.clear();
 
-        INFO(logger) << "graceful shutdown complete, server exiting normally";
+    if (housekeeping_timer_) {
+        housekeeping_timer_->cancel();
+        housekeeping_timer_.reset();
+    }
 
-        // 直接 _Exit，跳过静态析构：在协程/退出路径里跑全局析构容易再次死锁
-        std::_Exit(0);
-    });
+    INFO(logger) << "graceful shutdown: stopping tick IOManager...";
+    tick_iomanager_->stop();
+
+    INFO(logger) << "graceful shutdown: unloading modules...";
+    {
+        std::vector<Module::ptr> modules;
+        ModuleMgr::GetInstance()->listAll(modules);
+        for (auto& m : modules) {
+            m->onDeactivate();
+        }
+        for (auto& m : modules) {
+            m->onUnload();
+        }
+    }
+
+    if (auto sd = getServiceDiscovery()) {
+        INFO(logger) << "graceful shutdown: stopping service discovery...";
+        sd->stop();
+    }
+
+    INFO(logger) << "graceful shutdown: stopping WorkerMgr...";
+    WorkerMgr::GetInstance()->stop();
+
+    // worker 不清理 pid 文件（由 master 负责）
+    if (!is_worker_ && !pidfile_.empty()) {
+        FSUtil::Unlink(pidfile_, true);
+        INFO(logger) << "graceful shutdown: removed pid file " << pidfile_;
+    }
+
+    if (config_watcher_) {
+        INFO(logger) << "graceful shutdown: stopping config watcher...";
+        config_watcher_->stop();
+    }
+
+    INFO(logger) << "graceful shutdown complete, server exiting normally";
+
+    // 直接 _Exit，跳过静态析构：在协程/退出路径里跑全局析构容易再次死锁
+    std::_Exit(0);
 }
 
 bool Application::setupServers()
