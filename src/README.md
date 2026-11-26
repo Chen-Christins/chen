@@ -86,11 +86,15 @@ cmake -B build && cmake --build build -j$(nproc)
 # 构建 + 打包 SDK
 ./package_sdk.sh [-v <version>]
 
-# 运行测试
-bin/test_rpc_server    # 启动 RPC 测试服务端
-bin/test_rpc_client    # 启动 RPC 测试客户端（需先启动 server）
-bin/test_ws_server     # 启动 WebSocket 测试服务端
-bin/test_ws_client     # 启动 WebSocket 测试客户端
+# 单元测试（Debug 构建默认启用，产物在 tests/bin/）
+make test              # ctest -L "unit|smoke"
+ctest --test-dir build -R test_unit_bytearray -V
+
+# 联调用的历史测试程序（不注册到 CTest，按需手工启动）
+tests/bin/test_rpc_server    # 启动 RPC 测试服务端
+tests/bin/test_rpc_client    # 启动 RPC 测试客户端（需先启动 server）
+tests/bin/test_ws_server     # 启动 WebSocket 测试服务端
+tests/bin/test_ws_client     # 启动 WebSocket 测试客户端
 ```
 
 ## 推荐的编码模式

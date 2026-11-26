@@ -1,8 +1,34 @@
 cmake_minimum_required(VERSION 3.22)
 project(tests)
 
-if (TEST)
-    chen_add_executable(test "Test.cc" "" "${LIBS}")
+if (CHEN_BUILD_TESTS)
+    # ------------------------------------------------------------------
+    # 单元测试：tests/Unit/*.cpp，统一使用 tests/TestHarness.hpp
+    # 运行方式：ctest --test-dir build -L unit --output-on-failure
+    # 约定：不依赖网络、不依赖外部配置/数据库，单次运行 < 1s
+    # ------------------------------------------------------------------
+    function(chen_add_unit_test targetname source)
+        chen_add_executable(${targetname} ${source} "" "${LIBS}")
+        add_test(NAME ${targetname} COMMAND ${targetname})
+        set_tests_properties(${targetname} PROPERTIES
+                LABELS "unit"
+                TIMEOUT 60
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    endfunction()
+
+    chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
+    chen_add_unit_test(test_unit_stringutil Unit/TestStringUtil.cpp)
+    chen_add_unit_test(test_unit_config Unit/TestConfig.cpp)
+    chen_add_unit_test(test_unit_timeutil Unit/TestTimeUtil.cpp)
+
+    # ------------------------------------------------------------------
+    # 手工/联调用的历史测试程序：默认不注册到 CTest（部分用例需要
+    # 监听端口或真实数据库），保留 build 能力，产物在 tests/bin/ 手工执行。
+    # ------------------------------------------------------------------
+    # 注意：目标名不能叫 test —— enable_testing() 会生成同名 CMake 目标；
+    # 这里用 test_basic，通过 OUTPUT_NAME 保持可执行文件仍叫 test。
+    chen_add_executable(test_basic "Test.cc" "" "${LIBS}")
+    set_target_properties(test_basic PROPERTIES OUTPUT_NAME test)
     chen_add_executable(test_config "TestConfig.cc" "" "${LIBS}")
     chen_add_executable(test_config_xml "TestConfigXml.cc" "" "${LIBS}")
     chen_add_executable(test_rate_limiter "TestRateLimiter.cc" "" "${LIBS}")

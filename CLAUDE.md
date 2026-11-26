@@ -14,29 +14,35 @@ cmake -B build && cmake --build build -j$(nproc)
 cmake -B build -DENABLE_ASAN=ON && cmake --build build -j$(nproc)
 
 # Build a specific target
-make test_config        # builds bin/test_config
-make test_iomanager     # builds bin/test_iomanager
+make test_unit_bytearray   # builds tests/bin/test_unit_bytearray
+make test_iomanager        # builds tests/bin/test_iomanager
 # (the Makefile passes the target name through to cmake --build)
 
 # Clean
 make clean
 ```
 
-Build outputs: executables → `bin/`, shared libraries → `lib/`, modules → `bin/module/`.
+Build outputs: `bin/server` / `bin/orm`, shared libraries → `lib/`, modules → `bin/module/`,
+测试程序 → `tests/bin/`。
 
 ## Running Tests
 
-Each test is a standalone executable under `bin/`:
+单元测试通过 CTest 注册，Debug 构建默认启用（`CHEN_BUILD_TESTS`）：
 
 ```bash
-bin/test_config
-bin/test_iomanager
-bin/test_http_server
-bin/test_fiber
-# ... etc (see tests/CMakeLists.txt for full list)
+cmake -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j"$(nproc)"
+make test                                              # ctest -L "unit|smoke"
+ctest --test-dir build -L unit --output-on-failure     # 只跑单元测试
+ctest --test-dir build -R test_unit_bytearray -V       # 单个用例
 ```
 
-No test framework — tests are ad-hoc programs that exercise the corresponding subsystem.
+测试代码在 `tests/Unit/`，使用 `tests/TestHarness.hpp`（`CHEN_TEST` / `CHEN_CHECK_*` / `CHEN_TEST_MAIN`），
+新增用例在 `tests/CMakeLists.txt` 里用 `chen_add_unit_test()` 注册。
+
+历史测试程序仍是独立可执行文件（输出到 `tests/bin/`，不在 `bin/`），部分需要端口/数据库，因此不注册进
+CTest，按需手工执行：`tests/bin/test_iomanager`、`tests/bin/test_http_server` 等（见 `tests/CMakeLists.txt`）。
+
+完整约定见 [`docs/testing.md`](docs/testing.md)。非 Linux 机器不要构建或运行测试。
 
 ## Running the App
 

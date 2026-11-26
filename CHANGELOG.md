@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 测试门禁（新增）与文档修正
+
+- **新增** `tests/TestHarness.hpp`：header-only 测试框架（`CHEN_TEST` / `CHEN_CHECK*` / `CHEN_TEST_MAIN`），
+  支持 `--list` / `--filter=`，断言失败输出文件与行号，单个用例失败不影响其他用例
+- **新增** `tests/Unit/`：ByteArray、StringUtil、Config、TimeUtil 纯逻辑单元测试
+- **新增** CMake 选项 `CHEN_BUILD_TESTS`（Debug 默认 ON）与 CTest 注册：`unit` / `smoke` 标签；
+  Makefile 增加 `test`（unit+smoke）与 `test-all` 目标
+- **新增** `.github/workflows/test.yml`：Ubuntu Debug 构建 + `ctest -L "unit|smoke"` 门禁，失败时上传
+  `build/Testing/Temporary/LastTest.log`
+- **新增** `docs/testing.md`：测试分层、断言、隔离约定与 CI 说明；`CLAUDE.md` / `AGENTS.md` 补充测试要求
+- **修复** 文档与实现不一致：`URLEncode` 实际固定用 `+` 表示空格（`%20` 需 `UrlEncode(str, false)`），
+  修正 `docs/framework-first.md`、`src/Util/README.md`
+
 ### PostgreSQL 支持（新增）
 
 - **新增** `chen/db/postgresql.h` / `chen/db/postgresql.cc`：基于 libpq 的 PostgreSQL 驱动，

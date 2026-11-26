@@ -7,11 +7,9 @@
  */
 #pragma once
 
-#include <cstdint>
 #include <list>
 #include <pthread.h>
 #include <semaphore.h>
-#include <stdexcept>
 
 #include "../Fiber/Fiber.hpp"
 #include "Noncopyable.hpp"

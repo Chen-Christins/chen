@@ -5,7 +5,7 @@
 ## 必读
 
 **动手前先确认 AI 自己跑在什么系统上**（`uname -s`）。本项目只在 Linux（x86_64 / arm64）上构建与运行，见 README 与 CI（
-`.github/workflows/build.yml`）。
+`.github/workflows/`）。
 
 - **Linux 环境**：可以自行执行构建与验证。
 - **非 Linux 环境（macOS / Windows 等）**：**禁止**执行任何编译和运行操作，包括但不限于
@@ -26,7 +26,8 @@
 
 - 先查框架 API（`grep -rn "class .*Util\|class .*Mgr\|typedef Singleton" src/`），再考虑标准库 / 自研
 - 日志、配置、时间、字符串、文件、DB、网络、协程、指标一律走框架封装
-- 新增通用能力放 `src/<Module>/`，补 README 与测试
+- 新增通用能力放 `src/<Module>/`，补 README 与测试（`tests/Unit/` + `chen_add_unit_test`）
+- 修 bug / 改通用能力必须补一条能复现的单元测试；Linux 上以 `make test` 通过为准
 - 代码风格遵循 `.clang-format` 与 `CLAUDE.md`
 - 不要用 `node.as<bool>()`（yaml-cpp 的 `convert<bool>` 未随 `libchen.so` 导出）
 
@@ -35,4 +36,5 @@
 - 日志配置：`docs/log-configuration.md`
 - 数据库配置：`docs/db-configuration.md`
 - 模块开发 / 生命周期：`docs/module-development.md`、`docs/module-lifecycle.md`
+- 测试：`docs/testing.md`（用例分层、断言、CI 门禁）
 - 版本计划：`docs/roadmap.md`

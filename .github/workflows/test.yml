@@ -1,0 +1,86 @@
+name: Tests
+
+# 测试门禁：Debug 构建 + CTest 单元测试/冒烟用例。
+# 与 package-sdk-ubuntu.yml 分离：发版流程不因测试失败而中断，但 PR 必须过测试。
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "relase/*"
+      - "release/*"
+      - "ci/*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: unit-tests (ubuntu-24.04 / Debug)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libtool \
+            gcc \
+            g++ \
+            autoconf \
+            automake \
+            cmake \
+            libboost-all-dev \
+            libsqlite3-dev \
+            libssl-dev \
+            libevent-dev \
+            libmysqlclient-dev \
+            libpq-dev \
+            libnghttp2-dev \
+            git \
+            wget \
+            unzip \
+            zip
+
+      - name: Fetch prebuilt deps
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 deps.py sync
+          echo "$PWD/deps/bin" >> "${GITHUB_PATH}"
+
+      - name: Configure (Debug)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCHEN_BUILD_TESTS=ON
+
+      - name: Build (libchen + unit tests + server)
+        # 只构建门禁需要的目标：完整 Release 构建由 package-sdk-ubuntu.yml 覆盖，
+        # 这里缩短反馈时间，也避免历史测试程序（需要端口/数据库）拖慢 CI。
+        run: |
+          cmake --build build -j"$(nproc)" --target \
+            chen \
+            test_unit_bytearray \
+            test_unit_stringutil \
+            test_unit_config \
+            test_unit_timeutil \
+            server
+
+      - name: Run unit + smoke tests
+        run: ctest --test-dir build --output-on-failure -L "unit|smoke"
+
+      - name: Upload test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-log
+          path: build/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore

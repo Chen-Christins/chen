@@ -34,6 +34,34 @@ clean:
 			cd build && $(MAKE) clean && cd ..; \
 		fi)
 
+# 运行单元测试 + 冒烟用例（需先在 Debug 下构建：make）
+.PHONY: test
+test:
+	$(call time_wrapper, \
+		if [ ! -d "build" ]; then \
+			echo "build 目录不存在，请先执行 make"; \
+			exit 1; \
+		fi; \
+		if [ ! -f "build/CTestTestfile.cmake" ]; then \
+			echo "当前构建未启用测试，请用 Debug 构建或 -DCHEN_BUILD_TESTS=ON 重新 configure"; \
+			exit 1; \
+		fi; \
+		cd build && ctest -L "unit|smoke" --output-on-failure)
+
+# 运行 CTest 中注册的全部用例
+.PHONY: test-all
+test-all:
+	$(call time_wrapper, \
+		if [ ! -d "build" ]; then \
+			echo "build 目录不存在，请先执行 make"; \
+			exit 1; \
+		fi; \
+		if [ ! -f "build/CTestTestfile.cmake" ]; then \
+			echo "当前构建未启用测试，请用 Debug 构建或 -DCHEN_BUILD_TESTS=ON 重新 configure"; \
+			exit 1; \
+		fi; \
+		cd build && ctest --output-on-failure)
+
 xlsx2bin:
 	$(call time_wrapper, python3 tools/scripts/xlsx_to_bin.py tools/xlsx/*.xlsx -o tools/data/data.bin)
 

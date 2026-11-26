@@ -70,7 +70,8 @@
 ### 时间 / 字符串 / 文件
 
 - 时间：`TimeUtil::GetCurrentMs/Us/Sec`、`Time2StrSec`、`Time2StrMs`、`Str2Time`、`IsExpiredMs`、`GetDayStart` 等（单位写在函数名里）
-- 字符串：`StringUtil::Split` 默认跳过空段；`UrlEncode`（空格→`+`）与 `URLEncode`（空格→`%20`）别用混
+- 字符串：`StringUtil::Split` 默认跳过空段；`UrlEncode` / `URLEncode` 默认都输出 `+` 表示空格，需要 `%20`（RFC 3986）时用
+  `UrlEncode(str, false)`
 - 文件：`FSUtil::ListAllFile(files, dir, ".yml")`，第二个参数名是 `subfix`（不是拼写错误）
 - 加密：SHA / MD5 返回 hex；HMAC 返回原始字节，需要原始字节时用 `StringUtil::HexDecode`
 

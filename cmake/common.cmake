@@ -14,9 +14,16 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif ()
 
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(TEST ON)
+# 测试开关：Debug 默认构建，Release 需显式 -DCHEN_BUILD_TESTS=ON
+# 打开后会构建 tests/ 下的可执行文件并通过 enable_testing()/add_test() 注册 CTest 用例
+if (NOT DEFINED CHEN_BUILD_TESTS)
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(CHEN_BUILD_TESTS ON)
+    else ()
+        set(CHEN_BUILD_TESTS OFF)
+    endif ()
 endif ()
+option(CHEN_BUILD_TESTS "Build test executables and register CTest cases" ${CHEN_BUILD_TESTS})
 
 set(CMAKE_C_FLAGS_DEBUG "-O0 -ggdb")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb")

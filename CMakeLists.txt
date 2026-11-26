@@ -53,6 +53,10 @@ set(LIBS
         chen
 )
 
+if (CHEN_BUILD_TESTS)
+    enable_testing()
+endif ()
+
 add_subdirectory(tests)
 
 set(ORM_SRC
@@ -65,6 +69,15 @@ set(ORM_SRC
 chen_add_executable(orm "${ORM_SRC}" "" "${LIBS}")
 
 chen_add_executable(server "servers/Main.cc" chen "${LIBS}")
+
+# 冒烟用例：验证 bin/server 能正常链接并响应 -v（不加载配置、不监听端口）
+if (CHEN_BUILD_TESTS)
+    add_test(NAME server_version COMMAND server -v)
+    set_tests_properties(server_version PROPERTIES
+            LABELS "smoke"
+            TIMEOUT 30
+            PASS_REGULAR_EXPRESSION "chen/")
+endif ()
 
 chen_add_executable(converter "tools/scripts/XmlConverter.cc" chen "${LIBS}")
 chen_set_target_output_dir(converter ${PROJECT_SOURCE_DIR}/tools/bin)

@@ -57,9 +57,9 @@ Atomic::addFetch(val, 1);                                   // 线程安全自�
 
 ### 字符串
 
-| 文件            | 用途                                                                    | 注意                                                                                 |
-|-----------------|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
-| `string_util.h` | Format、UrlEncode/Decode、Trim、Split/Join、Base64、HexEncode/HexDecode | **有两套 URL 编解码：** `UrlEncode`(space→`+`) 和 `URLEncode`(space→`%20`)，容易搞混 |
+| 文件            | 用途                                                                    | 注意                                                                         |
+|-----------------|-------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| `string_util.h` | Format、UrlEncode/Decode、Trim、Split/Join、Base64、HexEncode/HexDecode | **有两套 URL 编解码：** 都默认 space→`+`；`%20` 要用 `UrlEncode(str, false)` |
 
 ### 时间
 
@@ -145,10 +145,11 @@ EncryptorUtil::HMAC_SHA256("data", "key")
 
 ### 两套 URL 编码
 
-- `UrlEncode(space_as_plus=true)` → `+` 表示空格（form 编码）
-- `URLEncode()` → `%20` 表示空格（纯 RFC 3986）
+- `UrlEncode(str, space_as_plus=true)` → `+` 表示空格（form 编码，默认）
+- `UrlEncode(str, false)` → `%20` 表示空格（RFC 3986，拼 URL path/query 时用这个）
+- `URLEncode()` → 当前实现**固定** `+` 表示空格，等价于 `UrlEncode(str, true)`
 
-名字只差一个大写字母，容易用错。
+名字只差一个大写字母，但行为几乎一样；不要把大写版本当成 RFC 3986 编码。
 
 ### `RandInt` 两端闭合
 

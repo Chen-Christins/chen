@@ -110,6 +110,17 @@ cmake -B build -DENABLE_ASAN=ON
 cmake --build build -j$(nproc)
 ```
 
+### 测试
+
+Debug 构建默认启用测试（`CHEN_BUILD_TESTS`）：
+
+```bash
+make test                                        # 单元测试 + 冒烟（ctest -L "unit|smoke"）
+ctest --test-dir build -L unit --output-on-failure
+```
+
+测试代码在 `tests/Unit/`，约定与断言见 [`docs/testing.md`](docs/testing.md)。
+
 ### 依赖管理
 
 第三方依赖通过 `dependencies.json` 声明、`deps.py` 管理。`cmake/dependencies.cmake` 从仓库内 `deps/`（`include` + `lib` 静态库）查找，因此只需一份**预编译 deps 包**即可构建，无需重复编译三方库。
