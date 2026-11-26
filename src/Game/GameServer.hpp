@@ -357,6 +357,11 @@ public:
      */
     size_t getHandlerCount() const;
 
+    /**
+     * @brief 一条协议包的处理作为请求边界，支持协作式 drain
+     */
+    virtual bool supportsGracefulDrain() const override { return true; }
+
 protected:
     /**
      * @brief 处理客户端连接（重写父类方法）

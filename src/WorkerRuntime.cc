@@ -151,7 +151,7 @@ void WorkerRuntime::doGracefulShutdown()
                      << " graceful=" << server->supportsGracefulDrain();
         server->beginDrain();
         if (!server->supportsGracefulDrain()) {
-            // 长连接协议（WS/Rock/RPC/Game）没有请求边界，无法判断在途请求，保持立即关闭
+            // 只有自定义 server 没声明请求边界时才会走到这里：无法判断在途请求，保持立即关闭
             server->closeAllClients();
         }
     });

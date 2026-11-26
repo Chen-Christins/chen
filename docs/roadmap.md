@@ -28,8 +28,8 @@ v1.6.0 已发布（2026-10-18），交付内容是 Metrics 采集能力和 maste
 ### 热重载与优雅 draining
 
 - master 持有监听 socket 与 pidfile，`SIGHUP` fork 新 worker
-- 新 worker ready 后，旧 worker 停止 accept、`closeAllClients()`、限时 drain（`server.drain_timeout_ms`，默认 3000ms），再
-  `onDeactivate()` → `onUnload()` 退出
+- 新 worker ready 后，旧 worker 停止 accept、按协议协作式 drain（先关空闲连接，再等每条连接上的
+  在途请求处理完，超时 `server.drain_timeout_ms` 默认 3000ms 后强关），再 `onDeactivate()` → `onUnload()` 退出
 - worker 非预期崩溃由 master 自动重启（带 backoff）
 - 配置：`server.worker_ready_timeout_ms`、`server.worker_restart_interval_ms`
 

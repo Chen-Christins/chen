@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 优雅停机（增强）
+
+- **新增** WebSocket / RPC / Rock / Game 四个长连接 server 的协作式 drain：以「一条消息的处理」
+  作为请求边界，`TcpServer::RequestGuard` 记录在途计数，draining 时先把当前消息处理完、
+  回包之后再关闭连接，不再被 `closeAllClients()` 直接砍断
+- **新增** `WSServer::onDrain()`：给空闲 WebSocket 会话回 CLOSE 帧（客户端看到的是正常关闭而不是
+  TCP 重置），随后由停机轮询的 `closeIdleClients()` 关闭连接；有在途消息的会话由 `handleClient`
+  在处理完当前消息后回 CLOSE 帧
+- **新增** `TcpServer::isClientIdle()`（protected），供子类在 `onDrain()` 里挑出可立刻收尾的连接
+- **新增** `TcpServer::addActiveClient()`（protected）作为活跃连接登记入口，`startAccept()` 也改用它，
+  连接簿记因此可以在不起 IOManager 的情况下被单测直接驱动
+- **新增** `RockStream::setRequestScopeFactory()` / `waitClose()`：把 Rock 的请求作用域挂到
+  drain 计数上，并让 `handleClient` 与连接同生命周期（此前 `handleClient` 在 `start()` 后立刻返回，
+  Rock 连接不在 `active_clients_` 中，`closeAllClients()` 管不到）
+- **新增** `test_unit_tcpdrain` 单测：用未连接 socket 直接驱动簿记接口，验证在途计数、`isClientIdle()` 与
+  `closeIdleClients()` 只回收空闲连接（不启 IOManager 线程，accept→drain 主链路仍由集成用例覆盖）
+
 ### SSE（增强）
 
 - **变更** `SSESession` 不再直接写裸 socket：所有写操作统一走 `HttpSession::sendResponseHeader()` /

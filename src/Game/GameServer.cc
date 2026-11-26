@@ -270,7 +270,7 @@ void GenericProtocolServer::handleClient(Socket::ptr client)
     const size_t header_size = package_parser_->getHeaderSize();
     std::vector<uint8_t> header(header_size);
 
-    while (!is_stop_) {
+    while (!is_stop_ && !isDraining()) {
         int n = readExact(client, header.data(), header_size);
         if (n <= 0) {
             break;
@@ -308,7 +308,11 @@ void GenericProtocolServer::handleClient(Socket::ptr client)
             }
         }
 
-        handlePackage(conn_id, cmd_id, seq, header, body);
+        {
+            // 一条协议包的处理（含回包）就是 drain 的请求边界
+            RequestGuard guard(this, client);
+            handlePackage(conn_id, cmd_id, seq, header, body);
+        }
     }
 
     if (disconnect_callback_) {

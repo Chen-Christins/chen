@@ -84,6 +84,7 @@ jobs:
             test_unit_ratelimiter \
             test_unit_future \
             test_unit_ssesession \
+            test_unit_tcpdrain \
             test_unit_ormgen \
             server \
             lifecycle_module \

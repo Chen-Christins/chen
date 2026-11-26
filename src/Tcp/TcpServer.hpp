@@ -235,9 +235,9 @@ public:
 
     /**
      * @brief 是否支持协作式 drain（停止 accept 后等待在途请求处理完）
-     * @details HTTP/1.1 请求边界清晰，可在 handleClient 内标记 beginRequest/endRequest；
-     *          长连接协议（WS/Rock/RPC/Game）没有请求边界，默认返回 false，
-     *          由关闭流程直接 closeAllClients()。
+     * @details 所有内置协议都覆写为 true：HTTP 在请求作用域内标记 beginRequest/endRequest，
+     *          长连接协议（WS/RPC/Rock/Game）以「一条消息的处理」作为请求边界。
+     *          只有自定义子类什么都不做时才保持默认 false（停机时被 closeAllClients() 直接砍断）。
      */
     virtual bool supportsGracefulDrain() const { return false; }
 
@@ -292,6 +292,18 @@ protected:
      *          例如 HttpServer 会向所有活跃 HTTP/2 会话发送 GOAWAY。
      */
     virtual void onDrain() {}
+
+    /**
+     * @brief 连接当前是否空闲（没有在途请求）
+     * @details 供子类在 onDrain() 里挑出可以立刻收尾的连接；连接已不在表中时返回 true。
+     */
+    bool isClientIdle(const Socket::ptr& client);
+
+    /**
+     * @brief 把一条已建立的连接纳入 drain 簿记（in_flight 0）
+     * @details 正常链路由 startAccept() 在 accept 成功后调用；子类或测试可用来登记活跃连接。
+     */
+    void addActiveClient(const Socket::ptr& client);
 
     /**
      * @brief 标记一个请求开始（in_flight++）

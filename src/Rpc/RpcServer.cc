@@ -91,6 +91,10 @@ void RpcServer::handleClient(Socket::ptr client)
     };
 
     do {
+        if (isDraining()) {
+            DEBUG(logger) << "rpc server draining, stop reading client:" << *client;
+            break;
+        }
         errno = 0;
         Protocol::ptr req = session->recvProtocol();
         if (!req) {
@@ -110,6 +114,9 @@ void RpcServer::handleClient(Socket::ptr client)
             TRACE(logger) << "recvProtocol error" << ", errno=" << err << " errstr=" << strerror(err) << " client:" << *client;
             break;
         }
+
+        // 一条请求的处理（含回包）就是 drain 的请求边界：draining 且本条处理完时关闭连接
+        RequestGuard guard(this, client);
 
         // 心跳请求：直接回包并继续
         if (req->type == MessageType::HEARTBEAT) {
@@ -167,6 +174,10 @@ void RpcServer::handleRelayClient(Socket::ptr client)
     RpcConnection::ptr session(new RpcConnection(client));
 
     do {
+        if (isDraining()) {
+            DEBUG(logger) << "rpc relay server draining, stop reading client:" << *client;
+            break;
+        }
         errno = 0;
         Protocol::ptr frame = session->recvProtocol();
         if (!frame) {
@@ -186,6 +197,9 @@ void RpcServer::handleRelayClient(Socket::ptr client)
             TRACE(logger) << "recvProtocol error" << ", errno=" << err << " errstr=" << strerror(err) << " client:" << *client;
             break;
         }
+
+        // 一帧的处理（含中继发送）作为 drain 的请求边界
+        RequestGuard guard(this, client);
 
         switch (frame->type) {
         case MessageType::HEARTBEAT: {

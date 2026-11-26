@@ -230,6 +230,22 @@ size_t TcpServer::getInFlightClientCount()
     return count;
 }
 
+bool TcpServer::isClientIdle(const Socket::ptr& client)
+{
+    std::lock_guard lock(clients_mutex_);
+    auto it = active_clients_.find(client);
+    if (it == active_clients_.end()) {
+        return true;
+    }
+    return it->second.in_flight <= 0;
+}
+
+void TcpServer::addActiveClient(const Socket::ptr& client)
+{
+    std::lock_guard lock(clients_mutex_);
+    active_clients_.try_emplace(client);
+}
+
 void TcpServer::beginRequest(const Socket::ptr& client)
 {
     std::lock_guard lock(clients_mutex_);
@@ -271,10 +287,7 @@ void TcpServer::startAccept(Socket::ptr sock)
                 continue;
             }
             client->setRecvTimeout(recv_timeout_);
-            {
-                std::lock_guard lock(clients_mutex_);
-                active_clients_.try_emplace(client);
-            }
+            addActiveClient(client);
             io_worker_->schedule([this, self = shared_from_this(), client]() {
                 handleClient(client);
                 {

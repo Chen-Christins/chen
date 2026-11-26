@@ -1,5 +1,7 @@
 #include "RockServer.hpp"
 
+#include <memory>
+
 #include "../Log/Log.hpp"
 #include "../Module/Module.hpp"
 #include "../Socket/SocketStream.hpp"
@@ -21,6 +23,11 @@ void RockServer::handleClient(Socket::ptr client)
     RockSession::ptr session(new RockSession(client));
 
     session->setWorker(worker_);
+
+    // 请求作用域计入 TcpServer 的在途计数：draining 时等回包之后再关闭连接
+    session->setRequestScopeFactory([this, client]() -> std::shared_ptr<void> {
+        return std::make_shared<RequestGuard>(this, client);
+    });
     ModuleMgr::GetInstance()->foreach(Module::ROCK, [session](Module::ptr m) {
         m->onConnect(session);
     });
@@ -55,6 +62,9 @@ void RockServer::handleClient(Socket::ptr client)
     });
 
     session->start();
+    // 连接存活期间保持 handleClient 不返回（fiber 上等待，不占线程），
+    // 这样 active_clients_ 里的记录与连接同生命周期
+    session->waitClose();
 }
 
 } // namespace chen

@@ -111,6 +111,11 @@ public:
      */
     RpcHubRegistry::ptr getRegistry() const { return registry_; }
 
+    /**
+     * @brief RPC 以「一条请求的处理 + 回包」作为请求边界，支持协作式 drain
+     */
+    virtual bool supportsGracefulDrain() const override { return true; }
+
 protected:
     /**
      * @brief 处理客户端请求主循环（覆盖 TcpServer 虚函数）

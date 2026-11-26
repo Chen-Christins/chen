@@ -31,6 +31,8 @@ public:
     typedef std::shared_ptr<RockStream> ptr;
     typedef std::function<bool(RockRequest::ptr, RockResponse::ptr, RockStream::ptr)> request_handler;
     typedef std::function<bool(RockNotify::ptr, RockStream::ptr)> notify_handler;
+    /// 请求作用域工厂：返回的对象在整个「处理请求 + 回包」期间存活，析构即表示该请求结束
+    typedef std::function<std::shared_ptr<void>()> request_scope_factory;
 
     RockStream(Socket::ptr sock);
     ~RockStream();
@@ -43,6 +45,20 @@ public:
 
     void setRequestHandler(request_handler v) { request_handler_ = v; }
     void setNotifyHandler(notify_handler v) { notify_handler_ = v; }
+
+    /**
+     * @brief 设置请求作用域工厂（用于 drain 的在途计数）
+     * @details RockServer 用它把 TcpServer::RequestGuard 挂到每个请求的处理期间：
+     *          handleRequest 开头创建、回包之后析构，因此 draining 时连接会在回包后才关闭。
+     */
+    void setRequestScopeFactory(request_scope_factory v) { request_scope_factory_ = std::move(v); }
+
+    /**
+     * @brief 等待读写协程退出（连接关闭后返回）
+     * @details handleClient 用它把连接的生命周期和 TcpServer 的 active_clients_ 对齐：
+     *          只要连接还在，处理函数就不返回，drain 的在途计数与 closeAllClients() 才能生效。
+     */
+    void waitClose() { waitFiber(); }
 
     template <class T>
     void setData(const T& v)
@@ -85,6 +101,7 @@ private:
     RockMessageDecoder::ptr decoder_;
     request_handler request_handler_;
     notify_handler notify_handler_;
+    request_scope_factory request_scope_factory_;
     boost::any data_;
 };
 

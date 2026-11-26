@@ -7,6 +7,10 @@
  */
 #pragma once
 
+#include <memory>
+#include <mutex>
+#include <set>
+
 #include "../Tcp/TcpServer.hpp"
 #include "WSServlet.hpp"
 
@@ -21,11 +25,29 @@ public:
     WSServletDispatch::ptr getWSServletDispatch() const { return dispatch_; }
     void setWSServletDispatch(WSServletDispatch::ptr v) { dispatch_ = v; }
 
+    /**
+     * @brief WebSocket 以「一条消息的处理」作为请求边界，支持协作式 drain
+     */
+    virtual bool supportsGracefulDrain() const override { return true; }
+
 protected:
     virtual void handleClient(Socket::ptr client) override;
 
-protected:
+    /**
+     * @brief 进入 draining：给空闲会话回 CLOSE 帧，在途会话由 handleClient 收尾
+     * @details 只处理没有在途消息的会话，避免和业务 fiber 并发写同一个 socket 导致帧交错；
+     *          发完帧不直接关连接（等对端回 CLOSE，或由 closeIdleClients() 关闭）。
+     */
+    virtual void onDrain() override;
+
     WSServletDispatch::ptr dispatch_;
+
+private:
+    void trackSession(const WSSession::ptr& session);
+    void untrackSession(const WSSession::ptr& session);
+
+    std::mutex sessions_mutex_;
+    std::set<std::weak_ptr<WSSession>, std::owner_less<std::weak_ptr<WSSession>>> sessions_;
 };
 
 } // namespace chen::http

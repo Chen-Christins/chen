@@ -39,6 +39,7 @@ tests/
 │   ├── TestRateLimiter.cpp
 │   ├── TestFuture.cpp
 │   ├── TestSSESession.cpp
+│   ├── TestTcpDrain.cpp
 │   └── TestOrmGen.cpp
 ├── ModuleTest/
 │   └── DrainModule.cc     # 集成测试模块（/drain/{slow,fast,stream,sse}）
@@ -186,22 +187,23 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 
 已迁移：
 
-| 单元测试                | 来源                                                                         |
-|-------------------------|------------------------------------------------------------------------------|
-| `test_unit_bytearray`   | `TestByteArray.cc`                                                           |
-| `test_unit_stringutil`  | `TestStringUtil.cc`                                                          |
-| `test_unit_config`      | `TestConfig.cc`                                                              |
-| `test_unit_timeutil`    | `TestTimeUtil.cc`                                                            |
-| `test_unit_uri`         | `TestUri.cc`                                                                 |
-| `test_unit_httpparser`  | `TestHttpParser.cc`                                                          |
-| `test_unit_encryptor`   | `TestEncryptorUtil.cc`（哈希/HMAC/AES-GCM/PBKDF2；RSA、bcrypt 留在手工程序） |
-| `test_unit_http`        | `TestHttp.cc`（原程序只 dump，迁移时补了断言）                               |
-| `test_unit_configxml`   | `TestConfigXml.cc`                                                           |
-| `test_unit_metrics`     | `TestMetrics.cc`                                                             |
-| `test_unit_ratelimiter` | `TestRateLimiter.cc`                                                         |
-| `test_unit_future`      | `TestFuture.cc`（线程路径 + 自建 IOManager 的 fiber 路径）                   |
-| `test_unit_ssesession`  | 新增：用假 HttpSession 抓取 SSE 编码与响应头（无迁移来源）                   |
-| `test_unit_ormgen`      | `TestOrmGen.cc`（额外编译 `src/Orm/*.cc`）                                   |
+| 单元测试                | 来源                                                                           |
+|-------------------------|--------------------------------------------------------------------------------|
+| `test_unit_bytearray`   | `TestByteArray.cc`                                                             |
+| `test_unit_stringutil`  | `TestStringUtil.cc`                                                            |
+| `test_unit_config`      | `TestConfig.cc`                                                                |
+| `test_unit_timeutil`    | `TestTimeUtil.cc`                                                              |
+| `test_unit_uri`         | `TestUri.cc`                                                                   |
+| `test_unit_httpparser`  | `TestHttpParser.cc`                                                            |
+| `test_unit_encryptor`   | `TestEncryptorUtil.cc`（哈希/HMAC/AES-GCM/PBKDF2；RSA、bcrypt 留在手工程序）   |
+| `test_unit_http`        | `TestHttp.cc`（原程序只 dump，迁移时补了断言）                                 |
+| `test_unit_configxml`   | `TestConfigXml.cc`                                                             |
+| `test_unit_metrics`     | `TestMetrics.cc`                                                               |
+| `test_unit_ratelimiter` | `TestRateLimiter.cc`                                                           |
+| `test_unit_future`      | `TestFuture.cc`（线程路径 + 自建 IOManager 的 fiber 路径）                     |
+| `test_unit_ssesession`  | 新增：用假 HttpSession 抓取 SSE 编码与响应头（无迁移来源）                     |
+| `test_unit_tcpdrain`    | 新增：drain 簿记逻辑（在途计数、空闲判定、`closeIdleClients()`，无 IOManager） |
+| `test_unit_ormgen`      | `TestOrmGen.cc`（额外编译 `src/Orm/*.cc`）                                     |
 
 有意不迁移（保留为手工程序）：
 

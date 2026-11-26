@@ -154,6 +154,22 @@ readelf -d bin/module/libblog.so | grep NEEDED # 模块依赖的库名
 7. 进程退出                  ← 地址空间回收
 ```
 
+### 各协议的 drain 边界
+
+所有内置 server 都实现了协作式 drain（`supportsGracefulDrain()` 返回 true），区别只在于
+「什么算一次在途请求」：
+
+| server                          | 在途请求边界                                        | draining 时的收尾动作                                                                                   |
+|---------------------------------|-----------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `HttpServer`                    | 一次 HTTP 请求（含响应发送）；HTTP/2 以整个会话计入 | H1 处理完当前请求后不再读下一个 keepalive 请求；H2 先发 GOAWAY，等在途 stream 结束后关连接              |
+| `WSServer`                      | 一条 WebSocket 消息的处理                           | 处理完当前消息后回 CLOSE 帧再关连接；空闲会话由 `onDrain()` 发 CLOSE 帧，再由 `closeIdleClients()` 关闭 |
+| `RpcServer`                     | 一次 RPC 调用（含回包）                             | 回包后关闭连接；relay 连接同样在当帧处理完后退出                                                        |
+| `RockServer`                    | 一次 `RockRequest`/`RockNotify` 的处理 + 回包       | 回包后关闭连接（`RockStream::setRequestScopeFactory()` 把请求作用域挂到 `TcpServer::RequestGuard`）     |
+| `GenericProtocolServer`（game） | 一个协议包的处理                                    | 处理完当前包后关闭连接                                                                                  |
+
+未覆写 `supportsGracefulDrain()` 的自定义 server 仍走旧路径：`closeAllClients()` 立即断开，
+不等待在途请求。drain 的超时由 `server.drain_timeout_ms` 控制，超时后一律强关。
+
 > 框架不再代为释放 Redis：使用 DB/Redis 的模块需在自己的 `onUnload()` 中释放连接
 > （如 `RedisMgr::GetInstance()->freeAll()`）。详见 [`docs/db-configuration.md`](db-configuration.md)。
 

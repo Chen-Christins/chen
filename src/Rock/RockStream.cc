@@ -146,6 +146,8 @@ AsyncSocketStream::Ctx::ptr RockStream::doRecv()
 
 void RockStream::handleRequest(RockRequest::ptr req)
 {
+    // 作用域覆盖「执行 handler + 回包」，draining 时由 TcpServer 在回包后关闭连接
+    auto request_scope = request_scope_factory_ ? request_scope_factory_() : nullptr;
     RockResponse::ptr rsp = req->createResponse();
     if (!request_handler_(req, rsp, std::dynamic_pointer_cast<RockStream>(shared_from_this()))) {
         sendMessage(rsp);
@@ -158,6 +160,7 @@ void RockStream::handleRequest(RockRequest::ptr req)
 
 void RockStream::handleNotify(RockNotify::ptr nty)
 {
+    auto request_scope = request_scope_factory_ ? request_scope_factory_() : nullptr;
     if (!notify_handler_(nty, std::dynamic_pointer_cast<RockStream>(shared_from_this()))) {
         // innerClose();
         close();
