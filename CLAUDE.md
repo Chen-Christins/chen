@@ -25,6 +25,10 @@ make clean
 Build outputs: `bin/server` / `bin/orm`, shared libraries → `lib/`, modules → `bin/module/`,
 测试程序 → `tests/bin/`。
 
+`lib/libchen.so` 是 SONAME 符号链接链（`libchen.so` → `libchen.so.1` → `libchen.so.1.6.0`，
+由 `SOVERSION` 控制）。模块的 `DT_NEEDED` 记录 SONAME：minor 升级不必重编模块，破坏 ABI 时
+才提升 `project(VERSION)` 主版本号。`libchen_soname` 冒烟用例守着这条不变量。
+
 ## Running Tests
 
 单元测试通过 CTest 注册，Debug 构建默认启用（`CHEN_BUILD_TESTS`）：

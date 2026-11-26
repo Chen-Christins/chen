@@ -50,11 +50,19 @@ done
 
 # 5. 库文件
 echo "=== 同步库文件 ==="
-if [ -f "lib/libchen.so" ]; then
-    if ! diff -q lib/libchen.so "$SDK/lib/libchen.so" > /dev/null 2>&1; then
-        cp lib/libchen.so "$SDK/lib/libchen.so" && echo "  ✓ lib/libchen.so"
+# 保留 SONAME 符号链接：libchen.so -> libchen.so.<major> -> libchen.so.<version>
+for lib in lib/libchen.so*; do
+    [ -e "$lib" ] || continue
+    name=$(basename "$lib")
+    if [ -L "$lib" ]; then
+        link_target=$(readlink "$lib")
+        if [ "$(readlink "$SDK/lib/$name" 2>/dev/null)" != "$link_target" ]; then
+            cp -a "$lib" "$SDK/lib/$name" && echo "  ✓ lib/$name"
+        fi
+    elif ! diff -q "$lib" "$SDK/lib/$name" > /dev/null 2>&1; then
+        cp "$lib" "$SDK/lib/$name" && echo "  ✓ lib/$name"
     fi
-fi
+done
 
 # 6. 可执行文件
 echo "=== 同步可执行文件 ==="

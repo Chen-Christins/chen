@@ -144,13 +144,15 @@ done
 echo "复制动态库文件..."
 if [ -d "${BUILD_DIR}/lib" ]; then
     find "${BUILD_DIR}/lib" -name "*.so" -o -name "*.so.*" | while read lib_file; do
-        cp "$lib_file" "${DIST_DIR}/${LIB_DIR}/"
+        # -a 保留 SONAME 符号链接：libchen.so -> libchen.so.<major> -> libchen.so<version>
+        cp -a "$lib_file" "${DIST_DIR}/${LIB_DIR}/"
         echo "复制库: $(basename "$lib_file")"
     done
 else
     echo "警告: 未找到 lib 目录，尝试在 ./lib 目录中查找..."
     find "./lib" -name "*.so" -o -name "*.so.*" | while read lib_file; do
-        cp "$lib_file" "${DIST_DIR}/${LIB_DIR}/"
+        # -a 保留 SONAME 符号链接：libchen.so -> libchen.so.<major> -> libchen.so<version>
+        cp -a "$lib_file" "${DIST_DIR}/${LIB_DIR}/"
         echo "复制库: $(basename "$lib_file")"
     done
 fi

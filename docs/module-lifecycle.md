@@ -112,8 +112,33 @@ bin/server -s reload
 
 ### 与 libchen 的 ABI
 
-模块链接 `libchen.so`。 **只替换模块、libchen 不变**时没有问题；若同时改动了 `libchen`
-的对外接口，需要连同 `libchen` 一起升级，因为各 worker 使用其加载时刻的库映射。
+模块在链接时把 `libchen` 的 **SONAME** 写进自己的 `DT_NEEDED`（当前是 `libchen.so.1`，
+由 `CMakeLists.txt` 的 `SOVERSION` 决定），而不是写死完整版本文件名。`lib/` 下的布局是：
+
+```
+libchen.so          -> libchen.so.1        # 开发/链接用（CMake NAMELINK）
+libchen.so.1        -> libchen.so.1.6.0    # SONAME，运行时真正被查找的名字
+libchen.so.1.6.0                           # 实际文件，版本号 = project(VERSION)
+```
+
+由此得到两条规则：
+
+- **minor / patch 升级**（例如 1.6.0 → 1.7.0，major 不变）：SONAME 仍是 `libchen.so.1`，
+  已编译的模块不需要重编，直接替换 `lib/` 下的库即可；也正因为如此，新增/修改框架接口
+  时**不要**删除已有导出符号，只能新增重载或改内部实现。
+- **major 升级**（破坏 ABI，例如删改既有导出符号或类布局）：提升 `project(chen VERSION x.y.z)`
+  的主版本号，SONAME 变成 `libchen.so.2`，此时**必须**用新库重编所有模块——旧模块仍会去
+  找 `libchen.so.1`，加载失败是预期行为（而不是静默错配）。
+
+排查用：
+
+```bash
+readelf -d lib/libchen.so | grep SONAME        # 库自己的 SONAME
+readelf -d bin/module/libblog.so | grep NEEDED # 模块依赖的库名
+```
+
+各 worker 使用其加载时刻的库映射；**只替换模块、libchen 不变**时没有问题；若同时改动了
+`libchen` 的对外接口，需要连同 `libchen` 一起升级。
 
 ---
 

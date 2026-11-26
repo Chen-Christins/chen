@@ -26,6 +26,13 @@ protobuf_maker(src/Rpc/rpc.proto LIB_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/Rpc)
 
 add_library(chen SHARED ${LIB_SRC})
 
+# 共享库版本化：SONAME 固定为 libchen.so.<major>，minor/patch 升级保持 ABI 兼容。
+# 模块 .so 的 DT_NEEDED 记录的是 SONAME，所以升级 minor 版本库不必重编模块；
+# 只有破坏对外 ABI 时才提升 project(VERSION) 的主版本号（同时需要重编模块）。
+set_target_properties(chen PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR})
+
 target_link_libraries(chen
         PUBLIC
         ${JSONCPP_LIB}
@@ -72,6 +79,17 @@ chen_add_executable(server "servers/Main.cc" chen "${LIBS}")
 
 # 冒烟用例：验证 bin/server 能正常链接并响应 -v（不加载配置、不监听端口）
 if (CHEN_BUILD_TESTS)
+    # SONAME 冒烟：模块 .so 记录的是 SONAME，符号链接名一旦漂移，已编译模块将无法 dlopen
+    add_test(NAME libchen_soname
+            COMMAND ${CMAKE_COMMAND}
+            -DSONAME_FILE=$<TARGET_SONAME_FILE:chen>
+            -DEXPECTED_NAME=libchen.so.${PROJECT_VERSION_MAJOR}
+            -P ${PROJECT_SOURCE_DIR}/tests/CheckSoname.cmake)
+    set_tests_properties(libchen_soname PROPERTIES
+            LABELS "smoke"
+            TIMEOUT 30
+            PASS_REGULAR_EXPRESSION "SONAME ok:")
+
     add_test(NAME server_version COMMAND server -v)
     set_tests_properties(server_version PROPERTIES
             LABELS "smoke"

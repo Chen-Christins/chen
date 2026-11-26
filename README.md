@@ -172,6 +172,11 @@ make sdk
 `libboost-context`、`openssl`。三方符号随 `libchen.so`（共享库、全局作用域）导出，下游 `dlopen` 的模块可直接解析。可用
 `objdump -p libchen.so | grep NEEDED` 核对。
 
+`lib/` 下的 `libchen.so` 是 SONAME 符号链接链（`libchen.so` → `libchen.so.1` → `libchen.so.1.6.0`）：
+模块的 `DT_NEEDED` 记录的是 SONAME，所以 minor 升级不需要重编模块，部署时三个文件要一起分发。
+破坏 ABI 时会把 SONAME 提升到 `libchen.so.2`，届时所有模块需要用新库重编，详见
+[docs/module-lifecycle.md](docs/module-lifecycle.md)。
+
 > 三方依赖**不随 SDK 分发**。下游工程在自己的 `dependencies.json` 中声明 `deps-<arch>.zip` 并下载到本地 `deps/`（用于编译其模块/程序）。
 
 ### 目录结构

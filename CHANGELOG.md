@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 构建（ABI 版本化）
+
+- **新增** `libchen` 的 SONAME 版本化：`CMakeLists.txt` 给 `chen` 目标设置
+  `VERSION ${PROJECT_VERSION}` + `SOVERSION ${PROJECT_VERSION_MAJOR}`，产物从单个
+  `libchen.so` 变为 `libchen.so` → `libchen.so.1` → `libchen.so.1.6.0` 的符号链接链
+- **变更** 模块的 `DT_NEEDED` 现在记录 `libchen.so.1`（SONAME）而不是完整文件名：
+  minor/patch 升级不需要重编模块；破坏 ABI 时提升 `project(VERSION)` 主版本号，
+  SONAME 变为 `libchen.so.2`，强制模块重编，避免"新模块 + 旧库"的静默错配
+- **新增** `libchen_soname` 冒烟用例（`tests/CheckSoname.cmake`）：校验 `$<TARGET_SONAME_FILE:chen>`
+  名为 `libchen.so.<major>`，防止有人误删 `SOVERSION`
+- **修复** `package_sdk.sh` / `sync_sdk.sh` 复制库时未保留符号链接（`cp` 默认解引用，
+  会把 SONAME 链接复制成普通文件），改为 `cp -a` 并按 `libchen.so*` 整组同步
+- **文档** `docs/module-lifecycle.md` 新增 SONAME 布局、minor/major 升级规则与
+  `readelf -d` 排查命令；`README.md`、`docs/sdk-readme.md`、`docs/testing.md` 同步
+
 ### 架构（重构）
 
 - **拆分** `Application` 上帝对象（原 1000+ 行）为三个职责单一的类：
