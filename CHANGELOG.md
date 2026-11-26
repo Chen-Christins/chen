@@ -14,6 +14,16 @@ All notable changes to this project will be documented in this file.
   `other`，避免 404 扫描把指标基数打爆；`http.metrics.enabled=false` 可关闭总量与耗时
 - **新增** `test_unit_httpmetrics` 单测：路径归一化、总量/耗时打点、在途计数与超限归并
 
+### 文档（核账）
+
+- **修正** `src/Http/README.md` 的功能描述：去掉「支持中间件、静态文件」这类超前声明（代码里并不存在），
+  并把服务端描述从「创建 `HttpConnection`」改为实际的「`HttpSession` / `H2Session` 分流」
+- **新增** `src/Hook/README.md` 的「生效条件（契约）」「线程模型」「已知细节」：说明 `t_hook_enable`
+  是 thread_local、只有调度线程开启、普通文件 IO 与 `getaddrinfo` 不在 hook 范围、`usleep` 不足 1ms 会被截断
+- **回填** `docs/v1.7.0-plan.md` 的「现状与差距」表与 PR7 状态：H2 流式、SSE over H2、HTTP 指标标为已交付，
+  静态文件 / Filter 链 / 压缩 / TLS 仍为待做
+- **更新** `docs/roadmap.md` 的 v1.7.0 段，区分已交付（H2 流式、SSE over H2、HTTP 指标）与待做项
+
 ### 优雅停机（增强）
 
 - **新增** WebSocket / RPC / Rock / Game 四个长连接 server 的协作式 drain：以「一条消息的处理」

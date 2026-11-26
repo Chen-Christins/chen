@@ -29,19 +29,21 @@ auto msg = conn->recvMessage();
 
 ## 协议支持
 
-| 协议      | 核心类                                  | 说明                                     |
-|-----------|-----------------------------------------|------------------------------------------|
-| HTTP/1.1  | `HttpConnection`, `HttpServer`          | Ragel 解析器，支持路由、中间件、静态文件 |
-| HTTP/2    | `H2Connection`, `H2Session`, `H2Stream` | 基于 nghttp2，多路复用                   |
-| WebSocket | `WSConnection`, `WSServer`              | 协议升级、帧编解码                       |
-| SSE       | `SSEServlet`, `SSESession`, `SSEClient` | Server-Sent Events 流式推送（H1/H2）     |
+| 协议      | 核心类                                  | 说明                                  |
+|-----------|-----------------------------------------|---------------------------------------|
+| HTTP/1.1  | `HttpConnection`, `HttpServer`          | Ragel 解析器，支持路由与 Servlet 分发 |
+| HTTP/2    | `H2Connection`, `H2Session`, `H2Stream` | 基于 nghttp2，多路复用                |
+| WebSocket | `WSConnection`, `WSServer`              | 协议升级、帧编解码                    |
+| SSE       | `SSEServlet`, `SSESession`, `SSEClient` | Server-Sent Events 流式推送（H1/H2）  |
 
 ## HTTP/1.1
 
 - Ragel 状态机解析 HTTP 请求/响应
-- `HttpServer` 继承 `TcpServer`，在 `handleClient` 中创建 `HttpConnection`
+- `HttpServer` 继承 `TcpServer`：`handleClient` 先探测 h2c preface / 按 `type: http2` 决定协议，
+  再创建 `HttpSession`（HTTP/1.1）或 `H2Session`（HTTP/2）
 - Servlet 分发：路径匹配 → Handler 回调
-- 支持静态文件服务、Range 请求
+- 静态文件服务（Range/ETag）、中间件 Filter 链、响应压缩**都还没有实现**，计划见
+  [`docs/v1.7.0-plan.md`](../../docs/v1.7.0-plan.md)；当前需要时用 `FunctionServlet` 或自定义 `Servlet` 自己写
 
 ## 异步请求（HttpClient）
 
