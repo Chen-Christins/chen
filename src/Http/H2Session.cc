@@ -285,21 +285,26 @@ void H2Session::doSend()
 
 void H2Session::processStream(int32_t stream_id)
 {
-    StreamCtx* ctx_ptr;
+    // 只取副本，不持有 streams_ 内的引用：processStream 跑在 worker 线程池，
+    // 而对端 RST_STREAM 会在会话线程的 on_stream_close 里 erase 该节点
+    std::shared_ptr<HttpRequest> req;
+    std::string body;
     {
         std::shared_lock lock(stream_mutex_);
         auto it = streams_.find(stream_id);
         if (it == streams_.end()) {
             return;
         }
-        ctx_ptr = &it->second;
+        req = it->second.request;
+        body = it->second.body;
     }
 
-    auto& ctx = *ctx_ptr;
-    auto req = ctx.request;
+    if (!req) {
+        return;
+    }
 
-    if (!ctx.body.empty()) {
-        req->setBody(ctx.body);
+    if (!body.empty()) {
+        req->setBody(body);
     }
     req->init();
 
@@ -312,6 +317,15 @@ void H2Session::processStream(int32_t stream_id)
 
     if (rsp->isStreaming()) {
         return;
+    }
+
+    {
+        // 处理期间流可能已被对端关闭，给已关闭的流提交响应没有意义
+        std::shared_lock lock(stream_mutex_);
+        if (streams_.find(stream_id) == streams_.end()) {
+            DEBUG(logger) << "H2 stream " << stream_id << " closed before response, dropping";
+            return;
+        }
     }
 
     Command cmd;

@@ -50,6 +50,13 @@ All notable changes to this project will be documented in this file.
   `integration_drain_reload`（HTTP/1.1）与 `integration_h2_drain_reload`（H2 + GOAWAY）两个用例，
   curl 不支持 HTTP/2 时后者 SKIP；通过 `make test-integration` 运行，CI 已接入
 
+### HTTP/2（修复）
+
+- **修复** `H2Session::processStream()` 的数据竞争：原来在释放 `stream_mutex_` 后继续通过引用访问
+  `streams_` 里的节点，而 `processStream()` 跑在 worker 线程池、对端 `RST_STREAM` 会在会话线程的
+  `on_stream_close()` 里 erase 该节点，存在 use-after-free 风险。改为在锁内拷贝
+  `HttpRequest` 与 body，处理完后再确认流仍存在才提交响应
+
 ### 测试门禁（新增）与文档修正
 
 - **新增** `tests/TestHarness.hpp`：header-only 测试框架（`CHEN_TEST` / `CHEN_CHECK*` / `CHEN_TEST_MAIN`），
