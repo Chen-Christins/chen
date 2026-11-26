@@ -42,7 +42,8 @@
 ### 模块系统
 
 - **动态加载**：`.so` 共享库 `dlopen` 加载，进程退出时由内核回收地址空间
-- **热重载（多进程）**：`kill -HUP` 或 `-s reload` 触发。master 持有监听端口，fork 新 worker 加载新模块并接管新连接；旧 worker 停止 accept，等待在途 HTTP/1.1 请求完成（最长 `server.drain_timeout_ms`）后退出（无 404 窗口）
+- **热重载（多进程）**：`kill -HUP` 或 `-s reload` 触发。master 持有监听端口，fork 新 worker 加载新模块并接管新连接；旧 worker
+  停止 accept，等待在途 HTTP/1.1 / HTTP/2 请求完成（最长 `server.drain_timeout_ms`）后退出（无 404 窗口）
 - **配置热加载**：inotify 监听配置目录，`.yml` / `.xml` 变更后立即重载对应文件并触发变更回调（见 [
   `src/Watcher/README.md`](src/Watcher/README.md)）
 - **生命周期回调**：
@@ -256,12 +257,12 @@ fiber:
   stack_size: 131072
 ```
 
-| 配置键 | 默认值 | 说明 |
-|--------|--------|------|
-| `server.drain_timeout_ms` | 10000 | 停止 accept 后等待在途 HTTP/1.1 请求完成的超时，超时强制关闭 |
-| `server.housekeeping_interval_ms` | 500 | housekeeping 轮询间隔（仅信号检测） |
-| `fiber.stack_size` | 131072 | 协程栈大小（字节） |
-| `module.path` | module | 模块 .so 搜索路径 |
+| 配置键                            | 默认值 | 说明                                               |
+|-----------------------------------|--------|----------------------------------------------------|
+| `server.drain_timeout_ms`         | 10000  | 停止 accept 后等待在途请求完成的超时，超时强制关闭 |
+| `server.housekeeping_interval_ms` | 500    | housekeeping 轮询间隔（仅信号检测）                |
+| `fiber.stack_size`                | 131072 | 协程栈大小（字节）                                 |
+| `module.path`                     | module | 模块 .so 搜索路径                                  |
 
 配置文件变更由 inotify 事件驱动自动重载（改完即生效，无轮询延迟），业务模块如何声明配置项
 并响应变更见 [`src/Watcher/README.md`](src/Watcher/README.md)。

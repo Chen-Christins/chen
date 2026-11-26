@@ -1,6 +1,7 @@
 #include "H2Session.hpp"
 
 #include <cstring>
+#include <utility>
 
 #include "../IOManager/IOManager.hpp"
 #include "../Log/Log.hpp"
@@ -76,8 +77,10 @@ void H2Session::run()
         bool need_read = nghttp2_session_want_read(session_) != 0;
 
         if (need_read) {
-            // Short timeout when streams are active so responses get flushed promptly
-            socket_->setRecvTimeout(has_active_streams ? 250 : UINT64_MAX);
+            // 有在途 stream 或正在 drain 时用短超时，保证响应 / GOAWAY 及时处理；
+            // 空闲时也不能无限阻塞：startDrain() 只是投递命令，需要本循环醒过来才能发出 GOAWAY
+            const bool fast_wakeup = has_active_streams || draining_;
+            socket_->setRecvTimeout(fast_wakeup ? 250 : 500);
 
             int len = socket_->recv(buf.data(), buf.size());
             if (len == 0) {
@@ -112,6 +115,15 @@ void H2Session::run()
             has_active_streams = !streams_.empty();
         }
 
+        if (draining_) {
+            // GOAWAY 已发出：等所有在途 stream 关闭后结束会话
+            if (!has_active_streams) {
+                INFO(logger) << "H2 session drained, closing connection";
+                break;
+            }
+            continue;
+        }
+
         if (need_read == 0 && nghttp2_session_want_write(session_) == 0) {
             if (!has_active_streams) {
                 DEBUG(logger) << "H2 session idle, closing";
@@ -120,12 +132,27 @@ void H2Session::run()
         }
     }
 
-    // Graceful shutdown
-    if (!stopping_) {
+    // 正常退出时补发 GOAWAY；drain 路径已经在 startDrain() 里发过，不重复提交
+    if (!stopping_ && !draining_) {
         nghttp2_submit_goaway(
             session_, NGHTTP2_FLAG_NONE, nghttp2_session_get_last_proc_stream_id(session_), 0, nullptr, 0);
         doSend();
     }
+}
+
+void H2Session::startDrain()
+{
+    bool expected = false;
+    if (!draining_.compare_exchange_strong(expected, true)) {
+        return;
+    }
+    INFO(logger) << "H2 session drain requested, sending GOAWAY";
+
+    Command cmd;
+    cmd.type = Command::GOAWAY;
+    cmd.stream_id = 0;
+    cmd.end_stream = false;
+    postCommand(std::move(cmd));
 }
 
 void H2Session::close()

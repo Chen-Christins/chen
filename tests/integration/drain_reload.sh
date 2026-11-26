@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 #
-# drain / 热重载集成测试
+# drain / 热重载集成测试（HTTP/1.1 与 HTTP/2）
+#
+# 通过环境变量 CHEN_IT_PROTO 选择协议：http（默认）或 http2（h2c prior knowledge）。
+# curl 不支持 HTTP/2 时脚本以 77 退出，CTest 记为 SKIP。
 #
 # 场景：
 #   1. 启动一个带 drain_test_module 的 HTTP server（master/worker 模型）
@@ -16,6 +19,9 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 SERVER_BIN="${ROOT_DIR}/bin/server"
 MODULE_DIR="${SCRIPT_DIR}/module"
 MODULE_SO="${MODULE_DIR}/libdrain_test_module.so"
+
+PROTO="${CHEN_IT_PROTO:-http}"
+CURL_OPTS=()
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/chen-drain-XXXXXX")"
 START_AT=$(date +%s%3N)
@@ -57,7 +63,7 @@ cleanup() {
 trap cleanup EXIT
 
 http_code() {
-    curl -s -o /dev/null -w '%{http_code}' --max-time "${2:-2}" "http://127.0.0.1:${PORT}$1" 2>/dev/null || true
+    curl "${CURL_OPTS[@]}" -s -o /dev/null -w '%{http_code}' --max-time "${2:-2}" "http://127.0.0.1:${PORT}$1" 2>/dev/null || true
 }
 
 # ---------------------------------------------------------------- 前置检查
@@ -65,6 +71,17 @@ command -v curl >/dev/null 2>&1 || fail "curl not found"
 command -v python3 >/dev/null 2>&1 || fail "python3 not found"
 [[ -x "${SERVER_BIN}" ]] || fail "server not built: ${SERVER_BIN}（先构建 server 目标）"
 [[ -f "${MODULE_SO}" ]] || fail "module not built: ${MODULE_SO}（先构建 drain_test_module 目标）"
+
+if [[ "${PROTO}" == "http2" ]]; then
+    if ! curl --version 2>/dev/null | head -n 1 | grep -qi 'HTTP2'; then
+        if [[ "${CHEN_IT_REQUIRE_HTTP2:-0}" == "1" ]]; then
+            fail "当前 curl 不支持 HTTP/2，但 CHEN_IT_REQUIRE_HTTP2=1（CI 要求必须验证）"
+        fi
+        echo "[drain-test] SKIP: 当前 curl 不支持 HTTP/2（需要 nghttp2 支持）"
+        exit 77
+    fi
+    CURL_OPTS+=(--http2-prior-knowledge)
+fi
 
 # ---------------------------------------------------------------- 选端口 + 写配置
 PORT="$(python3 - <<'PY'
@@ -109,29 +126,35 @@ servers:
     accept_worker: accept
     io_worker: io
     process_worker: io
-    type: http
+    type: ${PROTO}
 EOF
 
 # ---------------------------------------------------------------- 启动
-log "starting server on 127.0.0.1:${PORT} (work_path=${TMP_DIR})"
+log "starting ${PROTO} server on 127.0.0.1:${PORT} (work_path=${TMP_DIR})"
 "${SERVER_BIN}" -s -c "${TMP_DIR}" > "${TMP_DIR}/server.log" 2>&1 &
 MASTER_PID=$!
 
 READY=0
+LAST_CODE=""
 for _ in $(seq 1 100); do
-    if [[ "$(http_code /drain/fast 1)" == "200" ]]; then
+    LAST_CODE="$(http_code /drain/fast 1)"
+    if [[ "${LAST_CODE}" == "200" ]]; then
         READY=1
         break
     fi
     kill -0 "${MASTER_PID}" 2>/dev/null || fail "master exited during startup"
     sleep 0.1
 done
-[[ "${READY}" == "1" ]] || fail "server did not become ready within 10s"
+[[ "${READY}" == "1" ]] || fail "server did not become ready within 10s (last status=${LAST_CODE:-none})"
 log "server ready (master pid=${MASTER_PID})"
+
+# servlet 没注册时探活也会失败，但只有 body 断言能把“404 默认页”和“路由正确”区分开
+FAST_BODY="$(curl "${CURL_OPTS[@]}" -s --max-time 2 "http://127.0.0.1:${PORT}/drain/fast")"
+[[ "${FAST_BODY}" == "fast-ok" ]] || fail "unexpected /drain/fast body: '${FAST_BODY}'"
 
 # ---------------------------------------------------------------- 在途慢请求 + SIGHUP
 log "sending slow request (800ms) and SIGHUP mid-flight"
-curl -s --max-time 20 -o "${TMP_DIR}/slow.body" -w '%{http_code}' \
+curl "${CURL_OPTS[@]}" -s --max-time 20 -o "${TMP_DIR}/slow.body" -w '%{http_code}' \
     "http://127.0.0.1:${PORT}/drain/slow?ms=800" > "${TMP_DIR}/slow.code" &
 CURL_PID=$!
 
@@ -184,8 +207,11 @@ MASTER_PID=""
 STOP_MS=$(( $(date +%s%3N) - STOP_AT ))
 
 grep -q "graceful shutdown complete" "${TMP_DIR}/server.log" || fail "graceful shutdown did not complete cleanly"
+if [[ "${PROTO}" == "http2" ]]; then
+    grep -q "H2 session drained" "${TMP_DIR}/server.log" || fail "H2 session not drained via GOAWAY (see log)"
+fi
 # 结构性断言：master 退出时应清掉 pid 文件（不依赖日志级别）
 [[ ! -f "${TMP_DIR}/chen.pid" ]] || fail "pid file was not cleaned up on exit"
 
 TOTAL_MS=$(( $(date +%s%3N) - START_AT ))
-log "PASS (total ${TOTAL_MS} ms, shutdown ${STOP_MS} ms)"
+log "PASS [${PROTO}] (total ${TOTAL_MS} ms, shutdown ${STOP_MS} ms)"

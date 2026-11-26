@@ -83,22 +83,24 @@ bool MyModule::onServerReady() {
     // 若保留 clearAll，模块 listener 必须在其之后注册
     chen::EventBusMgr::GetInstance()->clearAll();
 
-    // 获取 RPC 服务器并注册方法
-    std::vector<RpcServer::ptr> rpc_servers;
-    getAllRpcServer(rpc_servers);
-    for (auto& s : rpc_servers) {
-        s->registerMethod("my_method", my_func);
-    }
-
-    // 获取 HTTP 服务器
-    std::vector<HttpServer::ptr> http_servers;
-    getAllHttpServer(http_servers);
-    for (auto& s : http_servers) {
-        s->getServletDispatch()->addServlet("/api", my_servlet);
+    // 遍历所有 server，再按 C++ 类型筛选。
+    // 不要按配置里的 type 字符串筛选：type=http2/admin 的服务器同样是 HttpServer。
+    std::vector<chen::TcpServer::ptr> all_servers;
+    chen::Application::GetInstance()->getAllServers(all_servers);
+    for (auto& server : all_servers) {
+        if (auto s = std::dynamic_pointer_cast<RpcServer>(server)) {
+            s->registerMethod("my_method", my_func);
+        }
+        else if (auto s = std::dynamic_pointer_cast<HttpServer>(server)) {
+            s->getServletDispatch()->addServlet("/api", my_servlet);
+        }
     }
     return true;
 }
 ```
+
+> 早期版本提供 `getAllHttpServer()` / `getAllWSServer()` / `getAllRpcServer()` / `getAllGameServer()`，
+> 它们按 `type` 字符串过滤，`type: http2` 之类的变体会被漏掉，已移除。
 
 ### 热重载（多进程模型）
 

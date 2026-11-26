@@ -117,15 +117,19 @@ JSON 中 `+Inf` 桶省略，由 `count` 隐含。
 #include <Chen/Http/MetricsServlet.hpp>
 
 bool MyModule::onServerReady() {
-    std::vector<chen::http::HttpServer::ptr> servers;
-    getAllHttpServer(servers);
-    for (auto& server : servers) {
+    std::vector<chen::TcpServer::ptr> all_servers;
+    chen::Application::GetInstance()->getAllServers(all_servers);
+    for (auto& server : all_servers) {
+        auto http_server = std::dynamic_pointer_cast<chen::http::HttpServer>(server);
+        if (!http_server) {
+            continue;
+        }
         // 默认 Prometheus 格式
-        chen::http::RegisterMetricsServlet(server, "/metrics");
+        chen::http::RegisterMetricsServlet(http_server, "/metrics");
         // 或：OpenMetrics / JSON
-        // chen::http::RegisterMetricsServlet(server, "/metrics/openmetrics",
+        // chen::http::RegisterMetricsServlet(http_server, "/metrics/openmetrics",
         //     chen::metrics::RenderFormat::OPENMETRICS);
-        // chen::http::RegisterMetricsServlet(server, "/metrics/json",
+        // chen::http::RegisterMetricsServlet(http_server, "/metrics/json",
         //     chen::metrics::RenderFormat::JSON);
     }
     return true;

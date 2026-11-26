@@ -129,6 +129,8 @@ void TcpServer::beginDrain()
     is_draining_ = true;
     // 先停止 accept（关闭监听 socket），存量连接保持打开，交给 closeIdleClients() + 在途计数处理
     stop();
+    // 通知长连接主动收尾（如 HTTP/2 发 GOAWAY），由子类实现
+    onDrain();
     INFO(logger) << "server begin drain name=" << name_ << " type=" << type_ << " graceful=" << supportsGracefulDrain()
                  << " active_clients=" << getActiveClientCount();
 }

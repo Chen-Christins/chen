@@ -71,13 +71,17 @@ bool LifecycleModule::onServerReady() {
     INFO(logger) << ">>> [id=" << id_ << "] onServerReady — registering servlet";
 
     // 注册一个 HTTP servlet，路径 /lifecycle_test
-    std::vector<chen::http::HttpServer::ptr> http_servers;
-    chen::Module::getAllHttpServer(http_servers);
-    for (auto& server : http_servers) {
-        auto dispatch = server->getServletDispatch();
+    std::vector<chen::TcpServer::ptr> all_servers;
+    chen::Application::GetInstance()->getAllServers(all_servers);
+    for (auto& server : all_servers) {
+        auto http_server = std::dynamic_pointer_cast<chen::http::HttpServer>(server);
+        if (!http_server) {
+            continue;
+        }
+        auto dispatch = http_server->getServletDispatch();
         if (dispatch) {
             dispatch->addGlobServlet("/lifecycle_test", std::make_shared<LifecycleServlet>(id_));
-            INFO(logger) << ">>> [id=" << id_ << "] registered /lifecycle_test on server=" << server->getName();
+            INFO(logger) << ">>> [id=" << id_ << "] registered /lifecycle_test on server=" << http_server->getName();
         }
     }
     return true;

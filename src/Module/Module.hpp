@@ -8,15 +8,12 @@
 #pragma once
 
 #include <map>
+#include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <vector>
 
-#include "../Game/GameServer.hpp"
-#include "../Http/HttpServer.hpp"
-#include "../Http/WSServer.hpp"
 #include "../Rock/RockStream.hpp"
-#include "../Rpc/RpcServer.hpp"
 #include "../Socket/SocketStream.hpp"
 #include "../Util/Singleton.hpp"
 
@@ -191,31 +188,6 @@ public:
      * @param[in] service 服务名称
      */
     void unregisterService(const std::string& server_type, const std::string& domain, const std::string& service);
-
-protected:
-    /**
-     * @brief 获取所有 HTTP 服务器
-     * @param[out] servers 接收 HTTP 服务器指针的向量
-     */
-    void getAllHttpServer(std::vector<std::shared_ptr<http::HttpServer>>& servers);
-
-    /**
-     * @brief 获取所有 WebSocket 服务器
-     * @param[out] servers 接收 WebSocket 服务器指针的向量
-     */
-    void getAllWSServer(std::vector<std::shared_ptr<http::WSServer>>& servers);
-
-    /**
-     * @brief 获取所有 RPC 服务器
-     * @param[out] servers 接收 RPC 服务器指针的向量
-     */
-    void getAllRpcServer(std::vector<std::shared_ptr<rpc::RpcServer>>& servers);
-
-    /**
-     * @brief 获取所有 Game 服务器
-     * @param[out] servers 接收 Game 服务器指针的向量
-     */
-    void getAllGameServer(std::vector<std::shared_ptr<game::GenericProtocolServer>>& servers);
 
 private:
     /**

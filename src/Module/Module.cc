@@ -7,6 +7,7 @@
 #include "../Config/Config.hpp"
 #include "../Log/Log.hpp"
 #include "../Socket/Address.hpp"
+#include "../Tcp/TcpServer.hpp"
 #include "../Util/Env.hpp"
 #include "Library.hpp"
 
@@ -269,59 +270,6 @@ std::string Module::statusString()
         ss << server->toString("") << std::endl;
     }
     return ss.str();
-}
-
-static void getServersByType(const std::string& type, std::vector<TcpServer::ptr>& out)
-{
-    Application::GetInstance()->getServer(type, out);
-}
-
-void Module::getAllHttpServer(std::vector<std::shared_ptr<http::HttpServer>>& servers)
-{
-    std::vector<TcpServer::ptr> tcps;
-    getServersByType("http", tcps);
-    for (auto& svr : tcps) {
-        auto hs = std::dynamic_pointer_cast<http::HttpServer>(svr);
-        if (hs) {
-            servers.push_back(hs);
-        }
-    }
-}
-
-void Module::getAllWSServer(std::vector<std::shared_ptr<http::WSServer>>& servers)
-{
-    std::vector<TcpServer::ptr> tcps;
-    getServersByType("ws", tcps);
-    for (auto& svr : tcps) {
-        auto ws = std::dynamic_pointer_cast<http::WSServer>(svr);
-        if (ws) {
-            servers.push_back(ws);
-        }
-    }
-}
-
-void Module::getAllRpcServer(std::vector<std::shared_ptr<rpc::RpcServer>>& servers)
-{
-    std::vector<TcpServer::ptr> tcps;
-    getServersByType("rpc", tcps);
-    for (auto& svr : tcps) {
-        auto rs = std::dynamic_pointer_cast<rpc::RpcServer>(svr);
-        if (rs) {
-            servers.push_back(rs);
-        }
-    }
-}
-
-void Module::getAllGameServer(std::vector<std::shared_ptr<game::GenericProtocolServer>>& servers)
-{
-    std::vector<TcpServer::ptr> tcps;
-    getServersByType("game", tcps);
-    for (auto& svr : tcps) {
-        auto gs = std::dynamic_pointer_cast<game::GenericProtocolServer>(svr);
-        if (gs) {
-            servers.push_back(gs);
-        }
-    }
 }
 
 ModuleManager::ModuleManager()

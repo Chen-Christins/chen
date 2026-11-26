@@ -7,10 +7,16 @@
  */
 #pragma once
 
+#include <memory>
+#include <mutex>
+#include <set>
+
 #include "../Tcp/TcpServer.hpp"
 #include "Servlet.hpp"
 
 namespace chen::http {
+
+class H2Session;
 
 class HttpServer : public TcpServer {
 public:
@@ -28,20 +34,28 @@ public:
     bool isNegotiateH2() const { return negotiate_h2_; }
 
     /**
-     * @brief HTTP/1.1 支持协作式 drain
-     * @details 在 handleClient 内用 RequestGuard 标记在途请求；HTTP/2 连接目前没有
-     *          请求边界标记，会在第一次 closeIdleClients() 时被关闭（与旧行为一致）。
+     * @brief HTTP/1.1 与 HTTP/2 支持协作式 drain
+     * @details HTTP/1.1 在 handleClient 内用 RequestGuard 标记在途请求；HTTP/2 会话整体
+     *          计入在途，drain 时由 onDrain() 逐个发送 GOAWAY，等 stream 结束后退出。
      */
     virtual bool supportsGracefulDrain() const override { return true; }
 
 protected:
     virtual void handleClient(Socket::ptr client) override;
 
+    /**
+     * @brief draining 时向所有活跃 HTTP/2 会话发送 GOAWAY
+     */
+    virtual void onDrain() override;
+
 private:
     bool is_keep_alive_;
     bool negotiate_h2_ = false;
     /// 当前活跃的 dispatch（所有当前请求走这个）
     ServletDispatch::ptr dispatch_;
+    /// 活跃的 HTTP/2 会话（drain 时逐个发 GOAWAY；weak_ptr 避免延长生命周期）
+    std::mutex h2_mutex_;
+    std::set<std::weak_ptr<H2Session>, std::owner_less<std::weak_ptr<H2Session>>> h2_sessions_;
 };
 
 } // namespace chen::http

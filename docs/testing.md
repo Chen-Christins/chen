@@ -84,7 +84,15 @@ make test-integration
 4. 断言慢请求仍拿到 `200 + slow-ok`、reload 后新请求正常、日志里没有 drain 超时；
 5. 发 `SIGTERM`，断言 master 在 10s 内退出且日志出现 `graceful shutdown complete`。
 
-该用例覆盖 HTTP/1.1 的协作式 drain；HTTP/2 与 WS/Rock/RPC/Game 仍按「立即关闭」处理，不在断言范围内。
+同一脚本注册了两个 CTest 用例：
+
+| 用例名                        | 协议                          | 额外断言                                                        |
+|-------------------------------|-------------------------------|-----------------------------------------------------------------|
+| `integration_drain_reload`    | HTTP/1.1                      | 响应带 `Connection: close`                                      |
+| `integration_h2_drain_reload` | HTTP/2（h2c prior knowledge） | 日志出现 `H2 session drained`（证明走 GOAWAY 而不是被超时强杀） |
+
+H2 用例用 `CHEN_IT_PROTO=http2` 选择协议；如果本机 curl 不带 HTTP/2 支持，脚本以 77 退出，
+CTest 记为 **Skipped** 而不是失败。WS/Rock/RPC/Game 是长连接协议，仍按「立即关闭」处理。
 
 ## 编写新用例
 
@@ -166,7 +174,7 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 - **ASAN 与协程**：`boost::context` 切换栈需要 `__sanitizer_start_switch_fiber` 注解，当前未接入；对
   `libchen` 整体开 ASAN 后运行涉及 fiber 切换的用例可能出现误报。纯逻辑单测（`unit`）不开 fiber，
   可以安全地用 `-DENABLE_ASAN=ON` 单独跑。
-- **drain 的协议覆盖**：HTTP/1.1 有请求边界，能等到在途请求结束；HTTP/2 尚未接入 stream 级在途统计
-  （后续用 GOAWAY 补），WS/Rock/RPC/Game 是长连接、没有请求边界，drain 期间仍然立即关闭。
+- **drain 的协议覆盖**：HTTP/1.1 有请求边界，能等到在途请求结束；HTTP/2 在 drain 时发送 GOAWAY，
+  等 `streams_` 清空后关闭会话；WS/Rock/RPC/Game 是长连接、没有请求边界，drain 期间仍然立即关闭。
 - **非 Linux 不构建**：见 `AGENTS.md`。macOS/Windows 上只做静态检查，测试结果以 Linux 开发机/CI 为准。
 - 历史测试程序没有断言框架、部分会阻塞在 `accept`，因此不注册进 CTest；后续逐步迁移到 `tests/Unit/`。

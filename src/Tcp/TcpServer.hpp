@@ -287,6 +287,13 @@ public:
 
 protected:
     /**
+     * @brief 进入 draining 时的回调，子类可在此通知长连接主动收尾
+     * @details 调用时机：beginDrain() 停止 accept 之后、Application 开始轮询之前。
+     *          例如 HttpServer 会向所有活跃 HTTP/2 会话发送 GOAWAY。
+     */
+    virtual void onDrain() {}
+
+    /**
      * @brief 标记一个请求开始（in_flight++）
      */
     void beginRequest(const Socket::ptr& client);

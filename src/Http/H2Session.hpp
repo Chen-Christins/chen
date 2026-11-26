@@ -35,6 +35,18 @@ public:
     void run();
     void close();
 
+    /**
+     * @brief 请求会话进入 draining：发送 GOAWAY，等在途 stream 结束后退出
+     * @details 线程安全：只置标志 + 投递命令，由连接协程在 run() 里实际发送；
+     *          期间 recv 超时会被缩短，保证空闲会话也能及时感知。
+     */
+    void startDrain();
+
+    /**
+     * @brief 是否处于 draining
+     */
+    bool isDraining() const { return draining_; }
+
     Socket::ptr getSocket() const { return socket_; }
     ServletDispatch::ptr getDispatch() const { return dispatch_; }
     IOManager* getWorker() const { return worker_; }
@@ -101,6 +113,8 @@ private:
     std::vector<uint8_t> send_buffer_;
     std::vector<std::shared_ptr<void>> pending_bodies_;
     std::atomic<bool> stopping_{false};
+    /// 是否已请求 draining（GOAWAY 已投递）
+    std::atomic<bool> draining_{false};
 };
 
 } // namespace chen::http

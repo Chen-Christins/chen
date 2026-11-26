@@ -25,6 +25,9 @@ jobs:
     name: unit-tests (ubuntu-24.04 / Debug)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      # CI 必须真正验证 HTTP/2 drain，不允许因为 curl 缺 HTTP/2 而静默 SKIP
+      CHEN_IT_REQUIRE_HTTP2: "1"
 
     steps:
       - name: Checkout code
@@ -62,7 +65,7 @@ jobs:
       - name: Configure (Debug)
         run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCHEN_BUILD_TESTS=ON
 
-      - name: Build (libchen + unit tests + server + drain module)
+      - name: Build (libchen + unit tests + server + test modules)
         # 只构建门禁需要的目标：完整 Release 构建由 package-sdk-ubuntu.yml 覆盖，
         # 这里缩短反馈时间，也避免历史测试程序（需要端口/数据库）拖慢 CI。
         run: |
@@ -73,6 +76,7 @@ jobs:
             test_unit_config \
             test_unit_timeutil \
             server \
+            lifecycle_module \
             drain_test_module
 
       - name: Run unit + smoke tests

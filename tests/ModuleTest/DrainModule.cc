@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "src/Application.hpp"
 #include "src/Http/HttpServer.hpp"
 #include "src/Http/Servlet.hpp"
 #include "src/Log/Log.hpp"
@@ -97,17 +98,32 @@ bool DrainModule::onLoad()
 
 bool DrainModule::onServerReady()
 {
-    std::vector<chen::http::HttpServer::ptr> servers;
-    getAllHttpServer(servers);
+    // 不能按配置里的 type 字符串筛选（旧的 getAllHttpServer() 就栽在这）：
+    // type=http2 的服务器同样是 HttpServer。集成测试要覆盖 H1 与 H2，这里遍历全部 server 再按类型转换。
+    std::vector<chen::TcpServer::ptr> all_servers;
+    if (auto app = chen::Application::GetInstance()) {
+        app->getAllServers(all_servers);
+    }
 
-    for (auto& server : servers) {
-        auto dispatch = server->getServletDispatch();
+    int registered = 0;
+    for (auto& server : all_servers) {
+        auto http_server = std::dynamic_pointer_cast<chen::http::HttpServer>(server);
+        if (!http_server) {
+            continue;
+        }
+        auto dispatch = http_server->getServletDispatch();
         if (!dispatch) {
             continue;
         }
         dispatch->addServlet("/drain/slow", std::make_shared<SlowServlet>());
         dispatch->addServlet("/drain/fast", std::make_shared<FastServlet>());
-        INFO(logger) << "DrainModule registered /drain/{slow,fast} on server=" << server->getName();
+        ++registered;
+        INFO(logger) << "DrainModule registered /drain/{slow,fast} on server=" << http_server->getName()
+                     << " type=" << http_server->getType();
+    }
+
+    if (registered == 0) {
+        WARN(logger) << "DrainModule: no HttpServer found, /drain/* not registered";
     }
     return true;
 }

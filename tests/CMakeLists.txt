@@ -123,4 +123,14 @@ if (CHEN_BUILD_TESTS)
             LABELS "integration"
             TIMEOUT 120
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+    # HTTP/2（h2c prior knowledge）：drain 时走 GOAWAY。curl 不支持 HTTP/2 时脚本返回 77 → SKIP
+    add_test(NAME integration_h2_drain_reload
+            COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/integration/drain_reload.sh)
+    set_tests_properties(integration_h2_drain_reload PROPERTIES
+            LABELS "integration"
+            TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            ENVIRONMENT "CHEN_IT_PROTO=http2"
+            SKIP_RETURN_CODE 77)
 endif ()

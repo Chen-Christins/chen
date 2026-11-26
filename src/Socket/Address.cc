@@ -128,7 +128,7 @@ bool Address::Lookup(std::vector<Address::ptr>& result, const std::string& host,
 Address::ptr Address::LookupAny(const std::string& host, int family, int type, int protocol)
 {
     std::vector<Address::ptr> result;
-    if (Lookup(result, host, type, protocol)) {
+    if (Lookup(result, host, family, type, protocol)) {
         return result[0];
     }
     return nullptr;
@@ -138,7 +138,7 @@ Address::ptr Address::LookupAny(const std::string& host, int family, int type, i
 std::shared_ptr<IPAddress> Address::LookupAnyIPAddress(const std::string& host, int family, int type, int protocol)
 {
     std::vector<Address::ptr> result;
-    if (Lookup(result, host, type, protocol)) {
+    if (Lookup(result, host, family, type, protocol)) {
         for (auto& i : result) {
             // 将基类转换为派生类, 智能指针用dynamic_pointer_cast，指针就用dynamic_cast
             IPAddress::ptr v = std::dynamic_pointer_cast<IPAddress>(i);

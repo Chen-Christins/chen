@@ -54,10 +54,27 @@ void HttpServer::handleClient(Socket::ptr client)
     if (use_h2) {
         DEBUG(logger) << "Starting HTTP/2 session";
         auto h2 = std::make_shared<H2Session>(client, worker_, dispatch_);
+        {
+            std::lock_guard lock(h2_mutex_);
+            h2_sessions_.insert(h2);
+        }
+        // 极端时序兜底：连接刚建立就赶上 draining，onDrain() 的遍历可能已经结束
+        if (isDraining()) {
+            h2->startDrain();
+        }
+
+        // 整个 H2 会话算一个在途单元：drain 时不会在第一次 closeIdleClients() 就被关掉，
+        // 而是先由 onDrain() 发 GOAWAY，等 stream 结束后会话自行退出
+        TcpServer::RequestGuard guard(this, client);
         if (h2->init()) {
             h2->run();
         }
         h2->close();
+
+        {
+            std::lock_guard lock(h2_mutex_);
+            h2_sessions_.erase(h2);
+        }
         return;
     }
 
@@ -129,6 +146,32 @@ void HttpServer::handleClient(Socket::ptr client)
         }
     } while (true);
     session->close();
+}
+
+void HttpServer::onDrain()
+{
+    std::vector<H2Session::ptr> sessions;
+    {
+        std::lock_guard lock(h2_mutex_);
+        for (auto it = h2_sessions_.begin(); it != h2_sessions_.end();) {
+            if (auto session = it->lock()) {
+                sessions.push_back(std::move(session));
+                ++it;
+            } else {
+                // 会话已结束，顺手清理失效的 weak_ptr
+                it = h2_sessions_.erase(it);
+            }
+        }
+    }
+
+    for (auto& session : sessions) {
+        if (session) {
+            session->startDrain();
+        }
+    }
+    if (!sessions.empty()) {
+        INFO(logger) << "http server draining " << sessions.size() << " H2 session(s) with GOAWAY";
+    }
 }
 
 } // namespace chen::http

@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 地址解析（修复）
+
+- **修复** `Address::LookupAny()` / `LookupAnyIPAddress()` 少传 `family` 参数：原来
+  `family` 被当成 `type` 传入，导致 `AF_INET` 默认值失效、可能优先解析出 IPv6 地址
+
+### 模块 API（不兼容变更）
+
+- **删除** `Module::getAllHttpServer()` / `getAllWSServer()` / `getAllRpcServer()` / `getAllGameServer()`：
+  它们按配置中的 `type` 字符串过滤，`type: http2` 等变体会被静默漏掉。改为
+  `Application::getAllServers()` 取全部服务器后用 `dynamic_pointer_cast` 按 C++ 类型筛选
+- **变更** `Module.hpp` 不再 include `Http/HttpServer.hpp`、`Http/WSServer.hpp`、`Rpc/RpcServer.hpp`、
+  `Game/GameServer.hpp`，模块基类不再反向依赖各协议实现
+
 ### 优雅停机（修复）
 
 - **修复** 优雅关闭/热重载不再「先关连接再干等」：`TcpServer::beginDrain()` 停止 accept 后保留存量连接，
@@ -14,14 +27,17 @@ All notable changes to this project will be documented in this file.
   析构 `in_flight--`，draining 且空闲时关闭连接）
 - **变更** `HttpServer` 覆写 `supportsGracefulDrain()`：drain 期间新响应带 `Connection: close`，
   处理完当前请求即断开；空闲 keep-alive 连接由 `closeIdleClients()` 关闭
-- **变更** WS/Rock/RPC/Game 等长连接协议没有请求边界，仍按原行为立即关闭；HTTP/2 暂未接入
-  stream 级在途统计，同样在 drain 开始时关闭
+- **变更** WS/Rock/RPC/Game 等长连接协议没有请求边界，仍按原行为立即关闭
+- **新增** HTTP/2 drain：`H2Session::startDrain()` 发送 GOAWAY，`HttpServer::onDrain()` 通知所有活跃
+  会话；`run()` 在 draining 时缩短 recv 超时，等 `streams_` 清空后再关闭，整个 H2 会话计入在途单元
+- **新增** `TcpServer::onDrain()` 虚回调，供子类在停止 accept 后主动收尾长连接
 - **重构** `Application::doGracefulShutdown()` 拆出 `finishShutdown()`，drain 改为在协程内轮询
   （`usleep` 让出事件循环），超时打 `drain timeout` 告警后强制关闭
 - **新增** `tests/ModuleTest/DrainModule.cc`：测试模块提供 `/drain/slow`、`/drain/fast`
 - **新增** `tests/integration/drain_reload.sh`：真实起 server，在途慢请求 + `SIGHUP`，
-  断言请求完整、reload 后仍可服务、无 drain 超时、`SIGTERM` 干净退出；标签 `integration`，
-  通过 `make test-integration` 运行，CI 已接入
+  断言请求完整、reload 后仍可服务、无 drain 超时、`SIGTERM` 干净退出；同一脚本注册
+  `integration_drain_reload`（HTTP/1.1）与 `integration_h2_drain_reload`（H2 + GOAWAY）两个用例，
+  curl 不支持 HTTP/2 时后者 SKIP；通过 `make test-integration` 运行，CI 已接入
 
 ### 测试门禁（新增）与文档修正
 
