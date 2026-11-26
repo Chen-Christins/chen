@@ -99,20 +99,15 @@ public:
         HttpMethod method,
         FunctionServlet::callback cb,
         bool streaming_body = false);
+    void addServlet(const std::string& uri, HttpMethod method, Servlet::ptr slt, bool streaming_body = false);
     void addGlobServlet(const std::string& uri, Servlet::ptr slt);
     void addGlobServlet(const std::string& uri, FunctionServlet::callback cb);
 
     void delServlet(const std::string& uri);
     void delGlobServlet(const std::string& uri);
 
-    /// 清空所有已注册的 servlet（热重载 onUnload 时调用）
     void clear();
 
-    /**
-     * @brief 清空所有已注册的 servlet（保留默认 NotFoundServlet）
-     * @details 用于热重载的蓝绿部署：先清空 dispatch，再 onServerReady 重新注册。
-     *          与 clear() 不同，此方法保留 default_，避免清空期间请求访问空指针崩溃。
-     */
     void clearServlets();
 
     Servlet::ptr getDefault() const { return default_; }
@@ -123,11 +118,6 @@ public:
 
     Servlet::ptr getMatchedServlet(const std::string& uri);
 
-    /**
-     * @brief 匹配请求对应的 servlet 并抽取 path 参数，但不调用 handle
-     * @param request 已解析出 path 的请求对象；匹配到的 RESTful 参数会写入 request->params_
-     * @return 匹配到的 Servlet；无匹配时返回默认 Servlet
-     */
     Servlet::ptr matchForRequest(HttpRequest::ptr request);
 
     struct RestfulRoute {

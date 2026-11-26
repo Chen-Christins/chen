@@ -80,7 +80,8 @@ NotFoundServlet::NotFoundServlet(const std::string& name)
     , name_(name)
 {
     content_ =
-        "<html><head><title>404 Not Found</title></head><body><center><h1>404 Not Found</h1></center><hr><center>" + name + "</center></body></html>";
+        "<html><head><title>404 Not Found</title></head><body><center><h1>404 Not Found</h1></center><hr><center>"
+        + name + "</center></body></html>";
 }
 
 int32_t NotFoundServlet::handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session)
@@ -130,7 +131,9 @@ static bool isRestfulPattern(const std::vector<std::string>& segments)
 
 // Match a RESTful route against a request path. If request != nullptr,
 // extracted path params are stored in request->params_.
-static Servlet::ptr matchRestfulRoute(const ServletDispatch::RestfulRoute& route, const std::string& path, HttpRequest::ptr request = nullptr)
+static Servlet::ptr matchRestfulRoute(const ServletDispatch::RestfulRoute& route,
+    const std::string& path,
+    HttpRequest::ptr request = nullptr)
 {
     auto path_segs = splitPath(path);
     if (path_segs.size() != route.segments.size()) {
@@ -225,7 +228,6 @@ void ServletDispatch::addServlet(const std::string& uri,
     std::unique_lock lock(mutex_);
     auto segs = splitPath(uri);
     if (isRestfulPattern(segs)) {
-        // Find or create MethodServlet for this RESTful pattern
         MethodServlet::ptr ms;
         for (auto& route : restful_) {
             if (route.segments == segs) {
@@ -250,6 +252,19 @@ void ServletDispatch::addServlet(const std::string& uri,
         }
         ms->addHandler(method, cb, streaming_body);
     }
+}
+
+void ServletDispatch::addServlet(const std::string& uri, HttpMethod method, Servlet::ptr slt, bool streaming_body)
+{
+    if (!slt) {
+        return;
+    }
+    addServlet(
+        uri, method,
+        [slt](HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session) -> int32_t {
+            return slt->handle(request, response, session);
+        },
+        streaming_body);
 }
 
 void ServletDispatch::addGlobServlet(const std::string& uri, Servlet::ptr slt)
