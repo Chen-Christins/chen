@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fiber（修复）
+
+- **修复** 同一线程上重建调度器时的空指针崩溃：`Fiber::GetThis()` 改为先替换 `t_threadFiber`、再设置
+  `t_fiber`。旧线程主协程在替换 `t_threadFiber` 时析构，其析构函数会执行 `SetThis(nullptr)`；若此前已设置
+  `t_fiber`，会被清成空指针并在随后的 `shared_from_this()` 崩溃（`test_unit_future` 的
+  `promise_dropped_wakes_fiber_waiter` 曾因此段错误）
+- **新增** `test_unit_fiber`：线程主协程复用、同一线程上反复创建/销毁 `IOManager`
+
+### 异步执行（新增）
+
+- **新增** `src/Util/Async.hpp`：在 `Promise`/`Future` 之上补一层执行样板
+  - `chen::async::Detach(name, fn)`：分离执行，异常捕获后记 ERROR，不会打断调度线程
+  - `chen::async::Run(fn, timeout_ms)`：调度 + 等待 + 超时（`TimeoutError`）+ 异常原样回传，直接拿返回值
+  - `chen::async::RunAll(tasks, timeout_ms)`：并行 fan-out，等全部结束再重抛第一个异常
+  - 无调度器或当前上下文不可挂起（调度器主协程 / 普通线程）时退化为同步执行，避免单线程池自锁
+- **修复** `Future` 的 broken promise：最后一个 `Promise` 被丢弃且从未完成时，等待者收到
+  `std::runtime_error("chen::Future: promise destroyed without a value")`，不再永久挂起
+  （`FutureStateBase::addProducer/releaseProducer` 做生产端引用计数，`Promise` 补齐拷贝/移动语义）
+- **新增** `test_unit_async` 单测；`test_unit_future` 补 `promise_dropped_*` 两个用例
+
 ### HTTP 指标（新增）
 
 - **新增** `HttpServer` / `H2Session` 自动记录 HTTP 请求指标（`src/Http/HttpMetrics.hpp`），H1 与 H2 共用一套口径：

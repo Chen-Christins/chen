@@ -8,6 +8,7 @@
 #include "Future.hpp"
 
 #include <chrono>
+#include <stdexcept>
 #include <utility>
 
 #include "../IOManager/IOManager.hpp"
@@ -69,6 +70,33 @@ void FutureStateBase::setException(std::exception_ptr e)
 void FutureStateBase::warnDuplicate(const char* api)
 {
     WARN(g_logger) << "Future already satisfied, ignore " << api;
+}
+
+void FutureStateBase::addProducer()
+{
+    std::lock_guard lock(mutex_);
+    ++producers_;
+}
+
+void FutureStateBase::releaseProducer()
+{
+    std::vector<Waiter::ptr> waiters;
+    {
+        std::lock_guard lock(mutex_);
+        if (producers_ == 0) {
+            return;
+        }
+        if (--producers_ > 0) {
+            return;
+        }
+        if (done_) {
+            return;
+        }
+        // 最后一个生产端被丢弃且从未完成：唤醒等待者并报告 broken promise
+        exception_ = std::make_exception_ptr(std::runtime_error("chen::Future: promise destroyed without a value"));
+        waiters = completeLocked();
+    }
+    wake(waiters);
 }
 
 std::vector<FutureStateBase::Waiter::ptr> FutureStateBase::completeLocked()
@@ -278,6 +306,52 @@ const Future<void>::StatePtr& Future<void>::state() const
 Promise<void>::Promise()
     : state_(std::make_shared<FutureState<void>>())
 {
+    state_->addProducer();
+}
+
+Promise<void>::Promise(const Promise& other)
+    : state_(other.state_)
+{
+    if (state_) {
+        state_->addProducer();
+    }
+}
+
+Promise<void>::Promise(Promise&& other) noexcept
+    : state_(std::move(other.state_))
+{
+}
+
+Promise<void>& Promise<void>::operator=(const Promise& other)
+{
+    if (this != &other) {
+        if (state_) {
+            state_->releaseProducer();
+        }
+        state_ = other.state_;
+        if (state_) {
+            state_->addProducer();
+        }
+    }
+    return *this;
+}
+
+Promise<void>& Promise<void>::operator=(Promise&& other) noexcept
+{
+    if (this != &other) {
+        if (state_) {
+            state_->releaseProducer();
+        }
+        state_ = std::move(other.state_);
+    }
+    return *this;
+}
+
+Promise<void>::~Promise()
+{
+    if (state_) {
+        state_->releaseProducer();
+    }
 }
 
 Future<void> Promise<void>::getFuture() const

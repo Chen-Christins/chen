@@ -68,6 +68,19 @@ public:
      */
     void setException(std::exception_ptr e);
 
+    /**
+     * @brief 登记一个生产端（由 Promise 的构造/拷贝调用）
+     * @note 用于检测 broken promise：最后一个生产端被丢弃且结果仍未就绪时，
+     *       以异常唤醒所有等待者，避免调用方永久挂起
+     */
+    void addProducer();
+
+    /**
+     * @brief 注销一个生产端（由 Promise 的析构/赋值调用）
+     * @details 计数归零且结果未就绪时，用 std::runtime_error 完成状态
+     */
+    void releaseProducer();
+
 protected:
     /**
      * @brief 等待者：协程 + 所属调度器
@@ -146,6 +159,9 @@ private:
      * @pre 调用方必须持有 mutex_
      */
     bool armTimerLocked(uint64_t timeout_ms, const Waiter::ptr& self, Timer::ptr& timer);
+
+    /// 生产端（Promise）引用计数，用于 broken promise 检测
+    size_t producers_ = 0;
 };
 
 /**
@@ -330,6 +346,52 @@ public:
     Promise()
         : state_(std::make_shared<FutureState<T>>())
     {
+        state_->addProducer();
+    }
+
+    Promise(const Promise& other)
+        : state_(other.state_)
+    {
+        if (state_) {
+            state_->addProducer();
+        }
+    }
+
+    Promise(Promise&& other) noexcept
+        : state_(std::move(other.state_))
+    {
+    }
+
+    Promise& operator=(const Promise& other)
+    {
+        if (this != &other) {
+            if (state_) {
+                state_->releaseProducer();
+            }
+            state_ = other.state_;
+            if (state_) {
+                state_->addProducer();
+            }
+        }
+        return *this;
+    }
+
+    Promise& operator=(Promise&& other) noexcept
+    {
+        if (this != &other) {
+            if (state_) {
+                state_->releaseProducer();
+            }
+            state_ = std::move(other.state_);
+        }
+        return *this;
+    }
+
+    ~Promise()
+    {
+        if (state_) {
+            state_->releaseProducer();
+        }
     }
 
     /**
@@ -365,6 +427,16 @@ template <>
 class Promise<void> {
 public:
     Promise();
+
+    Promise(const Promise& other);
+
+    Promise(Promise&& other) noexcept;
+
+    Promise& operator=(const Promise& other);
+
+    Promise& operator=(Promise&& other) noexcept;
+
+    ~Promise();
 
     /**
      * @brief 获取消费端句柄，可多次调用（共享同一状态）

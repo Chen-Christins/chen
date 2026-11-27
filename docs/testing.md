@@ -37,10 +37,12 @@ tests/
 │   ├── TestConfigXml.cpp
 │   ├── TestMetrics.cpp
 │   ├── TestRateLimiter.cpp
+│   ├── TestFiber.cpp
 │   ├── TestFuture.cpp
 │   ├── TestSSESession.cpp
 │   ├── TestTcpDrain.cpp
 │   ├── TestHttpMetrics.cpp
+│   ├── TestAsync.cpp
 │   └── TestOrmGen.cpp
 ├── ModuleTest/
 │   └── DrainModule.cc     # 集成测试模块（/drain/{slow,fast,stream,sse,metrics}）
@@ -207,10 +209,12 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 | `test_unit_configxml`   | `TestConfigXml.cc`                                                             |
 | `test_unit_metrics`     | `TestMetrics.cc`                                                               |
 | `test_unit_ratelimiter` | `TestRateLimiter.cc`                                                           |
+| `test_unit_fiber`       | 新增：线程主协程复用、同一线程上反复创建/销毁调度器（回归空指针）              |
 | `test_unit_future`      | `TestFuture.cc`（线程路径 + 自建 IOManager 的 fiber 路径）                     |
 | `test_unit_ssesession`  | 新增：用假 HttpSession 抓取 SSE 编码与响应头（无迁移来源）                     |
 | `test_unit_tcpdrain`    | 新增：drain 簿记逻辑（在途计数、空闲判定、`closeIdleClients()`，无 IOManager） |
 | `test_unit_httpmetrics` | 新增：HTTP 请求指标的路径归一化、总量/耗时打点、在途计数与路径基数上限         |
+| `test_unit_async`       | 新增：`Detach`/`Run`/`RunAll` 的退化路径、超时、异常回传与并行 fan-out         |
 | `test_unit_ormgen`      | `TestOrmGen.cc`（额外编译 `src/Orm/*.cc`）                                     |
 
 有意不迁移（保留为手工程序）：
@@ -229,10 +233,12 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 ## 已知限制
 
 - **ASAN 与协程**：`boost::context` 切换栈需要 `__sanitizer_start_switch_fiber` 注解，当前未接入；对
-  `libchen` 整体开 ASAN 后运行涉及 fiber 切换的用例可能出现误报。除 `test_unit_future`（自建
-  `IOManager` 跑 fiber 路径）外，其余单测都是纯逻辑，可以安全地用 `-DENABLE_ASAN=ON` 单独跑。
+  `libchen` 整体开 ASAN 后运行涉及 fiber 切换的用例可能出现误报。除 `test_unit_fiber`、
+  `test_unit_future`、`test_unit_async`（都会自建 `IOManager` 跑 fiber 路径）外，其余单测都是纯逻辑，可以安全地用
+  `-DENABLE_ASAN=ON` 单独跑。
 - **drain 的协议覆盖**：HTTP/1.1 有请求边界，能等到在途请求结束；HTTP/2 在 drain 时发送 GOAWAY，
-  等 `streams_` 清空后关闭会话；WS/Rock/RPC/Game 是长连接、没有请求边界，drain 期间仍然立即关闭。
+  等 `streams_` 清空后关闭会话；WS/Rock/RPC/Game 以内置的请求边界（一条消息 / 一次调用 + 回包）协作式
+  drain，超过 `server.drain_timeout_ms` 仍未完成则强制关闭。
 - **非 Linux 不构建**：见 `AGENTS.md`。macOS/Windows 上只做静态检查，测试结果以 Linux 开发机/CI 为准。
 - 历史测试程序没有断言框架、部分会阻塞在 `accept`，因此不注册进 CTest；可离线断言的部分已按
   “历史用例迁移状态”迁到 `tests/Unit/`，其余保留为手工/联调程序。

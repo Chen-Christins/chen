@@ -47,6 +47,7 @@ Atomic::addFetch(val, 1);                                   // 线程安全自�
 | `macro.h`       | `ASSERT`/`ASSERT_MSG` 断言 + `LIKELY`/`UNLIKELY` 分支预测                   | 拼写故意写错以避免宏名冲突                                           |
 | `endian.h`      | 字节序转换（`byteswap`、`byteswapOnLittleEndian`）                          | `byteswapOnLittleEndian` 在小端机上转成大端（网络字节序）            |
 | `future.h`      | `Promise`/`Future` 异步结果句柄，fiber 内挂起等待、线程内阻塞等待           | 依赖 `IOManager` 的定时器实现 `waitFor`，裸 `Scheduler` 下降级为阻塞 |
+| `async.h`       | `Detach` / `Run` / `RunAll`：分离执行、带超时与异常回传的任务、并行 fan-out | 无调度器或不可挂起时退化为同步执行，见下节「异步执行」               |
 
 ### 加密 / 哈希
 
@@ -123,6 +124,37 @@ promise.setException(std::make_exception_ptr(std::runtime_error("boom")));
 - `setValue` 只生效一次，重复完成会被忽略并打 WARN
 - `T` 需要可拷贝（`get()` 返回副本），`void` 有专门特化
 - 在调度器主协程或普通线程里 `get()` 会退化为条件变量阻塞，不要在单线程 `IOManager` 的主协程里等一个需要本线程推进的结果
+
+`Promise` 还带 broken promise 检测：最后一个生产端被丢弃且结果从未写入时，等待者会收到
+`std::runtime_error("chen::Future: promise destroyed without a value")`，而不是永久挂起。
+
+## 异步执行（Async）
+
+```cpp
+#include "Chen/Util/Async.hpp"
+
+// 1) 分离任务：丢给调度器就返回，异常只记日志，不会打断调度线程
+chen::async::Detach("rebuild-cache", [id]() {
+    // 耗时/可能抛异常的收尾工作
+});
+
+// 2) 需要结果：调度 + 等待 + 超时 + 异常回传
+int value = chen::async::Run([]() {
+    return 42;
+}, /* timeout_ms = */ 1000);      // 超时抛 chen::async::TimeoutError，任务异常原样重抛
+
+// 3) 并行 fan-out：等全部任务结束，再重抛第一个异常
+std::vector<std::function<void()>> tasks;
+chen::async::RunAll(std::move(tasks), 3000);
+```
+
+语义要点：
+
+- 三者都优先使用 `Scheduler::GetThis()`；**没有调度器、或当前上下文不能挂起**（调度器主协程 / 普通线程）时
+  退化为同步执行，所以可以在 `main()`、模块 `onLoad`、`std::thread` 里安全调用
+- `Run` 超时只放弃等待，任务本身不会被取消；任务里捕获的引用/指针必须活得比任务久
+- `Detach` 的异常被捕获并记 ERROR（logger 名 `system`），调用方拿不到结果
+- `RunAll` 的结果通过捕获的引用带出（与 `WorkerGroup` 用法一致）；整体超时抛 `TimeoutError`
 
 ## 常见坑
 

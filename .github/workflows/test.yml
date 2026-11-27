@@ -82,10 +82,12 @@ jobs:
             test_unit_configxml \
             test_unit_metrics \
             test_unit_ratelimiter \
+            test_unit_fiber \
             test_unit_future \
             test_unit_ssesession \
             test_unit_tcpdrain \
             test_unit_httpmetrics \
+            test_unit_async \
             test_unit_ormgen \
             server \
             lifecycle_module \

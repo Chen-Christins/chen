@@ -18,6 +18,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 
 using chen::Future;
 using chen::IOManager;
@@ -213,6 +214,59 @@ CHEN_TEST(future, fiber_paths)
         std::rethrow_exception(error);
     }
     CHEN_CHECK_EQ(passed.load(), 5);
+}
+
+CHEN_TEST(future, promise_dropped_completes_with_exception)
+{
+    Promise<int> promise;
+    Future<int> future = promise.getFuture();
+    CHEN_CHECK(!future.ready());
+
+    // 副本生产端销毁时计数从 2 降到 1，状态仍未完成
+    {
+        Promise<int> extra = promise;
+        (void)extra;
+    }
+    CHEN_CHECK(!future.ready());
+
+    // 最后一个生产端被替换（等价于丢弃），等待者应以异常完成而不是永久挂起
+    promise = Promise<int>();
+    CHEN_CHECK(future.ready());
+    CHEN_CHECK_THROW(future.get(), std::runtime_error);
+
+    Promise<void> void_promise;
+    Future<void> void_future = void_promise.getFuture();
+    void_promise = Promise<void>();
+    CHEN_CHECK_THROW(void_future.get(), std::runtime_error);
+}
+
+CHEN_TEST(future, promise_dropped_wakes_fiber_waiter)
+{
+    IOManager iom(2, true, "future_unit");
+    std::exception_ptr error;
+    std::atomic<bool> woken{false};
+
+    iom.schedule([&iom, &error, &woken]() {
+        try {
+            Promise<int> promise;
+            Future<int> future = promise.getFuture();
+            // 把唯一的生产端交给另一个任务：任务结束即销毁，且从不设值
+            iom.schedule([promise = std::move(promise)]() mutable {
+                (void)promise;
+            });
+            CHEN_CHECK_THROW(future.get(), std::runtime_error);
+            woken = true;
+        } catch (...) {
+            error = std::current_exception();
+        }
+    });
+
+    iom.stop();
+
+    if (error) {
+        std::rethrow_exception(error);
+    }
+    CHEN_CHECK(woken.load());
 }
 
 CHEN_TEST_MAIN()

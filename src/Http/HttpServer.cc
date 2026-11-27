@@ -66,7 +66,7 @@ void HttpServer::handleClient(Socket::ptr client)
 
         // 整个 H2 会话算一个在途单元：drain 时不会在第一次 closeIdleClients() 就被关掉，
         // 而是先由 onDrain() 发 GOAWAY，等 stream 结束后会话自行退出
-        TcpServer::RequestGuard guard(this, client);
+        RequestGuard guard(this, client);
         if (h2->init()) {
             h2->run();
         }
@@ -116,7 +116,7 @@ void HttpServer::handleClient(Socket::ptr client)
             HttpRequestScope metrics_scope;
             // 请求作用域：构造时 in_flight++，析构时 in_flight--，
             // 若此时已 draining 且连接空闲，顺手关闭连接（见 TcpServer::RequestGuard）
-            TcpServer::RequestGuard guard(this, client);
+            RequestGuard guard(this, client);
 
             auto slt = dispatch_->matchForRequest(req);
             if (slt && slt->isStreamingBody()) {

@@ -148,8 +148,13 @@ Fiber::ptr Fiber::GetThis()
     // 为工作线程创建一个有效上下文的主协程
     // 这个主协程需要有有效的m_ctx用于jump_fcontext恢复
     Fiber::ptr main_fiber(new Fiber());
-    t_fiber = main_fiber.get();
+    // 必须先替换 t_threadFiber 再设置 t_fiber：t_threadFiber 的旧值析构时，
+    // 主协程析构函数会执行 SetThis(nullptr)（见 ~Fiber 的无栈分支），
+    // 若先设置 t_fiber，会被这次析构清成空指针，随后 shared_from_this 解引用崩溃。
+    // 典型场景：同一线程上第一个调度器销毁后再次创建调度器（t_fiber 已清空、
+    // t_threadFiber 仍持有旧主协程）。
     t_threadFiber = main_fiber;
+    t_fiber = main_fiber.get();
     return t_fiber->shared_from_this();
 }
 
