@@ -123,18 +123,37 @@ public:
 private:
     MySQLStmtRes(std::shared_ptr<MySQLStmt> stmt, int eno, const std::string& estr);
     struct Data {
+        /** 结果集这一列在绑定缓冲里怎么存：绑定类型与读取方式都由它决定 */
+        enum class Storage {
+            INT,    // 整型系列，统一按 int64 绑定（宽度与符号交给服务端转换）
+            FLOAT,  // 4 字节浮点
+            DOUBLE, // 8 字节浮点
+            TIME,   // MYSQL_TIME
+            TEXT    // 文本（DECIMAL / 字符串 / 二进制），数值 getter 走文本解析
+        };
+
         Data();
         ~Data();
 
         void alloc(size_t size);
 
+        /** 按 storage 解码，越界/NULL 由调用方先处理 */
+        int64_t readInt64() const;
+        uint64_t readUint64() const;
+        double readDouble() const;
+
         bool is_null;
         bool error;
+        bool is_unsigned;
         enum_field_types type;
+        Storage storage;
         unsigned long length;
         int32_t data_length;
         char* data;
     };
+
+    /** 取列数据，越界返回 nullptr（getter 统一的入口） */
+    const Data* dataAt(int idx) const;
 
 private:
     int errno_;

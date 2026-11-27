@@ -242,14 +242,42 @@ uint32_t PostgreSQLData::getUint32(int idx)
     return static_cast<uint32_t>(getUint64(idx));
 }
 
+namespace {
+
+// PostgreSQL 的 boolean 以 "t"/"f" 文本返回，strtoll 会解析成 0，这里显式映射
+bool pgBoolValue(const std::string& value, int64_t& out)
+{
+    if (value == "t" || value == "true") {
+        out = 1;
+        return true;
+    }
+    if (value == "f" || value == "false") {
+        out = 0;
+        return true;
+    }
+    return false;
+}
+
+} // namespace
+
 int64_t PostgreSQLData::getInt64(int idx)
 {
-    return static_cast<int64_t>(std::strtoll(getString(idx).c_str(), nullptr, 10));
+    const std::string value = getString(idx);
+    int64_t bool_value = 0;
+    if (pgBoolValue(value, bool_value)) {
+        return bool_value;
+    }
+    return static_cast<int64_t>(std::strtoll(value.c_str(), nullptr, 10));
 }
 
 uint64_t PostgreSQLData::getUint64(int idx)
 {
-    return static_cast<uint64_t>(std::strtoull(getString(idx).c_str(), nullptr, 10));
+    const std::string value = getString(idx);
+    int64_t bool_value = 0;
+    if (pgBoolValue(value, bool_value)) {
+        return static_cast<uint64_t>(bool_value != 0);
+    }
+    return static_cast<uint64_t>(std::strtoull(value.c_str(), nullptr, 10));
 }
 
 float PostgreSQLData::getFloat(int idx)

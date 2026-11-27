@@ -34,6 +34,7 @@ if (CHEN_BUILD_TESTS)
     chen_add_unit_test(test_unit_tcpdrain Unit/TestTcpDrain.cpp)
     chen_add_unit_test(test_unit_httpmetrics Unit/TestHttpMetrics.cpp)
     chen_add_unit_test(test_unit_async Unit/TestAsync.cpp)
+    chen_add_unit_test(test_unit_querybuilder Unit/TestQueryBuilder.cpp)
     # ORM 生成器不在 libchen 中，单独编译 orm 源码
     chen_add_unit_test(test_unit_ormgen
             Unit/TestOrmGen.cpp

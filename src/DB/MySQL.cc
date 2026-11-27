@@ -781,7 +781,12 @@ int64_t MySQLRes::getInt64(int idx)
 
 uint64_t MySQLRes::getUint64(int idx)
 {
-    return getInt64(idx);
+    if (!cur_) {
+        ERROR(g_logger) << "MySQLRes::getUint64 m_cur is null (next() not called or no row)";
+        return 0;
+    }
+    // 无符号列可能超过 int64 上限，不能复用 getInt64 的 strtoll
+    return std::strtoull(cur_[idx], nullptr, 10);
 }
 
 float MySQLRes::getFloat(int idx)
@@ -857,6 +862,13 @@ bool MySQLRes::foreach(data_cb cb)
     return true;
 }
 
+// 文本类结果的绑定缓冲：元数据里的最大宽度 + 1 个结尾，太小的列至少给 32 字节
+static size_t TextBufferSize(const MYSQL_FIELD& field)
+{
+    size_t bytes = (size_t)field.length + 1;
+    return bytes < 32 ? 32 : bytes;
+}
+
 MySQLStmtRes::ptr MySQLStmtRes::Create(std::shared_ptr<MySQLStmt> stmt)
 {
     if (!stmt) {
@@ -890,35 +902,82 @@ MySQLStmtRes::ptr MySQLStmtRes::Create(std::shared_ptr<MySQLStmt> stmt)
     rt->column_names_.resize(num);
 
     for (int i = 0; i < num; ++i) {
+        Data& col = rt->datas_[i];
         rt->column_names_[i] = fields[i].name ? fields[i].name : "";
-        rt->datas_[i].type = fields[i].type;
+        col.type = fields[i].type;
         switch (fields[i].type) {
-#define XX(m, t)                         \
-    case m:                                                                                                            \
-        rt->datas_[i].alloc(sizeof(t));                                                                                \
-        break;
-            XX(MYSQL_TYPE_TINY, int8_t);
-            XX(MYSQL_TYPE_SHORT, int16_t);
-            XX(MYSQL_TYPE_LONG, int32_t);
-            XX(MYSQL_TYPE_LONGLONG, int64_t);
-            XX(MYSQL_TYPE_FLOAT, float);
-            XX(MYSQL_TYPE_DOUBLE, double);
-            XX(MYSQL_TYPE_TIMESTAMP, MYSQL_TIME);
-            XX(MYSQL_TYPE_DATETIME, MYSQL_TIME);
-            XX(MYSQL_TYPE_DATE, MYSQL_TIME);
-            XX(MYSQL_TYPE_TIME, MYSQL_TIME);
-#undef XX
+        case MYSQL_TYPE_TINY:
+        case MYSQL_TYPE_SHORT:
+        case MYSQL_TYPE_LONG:
+        case MYSQL_TYPE_LONGLONG:
+        case MYSQL_TYPE_INT24:
+        case MYSQL_TYPE_YEAR:
+        case MYSQL_TYPE_BIT:
+            // 整型一律按 int64 绑定，宽度/符号由服务端转换；读取只有一个分支
+            col.storage = Data::Storage::INT;
+            col.is_unsigned = fields[i].type == MYSQL_TYPE_BIT || (fields[i].flags & UNSIGNED_FLAG) != 0;
+            col.alloc(sizeof(int64_t));
+            rt->binds_[i].buffer_type = MYSQL_TYPE_LONGLONG;
+            rt->binds_[i].is_unsigned = col.is_unsigned;
+            break;
+        case MYSQL_TYPE_FLOAT:
+            col.storage = Data::Storage::FLOAT;
+            col.alloc(sizeof(float));
+            rt->binds_[i].buffer_type = MYSQL_TYPE_FLOAT;
+            break;
+        case MYSQL_TYPE_DOUBLE:
+            col.storage = Data::Storage::DOUBLE;
+            col.alloc(sizeof(double));
+            rt->binds_[i].buffer_type = MYSQL_TYPE_DOUBLE;
+            break;
+        case MYSQL_TYPE_TIMESTAMP:
+        case MYSQL_TYPE_DATETIME:
+        case MYSQL_TYPE_DATE:
+        case MYSQL_TYPE_NEWDATE:
+        case MYSQL_TYPE_TIME:
+            col.storage = Data::Storage::TIME;
+            col.alloc(sizeof(MYSQL_TIME));
+            rt->binds_[i].buffer_type = fields[i].type;
+            break;
+        case MYSQL_TYPE_DECIMAL:
+        case MYSQL_TYPE_NEWDECIMAL:
+        case MYSQL_TYPE_VARCHAR:
+        case MYSQL_TYPE_VAR_STRING:
+        case MYSQL_TYPE_STRING:
+        case MYSQL_TYPE_ENUM:
+        case MYSQL_TYPE_SET:
+        case MYSQL_TYPE_JSON:
+        case MYSQL_TYPE_NULL:
+            // 定长/变长字符串、枚举、JSON 等按字符串绑定：二进制协议里都是「长度 + 字节」，
+            // 读取走 getString 或 Atoi/Atof
+            col.storage = Data::Storage::TEXT;
+            col.alloc(TextBufferSize(fields[i]));
+            rt->binds_[i].buffer_type = MYSQL_TYPE_STRING;
+            break;
+        case MYSQL_TYPE_TINY_BLOB:
+        case MYSQL_TYPE_MEDIUM_BLOB:
+        case MYSQL_TYPE_BLOB:
+        case MYSQL_TYPE_LONG_BLOB:
+        case MYSQL_TYPE_GEOMETRY:
+            // BLOB 家族与 TEXT 家族共用这几个枚举值（靠字符集区分）：统一按 BLOB 绑定，
+            // 不做字符集转换，原始字节直接进缓冲，getString 按 length 取
+            col.storage = Data::Storage::TEXT;
+            col.alloc(TextBufferSize(fields[i]));
+            rt->binds_[i].buffer_type = MYSQL_TYPE_BLOB;
+            break;
         default:
-            rt->datas_[i].alloc(fields[i].length);
+            // 未识别的类型（TIMESTAMP2 等）按文本兜底，读出来至少不崩
+            col.storage = Data::Storage::TEXT;
+            col.alloc(TextBufferSize(fields[i]));
+            rt->binds_[i].buffer_type = MYSQL_TYPE_STRING;
             break;
         }
 
-        rt->binds_[i].buffer_type = rt->datas_[i].type;
-        rt->binds_[i].buffer = rt->datas_[i].data;
-        rt->binds_[i].buffer_length = rt->datas_[i].data_length;
-        rt->binds_[i].length = &rt->datas_[i].length;
-        rt->binds_[i].is_null = &rt->datas_[i].is_null;
-        rt->binds_[i].error = &rt->datas_[i].error;
+        rt->binds_[i].buffer = col.data;
+        rt->binds_[i].buffer_length = col.data_length;
+        rt->binds_[i].length = &col.length;
+        rt->binds_[i].is_null = &col.is_null;
+        rt->binds_[i].error = &col.error;
     }
 
     if (mysql_stmt_bind_result(raw, &rt->binds_[0])) {
@@ -987,108 +1046,114 @@ bool MySQLStmtRes::isNull(int idx)
     return datas_[idx].is_null;
 }
 
-#define XX(type)                                                                                                       \
-    if ((size_t)idx >= datas_.size()) {                                                                                \
-        ERROR(g_logger) << #type " idx=" << idx << " out of range, size=" << datas_.size();                            \
-        return 0;                                                                            \
-    }                                                                                                                  \
-    if (!datas_[idx].data) {                                                                                           \
-        ERROR(g_logger) << #type " m_datas[" << idx << "].data is null";                     \
-        return 0;                                                                            \
-    }                                                                                                                  \
-    return *(type*)datas_[idx].data
+const MySQLStmtRes::Data* MySQLStmtRes::dataAt(int idx) const
+{
+    if ((size_t)idx >= datas_.size()) {
+        ERROR(g_logger) << "MySQLStmtRes: column index " << idx << " out of range, column count=" << datas_.size();
+        return nullptr;
+    }
+    return &datas_[idx];
+}
 
 int8_t MySQLStmtRes::getInt8(int idx)
 {
-    XX(int8_t);
+    const Data* d = dataAt(idx);
+    return d ? static_cast<int8_t>(d->readInt64()) : 0;
 }
 
 uint8_t MySQLStmtRes::getUint8(int idx)
 {
-    XX(uint8_t);
+    const Data* d = dataAt(idx);
+    return d ? static_cast<uint8_t>(d->readUint64()) : 0;
 }
 
 int16_t MySQLStmtRes::getInt16(int idx)
 {
-    XX(int16_t);
+    const Data* d = dataAt(idx);
+    return d ? static_cast<int16_t>(d->readInt64()) : 0;
 }
 
 uint16_t MySQLStmtRes::getUint16(int idx)
 {
-    XX(uint16_t);
+    const Data* d = dataAt(idx);
+    return d ? static_cast<uint16_t>(d->readUint64()) : 0;
 }
 
 int32_t MySQLStmtRes::getInt32(int idx)
 {
-    XX(int32_t);
+    const Data* d = dataAt(idx);
+    return d ? static_cast<int32_t>(d->readInt64()) : 0;
 }
 
 uint32_t MySQLStmtRes::getUint32(int idx)
 {
-    XX(uint32_t);
+    const Data* d = dataAt(idx);
+    return d ? static_cast<uint32_t>(d->readUint64()) : 0;
 }
 
 int64_t MySQLStmtRes::getInt64(int idx)
 {
-    XX(int64_t);
+    const Data* d = dataAt(idx);
+    return d ? d->readInt64() : 0;
 }
 
 uint64_t MySQLStmtRes::getUint64(int idx)
 {
-    XX(uint64_t);
+    const Data* d = dataAt(idx);
+    return d ? d->readUint64() : 0;
 }
 
 float MySQLStmtRes::getFloat(int idx)
 {
-    XX(float);
+    const Data* d = dataAt(idx);
+    return d ? static_cast<float>(d->readDouble()) : 0.0f;
 }
 
 double MySQLStmtRes::getDouble(int idx)
 {
-    XX(double);
+    const Data* d = dataAt(idx);
+    return d ? d->readDouble() : 0.0;
 }
-#undef XX
 
 std::string MySQLStmtRes::getString(int idx)
 {
-    if ((size_t)idx >= datas_.size()) {
-        ERROR(g_logger) << "MySQLStmtRes::getString idx=" << idx << " out of range, size=" << datas_.size();
+    const Data* d = dataAt(idx);
+    if (!d || d->is_null || !d->data) {
         return "";
     }
-    if (!datas_[idx].data) {
-        ERROR(g_logger) << "MySQLStmtRes::getString m_datas[" << idx << "].data is null";
-        return "";
-    }
-    return std::string(datas_[idx].data, datas_[idx].length);
+    return std::string(d->data, d->length);
 }
 
 std::string MySQLStmtRes::getBlob(int idx)
 {
-    if ((size_t)idx >= datas_.size()) {
-        ERROR(g_logger) << "MySQLStmtRes::getBlob idx=" << idx << " out of range, size=" << datas_.size();
+    const Data* d = dataAt(idx);
+    if (!d || d->is_null || !d->data) {
         return "";
     }
-    if (!datas_[idx].data) {
-        ERROR(g_logger) << "MySQLStmtRes::getBlob m_datas[" << idx << "].data is null";
-        return "";
-    }
-    return std::string(datas_[idx].data, datas_[idx].length);
+    return std::string(d->data, d->length);
 }
 
 time_t MySQLStmtRes::getTime(int idx)
 {
-    if ((size_t)idx >= datas_.size()) {
-        ERROR(g_logger) << "MySQLStmtRes::getTime idx=" << idx << " out of range, size=" << datas_.size();
+    const Data* d = dataAt(idx);
+    if (!d || d->is_null || !d->data) {
         return 0;
     }
-    if (!datas_[idx].data) {
-        ERROR(g_logger) << "MySQLStmtRes::getTime m_datas[" << idx << "].data is null";
-        return 0;
+    if (d->storage == Data::Storage::TIME) {
+        const MYSQL_TIME& mt = *reinterpret_cast<const MYSQL_TIME*>(d->data);
+        if (d->type == MYSQL_TYPE_TIME) {
+            // TIME 是时长而不是时间点：返回总秒数（负时长取负）
+            int64_t secs = (int64_t)mt.hour * 3600 + (int64_t)mt.minute * 60 + mt.second;
+            return static_cast<time_t>(mt.neg ? -secs : secs);
+        }
+        time_t ts = 0;
+        mysql_time_to_time_t(mt, ts);
+        return ts;
     }
-    MYSQL_TIME* v = (MYSQL_TIME*)datas_[idx].data;
-    time_t ts = 0;
-    mysql_time_to_time_t(*v, ts);
-    return ts;
+    if (d->storage == Data::Storage::TEXT) {
+        return chen::TimeUtil::Str2Time(d->data);
+    }
+    return 0;
 }
 
 bool MySQLStmtRes::next()
@@ -1103,7 +1168,9 @@ bool MySQLStmtRes::next()
 MySQLStmtRes::Data::Data()
     : is_null(0)
     , error(0)
+    , is_unsigned(0)
     , type()
+    , storage(Storage::TEXT)
     , length(0)
     , data_length(0)
     , data(nullptr)
@@ -1125,6 +1192,69 @@ void MySQLStmtRes::Data::alloc(size_t size)
     data = new char[size]();
     length = size;
     data_length = size;
+}
+
+int64_t MySQLStmtRes::Data::readInt64() const
+{
+    if (is_null || !data) {
+        return 0;
+    }
+    switch (storage) {
+    case Storage::INT:
+        return is_unsigned ? static_cast<int64_t>(*reinterpret_cast<const uint64_t*>(data))
+                           : *reinterpret_cast<const int64_t*>(data);
+    case Storage::FLOAT:
+        return static_cast<int64_t>(*reinterpret_cast<const float*>(data));
+    case Storage::DOUBLE:
+        return static_cast<int64_t>(*reinterpret_cast<const double*>(data));
+    case Storage::TIME:
+        return 0;
+    case Storage::TEXT:
+        return chen::TypeUtil::Atoi(data);
+    }
+    return 0;
+}
+
+uint64_t MySQLStmtRes::Data::readUint64() const
+{
+    if (is_null || !data) {
+        return 0;
+    }
+    switch (storage) {
+    case Storage::INT:
+        return is_unsigned ? *reinterpret_cast<const uint64_t*>(data)
+                           : static_cast<uint64_t>(*reinterpret_cast<const int64_t*>(data));
+    case Storage::FLOAT:
+        return static_cast<uint64_t>(*reinterpret_cast<const float*>(data));
+    case Storage::DOUBLE:
+        return static_cast<uint64_t>(*reinterpret_cast<const double*>(data));
+    case Storage::TIME:
+        return 0;
+    case Storage::TEXT:
+        return static_cast<uint64_t>(chen::TypeUtil::Atoi(data));
+    }
+    return 0;
+}
+
+double MySQLStmtRes::Data::readDouble() const
+{
+    if (is_null || !data) {
+        return 0.0;
+    }
+    switch (storage) {
+    case Storage::INT:
+        return is_unsigned ? static_cast<double>(*reinterpret_cast<const uint64_t*>(data))
+                           : static_cast<double>(*reinterpret_cast<const int64_t*>(data));
+    case Storage::FLOAT:
+        return *reinterpret_cast<const float*>(data);
+    case Storage::DOUBLE:
+        return *reinterpret_cast<const double*>(data);
+    case Storage::TIME:
+        return 0.0;
+    case Storage::TEXT:
+        return chen::TypeUtil::Atof(data);
+    }
+    return 0.0;
 }
 
 MySQLStmtRes::MySQLStmtRes(std::shared_ptr<MySQLStmt> stmt, int eno, const std::string& estr)

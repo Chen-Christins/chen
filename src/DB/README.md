@@ -161,6 +161,48 @@ auto qb = QueryBuilder::Create("table_name")
 
 全部 `where*` 方法均有对应的 `orWhere*`（OR 连接）和 `*If(cond, ...)`（条件生效）变体。
 
+### 聚合列收窄（SUM / AVG）
+
+MySQL 的 `SUM()` / `AVG()` 返回 DECIMAL。`selectInt64()` / `selectDouble()` 会**追加**一列并包上
+`CAST(... AS SIGNED)` / `CAST(... AS DOUBLE)`，省掉手写 CAST：
+
+```cpp
+auto qb = QueryBuilder::Create("article")
+    ->select("c.id, COUNT(a.id) AS article_count")
+    ->selectInt64("COALESCE(SUM(a.views), 0)", "view_count");
+// → SELECT c.id, COUNT(a.id) AS article_count,
+//          CAST(COALESCE(SUM(a.views), 0) AS SIGNED) AS view_count FROM article
+```
+
+与 `select()` 的区别：`select()` 是覆盖语义（DAO 内部也用它），`selectInt64()` / `selectDouble()` 是追加语义。
+`SIGNED` 是 MySQL 语法，PostgreSQL / SQLite 的聚合本来就按文本解码，不需要这层包装。
+
+### 结果集类型解码
+
+`ISQLData` 的 getter 语义在各后端一致：`getInt64()` 读整数（DECIMAL / 聚合结果也按文本解析）、
+`getDouble()` 读浮点、`getString()` / `getBlob()` 读原始字节（按列长度，不截断 `\0`）、`getTime()` 读时间列。
+
+| 后端                               | 解码方式                                                                                                                                                                             |
+|------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| MySQL 文本协议（`MySQLRes`）       | 服务端已把每列转成字符串：整数/浮点走 `TypeUtil::Atoi/Atof`；`getUint64()` 用 `strtoull`，避免 `BIGINT UNSIGNED` 超过 `INT64_MAX` 时被截断                                           |
+| MySQL 预处理语句（`MySQLStmtRes`） | 二进制协议，按列的 `storage` 分五类绑定，映射见下表                                                                                                                                  |
+| SQLite3                            | 走 `sqlite3_column_int64/double/text`；`getTime()` 兼容 INTEGER（Unix 秒 / 毫秒）、REAL（Unix 秒 / 儒略日）与文本                                                                    |
+| PostgreSQL                         | 结果固定按文本返回（`PQexecParams` 的 `resultFormat = 0`）：整数/浮点走 `strtoll/strtod`，`boolean` 的 `t`/`f` 映射成 1/0，时间走 `TimeUtil::Str2Time`（支持 `Z`、`+08:00`、小数秒） |
+
+`MySQLStmtRes` 的列类型映射：
+
+| MySQL 类型                                                                     | 绑定类型              | 读取                                        |
+|--------------------------------------------------------------------------------|-----------------------|---------------------------------------------|
+| TINY / SHORT / LONG / INT24 / LONGLONG / YEAR / BIT                            | `MYSQL_TYPE_LONGLONG` | 整数；`UNSIGNED_FLAG`（含 BIT）决定符号     |
+| FLOAT                                                                          | `MYSQL_TYPE_FLOAT`    | `getFloat()` 直接取，`getDouble()` 精确提升 |
+| DOUBLE                                                                         | `MYSQL_TYPE_DOUBLE`   | `getDouble()` 精确                          |
+| DECIMAL / NEWDECIMAL                                                           | `MYSQL_TYPE_STRING`   | 文本解析（`SUM()` / `AVG()` 走这里）        |
+| TIMESTAMP / DATETIME / DATE / NEWDATE                                          | `MYSQL_TIME`          | `getTime()` 返回时间戳                      |
+| TIME                                                                           | `MYSQL_TIME`          | `getTime()` 返回时长秒数（可为负）          |
+| VARCHAR / VAR_STRING / STRING / ENUM / SET / JSON / NULL                       | `MYSQL_TYPE_STRING`   | `getString()` / `getBlob()`                 |
+| TINYBLOB / BLOB / MEDIUMBLOB / LONGBLOB / GEOMETRY（以及共用枚举的 TEXT 家族） | `MYSQL_TYPE_BLOB`     | 原始字节，不做字符集转换                    |
+| 其它（TIMESTAMP2 等）                                                          | `MYSQL_TYPE_STRING`   | 文本兜底                                    |
+
 ### 子查询
 
 ```cpp

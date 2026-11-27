@@ -87,4 +87,23 @@ CHEN_TEST(timeutil, str2time_auto_format)
     CHEN_CHECK(explicit_parsed > 0);
 }
 
+CHEN_TEST(timeutil, str2time_timezone_offsets)
+{
+    // PostgreSQL 的 timestamptz 文本形如 "2024-01-15 10:30:00+08"，
+    // MySQL 也可能带 "Z" 或 "+08:00"；三种写法应指向同一个瞬间
+    const time_t utc = TimeUtil::Str2Time("2024-01-15T02:30:00Z");
+    CHEN_CHECK(utc > 0);
+    CHEN_CHECK_EQ(TimeUtil::Str2Time("2024-01-15 10:30:00+08:00"), utc);
+    CHEN_CHECK_EQ(TimeUtil::Str2Time("2024-01-15 10:30:00+08"), utc);
+    CHEN_CHECK_EQ(TimeUtil::Str2Time("2024-01-15T10:30:00+08:00"), utc);
+}
+
+CHEN_TEST(timeutil, str2time_fractional_and_invalid)
+{
+    CHEN_CHECK_EQ(TimeUtil::Str2Time("2024-01-15 10:30:00.123"), TimeUtil::Str2Time("2024-01-15 10:30:00"));
+    CHEN_CHECK_EQ(TimeUtil::Str2Time("2024-01-15"), TimeUtil::Str2Time("2024-01-15 00:00:00"));
+    CHEN_CHECK_EQ(TimeUtil::Str2Time(""), static_cast<time_t>(0));
+    CHEN_CHECK_EQ(TimeUtil::Str2Time("not a time"), static_cast<time_t>(0));
+}
+
 CHEN_TEST_MAIN()

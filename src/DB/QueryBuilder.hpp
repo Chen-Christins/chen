@@ -37,6 +37,27 @@ public:
      */
     const std::string& getSelectCols() const { return select_cols_; }
 
+    /**
+     * @brief 追加一列，并把表达式收窄成整数（`CAST(expr AS SIGNED) AS alias`）
+     *
+     * MySQL 的 `SUM()` / `AVG()` 返回 DECIMAL，DECIMAL 在预处理语句的二进制协议里以文本传输；
+     * 先让服务端转成 BIGINT，下游就能直接按 `getInt64` 取值。语义上等于显式写
+     * `CAST(COALESCE(SUM(x), 0) AS SIGNED)`，只是省掉每处手写 CAST。
+     *
+     * @note 追加语义：已有列（含 `select()` 设置的）保留，新列接在末尾；`select()` 仍是覆盖语义。
+     * @note `SIGNED` 是 MySQL 语法。PostgreSQL / SQLite 的聚合结果按文本解码，本来就没有
+     *       DECIMAL 精度问题，跨库 SQL 请直接写表达式。
+     * @param expr  聚合表达式，如 `COALESCE(SUM(a.views), 0)`
+     * @param alias 列别名，空表示不带 `AS`
+     */
+    QueryBuilder::ptr selectInt64(const std::string& expr, const std::string& alias = "");
+
+    /**
+     * @brief 追加一列，并把表达式收窄成浮点（`CAST(expr AS DOUBLE) AS alias`）
+     * @see selectInt64
+     */
+    QueryBuilder::ptr selectDouble(const std::string& expr, const std::string& alias = "");
+
     // ---- WHERE (AND) ----
 
     QueryBuilder::ptr where(const std::string& col, const std::string& op, int64_t val);
@@ -248,6 +269,7 @@ private:
     void addHavingClause(const std::string& clause, Param p);
     void bindParamArray(chen::IStmt::ptr stmt, const std::vector<Param>& params, int& idx) const;
     void buildWhereClause(std::stringstream& ss) const;
+    QueryBuilder::ptr appendSelect(const std::string& expr);
 
     std::string table_;
     std::string select_cols_ = "*";

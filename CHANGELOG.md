@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 数据库（增强）
+
+- **新增** `QueryBuilder::selectInt64(expr, alias)` / `selectDouble(expr, alias)`：追加一列并把聚合表达式收窄成
+  `CAST(expr AS SIGNED)` / `CAST(expr AS DOUBLE)`，省掉业务侧每处手写 CAST（`select()` 仍是覆盖语义，
+  这两个方法是追加语义，`*` 作为 SELECT 列时会被直接替换）
+- **新增** `test_unit_querybuilder`：覆盖 `select()` 覆盖 / 追加列、`CAST` 收窄与无别名写法
+
+### 数据库（修复）
+
+- **修复** MySQL 预处理语句读错 `DECIMAL`/`NUMERIC` 列：二进制协议里 DECIMAL 以文本返回，原实现把列的
+  `buffer_type` 直接设成 `MYSQL_TYPE_NEWDECIMAL`（不是合法的结果绑定类型），数值 getter 又按
+  `*(int64_t*)data` 读取 ASCII 字节——`SUM()`/`AVG()` 这类聚合结果因此变成随机数（例如 `SUM(views) = 172`
+  会读成 `3290929`，即 `"172"` 的字节按小端解释）
+- **重构** `MySQLStmtRes::Data` 引入存储模型 `Storage{INT,FLOAT,DOUBLE,TIME,TEXT}`：列类型到「绑定类型 +
+  读取方式」的映射集中在 `Create()` 的一张表里，读取统一走 `Data::readInt64/readUint64/readDouble`，
+  不再给每个 getter 加特例分支
+    - 整型（TINY/SHORT/LONG/INT24/LONGLONG/YEAR/BIT）统一按 `MYSQL_TYPE_LONGLONG` 绑定，宽度与符号交给
+      服务端转换；`UNSIGNED_FLAG`（含 BIT）记到 `Data::is_unsigned`，读取时决定是否按无符号解释
+    - `DECIMAL`/`NEWDECIMAL` 按 `MYSQL_TYPE_STRING` 绑定（缓冲取显示宽度 + 1，下限 32 字节），
+      `Storage::TEXT` 下用 `TypeUtil::Atoi`/`Atof` 解析
+    - `FLOAT`/`DOUBLE` 分别按自身类型绑定并直接读取，`getDouble()` 对 DOUBLE 列不再先转 `float` 丢精度
+    - `TIMESTAMP`/`DATETIME`/`DATE`/`NEWDATE`/`TIME` 仍绑 `MYSQL_TIME`；`getTime()` 只对时间列做转换，
+      文本列走 `TimeUtil::Str2Time`
+    - 新增 `MySQLStmtRes::dataAt(idx)` 统一做列下标校验，10 个数值 getter 收敛成一行
+- **修复** `getInt64()` 等数值 getter 读时间列时把 `MYSQL_TIME` 首字段当整数返回的问题（现在返回 0，取时间请用
+  `getTime()`）；`getTime()` 对 `TIME` 列返回时长秒数（负时长取负），对 `DATE`/`DATETIME`/`TIMESTAMP` 返回时间戳
+- 业务侧若暂时用旧 SDK，可临时在 SQL 里写 `CAST(SUM(x) AS SIGNED)` 绕过
+
+- **新增** MySQL 预处理语句补齐其余列类型绑定：VARCHAR / VAR_STRING / STRING / ENUM / SET / JSON / NULL
+  按 `MYSQL_TYPE_STRING`；TINYBLOB / BLOB / MEDIUMBLOB / LONGBLOB / GEOMETRY（以及共用枚举的 TEXT 家族）
+  按 `MYSQL_TYPE_BLOB` 保留原始字节；未知类型（TIMESTAMP2 等）按字符串兜底，不再走非法的原类型绑定
+- **修复** MySQL 文本协议 `getUint64()` 改用 `strtoull`，`BIGINT UNSIGNED` 超过 `INT64_MAX` 时不再被 `strtoll` 截断
+- **修复** PostgreSQL `boolean` 列（文本返回 `t` / `f`）经 `getInt64()` / `getUint64()` 读成 0 的问题，
+  现在映射成 1 / 0
+- **修复** SQLite3 `getTime()` 对 INTEGER（Unix 秒 / 毫秒）与 REAL（Unix 秒 / 儒略日）时间列一律返回 0 的问题，
+  并让 `getUint64()` 不再复用有符号读取
+- **新增** `test_unit_timeutil` 的 `str2time_timezone_offsets` / `str2time_fractional_and_invalid`：
+  覆盖 `Z` / `+08` / `+08:00` 三种时区写法与小数秒、非法输入
+
 ### Fiber（修复）
 
 - **修复** 同一线程上重建调度器时的空指针崩溃：`Fiber::GetThis()` 改为先替换 `t_threadFiber`、再设置

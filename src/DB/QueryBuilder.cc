@@ -21,6 +21,27 @@ QueryBuilder::ptr QueryBuilder::select(const std::string& cols)
     return shared_from_this();
 }
 
+QueryBuilder::ptr QueryBuilder::appendSelect(const std::string& expr)
+{
+    if (select_cols_.empty() || select_cols_ == "*") {
+        select_cols_ = expr;
+    } else {
+        select_cols_ += ", ";
+        select_cols_ += expr;
+    }
+    return shared_from_this();
+}
+
+QueryBuilder::ptr QueryBuilder::selectInt64(const std::string& expr, const std::string& alias)
+{
+    return appendSelect("CAST(" + expr + " AS SIGNED)" + (alias.empty() ? "" : " AS " + alias));
+}
+
+QueryBuilder::ptr QueryBuilder::selectDouble(const std::string& expr, const std::string& alias)
+{
+    return appendSelect("CAST(" + expr + " AS DOUBLE)" + (alias.empty() ? "" : " AS " + alias));
+}
+
 // ---- Internal helpers ----
 
 void QueryBuilder::addWhereClause(const std::string& conjunction, const std::string& clause, Param p)

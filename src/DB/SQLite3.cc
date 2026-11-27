@@ -676,7 +676,11 @@ int64_t SQLite3Data::getInt64(int idx)
 
 uint64_t SQLite3Data::getUint64(int idx)
 {
-    return getInt64(idx);
+    if (!stmt_ || !stmt_->stmt_) {
+        ERROR(logger) << "SQLite3Data::getUint64 m_stmt is null";
+        return 0;
+    }
+    return static_cast<uint64_t>(sqlite3_column_int64(stmt_->stmt_, idx));
 }
 
 float SQLite3Data::getFloat(int idx)
@@ -721,8 +725,25 @@ std::string SQLite3Data::getBlob(int idx)
 
 time_t SQLite3Data::getTime(int idx)
 {
-    auto str = getString(idx);
-    return TimeUtil::Str2Time(str.c_str());
+    if (!stmt_ || !stmt_->stmt_) {
+        ERROR(logger) << "SQLite3Data::getTime m_stmt is null";
+        return 0;
+    }
+    int type = sqlite3_column_type(stmt_->stmt_, idx);
+    // SQLite 没有时间类型：常见约定是 INTEGER（Unix 秒/毫秒）或 REAL（Unix 秒/儒略日）
+    if (type == SQLITE_INTEGER) {
+        int64_t value = sqlite3_column_int64(stmt_->stmt_, idx);
+        return value > 100000000000LL ? static_cast<time_t>(value / 1000) : static_cast<time_t>(value);
+    }
+    if (type == SQLITE_FLOAT) {
+        double value = sqlite3_column_double(stmt_->stmt_, idx);
+        if (value > 2000000.0 && value < 3000000.0) {
+            // 儒略日：2440587.5 对应 1970-01-01
+            return static_cast<time_t>((value - 2440587.5) * 86400.0);
+        }
+        return value > 1e11 ? static_cast<time_t>(value / 1000.0) : static_cast<time_t>(value);
+    }
+    return TimeUtil::Str2Time(getString(idx).c_str());
 }
 
 bool SQLite3Data::next()
