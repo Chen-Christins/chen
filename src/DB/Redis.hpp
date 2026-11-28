@@ -197,6 +197,7 @@ private:
     virtual void pcmd(FCtx* ctx);
     bool pinit();
     void delayDelete(redisAsyncContext* c);
+    void releaseOnThread();
 
 private:
     static void ConnectCb(const redisAsyncContext* c, int status);

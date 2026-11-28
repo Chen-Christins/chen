@@ -55,6 +55,8 @@ bool MyModule::onUnload() {
 ```
 
 `RedisMgr` 是单例，由首个使用者触发构建；各 module 需约定由谁负责 `freeAll()`，框架不兜底。
+`freeAll()` 可以在任意线程调用：`FoxRedis` 的 `redisAsyncContext` 释放会派发回连接所属的 `FoxThread`
+执行，避免与事件循环里的 hiredis 回调竞争。
 
 ## Redis
 

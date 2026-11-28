@@ -1,5 +1,9 @@
 #include "Redis.hpp"
 
+#include <atomic>
+#include <chrono>
+#include <future>
+
 #include "../Config/Config.hpp"
 #include "../Log/Log.hpp"
 #include "../Util/Macro.hpp"
@@ -773,18 +777,54 @@ void FoxRedis::pcmd(FCtx* fctx)
     }
 }
 
-FoxRedis::~FoxRedis()
+void FoxRedis::releaseOnThread()
 {
     if (event_) {
         evtimer_del(event_);
         event_free(event_);
         event_ = nullptr;
     }
-    // 释放 redisAsyncContext（freeAll 在 FoxThread 事件循环停止前调用，安全）
+    // redisAsyncFree 会摘掉 libevent 事件、把未完成的命令回调补成 NULL 回调，
+    // 必须在连接所属的 FoxThread 事件循环里执行；从其它线程调用会和正在派发的
+    // 回调竞争，踩到 hiredis 的 redisProcessCallbacks 断言后直接 abort。
     if (context_) {
         redisAsyncFree(context_.get());
         context_.reset();
     }
+}
+
+FoxRedis::~FoxRedis()
+{
+    if (thread_ && FoxThread::GetThis() != thread_) {
+        struct Token {
+            std::promise<void> done;
+            std::atomic<bool> abandoned{false};
+        };
+        auto token = std::make_shared<Token>();
+        std::future<void> fut = token->done.get_future();
+        bool dispatched = thread_->dispatch([this, token]() {
+            if (!token->abandoned.load(std::memory_order_acquire)) {
+                releaseOnThread();
+            }
+            token->done.set_value();
+        });
+        if (!dispatched) {
+            // 派发失败说明事件循环已经不收任务了，这里同样不碰上下文：
+            // 泄漏一个连接由进程退出回收，好过和残留的调度竞争
+            token->abandoned.store(true, std::memory_order_release);
+            WARN(logger) << "redis thread already stopped, skip releasing " << host_ << ":" << port_;
+            return;
+        }
+        // 停服路径可以阻塞：等事件循环把上下文释放干净再继续
+        if (fut.wait_for(std::chrono::seconds(5)) == std::future_status::ready) {
+            return;
+        }
+        // 事件循环没响应（线程卡住），这里不能再碰上下文
+        token->abandoned.store(true, std::memory_order_release);
+        WARN(logger) << "redis thread did not release " << host_ << ":" << port_ << " in time, skip";
+        return;
+    }
+    releaseOnThread();
 }
 
 FoxRedis::Ctx::Ctx(FoxRedis* r)

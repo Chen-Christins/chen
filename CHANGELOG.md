@@ -31,6 +31,11 @@ All notable changes to this project will be documented in this file.
 - **修复** `getInt64()` 等数值 getter 读时间列时把 `MYSQL_TIME` 首字段当整数返回的问题（现在返回 0，取时间请用
   `getTime()`）；`getTime()` 对 `TIME` 列返回时长秒数（负时长取负），对 `DATE`/`DATETIME`/`TIMESTAMP` 返回时间戳
 - 业务侧若暂时用旧 SDK，可临时在 SQL 里写 `CAST(SUM(x) AS SIGNED)` 绕过
+- **修复** Redis 连接在关闭阶段被跨线程释放导致的崩溃：`RedisMgr::freeAll()` 在 worker 主线程
+  `delete FoxRedis`，而 `~FoxRedis()` 直接调用 `redisAsyncFree()`，会和连接所属 `FoxThread` 里仍在派发的
+  事件循环竞争，hiredis 随后命中 `redisProcessCallbacks` 的断言 abort（表现为启动后立刻 Ctrl-C 偶发 core）。
+  现在释放动作派发回该 `FoxThread` 并等待完成；线程已退出时就地释放，等不到响应时只记 WARN 并跳过，
+  不做并发释放
 
 - **新增** MySQL 预处理语句补齐其余列类型绑定：VARCHAR / VAR_STRING / STRING / ENUM / SET / JSON / NULL
   按 `MYSQL_TYPE_STRING`；TINYBLOB / BLOB / MEDIUMBLOB / LONGBLOB / GEOMETRY（以及共用枚举的 TEXT 家族）
