@@ -44,6 +44,7 @@ tests/
 │   ├── TestHttpMetrics.cpp
 │   ├── TestAsync.cpp
 │   ├── TestQueryBuilder.cpp
+│   ├── TestMutex.cpp
 │   └── TestOrmGen.cpp
 ├── ModuleTest/
 │   └── DrainModule.cc     # 集成测试模块（/drain/{slow,fast,stream,sse,metrics}）
@@ -217,6 +218,7 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 | `test_unit_httpmetrics`  | 新增：HTTP 请求指标的路径归一化、总量/耗时打点、在途计数与路径基数上限                          |
 | `test_unit_async`        | 新增：`Detach`/`Run`/`RunAll` 的退化路径、超时、异常回传与并行 fan-out                          |
 | `test_unit_querybuilder` | 新增：`QueryBuilder::select()` 覆盖语义与 `selectInt64()` / `selectDouble()` 追加 CAST 后的 SQL |
+| `test_unit_mutex`        | 新增：`chen::Mutex` / `RWMutex` 的协程互斥、线程与协程混合等待、不可重入检测、读共享写独斥      |
 | `test_unit_ormgen`       | `TestOrmGen.cc`（额外编译 `src/Orm/*.cc`）                                                      |
 
 有意不迁移（保留为手工程序）：
@@ -236,7 +238,8 @@ chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
 
 - **ASAN 与协程**：`boost::context` 切换栈需要 `__sanitizer_start_switch_fiber` 注解，当前未接入；对
   `libchen` 整体开 ASAN 后运行涉及 fiber 切换的用例可能出现误报。除 `test_unit_fiber`、
-  `test_unit_future`、`test_unit_async`（都会自建 `IOManager` 跑 fiber 路径）外，其余单测都是纯逻辑，可以安全地用
+  `test_unit_future`、`test_unit_async`、`test_unit_mutex`（都会自建 `IOManager` 跑 fiber 路径）外，其余单测
+  都是纯逻辑，可以安全地用
   `-DENABLE_ASAN=ON` 单独跑。
 - **drain 的协议覆盖**：HTTP/1.1 有请求边界，能等到在途请求结束；HTTP/2 在 drain 时发送 GOAWAY，
   等 `streams_` 清空后关闭会话；WS/Rock/RPC/Game 以内置的请求边界（一条消息 / 一次调用 + 回包）协作式

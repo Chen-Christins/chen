@@ -152,6 +152,9 @@ Follow `cpp-code-style` skill (`.claude/skills/cpp-code-style/SKILL.md`). Key po
 - **Indent**: 4 spaces, no tabs. Opening brace on same line for class/if/for/switch, new line for functions.
 - **Smart pointer typedef**: each class defines `typedef std::shared_ptr<T> ptr;`
 - **Lock typedef**: each class defines `typedef SpinLock MutexType;` with RAII `MutexType::Lock lock(mutex_);`
+- **Locks across yields**: if the critical section may yield (DB / Redis / socket / `sleep`), use
+  `chen::Mutex` (or `RWMutex`) with `chen::Mutex::Lock lock(mutex_);` — `std::mutex` held across a fiber
+  yield blocks the whole scheduler thread and deadlocks the process.
 - **File headers**: Doxygen `@file @brief @author @date`
 - **Include guard**: existing code uses `#ifndef`, new files prefer `#pragma once`
 - **Namespace**: all code in `namespace chen`, content not indented inside namespace

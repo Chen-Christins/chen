@@ -97,6 +97,41 @@ Atomic::addFetch(val, 1);                                   // 线程安全自�
 | `singleton.h`     | 单例模板                          | 从 `src/Singleton.hpp` 移入                  |
 | `env.h`           | 命令行参数解析、环境变量          | 从 `src/Env.hpp` 移入                        |
 
+## 同步原语（Mutex / RWMutex / FiberSemaphore）
+
+协程环境里「等待」有两层含义：阻塞线程，还是让出协程。选错锁会把整个调度线程钉死：
+
+| 类型                   | 等待方式                     | 临界区里能让出吗 | 适用场景                                    |
+|------------------------|------------------------------|------------------|---------------------------------------------|
+| `chen::Mutex`          | 协程让出 / 线程条件变量      | **可以**         | 保护需要做 DB / Redis / 网络 / sleep 的状态 |
+| `chen::RWMutex`        | 同上，读共享写独占、写者优先 | **可以**         | 读多写少、读路径也可能让出                  |
+| `chen::FiberSemaphore` | 协程让出                     | 可以             | 并发度控制（最多 N 个协程同时进入）         |
+| `chen::SpinLock`       | 自旋                         | **不可以**       | 只保护几条内存操作，临界区必须极短          |
+| `std::mutex`           | 阻塞线程                     | **不可以**       | 只保护纯内存结构，临界区里绝不能让出        |
+
+规则：临界区里只要**可能让出**（DB、Redis、网络 IO、`sleep`、日志落盘），就必须用 `chen::Mutex` / `chen::RWMutex`。
+`std::mutex` 一旦跨让出使用就是死锁隐患：持锁协程让出后，第二个协程阻塞的是整个线程，线程不再跑 epoll，
+持锁协程的 IO 完成事件永远到不了——表现为整站假死、数据库连接全部 `Sleep`。
+
+```cpp
+chen::Mutex mutex_;
+
+void UpdateViews(int64_t id)
+{
+    chen::Mutex::Lock lock(mutex_);          // 协程等待时让出，不占线程
+    auto article = ArticleRepository::Get(id); // 会让出，安全
+    article->setViews(article->getViews() + 1);
+    ArticleRepository::Put(article);           // 会让出，安全
+}
+```
+
+注意：
+
+- `Mutex` 不可重入，同一协程重复 `lock()` 抛 `std::logic_error`（等自己必然死锁）。
+- `RWMutex` 是写者优先：已有写者在等待时，新来的读锁会排队，避免写者被持续的读流量饿死。
+- 锁只在「状态需要跨让出保持独占」时才需要；能用原子变量 / 单写者线程 / 分片就不加锁。
+- 持锁让出会拉长临界区，所有做 IO 的临界区都要考虑是否真的需要互斥——按 key 分片通常比全局锁划算。
+
 ## 异步等待（Future）
 
 ```cpp

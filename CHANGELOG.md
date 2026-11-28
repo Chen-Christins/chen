@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 并发（新增）
+
+- **新增** `chen::Mutex` / `chen::RWMutex`（`src/Util/Mutex.hpp`）：协程感知的互斥锁与读写锁。等待时协程让出
+  执行权（不占线程），普通线程等待时走条件变量，两种等待者可以混用同一把锁；临界区内允许调用会让出的 API
+  （DB / Redis / 网络 / `sleep`）
+    - 动机：`std::mutex` 在协程里跨让出使用是死锁隐患——持锁协程让出后，第二个协程阻塞的是整个调度线程，
+      线程卡住后持锁协程的 IO 完成事件再也无人处理（表现为整站假死、MySQL 连接全部 `Sleep`）
+    - `Mutex` 不可重入：同一协程重复 `lock()` 抛 `std::logic_error`（等自己必然死锁）；`tryLock()` / `isLocked()` /
+      `describeHolder()` 便于加断言与排障
+    - `RWMutex` 读共享写独占、写者优先（有写者在等时新读锁排队），避免读流量把写者饿死
+- **新增** `test_unit_mutex`：协程互斥、线程与协程混合等待、不可重入检测、读锁并发/写锁独斥
 ### 数据库（增强）
 
 - **新增** `QueryBuilder::selectInt64(expr, alias)` / `selectDouble(expr, alias)`：追加一列并把聚合表达式收窄成
