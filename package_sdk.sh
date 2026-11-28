@@ -120,22 +120,23 @@ cp -r "${DIST_DIR}/${PROTOCOL_DIR}" "${DIST_DIR}/${RESOURCES_DIR}"
 
 # 复制头文件（保持目录结构）
 echo "复制头文件..."
-find chen -name "*.h" -o -name "*.hh" -o -name "*.hpp" | while read file; do
-    # 获取相对路径
+find src -name "*.h" -o -name "*.hh" -o -name "*.hpp" | while read file; do
     rel_path=$(dirname "$file")
-    # 创建目标目录
-    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/$rel_path"
-    # 复制文件
-    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/$rel_path/"
+    rel_path="${rel_path#src}"
+    rel_path="${rel_path#/}"
+    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/Chen${rel_path:+/$rel_path}"
+    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/Chen${rel_path:+/$rel_path}/"
     echo "复制: $file"
 done
 
 # 复制各模块 README.md（保留目录结构，开发者用）
 echo "复制模块文档..."
-find chen -name "README.md" | while read file; do
+find src -name "README.md" | while read file; do
     rel_path=$(dirname "$file")
-    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/$rel_path"
-    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/$rel_path/"
+    rel_path="${rel_path#src}"
+    rel_path="${rel_path#/}"
+    mkdir -p "${DIST_DIR}/${INCLUDE_DIR}/Chen${rel_path:+/$rel_path}"
+    cp "$file" "${DIST_DIR}/${INCLUDE_DIR}/Chen${rel_path:+/$rel_path}/"
     echo "复制文档: $file"
 done
 
@@ -143,13 +144,15 @@ done
 echo "复制动态库文件..."
 if [ -d "${BUILD_DIR}/lib" ]; then
     find "${BUILD_DIR}/lib" -name "*.so" -o -name "*.so.*" | while read lib_file; do
-        cp "$lib_file" "${DIST_DIR}/${LIB_DIR}/"
+        # -a 保留 SONAME 符号链接：libchen.so -> libchen.so.<major> -> libchen.so<version>
+        cp -a "$lib_file" "${DIST_DIR}/${LIB_DIR}/"
         echo "复制库: $(basename "$lib_file")"
     done
 else
     echo "警告: 未找到 lib 目录，尝试在 ./lib 目录中查找..."
     find "./lib" -name "*.so" -o -name "*.so.*" | while read lib_file; do
-        cp "$lib_file" "${DIST_DIR}/${LIB_DIR}/"
+        # -a 保留 SONAME 符号链接：libchen.so -> libchen.so.<major> -> libchen.so<version>
+        cp -a "$lib_file" "${DIST_DIR}/${LIB_DIR}/"
         echo "复制库: $(basename "$lib_file")"
     done
 fi
@@ -219,6 +222,8 @@ find_library(nghttp2 nghttp2 REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(Protobuf REQUIRED)
 find_package(Boost REQUIRED COMPONENTS context)
+find_package(PostgreSQL REQUIRED)
+include_directories(${PostgreSQL_INCLUDE_DIRS})
 
 set(CHEN_SDK_DEP_LIBS
     ${PTHREAD}
@@ -231,6 +236,7 @@ set(CHEN_SDK_DEP_LIBS
     ${Protobuf_LIBRARIES}
     ${MySQLClient}
     ${nghttp2}
+    ${PostgreSQL_LIBRARIES}
 )
 
 # Append the resolved Boost libraries (paths or linker names).
@@ -253,7 +259,7 @@ else()
 endif()
 
 # Expose Boost include directories to consumers of this SDK
-set(CHEN_SDK_DEP_INCLUDE_DIRS ${Boost_INCLUDE_DIRS} PARENT_SCOPE)
+set(CHEN_SDK_DEP_INCLUDE_DIRS ${Boost_INCLUDE_DIRS} ${PostgreSQL_INCLUDE_DIRS} PARENT_SCOPE)
 
 set(CHEN_SDK_DEP_LIBS ${CHEN_SDK_DEP_LIBS} PARENT_SCOPE)
 

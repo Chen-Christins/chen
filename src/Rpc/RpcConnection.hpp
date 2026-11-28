@@ -1,0 +1,26 @@
+/**
+ * @file RpcConnection.hpp
+ * @brief RPC 连接层（协议帧收发）
+ * @author Christins
+ * @date 2026-10-01
+ * @copyright GPL-3.0
+ */
+#pragma once
+
+#include <memory>
+
+#include "../Socket/SocketStream.hpp"
+#include "Protocol.hpp"
+
+namespace chen::rpc {
+
+class RpcConnection : public SocketStream {
+public:
+    typedef std::shared_ptr<RpcConnection> ptr;
+
+    RpcConnection(Socket::ptr sock, bool owner = true);
+    Protocol::ptr recvProtocol();
+    int sendProtocol(Protocol::ptr resp);
+};
+
+} // namespace chen::rpc

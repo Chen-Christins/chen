@@ -15,8 +15,8 @@
 │  ┌──────┴──────────────────┴─────────────────┴────────┐  │
 │  │                 IOManager (epoll)                  │  │
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────────┐      │  │
-│  │  │ accept   │  │   io     │  │    tick      │      │  │
-│  │  │ worker   │  │  worker  │  │   worker     │      │  │
+│  │  │ accept   │  │   io     │  │   timer      │      │  │
+│  │  │ worker   │  │  worker  │  │  (onTick)    │      │  │
 │  │  └──────────┘  └──────────┘  └──────────────┘      │  │
 │  └────────────────────────────────────────────────────┘  │
 │  ┌────────────────────────────────────────────────────┐  │
@@ -30,6 +30,10 @@
 └──────────────────────────────────────────────────────────┘
 ```
 
+进程职责是分开的：`ProcessSupervisor`（master）只创建并绑定监听 socket、fork 并监督
+worker；`WorkerRuntime`（worker）持有 IOManager、加载模块、跑业务；`Application` 只剩
+参数解析、daemon 化和对外门面（`getServer` / `getAllServers` / 服务发现）。
+
 ## 核心特性
 
 ### 协程与调度
@@ -42,8 +46,10 @@
 ### 模块系统
 
 - **动态加载**：`.so` 共享库 `dlopen` 加载，进程退出时由内核回收地址空间
-- **热重载（多进程）**：`kill -HUP` 或 `-s reload` 触发。master 持有监听端口，fork 新 worker 加载新模块并接管新连接，旧 worker 停止 accept、限时 drain 遗留连接后退出（无 404 窗口）
-- **配置热加载**：inotify 监听配置目录，`.yml` / `.xml` 变更后立即重载对应文件并触发变更回调（见 [`chen/watcher/README.md`](chen/watcher/README.md)）
+- **热重载（多进程）**：`kill -HUP` 或 `-s reload` 触发。master 持有监听端口，fork 新 worker 加载新模块并接管新连接；旧 worker
+  停止 accept，等待在途 HTTP/1.1 / HTTP/2 请求完成（最长 `server.drain_timeout_ms`）后退出（无 404 窗口）
+- **配置热加载**：inotify 监听配置目录，`.yml` / `.xml` 变更后立即重载对应文件并触发变更回调（见 [
+  `src/Watcher/README.md`](src/Watcher/README.md)）
 - **生命周期回调**：
   ```
   启动:    onLoad → onServerReady → onServerUp → [onTick 周期]
@@ -51,31 +57,32 @@
            旧 worker onDeactivate → onUnload → 进程退出
   关机:    onDeactivate → onUnload
   ```
-- **优雅关闭**：停止 accept → `closeAllClients()` 关闭存量连接 → drain 排空 → 停 tick → `onDeactivate` → `onUnload` → 停 Worker → 清 pid
+- **优雅关闭**：停止 accept → 关闭空闲连接、等待在途请求 → 超时强制关闭 → 停 tick → `onDeactivate` → `onUnload` → 停 Worker → 清 pid
 
 ### 网络协议支持
 
-| 协议 | 说明 |
-|------|------|
-| TCP | 通用 TCP 服务器，自定义协议支持 |
-| UDP | 独立 UDP 服务器，`recvfrom` 数据报循环 |
-| Rock | 私有二进制协议（magic + version + flag + length） |
-| HTTP/1.1 | HTTP 请求解析、路由、中间件 |
-| HTTP/2 | 基于 nghttp2 的 HTTP/2 服务器 |
-| WebSocket | WS 协议升级与帧处理 |
-| SSE | Server-Sent Events 流式推送 |
-| RPC | 模板驱动的 RPC 框架，自动序列化/反序列化，无需 IDL；支持同步与回调式异步调用 |
-| Game | 自定义二进制游戏协议（magic + cmd + seq + len） |
+| 协议      | 说明                                                                                             |
+|-----------|--------------------------------------------------------------------------------------------------|
+| TCP       | 通用 TCP 服务器，自定义协议支持                                                                  |
+| UDP       | 独立 UDP 服务器，`recvfrom` 数据报循环                                                           |
+| Rock      | 私有二进制协议（magic + version + flag + length），`type: rock` 启动，模块通过 `RockModule` 扩展 |
+| HTTP/1.1  | HTTP 请求解析、路由、中间件                                                                      |
+| HTTP/2    | 基于 nghttp2 的 HTTP/2 服务器                                                                    |
+| WebSocket | WS 协议升级与帧处理                                                                              |
+| SSE       | Server-Sent Events 流式推送                                                                      |
+| RPC       | 模板驱动的 RPC 框架，自动序列化/反序列化，无需 IDL；支持同步与回调式异步调用                     |
+| Game      | 自定义二进制游戏协议（magic + cmd + seq + len）                                                  |
 
 ### 定时器
 
 - **Timer**：基于时间堆的定时器，支持一次性/循环定时器、条件定时器
 - **精度**：毫秒级，自动检测系统时间回拨
-- **Tick**：模块可声明 `getTickIntervalMs()`，框架按周期调用 `onTick()`
+- **Tick**：模块可声明 `getTickIntervalMs()`，框架按周期调用 `onTick()`；定时器挂在主
+  IOManager 上，与 IO/业务协程同线程，因此 `onTick()` 里不要做阻塞操作
 
 ### 数据库
 
-- **ORM**：自研轻量 ORM，支持 SQLite/MySQL，参数化查询
+- **ORM**：自研轻量 ORM，支持 SQLite/MySQL/PostgreSQL，参数化查询
 - **Redis**：基于 hiredis 的异步 Redis 客户端
 - **FoxThread**：独立数据库线程，避免阻塞 I/O（懒启动）
 
@@ -94,7 +101,7 @@
 - nghttp2
 - yaml-cpp
 - jsoncpp
-- SQLite3 / MySQL
+- SQLite3 / MySQL / PostgreSQL（libpq）
 - hiredis
 - Ragel（HTTP 解析器生成）
 
@@ -108,6 +115,17 @@ cmake --build build -j$(nproc)
 cmake -B build -DENABLE_ASAN=ON
 cmake --build build -j$(nproc)
 ```
+
+### 测试
+
+Debug 构建默认启用测试（`CHEN_BUILD_TESTS`）：
+
+```bash
+make test                                        # 单元测试 + 冒烟（ctest -L "unit|smoke"）
+ctest --test-dir build -L unit --output-on-failure
+```
+
+测试代码在 `tests/Unit/`，约定与断言见 [`docs/testing.md`](docs/testing.md)。
 
 ### 依赖管理
 
@@ -149,7 +167,15 @@ make sdk
 
 **部署说明**
 
-`libchen.so` 由 chen 构建时用 `deps/` 里的静态库（`yaml-cpp` / `tinyxml2` / `jsoncpp` / `hiredis-vip` / `protobuf`）静态链接，因此部署时无需安装这几个库，只需系统依赖：`libsqlite3`、`libevent`、`libmysqlclient`、`libnghttp2`、`libboost-context`、`openssl`。三方符号随 `libchen.so`（共享库、全局作用域）导出，下游 `dlopen` 的模块可直接解析。可用 `objdump -p libchen.so | grep NEEDED` 核对。
+`libchen.so` 由 chen 构建时用 `deps/` 里的静态库（`yaml-cpp` / `tinyxml2` / `jsoncpp` / `hiredis-vip` / `protobuf`
+）静态链接，因此部署时无需安装这几个库，只需系统依赖：`libsqlite3`、`libevent`、`libmysqlclient`、`libpq`、`libnghttp2`、
+`libboost-context`、`openssl`。三方符号随 `libchen.so`（共享库、全局作用域）导出，下游 `dlopen` 的模块可直接解析。可用
+`objdump -p libchen.so | grep NEEDED` 核对。
+
+`lib/` 下的 `libchen.so` 是 SONAME 符号链接链（`libchen.so` → `libchen.so.1` → `libchen.so.1.6.0`）：
+模块的 `DT_NEEDED` 记录的是 SONAME，所以 minor 升级不需要重编模块，部署时三个文件要一起分发。
+破坏 ABI 时会把 SONAME 提升到 `libchen.so.2`，届时所有模块需要用新库重编，详见
+[docs/module-lifecycle.md](docs/module-lifecycle.md)。
 
 > 三方依赖**不随 SDK 分发**。下游工程在自己的 `dependencies.json` 中声明 `deps-<arch>.zip` 并下载到本地 `deps/`（用于编译其模块/程序）。
 
@@ -157,34 +183,37 @@ make sdk
 
 ```
 chen/
-├── chen/                   # 核心库
-│   ├── fiber/              # 协程
-│   ├── schedule/           # 调度器
-│   ├── iomanager/          # I/O 管理器
-│   ├── timer/              # 定时器
-│   ├── tcp/                # TCP 服务器
-│   ├── udp/                # UDP 服务器
-│   ├── http/               # HTTP/HTTP2/WS/SSE
-│   ├── rpc/                # RPC 框架（同步 + 异步）
-│   ├── game/               # 游戏协议服务器
-│   ├── rock/               # Rock 二进制协议
-│   ├── socket/             # Socket 封装
-│   ├── module/             # 模块系统 + 动态库加载
-│   ├── rate_limiter/       # 连接限流器
-│   ├── ds/                 # Dispatcher / EventBus / 缓存
-│   ├── streams/            # 流抽象 + 负载均衡
-│   ├── application.*       # 应用主控
-│   ├── log/                # 日志系统
-│   ├── config/             # 配置系统 (YAML/XML)
-│   ├── db/                 # 数据库 (Redis/MySQL/SQLite)
-│   ├── orm/                # ORM 与 QueryBuilder
-│   ├── util/               # 工具 (字符串/时间/加密/环境)
-│   ├── bytearray/          # 字节流
-│   ├── hook/               # 系统调用 Hook
-│   └── thread/             # 线程封装
+├── src/                    # 核心库
+│   ├── Fiber/              # 协程
+│   ├── Schedule/           # 调度器
+│   ├── IOManager/          # I/O 管理器
+│   ├── Timer/              # 定时器
+│   ├── Tcp/                # TCP 服务器
+│   ├── Udp/                # UDP 服务器
+│   ├── Http/               # HTTP/HTTP2/WS/SSE
+│   ├── Rpc/                # RPC 框架（同步 + 异步）
+│   ├── Game/               # 游戏协议服务器
+│   ├── Rock/               # Rock 二进制协议
+│   ├── Socket/             # Socket 封装
+│   ├── Module/             # 模块系统 + 动态库加载
+│   ├── RateLimiter/       # 连接限流器
+│   ├── Ds/                 # Dispatcher / EventBus / 缓存
+│   ├── Streams/            # 流抽象 + 负载均衡
+│   ├── Application.*       # 进程引导 + 对外门面（init/run/sendSignal）
+│   ├── ProcessSupervisor.* # master：fork/监督 worker、热重载、停机
+│   ├── WorkerRuntime.*     # worker：调度器、模块生命周期、优雅关闭
+│   ├── ServerRegistry.*    # TcpServer 的创建/绑定/查找
+│   ├── Log/                # 日志系统
+│   ├── Config/             # 配置系统 (YAML/XML)
+│   ├── DB/                 # 数据库 (Redis/MySQL/SQLite)
+│   ├── Orm/                # ORM 与 QueryBuilder
+│   ├── Util/               # 工具 (字符串/时间/加密/环境)
+│   ├── ByteArray/          # 字节流
+│   ├── Hook/               # 系统调用 Hook
+│   └── Thread/             # 线程封装
 ├── tests/                  # 测试与示例模块
-│   ├── game/               # 游戏模块示例
-│   └── module_test/        # 生命周期测试模块
+│   ├── Game/               # 游戏模块示例
+│   └── ModuleTest/        # 生命周期测试模块
 ├── servers/                # 主程序入口
 ├── template/               # 模块模板
 └── cmake/                  # CMake 工具函数
@@ -196,25 +225,25 @@ chen/
 
 ```bash
 # 前台运行
-bin/main -s -c /path/to/conf
+bin/server -s -c /path/to/conf
 
 # 后台守护进程
-bin/main -d -c /path/to/conf
+bin/server -d -c /path/to/conf
 ```
 
 ### 版本号
 
 ```bash
-bin/main -v            # 输出 chen/1.5.5
-bin/main --version     # 同上
+bin/server -v            # 输出版本号
+bin/server --version     # 同上
 ```
 
 ### 信号命令
 
 ```bash
-bin/main -s reload    # 热重载 .so 模块（SIGHUP）；配置变更由 inotify 自动加载
-bin/main -s stop      # 优雅关闭（SIGTERM）
-bin/main -s quit      # 优雅关闭（SIGTERM）
+bin/server -s reload    # 热重载 .so 模块（SIGHUP）；配置变更由 inotify 自动加载
+bin/server -s stop      # 优雅关闭（SIGTERM）
+bin/server -s quit      # 优雅关闭（SIGTERM）
 ```
 
 ### 手动发信号
@@ -241,17 +270,17 @@ fiber:
   stack_size: 131072
 ```
 
-| 配置键 | 默认值 | 说明 |
-|--------|--------|------|
-| `server.drain_timeout_ms` | 10000 | 停止 accept 后等待连接排空的超时 |
-| `server.housekeeping_interval_ms` | 500 | housekeeping 轮询间隔（仅信号检测） |
-| `fiber.stack_size` | 131072 | 协程栈大小（字节） |
-| `module.path` | module | 模块 .so 搜索路径 |
+| 配置键                            | 默认值 | 说明                                               |
+|-----------------------------------|--------|----------------------------------------------------|
+| `server.drain_timeout_ms`         | 10000  | 停止 accept 后等待在途请求完成的超时，超时强制关闭 |
+| `server.housekeeping_interval_ms` | 500    | housekeeping 轮询间隔（仅信号检测）                |
+| `fiber.stack_size`                | 131072 | 协程栈大小（字节）                                 |
+| `module.path`                     | module | 模块 .so 搜索路径                                  |
 
 配置文件变更由 inotify 事件驱动自动重载（改完即生效，无轮询延迟），业务模块如何声明配置项
-并响应变更见 [`chen/watcher/README.md`](chen/watcher/README.md)。
+并响应变更见 [`src/Watcher/README.md`](src/Watcher/README.md)。
 
-Redis / MySQL / SQLite3 的配置字段与业务侧用法见
+Redis / MySQL / SQLite3 / PostgreSQL 的配置字段与业务侧用法见
 [`docs/db-configuration.md`](docs/db-configuration.md)。
 
 ## 编写模块
@@ -259,8 +288,8 @@ Redis / MySQL / SQLite3 的配置字段与业务侧用法见
 ### 最小模块示例
 
 ```cpp
-#include <chen/module/module.h>
-#include <chen/log/log.h>
+#include <Chen/Module/Module.hpp>
+#include <Chen/Log/Log.hpp>
 
 class MyModule : public chen::Module {
 public:
@@ -287,7 +316,7 @@ public:
     }
 
     bool onDeactivate() override {
-        // 热重载旧模块被替换 / 关机前：停定时器、flush 脏数据
+        // worker drain（热重载/关机）：flush 脏数据，tick 定时器已由框架取消
         return true;
     }
 };

@@ -29,7 +29,7 @@ tools/
 ├── test_data_reader.cc         # C++ 测试程序
 └── README.md                   # 说明文档
 
-chen/data/
+src/Data/
 ├── data_reader.h               # C++ 数据读取器头文件
 ├── data_reader.cpp             # C++ 数据读取器实现
 ├── data_decryptor.h            # 解密模块头文件
@@ -74,7 +74,7 @@ python3 scripts/xlsx_to_bin.py xlsx/table1.xlsx xlsx/table2.xlsx xlsx/table3.xls
 ### 3. C++ 程序中读取数据
 
 ```cpp
-#include "chen/data/data_reader.h"
+#include "Chen/Data/DataReader.hpp"
 
 using namespace chen::data;
 

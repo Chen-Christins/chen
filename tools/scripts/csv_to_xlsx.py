@@ -15,6 +15,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 import chardet
 
+
 class CsvToXlsxConverter:
     """CSV到XLSX的转换器"""
 
@@ -140,7 +141,7 @@ class CsvToXlsxConverter:
         return value
 
     def _create_xlsx(self, csv_data: Dict[str, Any], output_path: str,
-                    auto_format: bool = True) -> None:
+                     auto_format: bool = True) -> None:
         """创建XLSX文件"""
         wb = Workbook()
         ws = wb.active
@@ -185,7 +186,7 @@ class CsvToXlsxConverter:
         wb.save(output_path)
 
     def convert_csv_to_xlsx(self, csv_files: List[str], output_pattern: str,
-                           auto_format: bool = True) -> None:
+                            auto_format: bool = True) -> None:
         """转换CSV文件为XLSX格式"""
         print(f"开始转换 {len(csv_files)} 个CSV文件...")
 
@@ -251,18 +252,19 @@ class CsvToXlsxConverter:
             for file in converted_files:
                 print(f"  - {file}")
 
+
 def main():
     parser = argparse.ArgumentParser(description='CSV到XLSX转换工具')
     parser.add_argument('input', nargs='+', help='输入的CSV文件路径')
     parser.add_argument('-o', '--output', required=True,
-                       help='输出的XLSX文件路径（可使用*通配符或指定目录）')
+                        help='输出的XLSX文件路径（可使用*通配符或指定目录）')
     parser.add_argument('-v', '--verbose', action='store_true', help='显示详细信息')
     parser.add_argument('--no-auto-format', action='store_true',
-                       help='禁用自动格式化（表头样式、列宽调整等）')
+                        help='禁用自动格式化（表头样式、列宽调整等）')
     parser.add_argument('--encoding', default='utf-8',
-                       help='指定文件编码（默认: utf-8）')
+                        help='指定文件编码（默认: utf-8）')
     parser.add_argument('--no-auto-encoding', action='store_true',
-                       help='禁用自动编码检测')
+                        help='禁用自动编码检测')
 
     args = parser.parse_args()
 
@@ -280,6 +282,7 @@ def main():
     except Exception as e:
         print(f"错误: {str(e)}")
         sys.exit(1)
+
 
 if __name__ == '__main__':
     main()

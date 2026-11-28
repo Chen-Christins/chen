@@ -1,0 +1,344 @@
+/**
+ * @file QueryBuilder.hpp
+ * @brief 参数化 SQL 查询构建器，支持动态 WHERE、JOIN、ORDER BY、分页、聚合、INSERT/UPDATE/DELETE
+ * @author Christins
+ * @date 2026-06-05
+ * @copyright GPL-3.0
+ */
+#pragma once
+
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "DB.hpp"
+
+namespace chen {
+
+class QueryBuilder : public std::enable_shared_from_this<QueryBuilder> {
+public:
+    typedef std::shared_ptr<QueryBuilder> ptr;
+
+    /**
+     * @brief 创建查询构建器
+     * @param table 表名
+     */
+    static QueryBuilder::ptr Create(const std::string& table);
+
+    /**
+     * @brief 设置 SELECT 列表达式
+     * @param cols 列表达式，默认 "*"
+     */
+    QueryBuilder::ptr select(const std::string& cols);
+
+    /**
+     * @brief 获取 SELECT 列表达式的列
+     * @return SELECT 列表达式
+     */
+    const std::string& getSelectCols() const { return select_cols_; }
+
+    /**
+     * @brief 追加一列，并把表达式收窄成整数（`CAST(expr AS SIGNED) AS alias`）
+     *
+     * MySQL 的 `SUM()` / `AVG()` 返回 DECIMAL，DECIMAL 在预处理语句的二进制协议里以文本传输；
+     * 先让服务端转成 BIGINT，下游就能直接按 `getInt64` 取值。语义上等于显式写
+     * `CAST(COALESCE(SUM(x), 0) AS SIGNED)`，只是省掉每处手写 CAST。
+     *
+     * @note 追加语义：已有列（含 `select()` 设置的）保留，新列接在末尾；`select()` 仍是覆盖语义。
+     * @note `SIGNED` 是 MySQL 语法。PostgreSQL / SQLite 的聚合结果按文本解码，本来就没有
+     *       DECIMAL 精度问题，跨库 SQL 请直接写表达式。
+     * @param expr  聚合表达式，如 `COALESCE(SUM(a.views), 0)`
+     * @param alias 列别名，空表示不带 `AS`
+     */
+    QueryBuilder::ptr selectInt64(const std::string& expr, const std::string& alias = "");
+
+    /**
+     * @brief 追加一列，并把表达式收窄成浮点（`CAST(expr AS DOUBLE) AS alias`）
+     * @see selectInt64
+     */
+    QueryBuilder::ptr selectDouble(const std::string& expr, const std::string& alias = "");
+
+    // ---- WHERE (AND) ----
+
+    QueryBuilder::ptr where(const std::string& col, const std::string& op, int64_t val);
+    QueryBuilder::ptr where(const std::string& col, const std::string& op, const std::string& val);
+    QueryBuilder::ptr where(const std::string& col, const std::string& op, double val);
+    QueryBuilder::ptr whereIf(bool condition, const std::string& col, const std::string& op, int64_t val);
+    QueryBuilder::ptr whereIf(bool condition, const std::string& col, const std::string& op, const std::string& val);
+    QueryBuilder::ptr whereIf(bool condition, const std::string& col, const std::string& op, double val);
+
+    QueryBuilder::ptr whereSQL(const std::string& sql, int64_t val);
+    QueryBuilder::ptr whereSQL(const std::string& sql, const std::string& val);
+    QueryBuilder::ptr whereSQL(const std::string& sql, double val);
+    QueryBuilder::ptr whereSQLIf(bool condition, const std::string& sql, int64_t val);
+    QueryBuilder::ptr whereSQLIf(bool condition, const std::string& sql, const std::string& val);
+    QueryBuilder::ptr whereSQLIf(bool condition, const std::string& sql, double val);
+
+    QueryBuilder::ptr whereIn(const std::string& col, const std::vector<int64_t>& vals);
+    QueryBuilder::ptr whereIn(const std::string& col, const std::vector<std::string>& vals);
+    /**
+     * @brief WHERE col IN (subquery)
+     * @param col 列名
+     * @param sub 子查询 QueryBuilder（SELECT/WHERE/JOIN 等正常使用，LIMIT/OFFSET 会被忽略）
+     */
+    QueryBuilder::ptr whereIn(const std::string& col, QueryBuilder::ptr sub);
+
+    QueryBuilder::ptr whereNull(const std::string& col);
+    QueryBuilder::ptr whereNotNull(const std::string& col);
+    QueryBuilder::ptr whereNotIn(const std::string& col, const std::vector<int64_t>& vals);
+    QueryBuilder::ptr whereNotIn(const std::string& col, const std::vector<std::string>& vals);
+    QueryBuilder::ptr whereBetween(const std::string& col, int64_t lo, int64_t hi);
+    QueryBuilder::ptr whereBetween(const std::string& col, const std::string& lo, const std::string& hi);
+    QueryBuilder::ptr whereLike(const std::string& col, const std::string& val);
+    QueryBuilder::ptr whereLeftLike(const std::string& col, const std::string& val);
+
+    QueryBuilder::ptr whereNullIf(bool cond, const std::string& col);
+    QueryBuilder::ptr whereNotNullIf(bool cond, const std::string& col);
+    QueryBuilder::ptr whereNotInIf(bool cond, const std::string& col, const std::vector<int64_t>& vals);
+    QueryBuilder::ptr whereNotInIf(bool cond, const std::string& col, const std::vector<std::string>& vals);
+    QueryBuilder::ptr whereBetweenIf(bool cond, const std::string& col, int64_t lo, int64_t hi);
+    QueryBuilder::ptr whereBetweenIf(bool cond, const std::string& col, const std::string& lo, const std::string& hi);
+    QueryBuilder::ptr whereLikeIf(bool cond, const std::string& col, const std::string& val);
+    QueryBuilder::ptr whereLeftLikeIf(bool cond, const std::string& col, const std::string& val);
+
+    // ---- WHERE (OR) ----
+
+    QueryBuilder::ptr orWhere(const std::string& col, const std::string& op, int64_t val);
+    QueryBuilder::ptr orWhere(const std::string& col, const std::string& op, const std::string& val);
+    QueryBuilder::ptr orWhere(const std::string& col, const std::string& op, double val);
+    QueryBuilder::ptr orWhereIf(bool condition, const std::string& col, const std::string& op, int64_t val);
+    QueryBuilder::ptr orWhereIf(bool condition, const std::string& col, const std::string& op, const std::string& val);
+    QueryBuilder::ptr orWhereIf(bool condition, const std::string& col, const std::string& op, double val);
+
+    QueryBuilder::ptr orWhereSQL(const std::string& sql, int64_t val);
+    QueryBuilder::ptr orWhereSQL(const std::string& sql, const std::string& val);
+    QueryBuilder::ptr orWhereSQL(const std::string& sql, double val);
+    QueryBuilder::ptr orWhereSQLIf(bool condition, const std::string& sql, int64_t val);
+    QueryBuilder::ptr orWhereSQLIf(bool condition, const std::string& sql, const std::string& val);
+    QueryBuilder::ptr orWhereSQLIf(bool condition, const std::string& sql, double val);
+
+    QueryBuilder::ptr orWhereNull(const std::string& col);
+    QueryBuilder::ptr orWhereNotNull(const std::string& col);
+    QueryBuilder::ptr orWhereNullIf(bool cond, const std::string& col);
+    QueryBuilder::ptr orWhereNotNullIf(bool cond, const std::string& col);
+
+    // ---- HAVING ----
+
+    QueryBuilder::ptr having(const std::string& col, const std::string& op, int64_t val);
+    QueryBuilder::ptr having(const std::string& col, const std::string& op, const std::string& val);
+    QueryBuilder::ptr having(const std::string& col, const std::string& op, double val);
+    QueryBuilder::ptr havingIf(bool condition, const std::string& col, const std::string& op, int64_t val);
+    QueryBuilder::ptr havingIf(bool condition, const std::string& col, const std::string& op, const std::string& val);
+    QueryBuilder::ptr havingIf(bool condition, const std::string& col, const std::string& op, double val);
+
+    // ---- JOIN ----
+
+    /**
+     * @brief 添加 JOIN
+     * @param type JOIN 类型 ("INNER", "LEFT", "RIGHT")
+     * @param table 要 JOIN 的表名
+     * @param on ON 条件 (e.g. "a.id = r.article_id")
+     */
+    QueryBuilder::ptr join(const std::string& type, const std::string& table, const std::string& on);
+
+    /**
+     * @brief 添加 INNER JOIN（便捷方法）
+     */
+    QueryBuilder::ptr join(const std::string& table, const std::string& on);
+
+    // ---- ORDER BY / LIMIT / OFFSET / GROUP BY ----
+
+    QueryBuilder::ptr orderBy(const std::string& col, const std::string& dir);
+    bool hasOrderBy() const { return !order_by_.empty(); }
+    QueryBuilder::ptr limit(int32_t n);
+    QueryBuilder::ptr offset(int32_t n);
+    QueryBuilder::ptr groupBy(const std::string& col);
+
+    // ---- UPDATE SET ----
+
+    QueryBuilder::ptr set(const std::string& col, int64_t val);
+    QueryBuilder::ptr set(const std::string& col, const std::string& val);
+    QueryBuilder::ptr set(const std::string& col, double val);
+    QueryBuilder::ptr setIf(bool condition, const std::string& col, int64_t val);
+    QueryBuilder::ptr setIf(bool condition, const std::string& col, const std::string& val);
+    QueryBuilder::ptr setIf(bool condition, const std::string& col, double val);
+
+    // ---- INSERT ----
+
+    QueryBuilder::ptr insert(const std::string& col, int64_t val);
+    QueryBuilder::ptr insert(const std::string& col, const std::string& val);
+    QueryBuilder::ptr insert(const std::string& col, double val);
+
+    // ---- SQL builders ----
+
+    std::string buildCountSQL() const;
+
+    /**
+     * @brief 构建 SELECT SQL
+     * @param select_cols 要查询的列表达式，覆盖 select() 设置的列
+     * @param with_pagination 是否包含 LIMIT/OFFSET 子句，默认 true。
+     *                       QueryByBuilderPages 需要传 false 以自行追加分页。
+     */
+    std::string buildQuerySQL(const std::string& select_cols, bool with_pagination = true) const;
+    std::string buildQuerySQL() const;
+
+    std::string buildUpdateSQL() const;
+    std::string buildDeleteSQL() const;
+    std::string buildInsertSQL() const;
+
+    // ---- Parameter binding ----
+
+    /// Bind WHERE + HAVING + LIMIT/OFFSET params (for SELECT queries)
+    void bindParams(chen::IStmt::ptr stmt) const;
+    /// Bind WHERE + HAVING params only (no LIMIT/OFFSET, for COUNT queries)
+    void bindQueryParams(chen::IStmt::ptr stmt) const;
+    /// Get count of WHERE + HAVING params (for index calculation after bindQueryParams)
+    int getQueryParamCount() const { return static_cast<int>(where_params_.size() + having_params_.size()); }
+
+    /// Bind SET params then WHERE params (for UPDATE queries)
+    void bindUpdateParams(chen::IStmt::ptr stmt) const;
+    /// Bind INSERT params
+    void bindInsertParams(chen::IStmt::ptr stmt) const;
+
+    // ---- Executors ----
+
+    int executeUpdate(chen::IDB::ptr conn);
+    int executeDelete(chen::IDB::ptr conn);
+    int executeInsert(chen::IDB::ptr conn);
+    int executeInsert(chen::IDB::ptr conn, int64_t& last_insert_id);
+    int executeCount(int64_t& total, chen::IDB::ptr conn) const;
+
+    /**
+     * @brief 执行 SELECT 查询并返回原始结果集
+     * @param conn 数据库连接
+     * @return ISQLData 结果集，调用者通过 next() 遍历，失败返回 nullptr
+     */
+    ISQLData::ptr executeQuery(chen::IDB::ptr conn) const;
+
+    /**
+     * @brief 执行单列查询（如 SELECT id, SELECT DISTINCT day(...)）
+     * @tparam T 列值类型（int32_t / int64_t / std::string）
+     * @param results 输出向量
+     * @param conn 数据库连接
+     * @param col 列名（空字符串 = 第 0 列）
+     * @return 0 成功，非 0 失败
+     */
+    template <typename T>
+    int queryColumn(std::vector<T>& results, chen::IDB::ptr conn, const std::string& col = "") const;
+
+    /**
+     * @brief 执行 GROUP BY / 两列聚合查询，以 std::pair 形式返回
+     *        典型场景：SELECT status, COUNT(*) AS cnt ... GROUP BY status
+     * @tparam K 第一列类型
+     * @tparam V 第二列类型
+     * @return 0 成功，非 0 失败
+     */
+    template <typename K, typename V>
+    int queryPairs(std::vector<std::pair<K, V>>& results, chen::IDB::ptr conn) const;
+
+    /**
+     * @brief 执行标量查询（如 SELECT SUM(views), SELECT COUNT(*)）
+     * @param result 输出值
+     * @param conn 数据库连接
+     * @param col 列名（空字符串 = 第 0 列）
+     * @return 0 成功，非 0 失败
+     */
+    int queryScalarInt64(int64_t& result, chen::IDB::ptr conn, const std::string& col = "") const;
+
+    /**
+     * @brief 执行标量查询（返回 double，如 SELECT AVG(...)）
+     */
+    int queryScalarDouble(double& result, chen::IDB::ptr conn, const std::string& col = "") const;
+
+private:
+    struct Param {
+        enum Type {
+            INT32_VAL,
+            INT64_VAL,
+            STRING_VAL,
+            FLOAT_VAL,
+            DOUBLE_VAL
+        };
+        Type type;
+        int64_t int_val = 0;
+        double dbl_val = 0.0;
+        std::string str_val;
+    };
+
+    void addWhereClause(const std::string& conjunction, const std::string& clause, Param p);
+    void addHavingClause(const std::string& clause, Param p);
+    void bindParamArray(chen::IStmt::ptr stmt, const std::vector<Param>& params, int& idx) const;
+    void buildWhereClause(std::stringstream& ss) const;
+    QueryBuilder::ptr appendSelect(const std::string& expr);
+
+    std::string table_;
+    std::string select_cols_ = "*";
+    std::vector<std::string> where_clauses_;
+    std::vector<std::string> where_conjunctions_; // AND or OR, same size as where_clauses_ (first entry unused)
+    std::vector<Param> where_params_;
+    std::vector<std::string> set_clauses_;
+    std::vector<Param> set_params_;
+    std::vector<std::string> insert_cols_;
+    std::vector<Param> insert_params_;
+    std::vector<std::string> joins_;
+    std::string order_by_;
+    bool has_limit_ = false;
+    int32_t limit_ = 0;
+    bool has_offset_ = false;
+    int32_t offset_ = 0;
+    std::string group_by_;
+    std::vector<std::string> having_clauses_;
+    std::vector<Param> having_params_;
+};
+
+namespace detail {
+
+template <typename T>
+T queryColumnGet(ISQLData::ptr rt, int idx)
+{
+    if constexpr (std::is_same_v<T, int32_t>) {
+        return rt->getInt32(idx);
+    } else if constexpr (std::is_same_v<T, int64_t>) {
+        return rt->getInt64(idx);
+    } else if constexpr (std::is_same_v<T, double>) {
+        return rt->getDouble(idx);
+    } else if constexpr (std::is_same_v<T, std::string>) {
+        return rt->getString(idx);
+    } else {
+        static_assert(sizeof(T) == 0, "Unsupported column type");
+    }
+}
+
+} // namespace detail
+
+template <typename T>
+int QueryBuilder::queryColumn(std::vector<T>& results, IDB::ptr conn, const std::string& col) const
+{
+    auto rt = executeQuery(conn);
+    if (!rt) {
+        return -1;
+    }
+    int idx = col.empty() ? 0 : rt->findColumn(col);
+    if (idx < 0) {
+        return -2;
+    }
+    while (rt->next()) {
+        results.push_back(detail::queryColumnGet<T>(rt, idx));
+    }
+    return 0;
+}
+
+template <typename K, typename V>
+int QueryBuilder::queryPairs(std::vector<std::pair<K, V>>& results, IDB::ptr conn) const
+{
+    auto rt = executeQuery(conn);
+    if (!rt) {
+        return -1;
+    }
+    while (rt->next()) {
+        results.emplace_back(detail::queryColumnGet<K>(rt, 0), detail::queryColumnGet<V>(rt, 1));
+    }
+    return 0;
+}
+
+} // namespace chen

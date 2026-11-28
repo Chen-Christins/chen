@@ -34,6 +34,39 @@ servers:
   #   process_worker: io
   #   type: game
 
+  # # Rock 协议服务器 - 自定义二进制 RPC，模块通过 RockModule 处理请求
+  # - address: ["0.0.0.0:9000"]
+  #   timeout: 30000
+  #   name: rock_server
+  #   accept_worker: accept
+  #   io_worker: io
+  #   process_worker: io
+  #   type: rock
+
+
+# # 静态服务发现（可选）：配置后框架会自动创建 StaticServiceDiscovery
+# service_discovery:
+#   domains:
+#     astartes:
+#       rock:
+#         - name: "rock-1"
+#           address: "127.0.0.1:9000"
+#           weight: 100
+#
+# # Rock 客户端负载均衡策略（配合 RockSDLoadBalance 手动启动）
+# rock_services:
+#   astartes:
+#     rock: round_robin
+#
+# rock:
+#   service_worker: ""       # 建连 worker 调度器名，留空用当前调度器
+#   request_max_retry: 2     # 无响应时换实例重试次数
+#
+# # 被动健康检查：连续失败后摘除实例
+# load_balance:
+#   fail_threshold: 3
+#   fail_cooldown_ms: 5000
+
 
 # 服务器配置
 server:
@@ -44,71 +77,6 @@ server:
   # worker_ready_timeout_ms: 30000    # master 等待新 worker 就绪的超时毫秒数
   # worker_restart_interval_ms: 2000  # worker 崩溃后 master 重启前的等待毫秒数
   # housekeeping_interval_ms: 500     # worker 检查关闭信号的定时器间隔
-
-# 日志配置
-logs:
-  - name: root
-    level: info
-    formatter: "%d{%Y-%m-%d %H:%M:%S.%f}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"
-    appenders:
-      - type: FileLogAppender
-        file: /home/chen/workspace/chen/logs/root.log
-        # time_rotate: hour
-        # max_size: 104857600   # 单文件超过 100MB 即分片
-      - type: StdoutLogAppender
-  - name: system
-    level: debug
-    formatter: "%d{%Y-%m-%d %H:%M:%S.%f}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"
-    appenders:
-      - type: FileLogAppender
-        file: /home/chen/workspace/chen/logs/system.log
-        # time_rotate: 30min
-      - type: StdoutLogAppender
-  - name: access
-    level: info
-    formatter: "%d{%Y-%m-%d %H:%M:%S.%f}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"
-    appenders:
-      - type: FileLogAppender
-        file: /home/chen/workspace/chen/logs/access.log
-        # time_rotate: day
-        # max_size: 104857600   # 单文件超过 100MB 即分片
-      - type: StdoutLogAppender
-  - name: http_gateway
-    level: debug
-    formatter: "%d{%Y-%m-%d %H:%M:%S.%f}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"
-    appenders:
-      - type: FileLogAppender
-        file: /home/chen/workspace/chen/logs/http_gateway.log
-        # time_rotate: day
-      - type: StdoutLogAppender
-
-
-# 数据库配置
-sqlite3:
-  dbs:
-    blog:
-      path: /home/chen/workspace/chen/blog.db
-      sql: PRAGMA synchronous = OFF
-
-
-# Redis配置（由业务 module 决定是否使用，框架不主动初始化）
-redis:
-  config:
-    blog:
-      host: 127.0.0.1:6379
-      type: fox_redis
-      pool: 1
-      timeout: 100
-  desc: "type: redis,redis_cluster,fox_redis,fox_redis_cluster"
-
-
-# Redis线程配置
-fox_thread:
-  redis:
-    name: redis
-    num: 1
-    advance: 0
-
 
 workers:
   # HTTP服务器IO线程

@@ -2,6 +2,355 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### 可观测性（新增）
+
+- **新增** `chen::StallDetector`（`src/Util/StallDetector.hpp`）：调度线程 stall 检测。每个调度线程在
+  `Scheduler::run()` 里打心跳（原子写，不加锁），`IOManager::idle()` 阻塞在 `epoll_wait` 时标记为空闲；worker 的
+  housekeeping 定时器（默认 500ms）巡检，超过 `server.stall_detect_ms`（默认 2000ms，0 关闭）就打 WARN，包含
+  线程名、tid、停留时长、当前协程 id 和最后一次会阻塞的操作
+  - 同一段 stall 只报一次，恢复心跳后重新计数
+  - `dump()` 返回所有线程快照，可挂到 `/debug/fibers` 这类端点
+  - 这类问题（`std::mutex` 跨让出、阻塞在未 hook 的 syscall、死循环）过去只能靠线上 gdb 事后定位
+- **新增** `test_unit_stalldetector`：阈值判定、空闲豁免、只报一次、`dump()`/`dumpJson()` 内容
+- **新增** 诊断端点 `RegisterDiagnosticsServlets()`（`src/Http/DiagnosticsServlet.hpp`）：`GET /debug/fibers`
+  返回所有调度线程的 JSON 快照（tid/name/idle/last_ping_ms/fiber/op/fd），直接复用 `StallDetector::dumpJson()`
+- **新增** 慢 IO 诊断 `hook.slow_io_ms`（默认 0 关闭）：被 hook 的 read/write 等待超阈值时打 WARN，
+  带 fd 与等待时长，排查慢后端/慢客户端
+
+### 并发（新增）
+
+- **新增** `chen::Mutex` / `chen::RWMutex`（`src/Util/Mutex.hpp`）：协程感知的互斥锁与读写锁。等待时协程让出
+  执行权（不占线程），普通线程等待时走条件变量，两种等待者可以混用同一把锁；临界区内允许调用会让出的 API
+  （DB / Redis / 网络 / `sleep`）
+    - 动机：`std::mutex` 在协程里跨让出使用是死锁隐患——持锁协程让出后，第二个协程阻塞的是整个调度线程，
+      线程卡住后持锁协程的 IO 完成事件再也无人处理（表现为整站假死、MySQL 连接全部 `Sleep`）
+    - `Mutex` 不可重入：同一协程重复 `lock()` 抛 `std::logic_error`（等自己必然死锁）；`tryLock()` / `isLocked()` /
+      `describeHolder()` 便于加断言与排障
+    - `RWMutex` 读共享写独占、写者优先（有写者在等时新读锁排队），避免读流量把写者饿死
+- **新增** `test_unit_mutex`：协程互斥、线程与协程混合等待、不可重入检测、读锁并发/写锁独斥
+### 数据库（增强）
+
+- **新增** `QueryBuilder::selectInt64(expr, alias)` / `selectDouble(expr, alias)`：追加一列并把聚合表达式收窄成
+  `CAST(expr AS SIGNED)` / `CAST(expr AS DOUBLE)`，省掉业务侧每处手写 CAST（`select()` 仍是覆盖语义，
+  这两个方法是追加语义，`*` 作为 SELECT 列时会被直接替换）
+- **新增** `test_unit_querybuilder`：覆盖 `select()` 覆盖 / 追加列、`CAST` 收窄与无别名写法
+
+### 数据库（修复）
+
+- **修复** MySQL 预处理语句读错 `DECIMAL`/`NUMERIC` 列：二进制协议里 DECIMAL 以文本返回，原实现把列的
+  `buffer_type` 直接设成 `MYSQL_TYPE_NEWDECIMAL`（不是合法的结果绑定类型），数值 getter 又按
+  `*(int64_t*)data` 读取 ASCII 字节——`SUM()`/`AVG()` 这类聚合结果因此变成随机数（例如 `SUM(views) = 172`
+  会读成 `3290929`，即 `"172"` 的字节按小端解释）
+- **重构** `MySQLStmtRes::Data` 引入存储模型 `Storage{INT,FLOAT,DOUBLE,TIME,TEXT}`：列类型到「绑定类型 +
+  读取方式」的映射集中在 `Create()` 的一张表里，读取统一走 `Data::readInt64/readUint64/readDouble`，
+  不再给每个 getter 加特例分支
+    - 整型（TINY/SHORT/LONG/INT24/LONGLONG/YEAR/BIT）统一按 `MYSQL_TYPE_LONGLONG` 绑定，宽度与符号交给
+      服务端转换；`UNSIGNED_FLAG`（含 BIT）记到 `Data::is_unsigned`，读取时决定是否按无符号解释
+    - `DECIMAL`/`NEWDECIMAL` 按 `MYSQL_TYPE_STRING` 绑定（缓冲取显示宽度 + 1，下限 32 字节），
+      `Storage::TEXT` 下用 `TypeUtil::Atoi`/`Atof` 解析
+    - `FLOAT`/`DOUBLE` 分别按自身类型绑定并直接读取，`getDouble()` 对 DOUBLE 列不再先转 `float` 丢精度
+    - `TIMESTAMP`/`DATETIME`/`DATE`/`NEWDATE`/`TIME` 仍绑 `MYSQL_TIME`；`getTime()` 只对时间列做转换，
+      文本列走 `TimeUtil::Str2Time`
+    - 新增 `MySQLStmtRes::dataAt(idx)` 统一做列下标校验，10 个数值 getter 收敛成一行
+- **修复** `getInt64()` 等数值 getter 读时间列时把 `MYSQL_TIME` 首字段当整数返回的问题（现在返回 0，取时间请用
+  `getTime()`）；`getTime()` 对 `TIME` 列返回时长秒数（负时长取负），对 `DATE`/`DATETIME`/`TIMESTAMP` 返回时间戳
+- 业务侧若暂时用旧 SDK，可临时在 SQL 里写 `CAST(SUM(x) AS SIGNED)` 绕过
+- **修复** Redis 连接在关闭阶段被跨线程释放导致的崩溃：`RedisMgr::freeAll()` 在 worker 主线程
+  `delete FoxRedis`，而 `~FoxRedis()` 直接调用 `redisAsyncFree()`，会和连接所属 `FoxThread` 里仍在派发的
+  事件循环竞争，hiredis 随后命中 `redisProcessCallbacks` 的断言 abort（表现为启动后立刻 Ctrl-C 偶发 core）。
+  现在释放动作派发回该 `FoxThread` 并等待完成；线程已退出时就地释放，等不到响应时只记 WARN 并跳过，
+  不做并发释放
+
+- **新增** MySQL 预处理语句补齐其余列类型绑定：VARCHAR / VAR_STRING / STRING / ENUM / SET / JSON / NULL
+  按 `MYSQL_TYPE_STRING`；TINYBLOB / BLOB / MEDIUMBLOB / LONGBLOB / GEOMETRY（以及共用枚举的 TEXT 家族）
+  按 `MYSQL_TYPE_BLOB` 保留原始字节；未知类型（TIMESTAMP2 等）按字符串兜底，不再走非法的原类型绑定
+- **修复** MySQL 文本协议 `getUint64()` 改用 `strtoull`，`BIGINT UNSIGNED` 超过 `INT64_MAX` 时不再被 `strtoll` 截断
+- **修复** PostgreSQL `boolean` 列（文本返回 `t` / `f`）经 `getInt64()` / `getUint64()` 读成 0 的问题，
+  现在映射成 1 / 0
+- **修复** SQLite3 `getTime()` 对 INTEGER（Unix 秒 / 毫秒）与 REAL（Unix 秒 / 儒略日）时间列一律返回 0 的问题，
+  并让 `getUint64()` 不再复用有符号读取
+- **新增** `test_unit_timeutil` 的 `str2time_timezone_offsets` / `str2time_fractional_and_invalid`：
+  覆盖 `Z` / `+08` / `+08:00` 三种时区写法与小数秒、非法输入
+
+### Fiber（修复）
+
+- **修复** 同一线程上重建调度器时的空指针崩溃：`Fiber::GetThis()` 改为先替换 `t_threadFiber`、再设置
+  `t_fiber`。旧线程主协程在替换 `t_threadFiber` 时析构，其析构函数会执行 `SetThis(nullptr)`；若此前已设置
+  `t_fiber`，会被清成空指针并在随后的 `shared_from_this()` 崩溃（`test_unit_future` 的
+  `promise_dropped_wakes_fiber_waiter` 曾因此段错误）
+- **新增** `test_unit_fiber`：线程主协程复用、同一线程上反复创建/销毁 `IOManager`
+
+### 异步执行（新增）
+
+- **新增** `src/Util/Async.hpp`：在 `Promise`/`Future` 之上补一层执行样板
+  - `chen::async::Detach(name, fn)`：分离执行，异常捕获后记 ERROR，不会打断调度线程
+  - `chen::async::Run(fn, timeout_ms)`：调度 + 等待 + 超时（`TimeoutError`）+ 异常原样回传，直接拿返回值
+  - `chen::async::RunAll(tasks, timeout_ms)`：并行 fan-out，等全部结束再重抛第一个异常
+  - 无调度器或当前上下文不可挂起（调度器主协程 / 普通线程）时退化为同步执行，避免单线程池自锁
+- **修复** `Future` 的 broken promise：最后一个 `Promise` 被丢弃且从未完成时，等待者收到
+  `std::runtime_error("chen::Future: promise destroyed without a value")`，不再永久挂起
+  （`FutureStateBase::addProducer/releaseProducer` 做生产端引用计数，`Promise` 补齐拷贝/移动语义）
+- **新增** `test_unit_async` 单测；`test_unit_future` 补 `promise_dropped_*` 两个用例
+
+### HTTP 指标（新增）
+
+- **新增** `HttpServer` / `H2Session` 自动记录 HTTP 请求指标（`src/Http/HttpMetrics.hpp`），H1 与 H2 共用一套口径：
+  - `http_requests_total{method,path,status}`：请求总数
+  - `http_request_duration_seconds{method,path}`：从进入 dispatch 到响应写回的耗时（流式响应只统计到 servlet 返回）
+  - `http_requests_in_flight`：正在处理的请求数（gauge）
+- **新增** 路径基数保护：不同 `(method, path)` 组合超过 `http.metrics.max_paths`（默认 512）后，新路径统一记为
+  `other`，避免 404 扫描把指标基数打爆；`http.metrics.enabled=false` 可关闭总量与耗时
+- **新增** `test_unit_httpmetrics` 单测：路径归一化、总量/耗时打点、在途计数与超限归并
+
+### 文档（核账）
+
+- **修正** `src/Http/README.md` 的功能描述：去掉「支持中间件、静态文件」这类超前声明（代码里并不存在），
+  并把服务端描述从「创建 `HttpConnection`」改为实际的「`HttpSession` / `H2Session` 分流」
+- **新增** `src/Hook/README.md` 的「生效条件（契约）」「线程模型」「已知细节」：说明 `t_hook_enable`
+  是 thread_local、只有调度线程开启、普通文件 IO 与 `getaddrinfo` 不在 hook 范围、`usleep` 不足 1ms 会被截断
+- **回填** `docs/v1.7.0-plan.md` 的「现状与差距」表与 PR7 状态：H2 流式、SSE over H2、HTTP 指标标为已交付，
+  静态文件 / Filter 链 / 压缩 / TLS 仍为待做
+- **更新** `docs/roadmap.md` 的 v1.7.0 段，区分已交付（H2 流式、SSE over H2、HTTP 指标）与待做项
+
+### 优雅停机（增强）
+
+- **新增** WebSocket / RPC / Rock / Game 四个长连接 server 的协作式 drain：以「一条消息的处理」
+  作为请求边界，`TcpServer::RequestGuard` 记录在途计数，draining 时先把当前消息处理完、
+  回包之后再关闭连接，不再被 `closeAllClients()` 直接砍断
+- **新增** `WSServer::onDrain()`：给空闲 WebSocket 会话回 CLOSE 帧（客户端看到的是正常关闭而不是
+  TCP 重置），随后由停机轮询的 `closeIdleClients()` 关闭连接；有在途消息的会话由 `handleClient`
+  在处理完当前消息后回 CLOSE 帧
+- **新增** `TcpServer::isClientIdle()`（protected），供子类在 `onDrain()` 里挑出可立刻收尾的连接
+- **新增** `TcpServer::addActiveClient()`（protected）作为活跃连接登记入口，`startAccept()` 也改用它，
+  连接簿记因此可以在不起 IOManager 的情况下被单测直接驱动
+- **新增** `RockStream::setRequestScopeFactory()` / `waitClose()`：把 Rock 的请求作用域挂到
+  drain 计数上，并让 `handleClient` 与连接同生命周期（此前 `handleClient` 在 `start()` 后立刻返回，
+  Rock 连接不在 `active_clients_` 中，`closeAllClients()` 管不到）
+- **新增** `test_unit_tcpdrain` 单测：用未连接 socket 直接驱动簿记接口，验证在途计数、`isClientIdle()` 与
+  `closeIdleClients()` 只回收空闲连接（不启 IOManager 线程，accept→drain 主链路仍由集成用例覆盖）
+
+### SSE（增强）
+
+- **变更** `SSESession` 不再直接写裸 socket：所有写操作统一走 `HttpSession::sendResponseHeader()` /
+  `sendData()`，`SSEServlet` 因此可在 HTTP/1.1 与 HTTP/2 下工作（H2 上头走 HEADERS 帧、事件走 DATA 帧，
+  结束时发 `END_STREAM`），与普通流式响应共用同一套背压
+- **新增** `SSESession(HttpSession::ptr)` 构造函数复用当前请求会话；旧的 `SSESession(Socket::ptr, bool)`
+  保留但仅适用于 HTTP/1.1
+- **新增** `SSESession::closeStream()`：显式结束事件流（H2 发 `END_STREAM`；H1 由框架在 servlet 返回后关连接）
+- **变更** SSE 响应头不再手写 `Connection: keep-alive`：改为 `Connection: close`（SSE 没有
+  `Content-Length`，H1 只能靠关闭连接界定响应结束）
+- **新增** `test_unit_ssesession` 单测（断言响应头与 `id:`/`event:`/`data:` 编码、多行拆分、`close()`），
+  集成测试新增 `/drain/sse` 端点，H1/H2 两个用例都校验事件流内容
+
+### 构建（ABI 版本化）
+
+- **新增** `libchen` 的 SONAME 版本化：`CMakeLists.txt` 给 `chen` 目标设置
+  `VERSION ${PROJECT_VERSION}` + `SOVERSION ${PROJECT_VERSION_MAJOR}`，产物从单个
+  `libchen.so` 变为 `libchen.so` → `libchen.so.1` → `libchen.so.1.6.0` 的符号链接链
+- **变更** 模块的 `DT_NEEDED` 现在记录 `libchen.so.1`（SONAME）而不是完整文件名：
+  minor/patch 升级不需要重编模块；破坏 ABI 时提升 `project(VERSION)` 主版本号，
+  SONAME 变为 `libchen.so.2`，强制模块重编，避免"新模块 + 旧库"的静默错配
+- **新增** `libchen_soname` 冒烟用例（`tests/CheckSoname.cmake`）：校验 `$<TARGET_SONAME_FILE:chen>`
+  名为 `libchen.so.<major>`，防止有人误删 `SOVERSION`
+- **修复** `package_sdk.sh` / `sync_sdk.sh` 复制库时未保留符号链接（`cp` 默认解引用，
+  会把 SONAME 链接复制成普通文件），改为 `cp -a` 并按 `libchen.so*` 整组同步
+- **文档** `docs/module-lifecycle.md` 新增 SONAME 布局、minor/major 升级规则与
+  `readelf -d` 排查命令；`README.md`、`docs/sdk-readme.md`、`docs/testing.md` 同步
+
+### 架构（重构）
+
+- **拆分** `Application` 上帝对象（原 1000+ 行）为三个职责单一的类：
+  - `ProcessSupervisor`：master 的 fork/监督/热重载/停机（含 worker 崩溃重启 backoff）
+  - `WorkerRuntime`：worker 的 IOManager、模块生命周期、配置热加载、优雅 drain
+  - `ServerRegistry`：`TcpServer` 的创建/绑定/查找，替代 `Application` 里的 `servers_`
+- **保持** 对外 API 不变：`Application::init/run/getServer/getAllServers/getServiceDiscovery/
+  setServiceDiscovery/signalHandler/sendSignal` 全部保留，模块代码无需改动
+- **删除** 独立的 tick 线程：模块 `onTick()` 定时器改为挂在 worker 的主 IOManager 上，
+  每个 worker 少一个调度线程；代价是 `onTick()` 与 IO/业务协程同线程，必须保持非阻塞
+
+### 地址解析（修复）
+
+- **修复** `Address::LookupAny()` / `LookupAnyIPAddress()` 少传 `family` 参数：原来
+  `family` 被当成 `type` 传入，导致 `AF_INET` 默认值失效、可能优先解析出 IPv6 地址
+
+### 模块 API（不兼容变更）
+
+- **删除** `Module::getAllHttpServer()` / `getAllWSServer()` / `getAllRpcServer()` / `getAllGameServer()`：
+  它们按配置中的 `type` 字符串过滤，`type: http2` 等变体会被静默漏掉。改为
+  `Application::getAllServers()` 取全部服务器后用 `dynamic_pointer_cast` 按 C++ 类型筛选
+- **变更** `Module.hpp` 不再 include `Http/HttpServer.hpp`、`Http/WSServer.hpp`、`Rpc/RpcServer.hpp`、
+  `Game/GameServer.hpp`，模块基类不再反向依赖各协议实现
+
+### 优雅停机（修复）
+
+- **修复** 优雅关闭/热重载不再「先关连接再干等」：`TcpServer::beginDrain()` 停止 accept 后保留存量连接，
+  HTTP/1.1 按连接记录在途请求数，drain 期间先关闭空闲 keep-alive 连接，再等在途请求完成
+  （上限 `server.drain_timeout_ms`），超时才强制关闭
+- **新增** `TcpServer::beginDrain()` / `closeIdleClients()` / `getInFlightClientCount()` /
+  `supportsGracefulDrain()`，以及协议侧使用的 `TcpServer::RequestGuard`（构造 `in_flight++`，
+  析构 `in_flight--`，draining 且空闲时关闭连接）
+- **变更** `HttpServer` 覆写 `supportsGracefulDrain()`：drain 期间新响应带 `Connection: close`，
+  处理完当前请求即断开；空闲 keep-alive 连接由 `closeIdleClients()` 关闭
+- **变更** WS/Rock/RPC/Game 等长连接协议没有请求边界，仍按原行为立即关闭
+- **新增** HTTP/2 drain：`H2Session::startDrain()` 发送 GOAWAY，`HttpServer::onDrain()` 通知所有活跃
+  会话；`run()` 在 draining 时缩短 recv 超时，等 `streams_` 清空后再关闭，整个 H2 会话计入在途单元
+- **新增** `TcpServer::onDrain()` 虚回调，供子类在停止 accept 后主动收尾长连接
+- **重构** `Application::doGracefulShutdown()` 拆出 `finishShutdown()`，drain 改为在协程内轮询
+  （`usleep` 让出事件循环），超时打 `drain timeout` 告警后强制关闭
+- **新增** `tests/ModuleTest/DrainModule.cc`：测试模块提供 `/drain/slow`、`/drain/fast`
+- **新增** `tests/integration/drain_reload.sh`：真实起 server，在途慢请求 + `SIGHUP`，
+  断言请求完整、reload 后仍可服务、无 drain 超时、`SIGTERM` 干净退出；同一脚本注册
+  `integration_drain_reload`（HTTP/1.1）与 `integration_h2_drain_reload`（H2 + GOAWAY）两个用例，
+  curl 不支持 HTTP/2 时后者 SKIP；通过 `make test-integration` 运行，CI 已接入
+
+### HTTP/2 流式响应（新增）
+
+- **新增** `HttpSession::sendData(buffer, length, end_stream)` 虚接口：H1 直接写 socket，H2 由
+  `H2Stream` 覆写后投递 `Command::DATA`
+- **新增** `H2Stream::sendResponseHeader()`：提交不带 `END_STREAM` 的 HEADERS 帧，配合 `sendData()` 分块发送
+- **新增** `Command::HEADERS` / `Command::DATA` 的落地实现：每条流一个 data provider，队列空时返回
+  `NGHTTP2_ERR_DEFERRED`，`sendData()` 入队后 `nghttp2_session_resume_data()` 唤醒，最后一段带 `END_STREAM`；
+  provider 与响应头通过一次 `nghttp2_submit_response()` 提交（分开 `submit_headers` + `submit_data` 会撞
+  `NGHTTP2_ERR_DATA_EXIST`：HEADERS 尚未发出时不允许再提交 DATA）
+- **新增** 背压：每条流 1MB 待发水位，超限时 `sendData()` 让出 fiber 等待，5s 超时返回 -1；
+  `H2Session` 活跃流期间 recv 轮询间隔从 250ms 收到 50ms，降低流式数据延迟
+- **修复** `H2Stream` 析构时若业务忘记 `end_stream`，补发空的结束帧，避免对端一直等 `END_STREAM`
+- **已知限制**：`SSEServlet` 仍按 HTTP/1.1 直接写裸 socket，SSE over HTTP/2 仍不可用
+- **测试**：`tests/ModuleTest/DrainModule.cc` 新增 `/drain/stream`（头部 + 3 个分块 + 结束帧），
+  `drain_reload.sh` 在 H1/H2 两种模式下都断言完整收到 chunk-1..3
+
+### HTTP/2（修复）
+
+- **修复** `H2Session::processStream()` 的数据竞争：原来在释放 `stream_mutex_` 后继续通过引用访问
+  `streams_` 里的节点，而 `processStream()` 跑在 worker 线程池、对端 `RST_STREAM` 会在会话线程的
+  `on_stream_close()` 里 erase 该节点，存在 use-after-free 风险。改为在锁内拷贝
+  `HttpRequest` 与 body，处理完后再确认流仍存在才提交响应
+
+### 测试门禁（新增）与文档修正
+
+- **新增** `tests/TestHarness.hpp`：header-only 测试框架（`CHEN_TEST` / `CHEN_CHECK*` / `CHEN_TEST_MAIN`），
+  支持 `--list` / `--filter=`，断言失败输出文件与行号，单个用例失败不影响其他用例
+- **新增** `tests/Unit/`：ByteArray、StringUtil、Config、TimeUtil 纯逻辑单元测试；
+  并把历史手工用例里的 Uri 解析、HTTP/1.1 报文解析、EncryptorUtil 摘要/HMAC/AES-GCM/PBKDF2
+  迁成 `test_unit_uri` / `test_unit_httpparser` / `test_unit_encryptor`（不再靠肉眼看输出）；
+  继续迁移 `TestHttp` / `TestConfigXml` / `TestMetrics` / `TestRateLimiter` / `TestFuture` / `TestOrmGen`
+  为 `test_unit_http` / `test_unit_configxml` / `test_unit_metrics` / `test_unit_ratelimiter` /
+  `test_unit_future` / `test_unit_ormgen`，`chen_add_unit_test()` 支持附加源文件（ORM 生成器需编入 `src/Orm/*.cc`）
+- **新增** CMake 选项 `CHEN_BUILD_TESTS`（Debug 默认 ON）与 CTest 注册：`unit` / `smoke` 标签；
+  Makefile 增加 `test`（unit+smoke）与 `test-all` 目标
+- **新增** `.github/workflows/test.yml`：Ubuntu Debug 构建 + `ctest -L "unit|smoke"` 门禁，失败时上传
+  `build/Testing/Temporary/LastTest.log`
+- **新增** `docs/testing.md`：测试分层、断言、隔离约定与 CI 说明；`CLAUDE.md` / `AGENTS.md` 补充测试要求
+- **修复** 文档与实现不一致：`URLEncode` 实际固定用 `+` 表示空格（`%20` 需 `UrlEncode(str, false)`），
+  修正 `docs/framework-first.md`、`src/Util/README.md`
+
+### PostgreSQL 支持（新增）
+
+- **新增** `chen/db/postgresql.h` / `chen/db/postgresql.cc`：基于 libpq 的 PostgreSQL 驱动，
+  提供 `PostgreSQL` / `PostgreSQLData` / `PostgreSQLStmt` / `PostgreSQLTransaction` /
+  `PostgreSQLManager` / `PostgreSQLUtil`，配置键为 `postgresql.dbs.<name>`
+- **新增** 生成的 DAO SQL 仍使用 `?` 占位符，驱动在词法层改写为 `$1..$n`，跳过字符串、
+  双引号标识符、注释和 dollar quote；`execute/query` 使用 `PQexec`（支持多语句 DDL），
+  `prepare` 使用 `PQexecParams`（不创建服务端 prepared statement）；错误语句会标记连接，
+  池复用前 ping/重连，连接归还时回滚残留事务
+- **新增** ORM `db="postgresql"` 方言：双引号标识符、`GENERATED BY DEFAULT AS IDENTITY`、
+  独立 `COMMENT ON`、`CREATE [UNIQUE] INDEX IF NOT EXISTS`、`BEFORE UPDATE` 触发器，
+  `Insert` 使用 `RETURNING` 回填自增主键，`InsertOrUpdate` 使用 `ON CONFLICT`；
+  只有自增列的表使用 `INSERT ... DEFAULT VALUES`，`BatchInsert` 退化为逐行插入
+- **新增** `CreateTablePostgreSQL` / `MigrateTablePostgreSQL`：通过 `pg_attribute` 读取现有列，
+  使用 `ALTER COLUMN ... TYPE / SET NOT NULL / SET DEFAULT`、`ADD/DROP COLUMN` 迁移，
+  并同步注释、索引和更新触发器
+- **变更** 构建依赖 libpq：`find_package(PostgreSQL REQUIRED)` 并链接 `${PostgreSQL_LIBRARIES}`；
+  SDK 打包与 Ubuntu CI 增加 `libpq-dev`，SDK 部署需安装 `libpq`
+- **修复** `Table::m_dbType` 从未从 XML 的 `db` 属性读取，导致 MySQL 表定义执行 `Migrate()`
+  时一直走 SQLite3 的建表/迁移逻辑
+- **修复** `Column::TypeToString` 将 `TYPE_UINT16` 错误映射为 `int16_t`
+- **新增** `tests/test_orm_gen.cc`（断言生成的 PostgreSQL SQL）与 `tests/test_postgresql.cc`
+  （通过 `CHEN_TEST_PG_*` 环境变量连接真实数据库，未设置 host 时跳过）
+
+### Rock 协议接入（新增）
+
+- **新增** `TcpServerFactory` 注册 `rock` 类型，yml 中写 `type: rock` 即可启动 `RockServer`
+- **新增** `Module::handleRequest/handleNotify` 虚函数与 `RockModule` 实现，恢复 `RockServer` 对
+  `Module::ROCK` 模块的请求/通知分发（之前分发逻辑被注释，模块收不到消息）
+- **新增** `Module::registerService(server_type, domain, service)`：模块可把自己监听的地址注册进服务发现，
+  监听 `0.0.0.0` 时使用本机非回环 IPv4，回环地址会跳过；配套 `TcpServer::getSocks()`
+- **新增** `StaticServiceDiscovery`（`chen/streams/`）：从 `service_discovery.domains` 读取静态实例，
+  支持 `addServer/delServer` 运行时增量更新；`Application` 在配置非空时自动创建，并在模块
+  `onServerReady` 之后 `start()`、`onUnload` 之后 `stop()`
+- **新增** 静态服务发现支持 `{name, address, weight}` 实例结构、`service_discovery.domains` 配置热更新
+  （`ConfigVar` 监听），权重会传递到 `LoadBalanceItem`
+- **新增** `Module::onDeactivate()` 默认把 `registerService` 登记的地址从服务发现注销；
+  新增 `Module::unregisterService()` 与 `IServiceDiscovery::unregisterServer()`
+- **新增** `RockSDLoadBalance::request` 在未收到响应时换实例重试（`rock.request_max_retry`，默认 2，
+  `timeout_ms` 为包含重试的总预算）；收到响应后不重试，语义为 at-least-once
+- **新增** 被动健康检查：连续失败达到 `load_balance.fail_threshold` 后在
+  `load_balance.fail_cooldown_ms` 内摘除实例，冷却后 half-open 放行一次
+- **修复** `WeightLoadBalance::get` 在可用实例中按权重做前缀和选择，避免选中后再找可用项导致权重失真
+- **新增** `rock.service_worker` 配置：服务发现建连使用的 worker 调度器，留空使用当前 `IOManager`；
+  原写死的 `service_io` 在未配置时会直接丢任务
+- **新增** `tests/test_rock.cc`：覆盖请求/响应、gzip、通知、超时、坏帧断开、handler 返回 false 关闭连接
+- **修复** Rock 帧长度校验允许正好等于 `rock.protocol.max_length`，并限制 gzip 解压后大小
+- **修复** `ModuleManager::add/del` 未维护 `m_type2Modules`，导致 `foreach(Module::ROCK)` 永远为空、Rock 请求被当作未处理
+- **修复** `SchedulerSwitcher` 继承 `Scheduler` 后构造时隐式调用 `Scheduler(1, true)`，在协程中触发
+  `ASSERT(GetThis() == nullptr)`；改为普通 RAII 类，仅在调用方和目标调度器都存在时切换
+- **修复** `Address::GetInterfaceAddresses` 对没有地址/掩码的虚拟网卡解引用空指针（自动选择本机 IP 时会用到）
+
+### 时间工具单位显式化
+
+- **变更** `TimeUtil` 的秒/毫秒接口不再通过 `time_t`/`uint64_t` 重载区分：`Time2Str` 拆分为
+  `Time2StrSec` / `Time2StrMs`，`IsExpired` → `IsExpiredMs`、`FormatDuration` → `FormatDurationMs`、
+  `GetNextResetTime` → `GetNextResetTimeMs`；删除实现错误的 `IsZeroOfDay/Week/Month`
+- **修复** `LoadBalance::statusString` 把毫秒时间戳先 `/1000` 再传给毫秒接口，初始化时间被显示成 1970 年
+- **修复** `ProcessInfo` 启动时间字段声明为 `uint64_t` 却存秒值，`toString()` 按毫秒格式化后显示 1970 年
+
+### 连接复用 / RPC Future（新增）
+
+- **新增** `HttpClient` 连接池：按 `scheme://host:port` 复用 `HttpConnectionPool`，省掉每次请求的 TCP/TLS 握手；新增配置项
+  `http.client.pool_enable`（默认 true）、`http.client.pool_size`（8）、`http.client.max_alive_time`（30000ms）、
+  `http.client.max_request`（100），并提供 `HttpClient::clearPools()`
+- **新增** `HttpConnection::BuildRequest()`：由 URL + 参数构造请求对象（不发送），`DoRequest` 与连接池共用同一套请求构造逻辑
+- **变更** `HttpConnectionPool` 支持 https：构造函数新增 `bool ssl = false`，https 连接使用 `SSLSocket` 并携带 SNI；同时修正
+  `max_alive_time` 比较方向（原来把未过期连接丢掉了）、`max_size` 未生效（池满时直接关闭多余连接），`HttpConnection` 记录真实的创建时间
+- **新增** `SSLSocket::setServerName()`（SNI）与 `SSLSocket::sslHandshake()`：客户端 TLS 握手改为在非阻塞 socket 上多次往返（原来单次
+  `SSL_connect` 在非阻塞 fd 上必然返回 WANT_READ 而失败）
+- **重构** `RpcFutureState` 改为持有 `chen::Promise`，删除重复的 waiter 逻辑；`RpcFuture` 新增 `waitFor(ms)`，
+  `get()/getValue()/waitFor()` 改为 const
+- **修复** `HttpResponse` 没有解析 `connection` 头（`isClose()` 恒为构造默认值），导致连接池无法判断响应是否允许复用；新增
+  `HttpResponse::init()` 并在客户端解析响应后调用
+
+### 稳定性修复
+
+- **新增** `SSLSocket::setVerifyPeer()` / `isVerifyPeer()`：TLS 客户端 **默认校验证书链与主机名**（
+  `SSL_CTX_set_default_verify_paths`
+  + `SSL_set1_host`），自签名/内部服务可显式关闭；`HttpConnection` 增加配置 `http.client.ssl_verify`（默认 true），
+    `SmtpClient` 也会带上 SNI，避免开启校验后连虚拟主机失败
+- **修复** `Scheduler::stop()` 在还有任务要跑时也打印 `scheduler stopped`，误导排查（日志挪到真正的提前返回分支里）
+- **优化** `tests/test_rpc_server` 改为 `IOManager(2, false)` + main 保活，不再靠 `~IOManager` 驱动调度器，启动时序正常；
+  `test_rpc_client` 增加最多 30s 的连接重试，避免客户端抢在服务端 bind 之前连接
+- **修复** `IOManager::addEvent/delEvent/cancelEvent/cancelAll` 只检查 fd 上界，负 fd（socket 已关闭，`m_sock == -1`）会越界访问
+  `m_fdContexts[-1]` 导致段错误；现在统一拒绝 `fd < 0`
+- **修复** `Socket::cancelRead/cancelWrite/cancelAccept/cancelAll` 未判空 `IOManager::GetThis()` 且未校验 `isValid()`，
+  在非调度线程或已关闭 socket 上调用会空指针/越界崩溃；`RpcClient::close()` 改为只对有效 socket 取消事件
+- **新增** `tests/test_socket.cc` 回归用例：负 fd、已关闭 socket、无 IOManager 线程三种 cancel 场景
+- **新增** `tests/test_http_connection.cc` 的 https 用例：TLS 握手 + 证书校验 + 连接池复用（需外网，失败只打日志）
+- **修复** `IOManager::idle()` 的 `epoll_wait` 保底超时（3000ms）在进程停止期间仍生效，导致 `stop()` 最多多等 3 秒才能 join
+  工作线程；现在停止期间（`Scheduler::isStopping()`）把轮询间隔压到 10ms
+- **新增** `Scheduler::isStopping()`：判断是否已调用过 `stop()`，不等价于 `stopping()` 的完整停止条件
+
+### 异步等待（新增）
+
+- **新增** `chen/util/future.h`：`Promise`/`Future` 异步结果句柄，fiber 内挂起当前协程（不占线程）、普通线程内退化为
+  `std::condition_variable` 阻塞；支持 `waitFor` 超时、异常传递、多等待者、`void` 特化
+- **新增** `chen/http/http_client.h`：`HttpClient::submit/request` 及 `get/post/put/patch/del/head/options` 便捷方法，把
+  `HttpConnection::DoRequest` 提交到调度器执行；无可用调度器时 `submit` 返回 `false`、Future 形式返回已完成空值
+- **新增** `chen::ResolveScheduler(preferred)`：统一解析可用调度器（`IOManager` → `Scheduler`）
+- **新增** `Fiber::CanYield()` 与 `Fiber::isMain()`：判断当前上下文能否安全让出执行权（线程主协程、调度器 root 协程不可
+  Yield）
+- **新增** `tests/test_future.cc`、`tests/test_http_client.cc`
+
 ## v1.6.0 (2026-10-18)
 
 ### 指标系统（新增）

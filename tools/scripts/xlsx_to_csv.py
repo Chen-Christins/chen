@@ -15,6 +15,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.cell import coordinate_from_string
 import chardet
 
+
 class XlsxToCsvConverter:
     """XLSX到CSV的转换器"""
 
@@ -56,7 +57,7 @@ class XlsxToCsvConverter:
             data_rows = data[1:]
 
             # 清理表头
-            headers = [h.strip() if h.strip() else f"Column_{i+1}" for i, h in enumerate(headers)]
+            headers = [h.strip() if h.strip() else f"Column_{i + 1}" for i, h in enumerate(headers)]
 
             # 清理数据行
             cleaned_data = []
@@ -103,8 +104,8 @@ class XlsxToCsvConverter:
             raise Exception(f"创建CSV文件失败 {output_path}: {str(e)}")
 
     def convert_xlsx_to_csv(self, xlsx_files: List[str], output_pattern: str,
-                           encoding: str = None, delimiter: str = None,
-                           sheet_name: str = None, quoting: int = csv.QUOTE_MINIMAL) -> None:
+                            encoding: str = None, delimiter: str = None,
+                            sheet_name: str = None, quoting: int = csv.QUOTE_MINIMAL) -> None:
         """转换XLSX文件为CSV格式"""
         encoding = encoding or self.default_encoding
         delimiter = delimiter or self.default_delimiter
@@ -185,23 +186,24 @@ class XlsxToCsvConverter:
             for file in converted_files:
                 print(f"  - {file}")
 
+
 def main():
     parser = argparse.ArgumentParser(description='XLSX到CSV转换工具')
     parser.add_argument('input', nargs='+', help='输入的XLSX文件路径')
     parser.add_argument('-o', '--output', required=True,
-                       help='输出的CSV文件路径（可使用*通配符或指定目录）')
+                        help='输出的CSV文件路径（可使用*通配符或指定目录）')
     parser.add_argument('-e', '--encoding', default='utf-8',
-                       help='指定输出文件编码（默认: utf-8）')
+                        help='指定输出文件编码（默认: utf-8）')
     parser.add_argument('-d', '--delimiter', default=',',
-                       help='指定CSV分隔符（默认: ,）')
+                        help='指定CSV分隔符（默认: ,）')
     parser.add_argument('-s', '--sheet', help='指定工作表名称（默认使用第一个工作表）')
     parser.add_argument('-v', '--verbose', action='store_true', help='显示详细信息')
     parser.add_argument('--quote-all', action='store_true',
-                       help='对所有字段加引号')
+                        help='对所有字段加引号')
     parser.add_argument('--quote-nonnumeric', action='store_true',
-                       help='对非数值字段加引号')
+                        help='对非数值字段加引号')
     parser.add_argument('--quote-none', action='store_true',
-                       help='不对任何字段加引号')
+                        help='不对任何字段加引号')
 
     args = parser.parse_args()
 
@@ -232,6 +234,7 @@ def main():
     except Exception as e:
         print(f"错误: {str(e)}")
         sys.exit(1)
+
 
 if __name__ == '__main__':
     main()

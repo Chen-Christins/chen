@@ -1,35 +1,38 @@
 # 版本路线图
 
-本文档规划框架后续版本的演进方向与范围。当前版本为 v1.6.0。
+本文档规划框架后续版本的演进方向与范围。已发布版本为 v1.6.0；v1.7.0 正在开发中，部分能力
+（H2 流式、SSE over H2、HTTP 指标、drain 全协议）已随 Unreleased 进入主线，正式版本号在发布时提升。
 
 ## 总览
 
-| 版本               | 主题                 | 核心内容                                                                                                |
-|--------------------|----------------------|---------------------------------------------------------------------------------------------------------|
-| **v1.6.0**（当前） | 指标与进程模型       | Metrics、master/worker 热重载与优雅 draining                                                            |
-| v1.7.0             | HTTPS 与 HTTP 完整化 | TLS 校验/SNI/ALPN/mTLS/证书热加载、H2 over TLS、静态文件/Range/CORS/gzip/中间件、H2 streaming           |
-| v1.8.0             | 动态配置与协议扩展   | `servers` 动态增删/重绑、UDP 接入 Application、异步 DNS、WS 心跳/deflate/Origin、RPC 重试/熔断/TLS/压缩 |
-| v1.9.0             | 弹性与生态           | 细粒度限流/鉴权、OpenTelemetry tracing、Admin UI/配置校验、压测与容量模型                               |
-| v2.0.0             | 分布式与多活         | 服务发现/注册中心、弹性扩缩容、Hub 高可用、跨区多活、K8s/LB 集成                                        |
+| 版本                 | 主题                 | 核心内容                                                                                                             |
+|----------------------|----------------------|----------------------------------------------------------------------------------------------------------------------|
+| v1.6.0（已发布）     | 指标与进程模型       | Metrics、master/worker 热重载与优雅 draining                                                                         |
+| **v1.7.0**（开发中） | HTTPS 与 HTTP 完整化 | TLS 校验/SNI/ALPN/mTLS/证书热加载、H2 over TLS、静态文件/Range/CORS/gzip/中间件；H2 streaming 与 HTTP 指标已先行交付 |
+| v1.8.0               | 动态配置与协议扩展   | `servers` 动态增删/重绑、UDP 接入 Application、异步 DNS、WS 心跳/deflate/Origin、RPC 重试/熔断/TLS/压缩              |
+| v1.9.0               | 弹性与生态           | 细粒度限流/鉴权、OpenTelemetry tracing、Admin UI/配置校验、压测与容量模型                                            |
+| v2.0.0               | 分布式与多活         | 服务发现/注册中心、弹性扩缩容、Hub 高可用、跨区多活、K8s/LB 集成                                                     |
 
 ---
 
-## v1.6.0 — 指标与进程模型（当前版本）
+## v1.6.0 — 指标与进程模型（已发布）
 
 v1.6.0 已发布（2026-10-18），交付内容是 Metrics 采集能力和 master/worker 多进程热重载 + 优雅 draining。
 
 ### Metrics
 
-- `chen/metrics/`：`Counter` / `Gauge` / `GaugeFunc` / `Histogram`，支持标签、同名同标签复用、类型冲突检测
+- `src/Metrics/`：`Counter` / `Gauge` / `GaugeFunc` / `Histogram`，支持标签、同名同标签复用、类型冲突检测
 - `RegistryMgr` 进程级注册表，线程安全；Counter / Histogram 每线程分片
 - Prometheus / OpenMetrics / JSON 渲染
-- `chen/http/metrics_servlet.h`：业务模块在 `onServerReady()` 里挂采集接口
+- `src/Http/MetricsServlet.hpp`：业务模块在 `onServerReady()` 里挂采集接口
 
 ### 热重载与优雅 draining
 
 - master 持有监听 socket 与 pidfile，`SIGHUP` fork 新 worker
-- 新 worker ready 后，旧 worker 停止 accept、`closeAllClients()`、限时 drain（`server.drain_timeout_ms`，默认 3000ms），再
-  `onDeactivate()` → `onUnload()` 退出
+- 新 worker ready 后，旧 worker 停止 accept、按协议协作式 drain（先关空闲连接，再等每条连接上的
+  在途请求处理完，超时 `server.drain_timeout_ms` 默认 3000ms 后强关），再 `onDeactivate()` → `onUnload()` 退出
+    - v1.6.0 只有 HTTP 实现了在途等待；WS / RPC / Rock / Game 的在途边界是 Unreleased 补齐的
+      （见 v1.7.0 段与 `docs/module-lifecycle.md` 的「各协议的 drain 边界」）
 - worker 非预期崩溃由 master 自动重启（带 backoff）
 - 配置：`server.worker_ready_timeout_ms`、`server.worker_restart_interval_ms`
 
@@ -41,6 +44,8 @@ v1.6.0 已发布（2026-10-18），交付内容是 Metrics 采集能力和 maste
 ---
 
 ## v1.7.0 — HTTPS 与 HTTP 完整化
+
+> 实施计划：[`docs/v1.7.0-plan.md`](v1.7.0-plan.md)
 
 ### TLS / HTTPS
 
@@ -56,7 +61,16 @@ v1.6.0 已发布（2026-10-18），交付内容是 Metrics 采集能力和 maste
 - CORS 中间件
 - 响应 gzip/deflate 压缩
 - 通用中间件/拦截器管线（鉴权、日志、限流、请求 ID）
-- HTTP/2 流式响应：补齐 `h2_session.cc` 中的 `DATA` 命令 TODO，支持大文件与 SSE over H2
+- HTTP/2 流式响应：**已交付**（Unreleased）——`DATA` 走 nghttp2 data provider + 每流有界队列，
+  `SSESession` 改为复用 `HttpSession`，H1/H2 共用一套流式接口
+- HTTP 请求指标：**已交付**（Unreleased）——`http_requests_total`、`http_request_duration_seconds`、
+  `http_requests_in_flight`，path 基数有上限（`http.metrics.max_paths`，默认 512）
+
+### 工程与交付（已交付，Unreleased）
+
+- 长连接 drain 全协议：WS / RPC / Rock / Game 以「一条消息的处理」为边界协作式关闭
+- 构建 ABI 版本化：`libchen.so` 带 `SOVERSION`，模块 `NEEDED` 记录 SONAME，minor 升级不必重编模块
+- 测试门禁：CTest 单测（`tests/Unit/`）+ `integration_drain_reload` / `integration_h2_drain_reload`
 
 ---
 
@@ -134,5 +148,7 @@ v2.0.0 计划补齐下面这些能力；如果短期不做，则明确走「外�
 - v1.6.0 聚焦 Metrics 与 master/worker 热重载、优雅 draining；TLS/HTTPS 放到 v1.7.0。
 - 部署形态为 master + 单个 active worker；Metrics 无需跨进程聚合。
 - `docs/v1.6.0-plan.md` 为规划稿，其中异步日志、Admin/Health、访问日志未纳入 v1.6.0；实际交付以 CHANGELOG 为准。
+- v1.7.0 按 `docs/v1.7.0-plan.md` 全量交付；客户端 TLS 默认校验服务端证书与主机名，可用 `verify_peer: 0` 关闭；
+  HTTP 中间件采用 `ServletDispatch` 前置 Filter 链。
 - v1.x 的分布式形态为「多进程 + RPC Hub 中心转发」：Hub 单点、无服务发现、无弹性扩缩容，这些能力列入
   v2.0.0；短期可选择外部注册中心 + 外部负载均衡。

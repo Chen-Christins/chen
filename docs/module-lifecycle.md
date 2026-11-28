@@ -5,7 +5,7 @@
 
 热重载采用 **master/worker 多进程模型**：master 进程持有监听端口并监督 worker，
 每个 worker 进程只加载一个版本的模块 `.so`。重载时新 worker 加载新模块，旧 worker
-停止 accept、限时 drain 完遗留连接后退出。进程退出时由内核回收地址空间， **不做进程内
+停止 accept、等待在途 HTTP/1.1 / HTTP/2 请求处理完（超时强制关闭）后退出。进程退出时由内核回收地址空间， **不做进程内
 `dlclose`**，因此不存在旧 `.so` 函数指针悬空的问题。
 
 ## 进程模型
@@ -38,7 +38,7 @@
 
 | 配置项                       | 默认  | 说明                                                       |
 |------------------------------|-------|------------------------------------------------------------|
-| `drain_timeout_ms`           | 3000  | 旧 worker 停止 accept 后等待遗留连接的毫秒数，超时强制关闭 |
+| `drain_timeout_ms`           | 3000  | 旧 worker 停止 accept 后等待在途请求的毫秒数，超时强制关闭 |
 | `worker_ready_timeout_ms`    | 30000 | master 等待新 worker 就绪的超时毫秒数                      |
 | `worker_restart_interval_ms` | 2000  | worker 崩溃后 master 重启前的等待毫秒数                    |
 | `housekeeping_interval_ms`   | 500   | worker 检查关闭信号的定时器间隔                            |
@@ -112,8 +112,33 @@ bin/server -s reload
 
 ### 与 libchen 的 ABI
 
-模块链接 `libchen.so`。 **只替换模块、libchen 不变**时没有问题；若同时改动了 `libchen`
-的对外接口，需要连同 `libchen` 一起升级，因为各 worker 使用其加载时刻的库映射。
+模块在链接时把 `libchen` 的 **SONAME** 写进自己的 `DT_NEEDED`（当前是 `libchen.so.1`，
+由 `CMakeLists.txt` 的 `SOVERSION` 决定），而不是写死完整版本文件名。`lib/` 下的布局是：
+
+```
+libchen.so          -> libchen.so.1        # 开发/链接用（CMake NAMELINK）
+libchen.so.1        -> libchen.so.1.6.0    # SONAME，运行时真正被查找的名字
+libchen.so.1.6.0                           # 实际文件，版本号 = project(VERSION)
+```
+
+由此得到两条规则：
+
+- **minor / patch 升级**（例如 1.6.0 → 1.7.0，major 不变）：SONAME 仍是 `libchen.so.1`，
+  已编译的模块不需要重编，直接替换 `lib/` 下的库即可；也正因为如此，新增/修改框架接口
+  时**不要**删除已有导出符号，只能新增重载或改内部实现。
+- **major 升级**（破坏 ABI，例如删改既有导出符号或类布局）：提升 `project(chen VERSION x.y.z)`
+  的主版本号，SONAME 变成 `libchen.so.2`，此时**必须**用新库重编所有模块——旧模块仍会去
+  找 `libchen.so.1`，加载失败是预期行为（而不是静默错配）。
+
+排查用：
+
+```bash
+readelf -d lib/libchen.so | grep SONAME        # 库自己的 SONAME
+readelf -d bin/module/libblog.so | grep NEEDED # 模块依赖的库名
+```
+
+各 worker 使用其加载时刻的库映射；**只替换模块、libchen 不变**时没有问题；若同时改动了
+`libchen` 的对外接口，需要连同 `libchen` 一起升级。
 
 ---
 
@@ -121,14 +146,29 @@ bin/server -s reload
 
 ```
 1. server->stop()           ← 停止 accept, 不再接收新连接
-2. drain (server.drain_timeout_ms) ← 现存连接自然完成
-3. 取消 tick 定时器         ← 框架取消所有模块的 onTick
-4. 停止 tick IOManager
-5. onDeactivate()           ← flush 脏数据
-6. onUnload()               ← clearAll EventBus + stop 定时器 + 释放 DB/Redis 资源
-7. 停止 WorkerMgr           ← 停止 io/accept 线程
-8. 进程退出                  ← 地址空间回收
+2. drain (server.drain_timeout_ms) ← 关闭空闲连接，等在途请求自然完成
+3. 取消 tick 定时器         ← 框架取消所有模块的 onTick（定时器挂在 main IOManager 上）
+4. onDeactivate()           ← flush 脏数据
+5. onUnload()               ← clearAll EventBus + stop 定时器 + 释放 DB/Redis 资源
+6. 停止 WorkerMgr           ← 停止 io/accept 线程
+7. 进程退出                  ← 地址空间回收
 ```
+
+### 各协议的 drain 边界
+
+所有内置 server 都实现了协作式 drain（`supportsGracefulDrain()` 返回 true），区别只在于
+「什么算一次在途请求」：
+
+| server                          | 在途请求边界                                        | draining 时的收尾动作                                                                                   |
+|---------------------------------|-----------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `HttpServer`                    | 一次 HTTP 请求（含响应发送）；HTTP/2 以整个会话计入 | H1 处理完当前请求后不再读下一个 keepalive 请求；H2 先发 GOAWAY，等在途 stream 结束后关连接              |
+| `WSServer`                      | 一条 WebSocket 消息的处理                           | 处理完当前消息后回 CLOSE 帧再关连接；空闲会话由 `onDrain()` 发 CLOSE 帧，再由 `closeIdleClients()` 关闭 |
+| `RpcServer`                     | 一次 RPC 调用（含回包）                             | 回包后关闭连接；relay 连接同样在当帧处理完后退出                                                        |
+| `RockServer`                    | 一次 `RockRequest`/`RockNotify` 的处理 + 回包       | 回包后关闭连接（`RockStream::setRequestScopeFactory()` 把请求作用域挂到 `TcpServer::RequestGuard`）     |
+| `GenericProtocolServer`（game） | 一个协议包的处理                                    | 处理完当前包后关闭连接                                                                                  |
+
+未覆写 `supportsGracefulDrain()` 的自定义 server 仍走旧路径：`closeAllClients()` 立即断开，
+不等待在途请求。drain 的超时由 `server.drain_timeout_ms` 控制，超时后一律强关。
 
 > 框架不再代为释放 Redis：使用 DB/Redis 的模块需在自己的 `onUnload()` 中释放连接
 > （如 `RedisMgr::GetInstance()->freeAll()`）。详见 [`docs/db-configuration.md`](db-configuration.md)。
@@ -148,10 +188,10 @@ bin/server -s reload
 
 - 何时调用: server 创建完毕、绑定端口后
 - 职责（按顺序）:
-  1. `clearAll()` — 清除 EventBus listener（保持清理习惯）
-  2. 连接数据库
-  3. 注册 HTTP servlet / WS servlet / RPC handler
-  4. 初始化 EventBus listener
+    1. `clearAll()` — 清除 EventBus listener（保持清理习惯）
+    2. 连接数据库
+    3. 注册 HTTP servlet / WS servlet / RPC handler
+    4. 初始化 EventBus listener
 - 注意: 注册的 handler/servlet 必须是 **本进程加载的 `.so` 中的代码**
 
 ### `bool onServerUp()`
@@ -168,21 +208,21 @@ bin/server -s reload
 ### `bool onDeactivate()`
 
 - 何时调用:
-  - 重载: 旧 worker 停止 accept、drain 完成后
-  - 关机: 所有模块的 onUnload 之前
+    - 重载: 旧 worker 停止 accept、drain 完成后
+    - 关机: 所有模块的 onUnload 之前
 - 职责:
-  - 停止后台定时器
-  - flush 脏数据到 DB/Redis
-  - **不要**关闭 WebSocket 连接（框架的 drain 机制处理）
+    - 停止后台定时器
+    - flush 脏数据到 DB/Redis
+    - **不要**关闭 WebSocket 连接（框架的 drain 机制处理）
 
 ### `bool onUnload()`
 
 - 何时调用: worker 进程退出前（重载旧 worker / 关机均会调用）
 - 职责:
-  - `clearAll()` — 清除 EventBus listener
-  - 保存脏数据
-  - 停止定时器
-  - 释放资源，包括 DB/Redis 连接（如 `RedisMgr::GetInstance()->freeAll()`）
+    - `clearAll()` — 清除 EventBus listener
+    - 保存脏数据
+    - 停止定时器
+    - 释放资源，包括 DB/Redis 连接（如 `RedisMgr::GetInstance()->freeAll()`）
 
 ---
 
