@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <ctime>
+#include <limits>
 #include <string>
 
 using chen::TimeUtil;
@@ -104,6 +105,22 @@ CHEN_TEST(timeutil, str2time_fractional_and_invalid)
     CHEN_CHECK_EQ(TimeUtil::Str2Time("2024-01-15"), TimeUtil::Str2Time("2024-01-15 00:00:00"));
     CHEN_CHECK_EQ(TimeUtil::Str2Time(""), static_cast<time_t>(0));
     CHEN_CHECK_EQ(TimeUtil::Str2Time("not a time"), static_cast<time_t>(0));
+}
+
+CHEN_TEST(timeutil, next_reset_time_zero_interval)
+{
+    // interval_ms == 0 时 elapsed / interval_ms 会触发 SIGFPE
+    const uint64_t base_ms = 1700000000000ull;
+    CHEN_CHECK_EQ(TimeUtil::GetNextResetTimeMs(base_ms, 0), base_ms);
+}
+
+CHEN_TEST(timeutil, is_expired_handles_overflow)
+{
+    const uint64_t now_ms = TimeUtil::GetCurrentMs();
+    // 旧实现 start_ms + ttl_ms 溢出回绕成过去的时间，导致永不过期
+    CHEN_CHECK(!TimeUtil::IsExpiredMs(now_ms, std::numeric_limits<uint64_t>::max()));
+    CHEN_CHECK(TimeUtil::IsExpiredMs(now_ms - 10, 1));
+    CHEN_CHECK(!TimeUtil::IsExpiredMs(now_ms + 60000, 1000));
 }
 
 CHEN_TEST_MAIN()

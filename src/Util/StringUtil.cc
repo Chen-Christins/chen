@@ -36,6 +36,11 @@ std::string StringUtil::Replace(const std::string& str1, char find, const std::s
 
 std::string StringUtil::Replace(const std::string& str1, const std::string& find, const std::string& replace_with)
 {
+    // find 为空时 str.find("") 恒返回 0，而 index 只前进 replace_with.size()，
+    // 替换串也为空时 index 永远停在 0，死循环。
+    if (find.empty()) {
+        return str1;
+    }
     std::string str = str1;
     size_t index = str.find(find);
     while (index != std::string::npos) {
@@ -61,10 +66,14 @@ std::string StringUtil::ToLower(const std::string& v)
 
 bool StringUtil::EqualsIgnoreCase(const std::string& a, const std::string& b)
 {
-    bool equal = std::equal(a.begin(), a.end(), b.begin(), [](char ca, char cb) {
-        return std::tolower(ca) == std::tolower(cb);
+    // 必须先比较长度：std::equal 的三迭代器版本按 a.size() 读取 b，
+    // b 更短时直接越界读。
+    if (a.size() != b.size()) {
+        return false;
+    }
+    return std::equal(a.begin(), a.end(), b.begin(), [](char ca, char cb) {
+        return std::tolower(static_cast<unsigned char>(ca)) == std::tolower(static_cast<unsigned char>(cb));
     });
-    return a.size() == b.size() && equal;
 }
 
 std::string StringUtil::URLEncode(const std::string& str)

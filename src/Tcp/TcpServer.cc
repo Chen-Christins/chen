@@ -289,7 +289,15 @@ void TcpServer::startAccept(Socket::ptr sock)
             client->setRecvTimeout(recv_timeout_);
             addActiveClient(client);
             io_worker_->schedule([this, self = shared_from_this(), client]() {
-                handleClient(client);
+                // 业务 handler 抛出的异常如果逃出协程入口会直接 std::terminate（协程栈上无人捕获），
+                // 这里兜住，保证单个连接出错不会带走整个进程，同时保证下面的清理一定执行。
+                try {
+                    handleClient(client);
+                } catch (const std::exception& e) {
+                    ERROR(logger) << "handleClient exception: " << e.what() << " client=" << *client;
+                } catch (...) {
+                    ERROR(logger) << "handleClient unknown exception client=" << *client;
+                }
                 {
                     std::lock_guard lock(clients_mutex_);
                     active_clients_.erase(client);

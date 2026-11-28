@@ -62,13 +62,25 @@ int32_t RockStream::sendMessage(Message::ptr msg)
 RockResult::ptr RockStream::request(RockRequest::ptr req, uint32_t timeout_ms)
 {
     if (isConnected()) {
+        // 同一连接上并发请求的 sn 必须唯一。调用方未显式设置（sn==0）时由连接自增分配，
+        // 否则 ctxs_ 里后注册的会覆盖先注册的，前一个请求只能等到超时。
+        if (req->getSn() == 0) {
+            uint32_t sn = 0;
+            do {
+                sn = ++sn_seed_;
+            } while (sn == 0);
+            req->setSn(sn);
+        }
         RockCtx::ptr ctx(new RockCtx);
         ctx->request = req;
         ctx->sn = req->getSn();
         ctx->timeout = timeout_ms;
         ctx->scheduler = Scheduler::GetThis();
         ctx->fiber = Fiber::GetThis();
-        addCtx(ctx);
+        if (!addCtx(ctx)) {
+            // sn 冲突（调用方显式传了重复的 sn），直接失败而不是把 ctx 丢掉
+            return std::make_shared<RockResult>(AsyncSocketStream::IO_ERROR, 0, nullptr, req);
+        }
         uint64_t ts = TimeUtil::GetCurrentMs();
         ctx->timer = IOManager::GetThis()->addTimer(timeout_ms, std::bind(&RockStream::onTimeOut, shared_from_this(), ctx));
         enqueue(ctx);

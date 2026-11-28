@@ -82,7 +82,8 @@ FdManager::FdManager()
 
 FdCtx::ptr FdManager::get(int fd, bool auto_create)
 {
-    if (fd == -1) {
+    // fd < 0 一律视为无效：下面用 datas_[fd] 下标访问，负数会直接越界
+    if (fd < 0) {
         return nullptr;
     }
     std::shared_lock lock(mutex_);
@@ -98,6 +99,11 @@ FdCtx::ptr FdManager::get(int fd, bool auto_create)
     lock.unlock();
     // fd不存在，并且要求创建
     std::unique_lock lock2(mutex_);
+    // 释放共享锁到拿到独占锁之间，别的线程可能已经创建了同一个 fd 的 ctx；
+    // 必须重新检查，否则会用新 ctx 覆盖旧 ctx，丢掉它上面记录的关闭标记/超时设置。
+    if (fd < (int)datas_.size() && datas_[fd]) {
+        return datas_[fd];
+    }
     FdCtx::ptr ctx(new FdCtx(fd));
     if (fd >= (int)datas_.size()) {
         datas_.resize(fd * 1.5);

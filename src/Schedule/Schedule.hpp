@@ -211,10 +211,10 @@ protected:
     std::atomic<size_t> active_thread_count_ = {0};
     /// 空闲线程数量
     std::atomic<size_t> idle_thread_count_ = {0};
-    /// 是否正在停止
-    bool stopping_ = true;
-    /// 是否自动停止
-    bool auto_stop_ = false;
+    /// 是否正在停止（stop() 与工作线程并发读写，必须原子）
+    std::atomic<bool> stopping_ = {true};
+    /// 是否自动停止（stop() 写、stopping() 读，必须原子）
+    std::atomic<bool> auto_stop_ = {false};
     /// 主线程id(use_caller的)
     int root_thread_id_ = 0;
 };

@@ -331,27 +331,44 @@ double ByteArray::readDouble()
 std::string ByteArray::readStringF16()
 {
     uint16_t len = readFuint16();
+    // 先校验长度再 resize：len 来自报文，直接 resize 可能触发巨量分配，
+    // 甚至绕过后续 read 的越界检查。
+    if (len > getReadSize()) {
+        throw std::out_of_range("readStringF16: length exceeds remaining data");
+    }
     std::string buff;
     buff.resize(len);
-    read(&buff[0], len);
+    if (len > 0) {
+        read(&buff[0], len);
+    }
     return buff;
 }
 
 std::string ByteArray::readStringF32()
 {
     uint32_t len = readFuint32();
+    if (len > getReadSize()) {
+        throw std::out_of_range("readStringF32: length exceeds remaining data");
+    }
     std::string buff;
     buff.resize(len);
-    read(&buff[0], len);
+    if (len > 0) {
+        read(&buff[0], len);
+    }
     return buff;
 }
 
 std::string ByteArray::readStringF64()
 {
     uint64_t len = readFuint64();
+    if (len > getReadSize()) {
+        throw std::out_of_range("readStringF64: length exceeds remaining data");
+    }
     std::string buff;
     buff.resize(len);
-    read(&buff[0], len);
+    if (len > 0) {
+        read(&buff[0], len);
+    }
     return buff;
 }
 
@@ -359,9 +376,14 @@ std::string ByteArray::readStringVint()
 {
     // Length is encoded as Varint (writeUint64). Decode accordingly.
     uint64_t len = readUint64();
+    if (len > getReadSize()) {
+        throw std::out_of_range("readStringVint: length exceeds remaining data");
+    }
     std::string buff;
     buff.resize(len);
-    read(&buff[0], len);
+    if (len > 0) {
+        read(&buff[0], len);
+    }
     return buff;
 }
 
@@ -461,6 +483,11 @@ void ByteArray::read(void* buf, size_t size)
 // 这个是不改变操作位置的
 void ByteArray::read(void* buf, size_t size, size_t position) const
 {
+    // 先判 position 再做减法：position > size_ 时 size_ - position 会下溢成极大值，
+    // 让本该抛异常的越界读通过检查。
+    if (position > size_) {
+        throw std::out_of_range("read position out of range");
+    }
     if (size > size_ - position) {
         throw std::out_of_range("not enough len");
     }
@@ -500,6 +527,9 @@ void ByteArray::read(void* buf, size_t size, size_t position) const
 // 这里还将读取之前链表的位置给处理了
 void ByteArray::setPosition(size_t v)
 {
+    // 不能超过已分配容量，否则下面的 cur_ 遍历会走出链表。
+    // 注意：允许 v > size_ 并同步把 size_ 撑大是既有契约，SocketStream::read 依赖它：
+    // getWriteBuffers 预留容量 → recv 写入 → setPosition(position + rt) 推进写入位置。
     if (v > capacity_) {
         throw std::out_of_range("set_position out of range");
     }

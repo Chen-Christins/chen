@@ -382,8 +382,13 @@ AsyncSocketStream::Ctx::ptr AsyncSocketStream::getAndDelCtx(uint32_t sn)
 bool AsyncSocketStream::addCtx(Ctx::ptr ctx)
 {
     std::unique_lock lock(mtx_);
-    ctxs_.emplace(ctx->sn, ctx);
-    return true;
+    // 同一条连接上 sn 必须唯一：emplace 冲突时静默丢弃会让两个请求共用同一个 ctx，
+    // 先到的请求永远等不到响应（只能等超时），必须把失败返回给调用方。
+    auto [it, ok] = ctxs_.emplace(ctx->sn, ctx);
+    if (!ok) {
+        ERROR(logger) << "addCtx sn=" << ctx->sn << " already exists";
+    }
+    return ok;
 }
 
 bool AsyncSocketStream::enqueue(SendCtx::ptr ctx)

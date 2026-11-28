@@ -2,6 +2,10 @@
 
 #include <fcntl.h>
 #include <stdexcept>
+#include <unistd.h>
+
+#include <chrono>
+#include <thread>
 
 #include "../Hook/FdManager.hpp"
 #include "../Util/StallDetector.hpp"
@@ -49,13 +53,14 @@ void IOManager::FdContext::triggerEvent(Event event)
 IOManager::IOManager(size_t thread_count, bool use_caller, const std::string& name)
     : Scheduler(thread_count, use_caller, name)
 {
-    // 创建epoll文件描述符
-    epfd_ = epoll_create(5);
+    // 创建epoll文件描述符；CLOEXEC 避免被 fork 出来的 worker / exec 的子进程继承
+    epfd_ = epoll_create1(EPOLL_CLOEXEC);
     // 成功epoll会返回非负文件描述符，出错就会返回-1
     ASSERT(epfd_ != -1);
 
-    // 创建管道，用于进程间通信
-    int rt = pipe(tickle_fds_);
+    // 创建用于唤醒的管道：读端由 epoll 监听，写端也必须是 O_NONBLOCK，
+    // 否则管道写满（64KB 无人排空）时 tickle() 会卡死在 write 上，整个调度线程停摆。
+    int rt = pipe2(tickle_fds_, O_CLOEXEC | O_NONBLOCK);
     // 成功返回0，失败返回-1
     ASSERT(rt != -1);
 
@@ -65,12 +70,6 @@ IOManager::IOManager(size_t thread_count, bool use_caller, const std::string& na
     event.events = EPOLLIN | EPOLLET;
     // fd 关联管道的读端
     event.data.fd = tickle_fds_[0];
-
-    // 对一个打开的文件描述符执行控制操作
-    // F_SETFL: 获取/设置文件状态标志
-    // ON_NONBLOCK: 让文件描述符变成非阻塞模式，当读不到数据或者写缓冲区满了就马上return, 而不会阻塞等待
-    rt = fcntl(tickle_fds_[0], F_SETFL, O_NONBLOCK);
-    ASSERT(rt != -1);
 
     rt = epoll_ctl(epfd_, EPOLL_CTL_ADD, tickle_fds_[0], &event);
     ASSERT(rt != -1);
@@ -359,13 +358,18 @@ Scheduler* ResolveScheduler(Scheduler* preferred)
 
 void IOManager::tickle()
 {
-    // 没有空闲的线程，就不能tickle
-    if (!hasIdleThreads()) {
-        return;
+    // 有任务来了，就往pipe里发送一个字节的数据，唤醒epoll_wait。
+    // 这里不能用 hasIdleThreads() 早退：检查与写入之间目标线程可能刚好进入 idle，
+    // 早退会让这次唤醒丢失，任务要等到下一次超时（最长 MAX_TIMEOUT）才被执行。
+    // 管道写满（EAGAIN）说明已有未消费的唤醒字节，本次唤醒不会丢，直接忽略即可。
+    ssize_t rt = 0;
+    do {
+        rt = write(tickle_fds_[1], "T", 1);
+    } while (rt < 0 && errno == EINTR);
+    if (rt < 0 && errno != EAGAIN) {
+        // 旧实现用 ASSERT(rt == 1)，EPIPE 等错误会直接把进程 abort
+        ERROR(logger) << "tickle write errno=" << errno << " (" << strerror(errno) << ")";
     }
-    // 有任务来了，就往pipe里发送一个字节的数据，唤醒epoll_wait
-    int rt = write(tickle_fds_[1], "T", 1);
-    ASSERT(rt == 1);
 }
 
 bool IOManager::stopping()
@@ -406,8 +410,10 @@ void IOManager::idle()
             // 停止过程中把轮询间隔压到毫秒级：此时不会再有任务来 tickle，睡满 MAX_TIMEOUT 会拖慢退出
             static const uint64_t MAX_STOPPING_TIMEOUT = 10;
             if (next_timeout != ~0ull) {
-                // 睡眠时间为next_timeout，但不能超过MAX_TIMEOUT
-                next_timeout = (int)next_timeout > MAX_TIMEOUT ? MAX_TIMEOUT : (int)next_timeout;
+                // 睡眠时间为next_timeout，但不能超过MAX_TIMEOUT。
+                // 必须先按 uint64_t 比较再转 int：超大超时直接转 int 会变成负数，
+                // epoll_wait 会把负数当成"无限等待"，定时器就永远不触发了。
+                next_timeout = next_timeout > MAX_TIMEOUT ? MAX_TIMEOUT : next_timeout;
             } else {
                 // 没有定时器就睡眠 MAX_TIMEOUT
                 next_timeout = MAX_TIMEOUT;
@@ -424,11 +430,18 @@ void IOManager::idle()
              */
             StallDetectorMgr::GetInstance()->setOp(StallDetector::OP_EPOLL);
             rt = epoll_wait(epfd_, events, MAX_EVNETS, (int)next_timeout);
-            // 如果由于操作系统中断，就继续执行epoll_wait，成功就跳出去执行任务
-            if (rt < 0 && errno == EINTR) {
-            } else {
+            // 如果由于操作系统中断，就继续执行epoll_wait
+            if (rt >= 0) {
                 break;
             }
+            if (errno == EINTR) {
+                continue;
+            }
+            // epoll_wait 失败（EBADF/EINVAL/ENOMEM 等）如果只是 break，外层 while 会立刻再次
+            // epoll_wait，形成 100% CPU 空转。这里打日志并短暂退避后再试。
+            ERROR(logger) << "epoll_wait(" << epfd_ << ") errno=" << errno << " (" << strerror(errno) << ")";
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            break;
         } while (true);
         StallDetectorMgr::GetInstance()->clearOp();
         StallDetectorMgr::GetInstance()->setIdle(false);
@@ -486,24 +499,26 @@ void IOManager::idle()
 
             int rt2 = epoll_ctl(epfd_, op, fd_ctx->fd, &event);
             if (rt2) {
-                // EBADF/ENOENT: fd 已在其他线程被 close（例如优雅关闭路径），
-                // 内核已自动移除 epoll 事件，需清理用户态计数器，否则 idle 循环无法退出
+                // epoll_ctl 失败（fd 在其他线程被 close/复用、内核资源不足等）时，内核可能已经
+                // 不再监听这个 fd。若只打日志就 continue，等待该事件的协程永远不会被唤醒，
+                // pendding_event_count_ 也不会回落，IOManager::stopping() 就永远不成立。
+                // 因此统一按"事件已失效"处理：唤醒等待者、回落计数、清空用户态事件。
                 if (errno == EBADF || errno == ENOENT) {
                     WARN(logger) << "epoll_ctl(" << epfd_ << "," << op << ", " << fd_ctx->fd << ", " << event.events
                                  << ") errno=" << errno << " (" << strerror(errno) << "), cleaning stale events";
-                    // 触发残留事件并递减计数器，使 stopping() 条件最终满足
-                    if (fd_ctx->events & READ) {
-                        fd_ctx->triggerEvent(READ);
-                        --pendding_event_count_;
-                    }
-                    if (fd_ctx->events & WRITE) {
-                        fd_ctx->triggerEvent(WRITE);
-                        --pendding_event_count_;
-                    }
                 } else {
                     ERROR(logger) << "epoll_ctl(" << epfd_ << "," << op << ", " << fd_ctx->fd << ", " << event.events
-                                  << ") : " << rt2 << " (" << errno << ") (" << strerror(errno) << ")";
+                                  << ") : " << rt2 << " (" << errno << ") (" << strerror(errno) << "), dropping events";
                 }
+                if (fd_ctx->events & READ) {
+                    fd_ctx->triggerEvent(READ);
+                    --pendding_event_count_;
+                }
+                if (fd_ctx->events & WRITE) {
+                    fd_ctx->triggerEvent(WRITE);
+                    --pendding_event_count_;
+                }
+                fd_ctx->events = NONE;
                 continue;
             }
             // 触发真正的事件

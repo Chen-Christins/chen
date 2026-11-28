@@ -392,7 +392,12 @@ bool TimeUtil::IsLeapYear(int year)
 
 bool TimeUtil::IsExpiredMs(uint64_t start_ms, uint64_t ttl_ms)
 {
-    return TimeUtil::GetCurrentMs() >= start_ms + ttl_ms;
+    uint64_t now_ms = TimeUtil::GetCurrentMs();
+    if (now_ms < start_ms) {
+        // 时钟回拨：不能做 now >= start + ttl 的比较（且 start+ttl 本身可能溢出）
+        return false;
+    }
+    return now_ms - start_ms >= ttl_ms;
 }
 
 time_t TimeUtil::GetDayStart(time_t ts_sec, int tz_offset)
@@ -483,6 +488,10 @@ time_t TimeUtil::GetMonthEnd(time_t ts_sec, int tz_offset)
 
 uint64_t TimeUtil::GetNextResetTimeMs(uint64_t base_ms, uint64_t interval_ms)
 {
+    if (interval_ms == 0) {
+        // elapsed / 0 会触发 SIGFPE，直接杀进程
+        return base_ms;
+    }
     uint64_t now_ms = TimeUtil::GetCurrentMs();
     if (now_ms <= base_ms) {
         return base_ms;
@@ -492,7 +501,12 @@ uint64_t TimeUtil::GetNextResetTimeMs(uint64_t base_ms, uint64_t interval_ms)
     if (elapsed % interval_ms == 0) {
         return now_ms;
     }
-    return base_ms + (periods + 1) * interval_ms;
+    uint64_t next = base_ms + (periods + 1) * interval_ms;
+    if (next < base_ms) {
+        // 溢出：退化为一个安全的远期时间，避免回绕成已过去的时间
+        return UINT64_MAX;
+    }
+    return next;
 }
 
 int TimeUtil::GetDayOfWeek(time_t ts_sec, int tz_offset)
