@@ -135,6 +135,11 @@ void Mutex::lock()
             lock.lock();
             --fiber_waiters_;
         } else {
+            if (holder_thread_.load() == static_cast<int64_t>(GetThreadId())) {
+                // 同一条线程：主协程/普通线程在等自己线程上某个协程持有的锁，必然死锁
+                ERROR(LOG_ROOT()) << "chen::Mutex: thread " << GetThreadId() << " blocks on a lock held by fiber "
+                                  << holder_fiber_.load() << " on the same thread, deadlock follows";
+            }
             thread_cv_.wait(lock);
         }
     }

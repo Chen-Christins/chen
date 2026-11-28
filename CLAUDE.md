@@ -173,6 +173,8 @@ Follow `cpp-code-style` skill (`.claude/skills/cpp-code-style/SKILL.md`). Key po
 | `src/Schedule/Schedule.hpp`   | N:M fiber thread pool                                          |
 | `src/Fiber/Fiber.hpp`         | boost.context coroutine                                        |
 | `src/Hook/Hook.hpp`           | Syscall interception for fiber-friendly IO                     |
+| `src/Util/Mutex.hpp`          | Fiber-aware `Mutex` / `RWMutex` (may yield while locked)       |
+| `src/Util/StallDetector.hpp`  | Scheduler thread stall detection (`server.stall_detect_ms`)    |
 | `src/Module.hpp`              | Module base class, lifecycle                                   |
 | `src/Library.hpp`             | dlopen/dlclose wrapper                                         |
 | `src/Config/Config.hpp`       | Typed YAML config with change listeners                        |

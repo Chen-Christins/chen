@@ -9,6 +9,7 @@
 #include "../Fiber/Fiber.hpp"
 #include "../IOManager/IOManager.hpp"
 #include "../Log/Log.hpp"
+#include "../Util/StallDetector.hpp"
 #include "FdManager.hpp"
 
 static chen::Logger::ptr logger = LOG_NAME("system");
@@ -133,12 +134,17 @@ retry:
         errno = EBADF;
         return -1;
     }
+    // 记录当前线程正在做的阻塞操作，线程卡死时 stall 报告里能看到它卡在哪个 syscall
+    const int stall_op =
+        (event == chen::IOManager::READ) ? chen::StallDetector::OP_READ : chen::StallDetector::OP_WRITE;
+    chen::StallDetector::GetInstance()->setOp(stall_op, fd);
     // 这里如果有效，直接返回
     ssize_t n = fun(fd, std::forward<Args>(args)...);
     // 中断状态, 就继续重试
     while (n == -1 && errno == EINTR) {
         n = fun(fd, std::forward<Args>(args)...);
     }
+    chen::StallDetector::GetInstance()->clearOp();
     // 阻塞状态，真的没有数据来
     if (n == -1 && errno == EAGAIN) {
         // 在 addEvent 之前再次检查 fd 是否已被其他线程 close

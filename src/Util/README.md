@@ -87,15 +87,16 @@ Atomic::addFetch(val, 1);                                   // 线程安全自�
 
 ### 序列化 / 类型
 
-| 文件              | 用途                              | 注意                                         |
-|-------------------|-----------------------------------|----------------------------------------------|
-| `string_util.h`   | Format、UrlEncode、Base64、Hex    | —                                            |
-| `json_util.h`     | JsonCpp 的 `Value ↔ string` 包装  | 极简，无文件 I/O                             |
-| `type_util.h`     | `Atoi`/`Atof`/`ToString`/`ToChar` | `Atoi`/`Atof` 不返回错误标志，转换失败抛异常 |
-| `compress_util.h` | Gzip / Zlib 压缩解压              | —                                            |
-| `mutex.h`         | 互斥锁封装                        | 从 `src/Mutex.hpp` 移入，框架基础设施        |
-| `singleton.h`     | 单例模板                          | 从 `src/Singleton.hpp` 移入                  |
-| `env.h`           | 命令行参数解析、环境变量          | 从 `src/Env.hpp` 移入                        |
+| 文件               | 用途                              | 注意                                         |
+|--------------------|-----------------------------------|----------------------------------------------|
+| `string_util.h`    | Format、UrlEncode、Base64、Hex    | —                                            |
+| `json_util.h`      | JsonCpp 的 `Value ↔ string` 包装  | 极简，无文件 I/O                             |
+| `type_util.h`      | `Atoi`/`Atof`/`ToString`/`ToChar` | `Atoi`/`Atof` 不返回错误标志，转换失败抛异常 |
+| `compress_util.h`  | Gzip / Zlib 压缩解压              | —                                            |
+| `mutex.h`          | 互斥锁封装                        | 从 `src/Mutex.hpp` 移入，框架基础设施        |
+| `stall_detector.h` | 调度线程 stall 检测               | 心跳走原子写；空闲在 epoll 的线程不计入      |
+| `singleton.h`      | 单例模板                          | 从 `src/Singleton.hpp` 移入                  |
+| `env.h`            | 命令行参数解析、环境变量          | 从 `src/Env.hpp` 移入                        |
 
 ## 同步原语（Mutex / RWMutex / FiberSemaphore）
 
@@ -131,6 +132,27 @@ void UpdateViews(int64_t id)
 - `RWMutex` 是写者优先：已有写者在等待时，新来的读锁会排队，避免写者被持续的读流量饿死。
 - 锁只在「状态需要跨让出保持独占」时才需要；能用原子变量 / 单写者线程 / 分片就不加锁。
 - 持锁让出会拉长临界区，所有做 IO 的临界区都要考虑是否真的需要互斥——按 key 分片通常比全局锁划算。
+
+## 线程 stall 检测（StallDetector）
+
+`std::mutex` 跨让出、死循环、阻塞在没被 hook 的 syscall 上，表现都是「调度线程不再回到事件循环」。
+`StallDetector` 让这种问题在秒级被发现，而不是等运维重启后再 gdb 猜：
+
+- 每个调度线程在 `Scheduler::run()` 循环里打心跳（`std::atomic` 写，不加锁）；阻塞在 `epoll_wait` 时标记 `idle`，
+  正常空闲不会被误报；被唤醒后立刻恢复心跳。
+- `WorkerRuntime::onHousekeeping`（默认 500ms）调 `check(server.stall_detect_ms)`，默认阈值 2000ms，超时打 WARN：
+
+  ```
+  scheduler thread stall detected:
+  thread 'io_0' (tid=1748853) has not returned to the event loop for 5320ms, fiber=42, last op=read(fd=12)
+  ```
+
+- 同一段 stall 只报一次（恢复心跳后重新计数），避免刷屏。
+- `dump()` 返回所有线程的快照（名字、tid、是否空闲、心跳延迟、当前协程、最后操作），可以直接挂到
+  `/debug/fibers` 这类诊断端点。
+- 配置：`server.stall_detect_ms`，默认 `2000`，设为 `0` 关闭。
+
+`IO`/`sleep`/`connect` 里的 `setOp()` 由 Hook 侧写入（`read fd=N` 之类），说明线程卡在哪个系统调用上。
 
 ## 异步等待（Future）
 

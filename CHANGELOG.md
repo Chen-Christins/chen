@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 可观测性（新增）
+
+- **新增** `chen::StallDetector`（`src/Util/StallDetector.hpp`）：调度线程 stall 检测。每个调度线程在
+  `Scheduler::run()` 里打心跳（原子写，不加锁），`IOManager::idle()` 阻塞在 `epoll_wait` 时标记为空闲；worker 的
+  housekeeping 定时器（默认 500ms）巡检，超过 `server.stall_detect_ms`（默认 2000ms，0 关闭）就打 WARN，包含
+  线程名、tid、停留时长、当前协程 id 和最后一次会阻塞的操作
+  - 同一段 stall 只报一次，恢复心跳后重新计数
+  - `dump()` 返回所有线程快照，可挂到 `/debug/fibers` 这类端点
+  - 这类问题（`std::mutex` 跨让出、阻塞在未 hook 的 syscall、死循环）过去只能靠线上 gdb 事后定位
+- **新增** `test_unit_stalldetector`：阈值判定、空闲豁免、只报一次、`dump()` 内容
+
 ### 并发（新增）
 
 - **新增** `chen::Mutex` / `chen::RWMutex`（`src/Util/Mutex.hpp`）：协程感知的互斥锁与读写锁。等待时协程让出

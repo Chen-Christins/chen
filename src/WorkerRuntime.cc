@@ -23,6 +23,7 @@
 #include "Module/Module.hpp"
 #include "Streams/StaticServiceDiscovery.hpp"
 #include "Util/Env.hpp"
+#include "Util/StallDetector.hpp"
 #include "Util/TimeUtil.hpp"
 
 namespace chen {
@@ -34,6 +35,10 @@ static ConfigVar<uint64_t>::ptr g_drain_timeout_ms =
 
 static ConfigVar<uint64_t>::ptr g_housekeeping_interval_ms =
     Config::Lookup("server.housekeeping_interval_ms", (uint64_t)500, "housekeeping timer interval ms");
+
+static ConfigVar<uint64_t>::ptr g_stall_detect_ms = Config::Lookup("server.stall_detect_ms",
+    (uint64_t)2000,
+    "warn when a scheduler thread stalls longer than this (0 = off)");
 
 static ConfigVar<uint64_t>::ptr g_shutdown_grace_timeout_ms = Config::Lookup("server.shutdown_grace_timeout_ms",
     (uint64_t)3000,
@@ -113,6 +118,15 @@ void WorkerRuntime::run(int ready_fd)
 
 void WorkerRuntime::onHousekeeping()
 {
+    // 巡检调度线程：超过阈值没回到事件循环就报警（std::mutex 跨让出这类问题会在这里现形）
+    const uint64_t stall_detect_ms = g_stall_detect_ms->getValue();
+    if (stall_detect_ms > 0) {
+        const std::string stall_report = StallDetector::GetInstance()->check(stall_detect_ms);
+        if (!stall_report.empty()) {
+            WARN(logger) << "scheduler thread stall detected:\n" << stall_report;
+        }
+    }
+
     // 检查优雅关闭信号：只置标志，真正的关闭在协程里做
     if (kShutdownSignaled.load(std::memory_order_acquire)) {
         if (!is_shutting_down_) {

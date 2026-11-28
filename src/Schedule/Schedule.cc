@@ -3,6 +3,7 @@
 #include "../Hook/Hook.hpp"
 #include "../Log/Log.hpp"
 #include "../Util/Macro.hpp"
+#include "../Util/StallDetector.hpp"
 
 namespace chen {
 
@@ -197,6 +198,9 @@ void Scheduler::run()
     set_hook_enable(true);
     // 设置当前线程调度器
     setThis();
+    // 注册到 stall 检测器：事件循环里打心跳，卡死时由 housekeeping 巡检报出来
+    StallDetector* stall_detector = StallDetector::GetInstance();
+    stall_detector->registerThread(name_);
     // 如果不是user_caller线程，设置主协程为线程主协程
     if (GetThreadId() != root_thread_id_) {
         t_schedule_fiber = Fiber::GetThis().get();
@@ -207,6 +211,7 @@ void Scheduler::run()
 
     FiberAndThread ft;
     while (true) {
+        stall_detector->heartbeat();
         ft.reset();
         bool tickle_me = false;
         bool is_active = false;
@@ -246,6 +251,7 @@ void Scheduler::run()
         // 如果任务是fiber，并且处于可以执行
         if (ft.fiber && (ft.fiber->getState() != Fiber::TERM || ft.fiber->getState() != Fiber::EXCEPT)) {
             // 执行任务
+            stall_detector->setFiber(ft.fiber->getId());
             ft.fiber->swapIn();
             // 任务执行完成，活跃线程就-1
             --active_thread_count_;
@@ -269,6 +275,7 @@ void Scheduler::run()
             // 重置数据ft
             ft.reset();
             // 执行回调函数
+            stall_detector->setFiber(cb_fiber->getId());
             cb_fiber->swapIn();
             // 任务执行完成，活跃线程就-1
             --active_thread_count_;
@@ -307,6 +314,7 @@ void Scheduler::run()
             }
         }
     }
+    stall_detector->unregisterThread();
     // while 循环退出后，idle_fiber 即将析构，但 t_fiber 仍指向它。
     // 将 t_fiber 切回本线程的主协程，避免 ~Fiber() 日志中 GetFiberId() 访问已释放内存。
     if (t_schedule_fiber) {

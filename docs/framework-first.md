@@ -178,6 +178,7 @@
 | ORM       | `src/Orm/README.md`         | XML + Dao                                                                                |
 | 数据结构  | `src/Ds/README.md`          | `EventBus` / `EventDispatcher` / `LruCache`                                              |
 | 指标      | `src/Metrics/README.md`     | `RegistryMgr`                                                                            |
+| 卡顿诊断  | `src/Util/README.md`        | `StallDetector`（调度线程 stall 告警，`server.stall_detect_ms`）                         |
 | 限流      | `src/RateLimiter/README.md` | `RateLimiter` / `ConnLimiter`                                                            |
 | 模块      | `src/Module/README.md`      | `Module` 生命周期                                                                        |
 | 文件监听  | `src/Watcher/README.md`     | `FileWatcher`                                                                            |

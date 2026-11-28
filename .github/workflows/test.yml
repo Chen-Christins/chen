@@ -90,6 +90,7 @@ jobs:
             test_unit_async \
             test_unit_querybuilder \
             test_unit_mutex \
+            test_unit_stalldetector \
             test_unit_ormgen \
             server \
             lifecycle_module \
