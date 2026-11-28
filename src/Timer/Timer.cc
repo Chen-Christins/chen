@@ -40,6 +40,14 @@ Timer::Timer(uint64_t ms, std::function<void()> cb, bool recurring, TimerManager
 
 bool Timer::cancel()
 {
+    // Timer 的持有者可能比 TimerManager 活得更久（例如用户缓存了 Timer::ptr），
+    // 管理器析构后 manager_ 会被置空，这里必须判空，否则就是悬垂解引用。
+    if (!manager_) {
+        if (cb_) {
+            cb_ = nullptr;
+        }
+        return false;
+    }
     std::unique_lock lock(manager_->mutex_);
 
     // 在定时器集合中查找自己（即使 cb_ 已被 listExpiredCb 消费，
@@ -58,6 +66,9 @@ bool Timer::cancel()
 
 bool Timer::refresh()
 {
+    if (!manager_) {
+        return false;
+    }
     std::unique_lock lock(manager_->mutex_);
     if (!cb_) {
         return false;
@@ -81,6 +92,9 @@ bool Timer::reset(uint64_t ms, bool from_now)
     // 如果周期相同，并且不从当前时间开始
     if (ms == ms_ && !from_now) {
         return true;
+    }
+    if (!manager_) {
+        return false;
     }
     std::unique_lock lock(manager_->mutex_);
     if (!cb_) {
@@ -116,6 +130,15 @@ TimerManager::TimerManager()
 
 TimerManager::~TimerManager()
 {
+    // Timer 是 shared_ptr，可能被外部长期持有。管理器析构后它们的 manager_ 会悬垂，
+    // 这里主动断开，配合 Timer::cancel/refresh/reset 的空判避免 use-after-free。
+    std::unique_lock lock(mutex_);
+    for (auto& timer : timers_) {
+        if (timer) {
+            timer->manager_ = nullptr;
+        }
+    }
+    timers_.clear();
 }
 
 Timer::ptr TimerManager::addTimer(uint64_t ms, std::function<void()> cb, bool recurring)
@@ -147,7 +170,7 @@ uint64_t TimerManager::getNextTimer()
 {
     std::shared_lock lock(mutex_);
     // 不触发 onTimerInsertedAtFront
-    tickled_ = false;
+    tickled_.store(false);
     // 如果没有定时器，返回一个最大值
     if (timers_.empty()) {
         return ~0ull;
@@ -216,7 +239,7 @@ void TimerManager::listExpiredCb(std::vector<std::function<void()>>& cbs)
 bool TimerManager::hasTimer()
 {
     std::shared_lock lock(mutex_);
-    return timers_.empty();
+    return !timers_.empty();
 }
 
 size_t TimerManager::getTimerCount()
@@ -236,10 +259,10 @@ void TimerManager::addTimer(Timer::ptr val, std::unique_lock<std::shared_mutex>&
     // 添加到set中，同时拿到添加的位置
     auto it = timers_.insert(val).first;
     // 如果该定时器是超时时间最短，并且没有设置触发onTimerInsertedAtFront
-    bool at_front = (it == timers_.begin() && !tickled_);
+    bool at_front = (it == timers_.begin() && !tickled_.load());
     // 设置触发onTimerInsertedAtFront
     if (at_front) {
-        tickled_ = true;
+        tickled_.store(true);
     }
     lock.unlock();
 

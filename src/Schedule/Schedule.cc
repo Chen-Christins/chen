@@ -249,7 +249,7 @@ void Scheduler::run()
             tickle();
         }
         // 如果任务是fiber，并且处于可以执行
-        if (ft.fiber && (ft.fiber->getState() != Fiber::TERM || ft.fiber->getState() != Fiber::EXCEPT)) {
+        if (ft.fiber && ft.fiber->getState() != Fiber::TERM && ft.fiber->getState() != Fiber::EXCEPT) {
             // 执行任务
             stall_detector->setFiber(ft.fiber->getId());
             ft.fiber->swapIn();
@@ -328,12 +328,12 @@ void Scheduler::run()
 
 void Scheduler::tickle()
 {
-    INFO(logger) << "tickle";
+    DEBUG(logger) << "tickle";
 }
 
 void Scheduler::idle()
 {
-    INFO(logger) << "idle";
+    DEBUG(logger) << "idle";
     while (!stopping()) {
         Fiber::YieldToHold();
     }

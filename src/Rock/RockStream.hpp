@@ -7,6 +7,8 @@
  */
 #pragma once
 
+#include <atomic>
+
 #include "../Socket/SocketStream.hpp"
 #include "../Streams/LoadBalance.hpp"
 #include "RockProtocol.hpp"
@@ -99,6 +101,8 @@ protected:
 
 private:
     RockMessageDecoder::ptr decoder_;
+    /// 为未显式设置 sn 的请求分配连接内唯一序号
+    std::atomic<uint32_t> sn_seed_ = {0};
     request_handler request_handler_;
     notify_handler notify_handler_;
     request_scope_factory request_scope_factory_;

@@ -145,4 +145,24 @@ CHEN_TEST(stringutil, format)
     CHEN_CHECK_EQ(StringUtil::Format("%s", "plain"), std::string("plain"));
 }
 
+CHEN_TEST(stringutil, equals_ignore_case_length_mismatch)
+{
+    // std::equal 三迭代器版本按 a.size() 读取 b，b 更短时会越界读，
+    // 因此必须先比较长度
+    CHEN_CHECK(!StringUtil::EqualsIgnoreCase("GET", "G"));
+    CHEN_CHECK(!StringUtil::EqualsIgnoreCase("G", "GET"));
+    CHEN_CHECK(StringUtil::EqualsIgnoreCase("GET", "get"));
+    CHEN_CHECK(StringUtil::EqualsIgnoreCase("", ""));
+    // 0x80 以上的字节按 unsigned char 处理，不能是 UB
+    CHEN_CHECK(StringUtil::EqualsIgnoreCase(std::string("\xc9", 1), std::string("\xc9", 1)));
+}
+
+CHEN_TEST(stringutil, replace_empty_needle_is_noop)
+{
+    // find 为空时 str.find("") 恒返回 0，旧实现会死循环
+    CHEN_CHECK_EQ(StringUtil::Replace("abc", "", ""), std::string("abc"));
+    CHEN_CHECK_EQ(StringUtil::Replace("abc", "", "x"), std::string("abc"));
+    CHEN_CHECK_EQ(StringUtil::Replace("a-b-c", "-", "_"), std::string("a_b_c"));
+}
+
 CHEN_TEST_MAIN()

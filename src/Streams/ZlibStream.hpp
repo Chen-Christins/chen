@@ -71,6 +71,14 @@ public:
     std::string getResult() const;
     ByteArray::ptr getByteArray();
 
+    /**
+     * @brief 限制解码输出的最大字节数，用于防御解压炸弹（gzip bomb）
+     * @param max_output 最大输出字节数，默认 UINT64_MAX 表示不限制
+     * @note 超限后 decode 返回 Z_DATA_ERROR，已产生的数据丢弃
+     */
+    void setMaxOutput(uint64_t max_output) { max_output_ = max_output; }
+    uint64_t getOutputSize() const { return output_size_; }
+
 private:
     int init(Type type = DEFLATE, int level = DEFAULT_COMPRESSION, int window_bits = 15, int memlevel = 8, Strategy strategy = DEFAULT);
 
@@ -83,6 +91,10 @@ private:
     bool encode_;
     bool free_;
     std::vector<iovec> buffs_;
+    /// 解码累计输出字节数
+    uint64_t output_size_ = 0;
+    /// 解码输出上限
+    uint64_t max_output_ = ~0ull;
 };
 
 } // namespace chen

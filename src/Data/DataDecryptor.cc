@@ -236,8 +236,11 @@ std::vector<uint8_t> DataDecryptor::parseAndDecrypt(const uint8_t* data, size_t 
     }
 
     // 读取元数据长度
-    uint32_t metadata_len = *reinterpret_cast<const uint32_t*>(data);
-    if (size < 4 + metadata_len) {
+    // 注意：4 + metadata_len 会按 uint32 回绕（metadata_len=0xFFFFFFFE 时 4+len==2），
+    // 校验会被绕过并随后越界读 ~4GB，必须改写成不会溢出的比较。
+    uint32_t metadata_len = 0;
+    memcpy(&metadata_len, data, sizeof(metadata_len));
+    if (metadata_len > size - 4) {
         throw std::invalid_argument("Data too small for metadata");
     }
 

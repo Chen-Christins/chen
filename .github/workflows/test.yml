@@ -68,30 +68,11 @@ jobs:
       - name: Build (libchen + unit tests + server + test modules)
         # 只构建门禁需要的目标：完整 Release 构建由 package-sdk-ubuntu.yml 覆盖，
         # 这里缩短反馈时间，也避免历史测试程序（需要端口/数据库）拖慢 CI。
+        # chen_unit_tests 是 tests/CMakeLists.txt 里的聚合目标，新增用例自动纳入。
         run: |
           cmake --build build -j"$(nproc)" --target \
             chen \
-            test_unit_bytearray \
-            test_unit_stringutil \
-            test_unit_config \
-            test_unit_timeutil \
-            test_unit_uri \
-            test_unit_httpparser \
-            test_unit_encryptor \
-            test_unit_http \
-            test_unit_configxml \
-            test_unit_metrics \
-            test_unit_ratelimiter \
-            test_unit_fiber \
-            test_unit_future \
-            test_unit_ssesession \
-            test_unit_tcpdrain \
-            test_unit_httpmetrics \
-            test_unit_async \
-            test_unit_querybuilder \
-            test_unit_mutex \
-            test_unit_stalldetector \
-            test_unit_ormgen \
+            chen_unit_tests \
             server \
             lifecycle_module \
             drain_test_module

@@ -7,6 +7,7 @@
  */
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -164,8 +165,8 @@ private:
     std::shared_mutex mutex_;
     /// 定时器集合
     std::set<Timer::ptr, Timer::Comparator> timers_;
-    /// 是否触发onTimerInsertedAtFront
-    bool tickled_ = false;
+    /// 是否触发onTimerInsertedAtFront（getNextTimer/addTimer 交叉读写，用原子避免数据竞争）
+    std::atomic<bool> tickled_ = {false};
     /// 上次执行的时间
     uint64_t previouse_time_ = 0;
 };

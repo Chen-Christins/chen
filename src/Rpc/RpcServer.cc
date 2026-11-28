@@ -285,6 +285,14 @@ void RpcServer::handleRegister(Protocol::ptr frame, RpcConnection::ptr conn)
     uint32_t func_id = ba->readFuint32();
     uint32_t instance_id = ba->readFuint32();
     uint32_t count = ba->readUint32();
+    // count 来自报文：不校验会直接 reserve 一个巨大值（length_error/bad_alloc），
+    // 或者让后面的循环越界读。上限同时受剩余字节数约束。
+    static constexpr uint32_t MAX_BIND_COUNT = 4096;
+    if (count > MAX_BIND_COUNT || count > ba->getReadSize() / sizeof(uint32_t)) {
+        WARN(logger) << "register failed, invalid bind count=" << count << " remain=" << ba->getReadSize();
+        sendCode(conn, frame->sequence, 400, "invalid bind count");
+        return;
+    }
     std::vector<uint32_t> bind_ids;
     bind_ids.reserve(count);
     for (uint32_t i = 0; i < count; ++i) {

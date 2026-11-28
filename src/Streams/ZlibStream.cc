@@ -177,6 +177,7 @@ int ZlibStream::decode(const iovec* v, const uint64_t& size, bool finish)
                 ivc = &buffs_.back();
             }
 
+            size_t before = ivc->iov_len;
             zstream_.avail_out = buff_size_ - ivc->iov_len;
             zstream_.next_out = (Bytef*)ivc->iov_base + ivc->iov_len;
 
@@ -185,6 +186,12 @@ int ZlibStream::decode(const iovec* v, const uint64_t& size, bool finish)
                 return ret;
             }
             ivc->iov_len = buff_size_ - zstream_.avail_out;
+            // 累计输出并检查上限：解压炸弹可以只用几 KB 输入产生 GB 级输出，
+            // 必须在解压过程中就中止，不能等全部解完再检查。
+            output_size_ += ivc->iov_len - before;
+            if (output_size_ > max_output_) {
+                return Z_DATA_ERROR;
+            }
         } while (zstream_.avail_out == 0);
     }
 

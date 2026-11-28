@@ -390,7 +390,7 @@ public:
     /**
      * @brief 获取数据可读大小
      */
-    size_t getReadSize() const { return size_ - position_; }
+    size_t getReadSize() const { return position_ <= size_ ? size_ - position_ : 0; }
 
     /**
      * @brief 是否为小端序

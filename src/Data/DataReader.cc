@@ -1,5 +1,8 @@
 #include "DataReader.hpp"
 
+#include <algorithm>
+#include <climits>
+#include <cstring>
 #include <fstream>
 #include <memory>
 
@@ -32,9 +35,15 @@ bool DataReader::loadFromFile(const std::string& file_path)
     }
 
     std::streamsize size = file.tellg();
+    // tellg 失败（伪文件/FIFO/文件被并发 truncate）时返回 -1，
+    // 直接拿它构造 vector 会抛 length_error 并逃出本函数。
+    if (size <= 0) {
+        ERROR(logger) << "Failed to get file size: " << file_path;
+        return false;
+    }
     file.seekg(0, std::ios::beg);
 
-    std::vector<uint8_t> buffer(size);
+    std::vector<uint8_t> buffer(static_cast<size_t>(size));
     if (!file.read(reinterpret_cast<char*>(buffer.data()), size)) {
         ERROR(logger) << "Failed to read file: " << file_path;
         return false;
@@ -139,34 +148,65 @@ std::vector<uint8_t> DataReader::_xorDecrypt(const uint8_t* data, size_t size)
 
 std::vector<uint8_t> DataReader::_decompressData(const uint8_t* data, size_t size)
 {
+    if (!data || size == 0) {
+        throw std::runtime_error("Empty compressed data");
+    }
+    if (size > static_cast<size_t>(UINT_MAX)) {
+        throw std::runtime_error("Compressed data too large");
+    }
+
     // 初始化zlib流
     z_stream stream;
+    memset(&stream, 0, sizeof(stream));
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
-    stream.avail_in = size;
+    stream.avail_in = static_cast<uInt>(size);
     stream.next_in = const_cast<Bytef*>(data);
 
     if (inflateInit(&stream) != Z_OK) {
         throw std::runtime_error("Failed to initialize zlib inflate");
     }
 
-    // 估算解压后的大小（压缩数据的4倍）
-    size_t estimated_size = size * 4;
-    std::vector<uint8_t> result(estimated_size);
-    stream.avail_out = estimated_size;
-    stream.next_out = result.data();
+    // 不能只调用一次 inflate(Z_FINISH) 并按 4 倍估算输出：压缩比大于 4:1 的合法数据
+    // （文本、表数据很常见）会得到 Z_BUF_ERROR 并被误判为失败。这里循环扩容到 Z_STREAM_END。
+    static constexpr size_t kMaxDecompressSize = 1024ull * 1024 * 1024; // 1 GiB
+    std::vector<uint8_t> result(std::min<size_t>(std::max<size_t>(size * 2, 4096), kMaxDecompressSize));
+    size_t produced = 0;
 
-    int ret = inflate(&stream, Z_FINISH);
-    if (ret != Z_STREAM_END) {
-        inflateEnd(&stream);
-        throw std::runtime_error("Failed to decompress data");
+    for (;;) {
+        if (produced == result.size()) {
+            if (result.size() >= kMaxDecompressSize) {
+                inflateEnd(&stream);
+                throw std::runtime_error("Decompressed data exceeds limit");
+            }
+            result.resize(std::min<size_t>(result.size() * 2, kMaxDecompressSize));
+        }
+
+        stream.next_out = result.data() + produced;
+        uInt requested = static_cast<uInt>(result.size() - produced);
+        stream.avail_out = requested;
+        uInt before_in = stream.avail_in;
+        int ret = inflate(&stream, Z_NO_FLUSH);
+        size_t got = static_cast<size_t>(requested - stream.avail_out);
+        produced += got;
+
+        if (ret == Z_STREAM_END) {
+            break;
+        }
+        if (ret != Z_OK && ret != Z_BUF_ERROR) {
+            inflateEnd(&stream);
+            throw std::runtime_error("Failed to decompress data");
+        }
+        if (got == 0 && stream.avail_in == before_in) {
+            // 输入耗尽但流未结束：数据被截断，继续循环只会空转
+            inflateEnd(&stream);
+            throw std::runtime_error("Truncated compressed data");
+        }
     }
 
-    size_t actual_size = estimated_size - stream.avail_out;
     inflateEnd(&stream);
-
-    result.resize(actual_size);
+    result.resize(produced);
     return result;
 }
 

@@ -5,6 +5,8 @@
 #include <stdarg.h>
 #include <sys/ioctl.h>
 
+#include <atomic>
+
 #include "../Config/Config.hpp"
 #include "../Fiber/Fiber.hpp"
 #include "../IOManager/IOManager.hpp"
@@ -92,7 +94,8 @@ void set_hook_enable(bool flag)
 
 // 条件定时器的条件
 struct timer_info {
-    int cancelled = 0;
+    // 超时回调在定时器线程里写、等待中的 fiber 在被唤醒后读，必须原子
+    std::atomic<int> cancelled = {0};
 };
 
 /**
@@ -131,8 +134,6 @@ static ssize_t do_io(int fd, OriginFun fun, const char* hook_fun_name, uint32_t 
     }
     // 获取当前类型的超时时间
     uint64_t to = ctx->getTimeout(timeout_so);
-    // 设置超时条件
-    std::shared_ptr<timer_info> tinfo(new timer_info);
     // 慢 IO 诊断：记录本次调用在事件循环里等待的起点（等待结束后与 hook.slow_io_ms 比较）
     bool io_waited = false;
     uint64_t io_wait_begin = 0;
@@ -178,6 +179,16 @@ retry:
 
         // 获取当前的io调度器
         chen::IOManager* iom = chen::IOManager::GetThis();
+        if (!iom) {
+            // hook 已开启但当前线程不在 IOManager 的调度线程里，不能再解引用空指针。
+            // 把 EAGAIN 原样返回给调用方，由上层决定重试时机。
+            ERROR(logger) << hook_fun_name << " fd=" << fd << " no IOManager on current thread";
+            errno = EAGAIN;
+            return -1;
+        }
+        // 每次重试都使用全新的 timer_info：上一次等待遗留的超时回调只持有旧的 weak_ptr，
+        // 旧 tinfo 析构后回调自动失效，不会 cancel 掉新一轮等待在同一个 fd 上注册的事件。
+        std::shared_ptr<timer_info> tinfo(new timer_info);
         // 定时器
         chen::Timer::ptr timer;
         // tinfo的弱指针，可以判断tinfo是否已经销毁
@@ -267,6 +278,10 @@ unsigned int sleep(unsigned int seconds)
     chen::Fiber::ptr fiber = chen::Fiber::GetThis();
     // 获取当前的调度器
     chen::IOManager* iom = chen::IOManager::GetThis();
+    if (!iom) {
+        // 当前线程没有调度器（hook 开关与线程模型不一致时的兜底），退回真实睡眠避免空指针崩溃
+        return sleep_f(seconds);
+    }
 
     iom->addTimer(seconds * 1000, [iom, fiber]() {
         iom->schedule(fiber, -1);
@@ -284,6 +299,9 @@ int usleep(useconds_t usec)
 
     chen::Fiber::ptr fiber = chen::Fiber::GetThis();
     chen::IOManager* iom = chen::IOManager::GetThis();
+    if (!iom) {
+        return usleep_f(usec);
+    }
     iom->addTimer(usec / 1000, [iom, fiber]() {
         iom->schedule(fiber, -1);
     });
@@ -300,6 +318,9 @@ int nanosleep(const struct timespec* req, struct timespec* rem)
     int timeout_ms = req->tv_sec * 1000 + req->tv_nsec / 1000 / 1000;
     chen::Fiber::ptr fiber = chen::Fiber::GetThis();
     chen::IOManager* iom = chen::IOManager::GetThis();
+    if (!iom) {
+        return nanosleep_f(req, rem);
+    }
     iom->addTimer(timeout_ms, [iom, fiber]() {
         iom->schedule(fiber, -1);
     });
@@ -350,6 +371,12 @@ int connect_with_timeout(int fd, const struct sockaddr* addr, socklen_t addrlen,
     }
 
     chen::IOManager* iom = chen::IOManager::GetThis();
+    if (!iom) {
+        // 没有调度器就无法注册可写事件等待；保持 EINPROGRESS 语义，让调用方自己轮询
+        ERROR(logger) << "connect fd=" << fd << " no IOManager on current thread";
+        errno = EINPROGRESS;
+        return -1;
+    }
     chen::Timer::ptr timer;
     std::shared_ptr<timer_info> tinfo(new timer_info);
     std::weak_ptr<timer_info> winfo(tinfo);
@@ -400,6 +427,12 @@ int connect_with_timeout(int fd, const struct sockaddr* addr, socklen_t addrlen,
             ERROR(logger) << "FdCtx missing for fd=" << fd;
         }
         ERROR(logger) << "addEvent errno=" << errno << " (" << strerror(errno) << ")";
+        // addEvent 失败表示这次等待根本没建立起来，不能继续走 getsockopt(SO_ERROR)：
+        // 此时 SO_ERROR 通常为 0，会让调用方误以为 connect 成功了。
+        if (errno == 0) {
+            errno = EIO;
+        }
+        return -1;
     }
 
     int error = 0;
@@ -575,7 +608,7 @@ int fcntl(int fd, int cmd, ... /* arg */)
     case F_GETOWN_EX: {
         struct f_owner_exlock* arg = va_arg(va, struct f_owner_exlock*);
         va_end(va);
-        return fcntl(fd, cmd, arg);
+        return fcntl_f(fd, cmd, arg);
     } break;
     default:
         va_end(va);
@@ -618,8 +651,22 @@ int setsockopt(int sockfd, int level, int optname, const void* optval, socklen_t
         if (optname == SO_RCVTIMEO || optname == SO_SNDTIMEO) {
             chen::FdCtx::ptr ctx = chen::FdMgr::GetInstance()->get(sockfd);
             if (ctx) {
-                const timeval* v = (const timeval*)optval;
-                ctx->setTimeout(optname, v->tv_sec * 1000 + v->tv_usec / 1000);
+                // 必须先校验 optval/optlen 再把指针当 timeval 读：短 optlen 或空指针
+                // （例如调用方按 int 传值）都会越界读内存。
+                if (optval && optlen >= sizeof(struct timeval)) {
+                    const timeval* v = (const timeval*)optval;
+                    uint64_t timeout_ms = 0;
+                    if (v->tv_sec <= 0 && v->tv_usec <= 0) {
+                        // POSIX: {0, 0} 表示清除超时（无限等待），内部统一用 (uint64_t)-1 表示
+                        timeout_ms = (uint64_t)-1;
+                    } else {
+                        timeout_ms = (uint64_t)v->tv_sec * 1000 + v->tv_usec / 1000;
+                    }
+                    ctx->setTimeout(optname, timeout_ms);
+                } else {
+                    WARN(logger) << "setsockopt(" << sockfd << ", " << optname << ") invalid timeout optval=" << optval
+                                 << " optlen=" << optlen;
+                }
             }
         }
     }

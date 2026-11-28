@@ -8,9 +8,12 @@ if (CHEN_BUILD_TESTS)
     # 约定：不依赖网络、不依赖外部配置/数据库，单次运行 < 1s
     # ------------------------------------------------------------------
     # 额外源文件通过 ARGN 传入（如 ORM 生成器需要把 src/Orm 源码一起编进来）
+    # 聚合目标：CI 只构建 chen_unit_tests，新增用例不必再同步 workflow 里的目标清单
+    add_custom_target(chen_unit_tests)
     function(chen_add_unit_test targetname)
         chen_add_executable(${targetname} "${ARGN}" "" "${LIBS}")
         add_test(NAME ${targetname} COMMAND ${targetname})
+        add_dependencies(chen_unit_tests ${targetname})
         set_tests_properties(${targetname} PROPERTIES
                 LABELS "unit"
                 TIMEOUT 60
@@ -19,10 +22,12 @@ if (CHEN_BUILD_TESTS)
 
     chen_add_unit_test(test_unit_bytearray Unit/TestByteArray.cpp)
     chen_add_unit_test(test_unit_stringutil Unit/TestStringUtil.cpp)
+    chen_add_unit_test(test_unit_compressutil Unit/TestCompressUtil.cpp)
     chen_add_unit_test(test_unit_config Unit/TestConfig.cpp)
     chen_add_unit_test(test_unit_timeutil Unit/TestTimeUtil.cpp)
     chen_add_unit_test(test_unit_uri Unit/TestUri.cpp)
     chen_add_unit_test(test_unit_httpparser Unit/TestHttpParser.cpp)
+    chen_add_unit_test(test_unit_multipartparser Unit/TestMultipartParser.cpp)
     chen_add_unit_test(test_unit_encryptor Unit/TestEncryptorUtil.cpp)
     chen_add_unit_test(test_unit_http Unit/TestHttp.cpp)
     chen_add_unit_test(test_unit_configxml Unit/TestConfigXml.cpp)

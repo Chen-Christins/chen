@@ -7,6 +7,8 @@
  */
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -25,7 +27,27 @@ class MultipartParser {
 public:
     typedef std::shared_ptr<MultipartParser> ptr;
 
+    /**
+     * @brief 解析上限
+     *
+     * multipart 解析的输入完全来自对端，所有尺寸都必须有硬上限，
+     * 否则一个构造过的请求就能把工作区内存撑爆（尤其是文本字段要
+     * 攒到下一个 boundary 才能提取）。
+     */
+    struct Limits {
+        size_t max_body_size = 64ull * 1024 * 1024; ///< 整个 body 的累计上限
+        size_t max_header_size = 16ull * 1024;      ///< 单个 part 头部上限
+        size_t max_field_size = 8ull * 1024 * 1024; ///< 单个文本字段上限
+        size_t max_file_size = 64ull * 1024 * 1024; ///< 单个文件上限
+        size_t max_parts = 1024;                    ///< part 数量上限
+        size_t max_boundary_length = 70;            ///< boundary 长度上限（RFC 2046）
+    };
+
     MultipartParser(const std::string& content_type);
+
+    /// 调整解析上限（单测与小流量入口可调小）
+    void setLimits(const Limits& limits) { limits_ = limits; }
+    const Limits& getLimits() const { return limits_; }
 
     // ============ 流式接口 ============
 
@@ -33,7 +55,7 @@ public:
      * @brief 分块喂数据，文件部分实时写入 save_dir
      * @param data 本次收到的数据块
      * @param save_dir 文件保存目录
-     * @return false 表示解析出错
+     * @return false 表示解析出错（超过 Limits、文件名非法、写盘失败等），此后应停止投喂
      */
     bool feed(const std::string& data, const std::string& save_dir);
 
@@ -41,6 +63,9 @@ public:
      * @brief 是否已收到结束边界（--boundary--）
      */
     bool isComplete() const { return complete_; }
+
+    /// 是否已经解析失败（失败后 feed 恒返回 false）
+    bool isError() const { return failed_; }
 
     /// 文本字段
     struct FormField {
@@ -76,7 +101,7 @@ private:
     std::string extractFilename(const std::string& headers);
     std::string extractFieldName(const std::string& headers);
 
-    /// 尝试从缓冲区中解析出一个完整的 part，返回解析的字节数（0 表示数据不够）
+    /// 从缓冲区解析一个 part，返回消费的字节数（0 表示数据不够；失败时 failed_ 为 true）
     size_t tryParsePart(const std::string& save_dir);
 
     /// 当前解析状态
@@ -91,6 +116,9 @@ private:
     std::string buffer_;
     State state_ = PREAMBLE;
     bool complete_ = false;
+    bool failed_ = false;
+    size_t offset_ = 0;         ///< buffer_ 中已消费的前缀长度，避免反复 erase 搬移
+    size_t total_received_ = 0; ///< 累计收到的 body 字节数
 
     // 当前 part
     bool cur_is_file_ = false;
@@ -99,11 +127,14 @@ private:
     std::string cur_content_type_;
     std::ofstream cur_file_stream_;
     std::string cur_field_value_;
+    std::string cur_file_path_; ///< 实际落盘路径（已去掉目录并做重名处理）
     int64_t cur_file_size_ = 0;
 
     // 结果
     std::vector<FormField> fields_;
     std::vector<SavedFileInfo> files_;
+
+    Limits limits_;
 };
 
 } // namespace chen

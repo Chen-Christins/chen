@@ -213,8 +213,12 @@ Message::ptr RockMessageDecoder::parseFrom(Stream::ptr stream)
         ba->setPosition(0);
         if (header.flag & 0x1) { // gizp
             auto zstream = ZlibStream::CreateGzip(false);
+            // 关键：解压过程中就限制输出大小。否则压缩比极高的报文（gzip 炸弹）
+            // 会先把内存打满，再去做 getSize() 检查已经来不及了。
+            zstream->setMaxOutput(g_rock_protocol_max_length->getValue());
             if (zstream->write(ba, -1) != Z_OK) {
-                ERROR(g_logger) << "RockMessageDecoder ungzip error";
+                ERROR(g_logger) << "RockMessageDecoder ungzip error (maybe exceed max length "
+                                << g_rock_protocol_max_length->getValue() << ")";
                 return nullptr;
             }
             if (zstream->flush() != Z_OK) {
