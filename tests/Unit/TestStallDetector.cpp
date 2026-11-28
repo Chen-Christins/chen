@@ -26,7 +26,7 @@ bool Contains(const std::string& text, const std::string& needle)
 
 CHEN_TEST(stall, detects_stalled_thread)
 {
-    StallDetector* detector = StallDetector::GetInstance();
+    StallDetector* detector = chen::StallDetectorMgr::GetInstance();
     detector->registerThread("unit_stalled");
     CHEN_CHECK_EQ(detector->threadCount(), 1u);
 
@@ -45,7 +45,7 @@ CHEN_TEST(stall, detects_stalled_thread)
 
 CHEN_TEST(stall, reports_once_per_episode)
 {
-    StallDetector* detector = StallDetector::GetInstance();
+    StallDetector* detector = chen::StallDetectorMgr::GetInstance();
     detector->registerThread("unit_once");
     detector->heartbeat();
     usleep(20 * 1000);
@@ -64,7 +64,7 @@ CHEN_TEST(stall, reports_once_per_episode)
 
 CHEN_TEST(stall, idle_thread_is_ignored)
 {
-    StallDetector* detector = StallDetector::GetInstance();
+    StallDetector* detector = chen::StallDetectorMgr::GetInstance();
     detector->registerThread("unit_idle");
     detector->setIdle(true);
     usleep(20 * 1000);
@@ -79,7 +79,7 @@ CHEN_TEST(stall, idle_thread_is_ignored)
 
 CHEN_TEST(stall, dump_contains_thread_state)
 {
-    StallDetector* detector = StallDetector::GetInstance();
+    StallDetector* detector = chen::StallDetectorMgr::GetInstance();
     detector->registerThread("unit_dump");
     detector->setOp(StallDetector::OP_READ, 12);
     detector->setFiber(99);
@@ -97,7 +97,7 @@ CHEN_TEST(stall, dump_contains_thread_state)
 
 CHEN_TEST(stall, zero_threshold_disables_check)
 {
-    StallDetector* detector = StallDetector::GetInstance();
+    StallDetector* detector = chen::StallDetectorMgr::GetInstance();
     detector->registerThread("unit_disabled");
     usleep(20 * 1000);
     CHEN_CHECK(detector->check(0).empty());

@@ -12,13 +12,12 @@
  */
 #pragma once
 
-#include <atomic>
-#include <cstdint>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 
 #include "Noncopyable.hpp"
+#include "Singleton.hpp"
 
 namespace chen {
 
@@ -39,7 +38,7 @@ public:
         OP_WAIT_LOCK,
     };
 
-    static StallDetector* GetInstance();
+    ~StallDetector();
 
     static const char* opName(int op);
 
@@ -92,12 +91,12 @@ public:
     size_t threadCount() const;
 
 private:
-    StallDetector();
-    ~StallDetector();
 
     /// 实现细节：每个线程一块状态（定义在 .cc，这里只存不透明指针）
     mutable std::mutex mutex_;
     std::unordered_map<int64_t, void*> threads_;
 };
+
+using StallDetectorMgr = Singleton<StallDetector>;
 
 } // namespace chen

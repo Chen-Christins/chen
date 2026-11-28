@@ -121,7 +121,7 @@ void WorkerRuntime::onHousekeeping()
     // 巡检调度线程：超过阈值没回到事件循环就报警（std::mutex 跨让出这类问题会在这里现形）
     const uint64_t stall_detect_ms = g_stall_detect_ms->getValue();
     if (stall_detect_ms > 0) {
-        const std::string stall_report = StallDetector::GetInstance()->check(stall_detect_ms);
+        const std::string stall_report = StallDetectorMgr::GetInstance()->check(stall_detect_ms);
         if (!stall_report.empty()) {
             WARN(logger) << "scheduler thread stall detected:\n" << stall_report;
         }

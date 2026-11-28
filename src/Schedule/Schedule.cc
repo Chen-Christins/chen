@@ -199,7 +199,7 @@ void Scheduler::run()
     // 设置当前线程调度器
     setThis();
     // 注册到 stall 检测器：事件循环里打心跳，卡死时由 housekeeping 巡检报出来
-    StallDetector* stall_detector = StallDetector::GetInstance();
+    StallDetector* stall_detector = StallDetectorMgr::GetInstance();
     stall_detector->registerThread(name_);
     // 如果不是user_caller线程，设置主协程为线程主协程
     if (GetThreadId() != root_thread_id_) {

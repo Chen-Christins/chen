@@ -1,16 +1,10 @@
-/**
- * @file StallDetector.cc
- * @brief 调度线程 stall 检测
- * @author Christins
- * @date 2026-11-28
- * @copyright GPL-3.0
- */
 #include "StallDetector.hpp"
 
 #include "TimeUtil.hpp"
 #include "Util.hpp"
 
 #include <vector>
+#include <atomic>
 
 namespace chen {
 
@@ -39,21 +33,13 @@ thread_local StallThreadState* t_state = nullptr;
 
 } // namespace
 
-StallDetector::StallDetector() = default;
-
 StallDetector::~StallDetector()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard lock(mutex_);
     for (auto& item : threads_) {
         delete static_cast<StallThreadState*>(item.second);
     }
     threads_.clear();
-}
-
-StallDetector* StallDetector::GetInstance()
-{
-    static StallDetector instance;
-    return &instance;
 }
 
 const char* StallDetector::opName(int op)
@@ -87,7 +73,7 @@ void StallDetector::registerThread(const std::string& name)
     StallThreadState* state = new StallThreadState();
     state->name = name;
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard lock(mutex_);
         threads_[static_cast<int64_t>(GetThreadId())] = state;
     }
     t_state = state;
@@ -99,7 +85,7 @@ void StallDetector::unregisterThread()
         return;
     }
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard lock(mutex_);
         auto it = threads_.find(static_cast<int64_t>(GetThreadId()));
         if (it != threads_.end()) {
             delete static_cast<StallThreadState*>(it->second);
@@ -163,7 +149,7 @@ std::string StallDetector::check(uint64_t warn_ms)
     const uint64_t now = TimeUtil::GetCurrentMs();
     std::vector<std::string> lines;
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard lock(mutex_);
         for (auto& item : threads_) {
             StallThreadState* state = static_cast<StallThreadState*>(item.second);
             if (state->idle.load()) {
@@ -208,7 +194,7 @@ std::string StallDetector::dump() const
     const uint64_t now = TimeUtil::GetCurrentMs();
     std::vector<std::string> lines;
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard lock(mutex_);
         for (const auto& item : threads_) {
             const StallThreadState* state = static_cast<const StallThreadState*>(item.second);
             const uint64_t last = state->last_ping.load();
@@ -236,7 +222,7 @@ std::string StallDetector::dump() const
 
 size_t StallDetector::threadCount() const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard lock(mutex_);
     return threads_.size();
 }
 

@@ -400,7 +400,7 @@ void IOManager::idle()
 
         int rt = 0;
         // 阻塞在 epoll_wait 属于正常空闲，不参与 stall 判定；被唤醒后立即恢复心跳
-        StallDetector::GetInstance()->setIdle(true);
+        StallDetectorMgr::GetInstance()->setIdle(true);
         do {
             static const int MAX_TIMEOUT = 3000;
             // 停止过程中把轮询间隔压到毫秒级：此时不会再有任务来 tickle，睡满 MAX_TIMEOUT 会拖慢退出
@@ -422,7 +422,7 @@ void IOManager::idle()
              * 2. 关注的 soket 有数据来了
              * 3. 通过 tickle 往 pipe 里发数据，表明有任务来了
              */
-            StallDetector::GetInstance()->setOp(StallDetector::OP_EPOLL);
+            StallDetectorMgr::GetInstance()->setOp(StallDetector::OP_EPOLL);
             rt = epoll_wait(epfd_, events, MAX_EVNETS, (int)next_timeout);
             // 如果由于操作系统中断，就继续执行epoll_wait，成功就跳出去执行任务
             if (rt < 0 && errno == EINTR) {
@@ -430,8 +430,8 @@ void IOManager::idle()
                 break;
             }
         } while (true);
-        StallDetector::GetInstance()->clearOp();
-        StallDetector::GetInstance()->setIdle(false);
+        StallDetectorMgr::GetInstance()->clearOp();
+        StallDetectorMgr::GetInstance()->setIdle(false);
 
         // 获取已经超时的任务
         std::vector<std::function<void()>> cbs;
