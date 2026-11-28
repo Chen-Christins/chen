@@ -112,7 +112,9 @@ H2 用例用 `CHEN_IT_PROTO=http2` 选择协议；如果本机 curl 不带 HTTP/
 CTest 记为 **Skipped** 而不是失败。
 
 两个用例都会请求 `/drain/metrics`，断言 Prometheus 文本里出现 `http_requests_total`、`/drain/fast`
-的 `status="200"` 标签组合与 `http_requests_in_flight`，用来确认 HTTP 指标与真实请求链路是打通的。
+的 `status="200"` 标签组合与 `http_requests_in_flight`，用来确认 HTTP 指标与真实请求链路是打通的；
+也会请求 `/debug/fibers`（由 `RegisterDiagnosticsServlets()` 注册），断言返回里有 `threads`、`tid`、
+`last_ping_ms`，确认调度线程快照能真的从 HTTP 出口吐出来。
 
 WS/Rock/RPC/Game 的 drain 边界见 [`module-lifecycle.md`](module-lifecycle.md)；它们的在途计数逻辑由
 `test_unit_tcpdrain` 守着，目前没有客户端级集成用例。

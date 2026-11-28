@@ -16,6 +16,7 @@
 
 #include "src/Application.hpp"
 #include "src/Http/HttpServer.hpp"
+#include "src/Http/DiagnosticsServlet.hpp"
 #include "src/Http/MetricsServlet.hpp"
 #include "src/Http/SSEServlet.hpp"
 #include "src/Http/Servlet.hpp"
@@ -196,8 +197,10 @@ bool DrainModule::onServerReady()
         dispatch->addServlet("/drain/sse", std::make_shared<DrainSseServlet>());
         // 指标采集路由：集成用例借此断言 HTTP 层真的打了点
         chen::http::RegisterMetricsServlet(http_server, "/drain/metrics");
+        // 诊断路由：集成用例断言 /debug/fibers 能把调度线程快照吐出来
+        chen::http::RegisterDiagnosticsServlets(http_server, "/debug");
         ++registered;
-        INFO(logger) << "DrainModule registered /drain/{slow,fast,stream,sse,metrics} on server="
+        INFO(logger) << "DrainModule registered /drain/{slow,fast,stream,sse,metrics} and /debug/fibers on server="
                      << http_server->getName() << " type=" << http_server->getType();
     }
 

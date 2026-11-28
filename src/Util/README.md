@@ -148,8 +148,8 @@ void UpdateViews(int64_t id)
   ```
 
 - 同一段 stall 只报一次（恢复心跳后重新计数），避免刷屏。
-- `dump()` 返回所有线程的快照（名字、tid、是否空闲、心跳延迟、当前协程、最后操作），可以直接挂到
-  `/debug/fibers` 这类诊断端点。
+- `dump()` 返回所有线程的快照（文本，适合日志）；`dumpJson()` 返回同样内容的 JSON 数组，
+  `RegisterDiagnosticsServlets()` 已经把 `GET /debug/fibers` 接上（见 `src/Http/README.md`）。
 - 配置：`server.stall_detect_ms`，默认 `2000`，设为 `0` 关闭。
 
 `IO`/`sleep`/`connect` 里的 `setOp()` 由 Hook 侧写入（`read fd=N` 之类），说明线程卡在哪个系统调用上。

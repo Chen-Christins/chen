@@ -3,6 +3,7 @@
 #include "TimeUtil.hpp"
 #include "Util.hpp"
 
+#include <sstream>
 #include <vector>
 #include <atomic>
 
@@ -217,6 +218,36 @@ std::string StallDetector::dump() const
         }
         out += lines[i];
     }
+    return out;
+}
+
+std::string StallDetector::dumpJson() const
+{
+    const uint64_t now = TimeUtil::GetCurrentMs();
+    std::vector<std::string> items;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (const auto& item : threads_) {
+            const StallThreadState* state = static_cast<const StallThreadState*>(item.second);
+            const uint64_t last = state->last_ping.load();
+            const uint64_t age = (last != 0 && now >= last) ? now - last : 0;
+            std::ostringstream oss;
+            oss << "{\"tid\":" << item.first << ",\"name\":\"" << state->name << "\""
+                << ",\"idle\":" << (state->idle.load() ? "true" : "false") << ",\"last_ping_ms\":" << age
+                << ",\"fiber\":" << state->fiber_id.load() << ",\"op\":\"" << opName(state->op.load()) << "\""
+                << ",\"fd\":" << state->fd.load() << "}";
+            items.push_back(oss.str());
+        }
+    }
+
+    std::string out = "[";
+    for (size_t i = 0; i < items.size(); ++i) {
+        if (i != 0) {
+            out += ",";
+        }
+        out += items[i];
+    }
+    out += "]";
     return out;
 }
 

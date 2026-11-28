@@ -186,6 +186,16 @@ METRICS_BODY="$(curl "${CURL_OPTS[@]}" -s --max-time 5 "http://127.0.0.1:${PORT}
 [[ "${METRICS_BODY}" == *"http_requests_in_flight"* ]] || fail "metrics missing http_requests_in_flight"
 log "http metrics ok"
 
+# ---------------------------------------------------------------- 诊断端点
+# /debug/fibers 走 StallDetector::dumpJson()，字段与线程名由框架注册
+DEBUG_RC=0
+DEBUG_BODY="$(curl "${CURL_OPTS[@]}" -s --max-time 5 "http://127.0.0.1:${PORT}/debug/fibers")" || DEBUG_RC=$?
+[[ ${DEBUG_RC} -eq 0 ]] || fail "debug fibers request failed (curl exit=${DEBUG_RC})"
+[[ "${DEBUG_BODY}" == *'"threads"'* ]] || fail "debug fibers missing threads field"
+[[ "${DEBUG_BODY}" == *'"tid"'* ]] || fail "debug fibers missing thread snapshot"
+[[ "${DEBUG_BODY}" == *'"last_ping_ms"'* ]] || fail "debug fibers missing last_ping_ms"
+log "debug fibers ok"
+
 # ---------------------------------------------------------------- 在途慢请求 + SIGHUP
 log "sending slow request (800ms) and SIGHUP mid-flight"
 curl "${CURL_OPTS[@]}" -s --max-time 20 -o "${TMP_DIR}/slow.body" -w '%{http_code}' \

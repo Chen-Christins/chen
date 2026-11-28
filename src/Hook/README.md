@@ -79,3 +79,6 @@ Scheduler 的工作线程默认开启 Hook（`IOManager::schedule()` 提交的�
 - `close()` 在 `t_hook_enable=false` 时也会清理 `FdMgr` 并 `cancelAll`，避免 fd 复用时残留等待者。
 - 连接超时、读写超时来自 `FdCtx::getTimeout()`（`SO_RCVTIMEO` / `SO_SNDTIMEO`），到期通过
   `cancelEvent()` 唤醒等待协程并返回 `ETIMEDOUT`。
+- 慢 IO 诊断：`hook.slow_io_ms`（默认 `0` 关闭）。开启后，一次被 hook 的 read/write 在事件循环里等待
+  超过该阈值就打 WARN，例如 `read fd=12 waited 5320ms`（带 `(timeout or error)` 表示是超时/出错返回的）。
+  长连接空闲读天然会等很久，所以默认关闭，排查慢后端时再打开。

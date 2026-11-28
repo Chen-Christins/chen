@@ -147,6 +147,27 @@ int32_t handle(chen::http::HttpRequest::ptr req,
   避免 404 扫描把指标基数打爆；`http.metrics.enabled=false` 可关掉总量与耗时（在途计数仍维护）
 - 指标注册在进程级 Registry，用 `MetricsServlet` 挂 `/metrics` 即可采集（见 `src/Metrics/README.md`）
 
+## 诊断端点（可选）
+
+`RegisterDiagnosticsServlets(server, prefix)`（`src/Http/DiagnosticsServlet.hpp`）把运行时诊断挂到指定 HttpServer，
+**只建议挂内网/admin 端口**：
+
+```cpp
+// 在模块的 onServerReady() 里
+chen::http::RegisterDiagnosticsServlets(http_server, "/debug");
+```
+
+当前提供 `GET /debug/fibers`，返回所有调度线程的快照（数据来自 `StallDetector::dumpJson()`）：
+
+```json
+{"thread_count":3,"threads":[
+  {"tid":1748852,"name":"main","idle":true,"last_ping_ms":0,"fiber":0,"op":"epoll_wait","fd":-1},
+  {"tid":1748853,"name":"io_0","idle":false,"last_ping_ms":4210,"fiber":42,"op":"none","fd":-1}]}
+```
+
+- `last_ping_ms` 是「距离上次回到事件循环」的毫秒数，配合 `server.stall_detect_ms` 看谁被卡住
+- `op`/`fd` 是最后一次会阻塞的系统调用，`none` 说明卡在非 syscall 的地方（通常是锁或纯 CPU 循环）
+
 ## WebSocket
 
 - `WSConnection` 处理升级握手和帧读写

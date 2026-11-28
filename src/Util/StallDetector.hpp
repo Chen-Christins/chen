@@ -88,6 +88,13 @@ public:
      */
     std::string dump() const;
 
+    /**
+     * @brief 所有已注册线程的快照（JSON 数组）
+     * @details 元素字段：tid、name、idle、last_ping_ms、fiber、op、fd。
+     *          可直接拼进 /debug/fibers 这类诊断端点的响应体。
+     */
+    std::string dumpJson() const;
+
     size_t threadCount() const;
 
 private:

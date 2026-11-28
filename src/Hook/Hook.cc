@@ -10,6 +10,7 @@
 #include "../IOManager/IOManager.hpp"
 #include "../Log/Log.hpp"
 #include "../Util/StallDetector.hpp"
+#include "../Util/TimeUtil.hpp"
 #include "FdManager.hpp"
 
 static chen::Logger::ptr logger = LOG_NAME("system");
@@ -17,6 +18,9 @@ static chen::Logger::ptr logger = LOG_NAME("system");
 namespace chen {
 
 static ConfigVar<int>::ptr g_tcp_connect_timeout = Config::Lookup("tcp.connect.timeout", 5000, "tcp connect timeout");
+
+static ConfigVar<uint64_t>::ptr g_slow_io_ms =
+    Config::Lookup("hook.slow_io_ms", (uint64_t)0, "WARN when a hooked read/write waits longer than this ms (0 = off)");
 
 static thread_local bool t_hook_enable = false;
 
@@ -129,6 +133,24 @@ static ssize_t do_io(int fd, OriginFun fun, const char* hook_fun_name, uint32_t 
     uint64_t to = ctx->getTimeout(timeout_so);
     // 设置超时条件
     std::shared_ptr<timer_info> tinfo(new timer_info);
+    // 慢 IO 诊断：记录本次调用在事件循环里等待的起点（等待结束后与 hook.slow_io_ms 比较）
+    bool io_waited = false;
+    uint64_t io_wait_begin = 0;
+    auto warn_slow_io = [&](ssize_t result) {
+        if (!io_waited) {
+            return;
+        }
+        const uint64_t slow_io_ms = chen::g_slow_io_ms->getValue();
+        if (slow_io_ms == 0) {
+            return;
+        }
+        const uint64_t elapsed = chen::TimeUtil::GetCurrentMs() - io_wait_begin;
+        if (elapsed < slow_io_ms) {
+            return;
+        }
+        WARN(logger) << hook_fun_name << " fd=" << fd << " waited " << elapsed << "ms"
+                     << (result < 0 ? " (timeout or error)" : "");
+    };
 retry:
     if (ctx->isClose()) {
         errno = EBADF;
@@ -203,6 +225,10 @@ retry:
              *  1）超时了，timer cancelEvent triggerEvent会唤醒回来
              *  2）addEvent数据回来了
              */
+            if (!io_waited) {
+                io_waited = true;
+                io_wait_begin = chen::TimeUtil::GetCurrentMs();
+            }
             chen::Fiber::YieldToHold();
             // 回来了还有定时器就取消，
             if (timer) {
@@ -212,12 +238,15 @@ retry:
             // 从定时任务唤醒，超时失败
             if (tinfo->cancelled) {
                 errno = tinfo->cancelled;
+                warn_slow_io(-1);
                 return -1;
             }
             // 数据来了，就去操作
             goto retry;
         }
     }
+
+    warn_slow_io(n);
     return n;
 }
 

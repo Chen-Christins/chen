@@ -89,8 +89,15 @@ CHEN_TEST(stall, dump_contains_thread_state)
     CHEN_CHECK(Contains(dump, "fiber=99"));
     CHEN_CHECK(Contains(dump, "read(fd=12)"));
 
+    const std::string json = detector->dumpJson();
+    CHEN_CHECK(Contains(json, "\"name\":\"unit_dump\""));
+    CHEN_CHECK(Contains(json, "\"fiber\":99"));
+    CHEN_CHECK(Contains(json, "\"op\":\"read\""));
+    CHEN_CHECK(Contains(json, "\"fd\":12"));
+
     detector->clearOp();
     CHEN_CHECK(!Contains(detector->dump(), "read(fd=12)"));
+    CHEN_CHECK(Contains(detector->dumpJson(), "\"op\":\"none\""));
 
     detector->unregisterThread();
 }

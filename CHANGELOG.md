@@ -13,7 +13,11 @@ All notable changes to this project will be documented in this file.
   - 同一段 stall 只报一次，恢复心跳后重新计数
   - `dump()` 返回所有线程快照，可挂到 `/debug/fibers` 这类端点
   - 这类问题（`std::mutex` 跨让出、阻塞在未 hook 的 syscall、死循环）过去只能靠线上 gdb 事后定位
-- **新增** `test_unit_stalldetector`：阈值判定、空闲豁免、只报一次、`dump()` 内容
+- **新增** `test_unit_stalldetector`：阈值判定、空闲豁免、只报一次、`dump()`/`dumpJson()` 内容
+- **新增** 诊断端点 `RegisterDiagnosticsServlets()`（`src/Http/DiagnosticsServlet.hpp`）：`GET /debug/fibers`
+  返回所有调度线程的 JSON 快照（tid/name/idle/last_ping_ms/fiber/op/fd），直接复用 `StallDetector::dumpJson()`
+- **新增** 慢 IO 诊断 `hook.slow_io_ms`（默认 0 关闭）：被 hook 的 read/write 等待超阈值时打 WARN，
+  带 fd 与等待时长，排查慢后端/慢客户端
 
 ### 并发（新增）
 
